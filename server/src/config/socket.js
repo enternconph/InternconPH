@@ -1,36 +1,45 @@
 import { Server } from 'socket.io';
+import jwt from 'jsonwebtoken';
+import { corsOriginCallback } from './cors.js';
 
 let io = null;
 
 export function initSocket(httpServer) {
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
-    : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
-
   io = new Server(httpServer, {
     cors: {
-      origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
-          return callback(null, true);
-        }
-        if (process.env.NODE_ENV !== 'production') {
-          return callback(null, true);
-        }
-        return callback(new Error('Not allowed by CORS'));
-      },
+      origin: corsOriginCallback,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
     }
   });
 
-  io.on('connection', (socket) => {
-    // console.log(`[Socket.IO] Client connected: ${socket.id}`);
+  // Cross-origin & authenticated handshake verification
+  io.use((socket, next) => {
+    const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace('Bearer ', '');
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'internconph_jwt_secret_2026_super_key');
+        socket.user = decoded;
+      } catch (err) {
+        console.warn('[Socket.IO Auth]', err.message);
+      }
+    }
+    next();
+  });
 
+  io.on('connection', (socket) => {
+    // Auto-join entity rooms based on verified socket JWT claims
+    if (socket.user) {
+      if (socket.user.user_id) socket.join(`user_${socket.user.user_id}`);
+      if (socket.user.institution_id) socket.join(`inst_${socket.user.institution_id}`);
+      if (socket.user.org_id) socket.join(`org_${socket.user.org_id}`);
+      if (socket.user.student_id) socket.join(`student_${socket.user.student_id}`);
+    }
+
+    // Keep existing manual room joining working for backwards compatibility / dynamic rooms
     socket.on('join_room', (room) => {
       if (room) {
         socket.join(room);
-        // console.log(`[Socket.IO] ${socket.id} joined room: ${room}`);
       }
     });
 
@@ -40,9 +49,7 @@ export function initSocket(httpServer) {
       }
     });
 
-    socket.on('disconnect', () => {
-      // console.log(`[Socket.IO] Client disconnected: ${socket.id}`);
-    });
+    socket.on('disconnect', () => {});
   });
 
   return io;

@@ -13,25 +13,7 @@ import { createSession, revokeSession, getSessionCookieOptions } from '../utils/
 
 const router = express.Router();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const UPLOADS_DIR = path.resolve(__dirname, '../../uploads');
-
-// Multer storage helper for canonical uploads subfolder
-const createStorage = (subfolder) => multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = path.join(UPLOADS_DIR, subfolder);
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
-  }
-});
+import { getUploadStorage, saveUploadedFile } from '../utils/upload.helper.js';
 
 const documentFileFilter = (req, file, cb) => {
   const allowedExtensions = /pdf|doc|docx|xls|xlsx|jpg|jpeg|png|webp/;
@@ -43,7 +25,7 @@ const documentFileFilter = (req, file, cb) => {
 };
 
 const orgUpload = multer({
-  storage: createStorage('orgs'),
+  storage: getUploadStorage('orgs'),
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB limit per file
   fileFilter: documentFileFilter
 }).fields([
@@ -55,7 +37,7 @@ const orgUpload = multer({
 ]);
 
 const instUpload = multer({
-  storage: createStorage('institutions'),
+  storage: getUploadStorage('institutions'),
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB limit per file
   fileFilter: documentFileFilter
 }).fields([
@@ -552,6 +534,25 @@ const getSessionProfileHandler = async (req, res) => {
 
 router.get('/me', verifyToken, getSessionProfileHandler);
 router.get('/session', verifyToken, getSessionProfileHandler);
+
+// GET /api/auth/socket-token & /api/socket-token - 12h JWT for Cross-Origin WebSockets
+router.get('/socket-token', verifyToken, (req, res) => {
+  const user = req.user;
+  const token = jwt.sign(
+    {
+      user_id: user.user_id,
+      role: user.role_name || user.role,
+      role_name: user.role_name || user.role,
+      institution_id: user.institution_id || null,
+      org_id: user.org_id || null,
+      student_id: user.student_id || null
+    },
+    process.env.JWT_SECRET || 'internconph_jwt_secret_2026_super_key',
+    { expiresIn: '12h' }
+  );
+
+  return res.json({ success: true, token });
+});
 
 // POST /api/auth/register/student (Student via Institution Passcode)
 router.post('/register/student', async (req, res) => {
@@ -1051,7 +1052,7 @@ router.post('/register/organization', orgUpload, async (req, res) => {
       for (const item of docMapping) {
         if (req.files[item.field] && req.files[item.field][0]) {
           const file = req.files[item.field][0];
-          const webPath = `/uploads/orgs/${file.filename}`;
+          const webPath = await saveUploadedFile(file, 'orgs');
           await connection.query(
             `INSERT INTO organization_documents (
               organization_id, document_type, document_name, file_path, file_name, verified, uploaded_at
@@ -1197,7 +1198,7 @@ router.post('/register/institution', instUpload, async (req, res) => {
     // 4. Save uploaded softcopy legal documents
     if (req.files && req.files.accreditation_file && req.files.accreditation_file[0]) {
       const file = req.files.accreditation_file[0];
-      const webPath = `/uploads/institutions/${file.filename}`;
+      const webPath = await saveUploadedFile(file, 'institutions');
       await connection.query(
         `INSERT INTO institution_documents (
           institution_id, document_type, document_name, file_path, file_name, verified, uploaded_at
@@ -1220,7 +1221,7 @@ router.post('/register/institution', instUpload, async (req, res) => {
 
     if (req.files && req.files.other_doc_file && req.files.other_doc_file[0]) {
       const otherFile = req.files.other_doc_file[0];
-      const otherWebPath = `/uploads/institutions/${otherFile.filename}`;
+      const otherWebPath = await saveUploadedFile(otherFile, 'institutions');
       await connection.query(
         `INSERT INTO institution_documents (
           institution_id, document_type, document_name, file_path, file_name, verified, uploaded_at

@@ -18,20 +18,10 @@ if (!fs.existsSync(AVATARS_DIR)) {
   fs.mkdirSync(AVATARS_DIR, { recursive: true });
 }
 
-// Multer storage for profile avatars
-const avatarStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, AVATARS_DIR);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    const uniqueName = `avatar-${req.user?.user_id || 'u'}-${Date.now()}${ext}`;
-    cb(null, uniqueName);
-  }
-});
+import { getUploadStorage, saveUploadedFile } from '../utils/upload.helper.js';
 
 const avatarUpload = multer({
-  storage: avatarStorage,
+  storage: getUploadStorage('avatars'),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|webp|gif/;
@@ -238,7 +228,7 @@ router.post('/avatar', verifyToken, avatarUpload.single('avatar'), async (req, r
       return res.status(400).json({ success: false, message: 'No image file uploaded.' });
     }
 
-    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    const avatarUrl = await saveUploadedFile(req.file, 'avatars');
     const userId = req.user.user_id;
 
     await pool.query('UPDATE users SET avatar_url = ? WHERE user_id = ?', [avatarUrl, userId]);

@@ -47,14 +47,12 @@ export function getUserAgent(req) {
  * Get standard cookie configuration
  */
 export function getSessionCookieOptions(req) {
-  const isProduction = process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true';
-  const isHttps = Boolean(req && (req.secure || req.headers['x-forwarded-proto'] === 'https'));
-  const useSecure = isProduction || isHttps;
+  const isSecure = process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true' || Boolean(req && (req.secure || req.headers?.['x-forwarded-proto'] === 'https'));
 
   return {
     httpOnly: true,
-    secure: useSecure,
-    sameSite: process.env.COOKIE_SAME_SITE || 'lax',
+    secure: isSecure,
+    sameSite: 'lax',
     path: '/',
     maxAge: ABSOLUTE_LIFETIME_DAYS * 24 * 60 * 60 * 1000 // 7 days in ms
   };

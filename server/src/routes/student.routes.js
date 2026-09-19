@@ -11,26 +11,7 @@ import { sendNotification } from '../utils/notification.helper.js';
 import { generateAiSkillsRecommendations } from '../services/aiRecommendation.service.js';
 import { PROGRAM_SKILLS_CATALOG } from '../data/programSkillsData.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const PORTFOLIO_UPLOADS_DIR = path.resolve(__dirname, '../../uploads/portfolio');
-if (!fs.existsSync(PORTFOLIO_UPLOADS_DIR)) {
-  fs.mkdirSync(PORTFOLIO_UPLOADS_DIR, { recursive: true });
-}
-
-const portfolioStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    if (!fs.existsSync(PORTFOLIO_UPLOADS_DIR)) {
-      fs.mkdirSync(PORTFOLIO_UPLOADS_DIR, { recursive: true });
-    }
-    cb(null, PORTFOLIO_UPLOADS_DIR);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, `portfolio-${uniqueSuffix}${ext}`);
-  }
-});
+import { getUploadStorage, saveUploadedFile } from '../utils/upload.helper.js';
 
 const portfolioFileFilter = (req, file, cb) => {
   const allowedExts = /jpeg|jpg|png|webp|gif|pdf|doc|docx|ppt|pptx|xls|xlsx|txt|zip|rar/i;
@@ -43,27 +24,13 @@ const portfolioFileFilter = (req, file, cb) => {
 };
 
 const portfolioUpload = multer({
-  storage: portfolioStorage,
+  storage: getUploadStorage('portfolio'),
   limits: { fileSize: 30 * 1024 * 1024 }, // 30MB
   fileFilter: portfolioFileFilter
 });
 
-const REQ_UPLOADS_DIR = path.resolve(__dirname, '../../uploads/requirements');
-if (!fs.existsSync(REQ_UPLOADS_DIR)) {
-  fs.mkdirSync(REQ_UPLOADS_DIR, { recursive: true });
-}
-
-const reqStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, REQ_UPLOADS_DIR),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, `req-sub-${uniqueSuffix}${ext}`);
-  }
-});
-
 const reqUpload = multer({
-  storage: reqStorage,
+  storage: getUploadStorage('requirements'),
   limits: { fileSize: 30 * 1024 * 1024 }, // 30MB
   fileFilter: (req, file, cb) => {
     const allowedExts = /jpeg|jpg|png|webp|gif|pdf|doc|docx|ppt|pptx|xls|xlsx|txt|zip|rar/i;
@@ -2516,12 +2483,12 @@ router.delete('/skills/:id', async (req, res) => {
 // --- DIGITAL PORTFOLIO & ACHIEVEMENTS ---
 
 // POST /api/student/portfolio/upload - Upload any portfolio document or image (docx, pdf, jpg, png, jpeg, etc.)
-router.post('/portfolio/upload', portfolioUpload.single('file'), (req, res) => {
+router.post('/portfolio/upload', portfolioUpload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded.' });
     }
-    const relativePath = `/uploads/portfolio/${req.file.filename}`;
+    const relativePath = await saveUploadedFile(req.file, 'portfolio');
     return res.json({
       success: true,
       message: 'File uploaded successfully.',
@@ -3010,11 +2977,11 @@ router.delete('/resumes/:id', async (req, res) => {
 // --- OJT REQUIREMENTS CHECKLIST ---
 
 // POST /api/student/requirements/upload - Upload requirement document/file
-router.post('/requirements/upload', reqUpload.single('file'), (req, res) => {
+router.post('/requirements/upload', reqUpload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'No file provided.' });
   }
-  const fileUrl = `/uploads/requirements/${req.file.filename}`;
+  const fileUrl = await saveUploadedFile(req.file, 'requirements');
   return res.json({
     success: true,
     data: {

@@ -9,24 +9,10 @@ import { emitUpdate } from '../config/socket.js';
 import { sendNotification } from '../utils/notification.helper.js';
 import { checkAndGenerateCertificate } from '../services/certificate.service.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const REQ_UPLOADS_DIR = path.resolve(__dirname, '../../uploads/requirements');
-if (!fs.existsSync(REQ_UPLOADS_DIR)) {
-  fs.mkdirSync(REQ_UPLOADS_DIR, { recursive: true });
-}
-
-const reqStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, REQ_UPLOADS_DIR),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, `req-template-${uniqueSuffix}${ext}`);
-  }
-});
+import { getUploadStorage, saveUploadedFile } from '../utils/upload.helper.js';
 
 const reqUpload = multer({
-  storage: reqStorage,
+  storage: getUploadStorage('requirements'),
   limits: { fileSize: 30 * 1024 * 1024 }, // 30MB
   fileFilter: (req, file, cb) => {
     const allowedExts = /jpeg|jpg|png|webp|gif|pdf|doc|docx|ppt|pptx|xls|xlsx|txt|zip|rar/i;
@@ -2307,11 +2293,11 @@ router.get('/requirements', async (req, res) => {
 });
 
 // POST /api/inst/requirements/upload - Upload template form/document for students to download
-router.post('/requirements/upload', reqUpload.single('file'), (req, res) => {
+router.post('/requirements/upload', reqUpload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'No file provided.' });
   }
-  const fileUrl = `/uploads/requirements/${req.file.filename}`;
+  const fileUrl = await saveUploadedFile(req.file, 'requirements');
   return res.json({
     success: true,
     data: {

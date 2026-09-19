@@ -10,36 +10,88 @@ export const SocketProvider = ({ children }) => {
   const [lastEvent, setLastEvent] = useState(null);
 
   useEffect(() => {
-    const defaultDevUrl =
-      typeof window !== 'undefined' && window.location.hostname === 'localhost'
-        ? 'http://localhost:3000'
-        : undefined;
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || defaultDevUrl;
-    const newSocket = io(socketUrl, {
-      transports: ['websocket', 'polling'],
-      autoConnect: true,
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000
-    });
+    let activeSocket = null;
+    let isMounted = true;
 
-    newSocket.on('connect', () => {
-      if (user) {
-        if (user.institution_id) newSocket.emit('join_room', `inst_${user.institution_id}`);
-        if (user.org_id) newSocket.emit('join_room', `org_${user.org_id}`);
-        if (user.user_id) newSocket.emit('join_room', `user_${user.user_id}`);
-        if (user.student_id) newSocket.emit('join_room', `student_${user.student_id}`);
+    // Disconnect if user logs out
+    if (!user) {
+      if (socket) {
+        socket.disconnect();
+        setSocket(null);
       }
-    });
+      return;
+    }
 
-    newSocket.on('data_updated', (eventData) => {
-      setLastEvent(eventData);
-    });
+    async function initSocketConnection() {
+      try {
+        // 1. Fetch cross-origin WebSocket JWT token
+        const res = await fetch('/api/auth/socket-token', {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        const data = await res.json().catch(() => ({ success: false }));
+        const token = data.success ? data.token : null;
 
-    setSocket(newSocket);
+        if (!isMounted) return;
+
+        // In local dev, VITE_SOCKET_URL is unset, so io(undefined) connects through Vite proxy
+        // In production on Vercel, VITE_SOCKET_URL points directly to Render backend
+        const socketUrl = import.meta.env.VITE_SOCKET_URL || undefined;
+
+        activeSocket = io(socketUrl, {
+          transports: ['websocket'],
+          autoConnect: true,
+          reconnection: true,
+          reconnectionAttempts: 10,
+          reconnectionDelay: 1000,
+          auth: { token }
+        });
+
+        // Refresh token on reconnect attempts or connection errors
+        const refreshToken = async () => {
+          try {
+            const r = await fetch('/api/auth/socket-token', {
+              credentials: 'include',
+              cache: 'no-store'
+            });
+            const d = await r.json().catch(() => ({ success: false }));
+            if (d.success && d.token && activeSocket) {
+              activeSocket.auth = { token: d.token };
+            }
+          } catch (_) {}
+        };
+
+        activeSocket.on('reconnect_attempt', refreshToken);
+        activeSocket.on('connect_error', refreshToken);
+
+        activeSocket.on('connect', () => {
+          if (user) {
+            if (user.institution_id) activeSocket.emit('join_room', `inst_${user.institution_id}`);
+            if (user.org_id) activeSocket.emit('join_room', `org_${user.org_id}`);
+            if (user.user_id) activeSocket.emit('join_room', `user_${user.user_id}`);
+            if (user.student_id) activeSocket.emit('join_room', `student_${user.student_id}`);
+          }
+        });
+
+        activeSocket.on('data_updated', (eventData) => {
+          setLastEvent(eventData);
+        });
+
+        if (isMounted) {
+          setSocket(activeSocket);
+        }
+      } catch (err) {
+        console.warn('[Socket Init Error]', err);
+      }
+    }
+
+    initSocketConnection();
 
     return () => {
-      newSocket.disconnect();
+      isMounted = false;
+      if (activeSocket) {
+        activeSocket.disconnect();
+      }
     };
   }, [user?.user_id]);
 

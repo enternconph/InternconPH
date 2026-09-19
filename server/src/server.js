@@ -28,6 +28,8 @@ runMigrations()
   .catch(console.error);
 
 const app = express();
+app.set('trust proxy', 1);
+
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
 
@@ -42,6 +44,9 @@ const __dirname = path.dirname(__filename);
 
 // Ensure canonical uploads directories exist
 const UPLOADS_DIR = path.resolve(__dirname, '../uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
 ['orgs', 'institutions', 'portfolio', 'avatars', 'requirements'].forEach((sub) => {
   const p = path.join(UPLOADS_DIR, sub);
   if (!fs.existsSync(p)) {
@@ -49,24 +54,10 @@ const UPLOADS_DIR = path.resolve(__dirname, '../uploads');
   }
 });
 
-import pool from './config/db.js';
-
-// Middleware
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
-  : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
+import { corsOriginCallback } from './config/cors.js';
 
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    if (process.env.NODE_ENV !== 'production') {
-      return callback(null, true);
-    }
-    return callback(new Error('Not allowed by CORS'));
-  },
+  origin: corsOriginCallback,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
@@ -82,24 +73,9 @@ app.use('/uploads', express.static(UPLOADS_DIR, {
   immutable: true
 }));
 
-// Health Check with active database connectivity verification
-app.get('/api/health', async (req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.json({
-      status: 'ok',
-      database: 'connected',
-      realtime: true,
-      timestamp: new Date().toISOString()
-    });
-  } catch (err) {
-    res.status(503).json({
-      status: 'degraded',
-      database: 'disconnected',
-      error: 'Database connection failed',
-      timestamp: new Date().toISOString()
-    });
-  }
+// Health Check: lightweight, no auth, no database dependency
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true });
 });
 
 // Route Mounts
@@ -115,7 +91,7 @@ app.use('/api/notifications', notificationRoutes);
 
 // Serve frontend dist for production deployment with SPA routing fallback & asset caching
 const DIST_DIR = path.resolve(__dirname, '../../dist');
-if (fs.existsSync(DIST_DIR)) {
+if (process.env.NODE_ENV === 'production' && fs.existsSync(DIST_DIR)) {
   app.use(express.static(DIST_DIR, {
     maxAge: '1d',
     setHeaders: (res, filePath) => {
@@ -127,7 +103,7 @@ if (fs.existsSync(DIST_DIR)) {
     }
   }));
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/socket.io')) {
       return next();
     }
     res.setHeader('Cache-Control', 'no-cache');
@@ -143,6 +119,14 @@ app.use((err, req, res, next) => {
     success: false,
     message: isProd ? 'Internal Server Error' : (err.message || 'Internal Server Error')
   });
+});
+
+// Process-level unhandled rejection / uncaught exception handlers
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Unhandled Rejection at Promise]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[Uncaught Exception]', err);
 });
 
 httpServer.listen(PORT, '0.0.0.0', () => {
