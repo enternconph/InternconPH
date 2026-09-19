@@ -29,4 +29,6 @@ dist-ssr
 server/.env
 
 # User uploads
-server/uploads
+server/uploads/vendor/  
+/node_modules/  
+.env 
