@@ -1,0 +1,626 @@
+# Implement Secure Authentication & Session Management
+
+Implement a complete, secure **Authentication and Session Management system** for the existing web application.
+
+The implementation must integrate with the existing login system, users, roles, permissions, dashboards, and protected routes. **Do not create a separate or competing authentication system.** First inspect the existing authentication architecture and then improve or integrate it appropriately.
+
+---
+
+# 1. Authentication Process
+
+Authentication must follow these three main stages:
+
+## Step 1 — Identification
+
+The user identifies themselves by providing their existing login identifier, such as:
+
+* Username
+* Email address
+* Student ID, if currently supported
+* Other existing login identifier
+
+Use the application's existing login fields rather than creating unnecessary new ones.
+
+## Step 2 — Verification
+
+The server must verify the user's credentials against the stored account information.
+
+For password-based authentication:
+
+* Compare the submitted password against the securely stored password hash.
+* Never store passwords as plain text.
+* Never return passwords or password hashes to the frontend.
+* Do not perform credential verification only on the client side.
+
+If the credentials are invalid, reject the login attempt without exposing sensitive information.
+
+## Step 3 — Access Grant
+
+If authentication succeeds:
+
+1. Identify the authenticated user.
+2. Determine the user's existing role/account type.
+3. Determine the user's applicable permissions.
+4. Create a secure server-side session.
+5. Generate a unique, cryptographically secure Session ID.
+6. Store the session securely on the server.
+7. Send the Session ID to the browser through a secure cookie.
+8. Allow the user to access authorized parts of the application.
+
+The session must become the source of truth for the authenticated user's identity.
+
+---
+
+# 2. Authentication Methods
+
+The system should support the authentication method already used by the application.
+
+## Password-Based Authentication
+
+If the application uses username/email and password:
+
+```text
+User enters credentials
+        ↓
+Server receives credentials
+        ↓
+Find user account
+        ↓
+Verify password against password hash
+        ↓
+Credentials valid?
+     ↙          ↘
+   YES           NO
+    ↓             ↓
+Create Session   Reject Login
+    ↓
+Set Secure Cookie
+    ↓
+Authenticated User
+```
+
+Do not store plaintext passwords.
+
+Do not expose password hashes to the frontend.
+
+---
+
+# 3. Session Creation
+
+After successful authentication, create a new server-side session.
+
+The session should contain only the information necessary to maintain the authenticated state, such as:
+
+* User ID
+* Account/role
+* Institution ID, when applicable
+* Organization ID, when applicable
+* Session creation time
+* Last activity time
+* Expiration time
+* Revocation status
+* Other required session metadata
+
+Do not store unnecessary sensitive information in the session.
+
+Generate a cryptographically secure and unpredictable Session ID.
+
+---
+
+# 4. Secure Session Cookie
+
+Store the Session ID in a secure HTTP cookie.
+
+Configure the cookie with appropriate security settings, including:
+
+* `HttpOnly`
+* `Secure` when using HTTPS
+* Appropriate `SameSite` policy
+* Appropriate expiration/max-age
+* Appropriate path/domain restrictions
+
+The Session ID must not be placed in:
+
+* URL parameters
+* Query strings
+* LocalStorage
+* SessionStorage
+* HTML
+* Other client-accessible locations unnecessarily
+
+The browser should automatically send the session cookie with authenticated requests.
+
+---
+
+# 5. How an Authenticated Session Works
+
+After login:
+
+```text
+LOGIN
+  ↓
+Identify User
+  ↓
+Verify Credentials
+  ↓
+Authentication Successful
+  ↓
+Create Server Session
+  ↓
+Generate Session ID
+  ↓
+Store Session Server-Side
+  ↓
+Set Secure Cookie
+  ↓
+User Accesses Application
+  ↓
+Browser Automatically Sends Cookie
+  ↓
+Server Validates Session
+  ↓
+Identify Authenticated User
+  ↓
+Check Permissions
+  ↓
+Allow Authorized Request
+```
+
+The user should remain authenticated while the session is valid.
+
+The user should not be required to enter their password again on every page or request.
+
+---
+
+# 6. Session Validation
+
+Every protected API request must validate the session on the server.
+
+The server must:
+
+1. Read the Session ID from the cookie.
+2. Find the corresponding server-side session.
+3. Verify that the session exists.
+4. Verify that the session has not expired.
+5. Verify that the session has not been revoked.
+6. Retrieve the associated user.
+7. Verify that the user account is still active.
+8. Check the user's existing authorization/permissions.
+9. Allow the request only if all required checks pass.
+
+If the session is invalid or expired:
+
+```text
+401 Unauthorized
+```
+
+The frontend may then redirect the user to the login page.
+
+Never trust user identity, role, or permission information supplied by the frontend.
+
+---
+
+# 7. Authentication vs Authorization
+
+Keep **authentication** and **authorization** separate.
+
+### Authentication answers:
+
+> "Who is this user?"
+
+The session identifies the authenticated user.
+
+### Authorization answers:
+
+> "What is this user allowed to access?"
+
+The existing role and permission system determines access.
+
+For example:
+
+```text
+Session
+  ↓
+User ID
+  ↓
+User Role
+  ↓
+Permissions
+  ↓
+Allowed Resources
+```
+
+A valid session must not automatically give the user access to everything.
+
+Continue enforcing all existing access restrictions.
+
+---
+
+# 8. Existing Roles and Access Restrictions
+
+The session system must work with the application's existing roles, including any roles such as:
+
+* Student
+* Institution Staff
+* Institution Main Account
+* Organization Staff
+* Organization Main Account
+* Administrator
+* Other existing roles
+
+Preserve all existing authorization rules.
+
+For example, existing restrictions involving:
+
+* Institution
+* Organization
+* Assigned Program / Department
+* Degree Program
+* Student ownership
+* OJT records
+* DTR
+* Evaluations
+* Requirements
+* Career Portfolio
+* Digital Credentials
+
+must continue to work after authentication is migrated or improved.
+
+---
+
+# 9. Protected Routes and APIs
+
+All protected routes and APIs must validate the server-side session.
+
+Do not rely only on frontend route guards.
+
+Frontend guards may be used to improve the user experience, but the backend must independently verify:
+
+```text
+Session
++
+User
++
+Role
++
+Permission
++
+Resource Access
+```
+
+before returning protected data or performing protected actions.
+
+---
+
+# 10. Session Timeout
+
+Implement both:
+
+### Inactivity Timeout
+
+Expire the session after the configured period of inactivity.
+
+Track:
+
+* Last activity
+* Current time
+* Configured inactivity timeout
+
+### Absolute Session Lifetime
+
+A session must also have a maximum lifetime even if the user remains active.
+
+Make these values configurable through the application's configuration/environment instead of scattering hardcoded values throughout the codebase.
+
+When a session expires:
+
+1. Invalidate the server-side session.
+2. Clear the session cookie.
+3. Reject further authenticated requests.
+4. Require the user to authenticate again.
+
+---
+
+# 11. Logout
+
+When the user clicks **Logout**:
+
+```text
+Logout Request
+      ↓
+Identify Current Session
+      ↓
+Revoke/Destroy Server Session
+      ↓
+Clear Session Cookie
+      ↓
+Redirect to Login/Public Page
+```
+
+After logout, the previous Session ID must no longer authenticate the user.
+
+Do not rely only on deleting the browser cookie. The server-side session must also be invalidated.
+
+---
+
+# 12. Session ID Rotation
+
+Protect against session fixation.
+
+After successful login:
+
+* Create a new authenticated Session ID.
+* Do not reuse an unauthenticated/pre-login session identifier as the authenticated session.
+
+Rotate the session identifier when required during security-sensitive authentication transitions.
+
+---
+
+# 13. Multiple Sessions
+
+If the existing application supports multiple devices or simultaneous logins:
+
+* Each login should receive a separate Session ID.
+* Each device/session should be independently tracked.
+* Logging out from one device should not automatically terminate other sessions unless the application already implements "Log out all sessions."
+
+If session/device management already exists, integrate with it rather than creating a duplicate feature.
+
+---
+
+# 14. Session Storage
+
+Use the application's existing database/session infrastructure where possible.
+
+If a database-backed session system is required, maintain information similar to:
+
+```text
+Session
+├── Session ID / Secure Token
+├── User ID
+├── Created At
+├── Last Activity
+├── Expires At
+├── Revoked At
+└── Optional Device Metadata
+```
+
+Prefer storing a secure hash of the session token where appropriate so that a database compromise does not directly expose usable session credentials.
+
+Use the application's existing migration and database architecture.
+
+---
+
+# 15. Security Requirements
+
+The implementation must:
+
+* Use cryptographically secure random Session IDs.
+* Never use predictable Session IDs.
+* Never store plaintext passwords.
+* Never expose passwords or password hashes.
+* Never place Session IDs in URLs.
+* Use HttpOnly cookies.
+* Use Secure cookies in HTTPS environments.
+* Configure SameSite appropriately.
+* Invalidate sessions during logout.
+* Expire inactive sessions.
+* Enforce an absolute session lifetime.
+* Rotate the session after authentication.
+* Validate sessions server-side.
+* Validate authorization server-side.
+* Prevent unauthorized access to other users' records.
+* Prevent users from changing their role through frontend requests.
+* Protect state-changing requests against CSRF where applicable.
+* Never log passwords or raw session tokens.
+* Avoid returning unnecessary session/security information to the client.
+
+---
+
+# 16. Authentication Failure Handling
+
+Use consistent responses for authentication failures.
+
+Examples:
+
+### Invalid Credentials
+
+```text
+401 Unauthorized
+Invalid credentials.
+```
+
+### Missing Session
+
+```text
+401 Unauthorized
+Authentication required.
+```
+
+### Expired Session
+
+```text
+401 Unauthorized
+Session expired. Please log in again.
+```
+
+### Revoked Session
+
+```text
+401 Unauthorized
+Please log in again.
+```
+
+Do not reveal whether a specific username/email exists when that information could enable account enumeration.
+
+---
+
+# 17. Do Not Break Existing Authentication
+
+Before making changes, inspect:
+
+* Existing login page
+* Login API
+* User database/model
+* Password hashing implementation
+* Existing authentication middleware
+* Existing frontend authentication state
+* Existing route guards
+* Existing API middleware
+* Existing roles
+* Existing permissions
+* Existing cookies/tokens
+* Existing logout process
+* Existing password reset flow
+* Existing account activation/deactivation behavior
+
+Then determine what needs to be changed.
+
+**Do not blindly replace the current authentication system.**
+
+If the application currently uses JWT, cookies, or another authentication mechanism, evaluate how it currently works before modifying it.
+
+Avoid creating two competing authentication systems.
+
+---
+
+# 18. Testing Requirements
+
+Test the complete authentication and session lifecycle.
+
+## Login Tests
+
+* Valid credentials successfully authenticate.
+* Invalid credentials are rejected.
+* Successful login creates a session.
+* Session cookie is created securely.
+* Passwords are never returned to the client.
+
+## Session Tests
+
+* Authenticated requests work while the session is valid.
+* Page refresh does not unnecessarily log the user out.
+* Navigation between protected pages maintains authentication.
+* Invalid sessions are rejected.
+* Expired sessions are rejected.
+* Revoked sessions are rejected.
+
+## Logout Tests
+
+* Logout destroys/revokes the server-side session.
+* Session cookie is cleared.
+* Old Session ID cannot authenticate the user after logout.
+
+## Authorization Tests
+
+Verify that authenticated users can only access resources permitted by their existing role and permissions.
+
+Test different roles, including:
+
+* Student
+* Institution Staff
+* Institution Main Account
+* Organization Staff
+* Organization Main Account
+* Administrator
+
+## Security Tests
+
+Verify that:
+
+* Session IDs cannot be predicted.
+* Session IDs do not appear in URLs.
+* Frontend requests cannot change user roles.
+* One student cannot access another student's protected information by modifying an ID.
+* Unauthorized API requests return the correct authentication/authorization response.
+* Expired sessions cannot be reused.
+* Logged-out sessions cannot be reused.
+
+---
+
+# 19. Final Authentication & Session Flow
+
+The complete system should follow this architecture:
+
+```text
+                 USER
+                  │
+                  ▼
+             Login Form
+                  │
+                  ▼
+          Identify User
+                  │
+                  ▼
+         Verify Credentials
+                  │
+          ┌───────┴───────┐
+          │               │
+       Invalid           Valid
+          │               │
+          ▼               ▼
+      Reject Login   Create Session
+                          │
+                          ▼
+                 Generate Session ID
+                          │
+                          ▼
+                Store Session Server
+                          │
+                          ▼
+                Secure HttpOnly Cookie
+                          │
+                          ▼
+                   AUTHENTICATED
+                          │
+                          ▼
+                 Protected Request
+                          │
+                          ▼
+                 Validate Session
+                          │
+                          ▼
+                   Identify User
+                          │
+                          ▼
+                Check Authorization
+                          │
+                    ┌─────┴─────┐
+                    │           │
+                 Allowed      Denied
+                    │           │
+                    ▼           ▼
+              Process Request  403
+                    │
+                    ▼
+              Update Activity
+                    │
+                    ▼
+             Continue Session
+```
+
+When the user logs out:
+
+```text
+Authenticated Session
+        ↓
+      Logout
+        ↓
+Revoke Server Session
+        ↓
+Clear Secure Cookie
+        ↓
+Session No Longer Valid
+        ↓
+Require Login Again
+```
+
+# Final Objective
+
+Build or improve the authentication system so that it follows the complete lifecycle:
+
+**Identification → Verification → Access Grant → Secure Session → Session Validation → Authorization → Session Timeout/Logout**
+
+The system must provide a persistent but controlled authenticated experience while ensuring that every protected request is verified server-side.
+
+Most importantly, **preserve the existing application's roles, permissions, data access restrictions, and workflows while implementing this authentication and session-management architecture.**

@@ -1,0 +1,447 @@
+====================================================================================================
+               INTERNCONPH: SYSTEM WORKFLOW, DATA ARCHITECTURE & OPERATIONAL GUIDE
+====================================================================================================
+Document Type: Complete System Analysis, User Workflows & Relational Architecture Specification
+Target System: InternConPH (Philippine OJT Coordination & Graduate Career Gateway)
+Date: September 2026
+Standard Compliance: CHED CMO No. 104 s. 2017 (SIPP), DOLE Internship Standards, RA 10173 (Data Privacy)
+====================================================================================================
+
+TABLE OF CONTENTS:
+----------------------------------------------------------------------------------------------------
+1. SYSTEM GOALS & STRATEGIC OBJECTIVES (WHAT THE SYSTEM IS TRYING TO ACHIEVE)
+2. SYSTEM USERS & ROLES HIERARCHY
+3. COMPREHENSIVE STEP-BY-STEP USER FLOWS
+   - Flow 1: Registration, Proof of Legitimacy & Admin Verification
+   - Flow 2: Access Code & Delegated Passcode Governance
+   - Flow 3: Institution Staff Scoped Operations & Student Intake
+   - Flow 4: Opportunity Creation & Institutional Clearance (OJT vs. Career vs. On-Call)
+   - Flow 5: Candidate Matching, Application Lifecycle & Interview Pipelines
+   - Flow 6: Active OJT Deployment, DTR Daily Attendance & Hour Verification
+   - Flow 7: Performance Evaluation & Verified Career Portfolio Generation
+   - Flow 8: Incident Reporting, Complaints, Accident Records & Grievance Shielding
+4. DATA ARCHITECTURE & ENTITY RELATIONSHIPS (HOW DATA IS CONNECTED)
+5. TECHNICAL IMPLEMENTATION STACK & REALTIME EVENT BUS
+6. SUMMARY OF SYSTEM SAFEGUARDS & AUDIT MECHANISMS
+
+====================================================================================================
+1. SYSTEM GOALS & STRATEGIC OBJECTIVES (WHAT THE SYSTEM IS TRYING TO ACHIEVE)
+====================================================================================================
+
+The overarching mission of InternConPH is to solve the fragmented, high-risk, and manually cumbersome
+internship (On-the-Job Training - OJT) and entry-level employment ecosystem in the Philippines.
+
+InternConPH is designed to achieve the following specific goals:
+
+1. ELIMINATE FRAUDULENT EMPLOYERS & DIPLOMA MILLS:
+   Unaccredited schools and illegitimate fly-by-night businesses exploit student interns as free labor
+   or expose them to scam recruitments. InternConPH implements a strict legal legitimacy gate requiring
+   SEC/DTI registration, Mayor's Business Permits, and BIR Form 2303 for companies, as well as CHED
+   Government Recognition (GR), PACUCOA/AACCUP/PAASCU accreditation, and TESDA CTPR for institutions.
+
+2. ENFORCE LEGAL SIPP COMPLIANCE (CHED CMO NO. 104, SERIES OF 2017):
+   The Student Internship Program in the Philippines (SIPP) requires a tripartite consensus between
+   the Higher Education Institution (HEI), the Host Training Establishment (HTE/Organization), and
+   the Student Intern. InternConPH ensures no student can be deployed to an OJT unless their academic
+   institution has formally approved both the corporate partner and the specific internship curriculum.
+
+3. PREVENT STUDENT EXPLOITATION & TRACK TRAINING HOURS:
+   Interns often suffer from ghost hours, unverified overwork, or unrelated manual labor. The system
+   implements a tamper-proof Daily Time Record (DTR) and attendance logging protocol where assigned
+   Workplace Mentors certify exact clock-in, clock-out, rendered hours, and tasks accomplished against
+   the student's required curriculum quota (e.g. 300, 486, or 600 hours).
+
+4. BRIDGING THE GAP: FROM OJT INTERN TO EMPLOYABLE PROFESSIONAL:
+   Instead of internships ending in a paper certificate lost in a folder, InternConPH transitions
+   students across dynamic lifecycle states:
+     [Starting OJT] -> [Ongoing Intern] -> [OJT Completer] -> [Graduated Alumni / Career Candidate]
+   Every completed OJT record, positive employer performance evaluation, and on-call engagement is
+   automatically converted into cryptographically verified items on the student's lifelong Career Portfolio.
+
+5. PROVIDE DATA PRIVACY & ANONYMIZED STUDENT GRIEVANCE SHIELDING:
+   In compliance with Republic Act 10173 (Philippine Data Privacy Act), students who experience workplace
+   harassment, labor violations, or safety issues can file formal complaints that route exclusively to
+   their university's Guidance Counselor and OJT Supervisor. The system can mask the student's personal
+   identity when notifying the employer to protect the student from retaliation during active OJT.
+
+====================================================================================================
+2. SYSTEM USERS & ROLES HIERARCHY
+====================================================================================================
+
+The platform governs 6 primary user groups across distinct operational scopes:
+
+[1] SYSTEM ADMINISTRATOR (Role: 'system_admin')
+    - The highest authority of the platform.
+    - Inspects and verifies uploaded government proof-of-legitimacy documents.
+    - Approves or rejects Institution Director and Hiring Organization registrations.
+    - Audits nation-wide analytics, skill supply/demand dynamics, and platform-wide audit logs.
+    - Governs systemic disputes escalated by academic institutions against errant employers.
+
+[2] INSTITUTION DIRECTOR (Role: 'institution')
+    - The principal executive / OJT Director / Dean representing the College or University.
+    - Manages the institution profile, campus address, and degree programs/curricula.
+    - Generates cryptographically hashed access passcodes to invite Institution Staff.
+    - Reviews, approves, or rejects OJT and Job opportunities offered by partner organizations.
+
+[3] INSTITUTION STAFF (Role: 'institution_staff')
+    Scoped by precise academic positions with granular permissions:
+    a) OJT Supervisor / Coordinator:
+       - Monitors assigned students during active deployment.
+       - Reviews weekly and daily attendance progress, hours remaining, and performance evaluations.
+       - Reviews organization-filed incident complaints and issues academic student warnings.
+    b) College Registrar:
+       - Verifies student identities, student numbers, and curriculum enrollment.
+       - Evaluates Returnees and Transferees requiring special scholastic clearance.
+       - Manages clearance requirement checklists and academic certifications.
+    c) Guidance Counselor:
+       - Handles formal student grievances, complaints against organizations, and safety reports.
+       - Conducts mediation and shields student whistleblower identities when necessary.
+    d) Academic Dean:
+       - High-level oversight across faculty staff, student rosters, and departmental programs.
+       - Approves department-wide internship memorandums and partner tie-ups.
+
+[4] HIRING ORGANIZATION / HR ADMINISTRATOR (Role: 'hiring_organization' / 'hr_staff')
+    - The official corporate or business account representing the Host Training Establishment (HTE).
+    - Posts opportunities across three distinct tracks:
+       * OJT Opportunities (strictly for eligible students)
+       * Career Jobs (strictly for graduated alumni)
+       * On-Call Projects (gig/deliverable-based fast credits)
+    - Targets specific universities and academic programs for each opportunity.
+    - Evaluates applicant pools, schedules interviews, issues formal job/OJT offers.
+    - Generates Workplace Mentor invitations and assigns them to active interns.
+
+[5] WORKPLACE MENTOR / SUPERVISOR (Role: 'workplace_mentor' / 'mentor')
+    - Department heads, team leads, or engineers within the hiring organization.
+    - Oversees the day-to-day work tasks of the deployed student intern.
+    - Certifies Daily Time Records (DTR), verifies clock-ins/outs, and credits training hours.
+    - Submits Midterm and Final OJT Performance Evaluations with rubric scores.
+    - Files formal Incident / Misconduct / Accident reports directly to the university coordinator.
+
+[6] STUDENT CANDIDATE (Role: 'student')
+    Classified by enrollment type: Regular, Returnee, Transferee.
+    Progresses dynamically through lifecycle states:
+    a) OJT Student (Starting / Ongoing):
+       - Qualified exclusively to browse and apply for approved OJT internships matching their degree.
+       - Locked out of applying to full-time career positions until graduation.
+       - Logs daily tasks, tracks approved hours, and views assigned supervisors.
+    b) OJT Completer:
+       - Has fulfilled all mandatory OJT hours (e.g., 486/486 hrs) verified by their mentor.
+       - Unlocks completion credentials and verified employer recommendation badges.
+    c) Graduated Student / Alumni:
+       - Fully unlocked access to browse and apply for full-time and part-time Career Jobs.
+       - Manages a dynamic, verified career portfolio with authenticated workplace evidence.
+
+====================================================================================================
+3. COMPREHENSIVE STEP-BY-STEP USER FLOWS
+====================================================================================================
+
+----------------------------------------------------------------------------------------------------
+FLOW 1: REGISTRATION, PROOF OF LEGITIMACY & ADMIN VERIFICATION
+----------------------------------------------------------------------------------------------------
+1. An Institution Director or Hiring Organization HR navigates to the registration portal.
+2. The registration workflow enforces geographic and legal precision:
+   - For Companies: Legal entity type (Corporation, Sole Proprietorship, Partnership).
+     Must upload: SEC / DTI Certificate, Mayor's Business Permit, BIR Form 2303 (Tax Reg).
+   - For HEIs / Universities: Institutional category (State University, Private HEI, Tech-Voc).
+     Must upload: CHED Government Recognition (GR), Autonomous Deregulated Charter, or DepEd/TESDA CTPR.
+3. Upon submission:
+   - An account record is created in `users` with `is_active = 0` (or `status = 'pending'`).
+   - The entity is logged into `entity_registrations` with uploaded documents in `institution_documents`
+     or `organization_registrations`.
+4. The System Admin logs into `/dashboard/admin`:
+   - Admin inspects the submitted company/school dossier, downloads and examines verification PDFs.
+   - Admin clicks "Verify & Approve" or "Reject with Cause".
+   - If Approved: `is_verified` is set to 1, `status = 'active'`, and a realtime WebSocket notification
+     is pushed to the entity.
+   - If Rejected: Detailed rejection reasons are saved to the audit log, the applicant is notified,
+     and restricted features remain strictly locked.
+
+----------------------------------------------------------------------------------------------------
+FLOW 2: ACCESS CODE & DELEGATED PASSCODE GOVERNANCE
+----------------------------------------------------------------------------------------------------
+To eliminate unauthorized registrations, all sub-accounts (Staff, Mentors, Students) are governed by
+cryptographic Access Codes created by their respective governing authorities:
+
+1. Director -> Staff Access Code:
+   - Institution Director defines: Staff ID/Number, Intended Position (Supervisor, Registrar, etc.),
+     Department/Program assignment, and customized JSON permission flags.
+   - The backend hashes and stores the passcode in `access_codes` with an expiration timestamp.
+2. HR -> Mentor Access Code:
+   - HR creates a passcode specifying the Mentor's Employee ID, Corporate Email, and Department.
+3. Staff -> Student Access Code:
+   - The OJT Coordinator generates access codes linked to the Student's School ID number and Program.
+4. Validation during Registration:
+   - When a user inputs an access code during signup, the backend checks:
+     * Code exists, is unexpired (`expires_at > NOW()`), and has not been used (`is_used = 0`).
+     * Target identifier matches the applicant's entered Student ID / Employee ID.
+     * Program and institution match the issuer.
+   - Upon successful signup, `access_codes.is_used` is set to 1, and the code is linked to `used_by_user_id`.
+
+----------------------------------------------------------------------------------------------------
+FLOW 3: INSTITUTION STAFF SCOPED OPERATIONS & STUDENT INTAKE
+----------------------------------------------------------------------------------------------------
+1. When a Student registers using an institution access code:
+   - The student selects their academic degree, classification (Regular, Returnee, Transferee),
+     and initial OJT status (Starting OJT or Completed OJT).
+2. The registration lands on the Institution Staff dashboard:
+   - Regular students are routed to the OJT Supervisor matching their program code.
+   - Returnees and Transferees are routed to the Registrar for transcript and prerequisite validation.
+3. The Staff member cross-checks the student's credentials against the institutional registrar database:
+   - Staff confirms hours required (e.g., BSIT = 486 hrs, BSBA = 600 hrs, BSHM = 500 hrs).
+   - Once approved, the student's status is officially marked `verified` and their dashboard unlocks.
+
+----------------------------------------------------------------------------------------------------
+FLOW 4: OPPORTUNITY CREATION & INSTITUTIONAL CLEARANCE (OJT VS. CAREER VS. ON-CALL)
+----------------------------------------------------------------------------------------------------
+InternConPH enforces strict separation between OJT Training and Professional Labor:
+
+1. HR drafts an Opportunity in `/dashboard/organization/jobs`:
+   - Selects Posting Type:
+     * 'ojt' (Internship training; requires student status; target audience: OJT Students)
+     * 'career_job' (Full-time / Part-time employment; target audience: Graduated Students)
+     * 'on_call' (Short-term deliverable projects; stipend-based; credits portfolio)
+   - Configures work setup (Onsite, Remote, Hybrid), available slots, salary/allowance rate,
+     required skills, and deadline/finish time.
+   - Designates the Workplace Mentor who will oversee successful candidates.
+2. Institutional Tripartite Clearance:
+   - HR selects which Higher Education Institutions are invited to receive this posting.
+   - The posting inserts pending records into `institution_job_approvals`.
+   - The posting CANNOT be seen by any student until the Institution Director or Dean approves it!
+3. Once the institution approves the opportunity:
+   - The system queries `job_required_programs` and matches student curricula.
+   - Real-time notifications alert eligible students that an approved partnership opening is live.
+
+----------------------------------------------------------------------------------------------------
+FLOW 5: CANDIDATE MATCHING, APPLICATION LIFECYCLE & INTERVIEW PIPELINES
+----------------------------------------------------------------------------------------------------
+1. Student Discovery:
+   - An OJT student browses opportunities. If they attempt to apply for a 'career_job', the system
+     blocks the submission with an alert: "Career jobs are exclusively reserved for Graduated Alumni."
+   - The system calculates an algorithm match score based on shared skills in `student_skills` vs.
+     `job_required_skills`.
+2. Application Submission:
+   - Student submits their resume (`student_resumes`), cover letter, and verified portfolio items.
+   - Application record enters `job_applications` with status 'pending'.
+3. HR Review & Interview Stage:
+   - HR reviews candidate profiles, academic history, GPA, and verified past badges.
+   - HR updates status: 'reviewing' -> 'shortlisted'.
+   - HR triggers "Request Interview":
+     * Sets date/time, mode ('onsite', 'online', 'phone'), location/meeting link, and notes.
+     * Record created in `interviews` table. Real-time notification delivered to student.
+   - Student accepts or attends interview.
+4. Formal Offer & Acceptance:
+   - If selected for OJT: HR issues an offer recorded in `ojt_deployment_offers`.
+   - The Institution Coordinator approves the deployment contract.
+   - Student accepts the offer: `ojt_records` is created, initializing their official training program.
+
+----------------------------------------------------------------------------------------------------
+FLOW 6: ACTIVE OJT DEPLOYMENT, DTR DAILY ATTENDANCE & HOUR VERIFICATION
+----------------------------------------------------------------------------------------------------
+1. Initialization of Training:
+   - `ojt_records` stores: `student_id`, `organization_id`, `program_id`, `start_date`,
+     `required_hours` (e.g. 486.00), and `rendered_hours` (initially 0.00).
+2. Daily Time Record (DTR) Clocking:
+   - Each training day, the intern records their shift details and tasks accomplished.
+   - A log entry is created in `ojt_attendance_logs`: `log_date`, `time_in`, `time_out`,
+     `tasks_accomplished`, and `hours_rendered`. Status defaults to 'pending'.
+3. Supervisor / Workplace Mentor Certification:
+   - The assigned Workplace Mentor logs into `/dashboard/organization/ojt`.
+   - The mentor reviews the hours and tasks.
+   - Mentor clicks "Verify & Credit":
+     * `ojt_attendance_logs.status` becomes 'verified'.
+     * `ojt_records.rendered_hours` is automatically incremented.
+     * `students.completed_ojt_hours` is synchronized.
+     * Student receives an instant notification of credited hours and remaining balance.
+   - Or Mentor clicks "Add Manual Hours" via `POST /api/org/interns/:ojtId/hours` to credit
+     special projects or overtime with automated audit logs.
+
+----------------------------------------------------------------------------------------------------
+FLOW 7: PERFORMANCE EVALUATION & VERIFIED CAREER PORTFOLIO GENERATION
+----------------------------------------------------------------------------------------------------
+1. Completion Milestone:
+   - When `rendered_hours >= required_hours`, the student reaches 'completed' status.
+2. Employer Evaluation:
+   - Workplace Mentor submits Midterm / Final evaluation in `ojt_performance_records`.
+   - Evaluates standardized rubric criteria:
+     * Quality of Work, Dependability & Initiative, Technical Skill Mastery, Workplace Ethics.
+   - Calculates numeric rating (e.g. 4.85 / 5.00) with written qualitative supervisor commendations.
+3. Automated Portfolio Crediting:
+   - Upon OJT completion or On-Call deliverable acceptance (`/applicants/:id/accept-on-call`),
+     the system automatically generates an authenticated record in `portfolio_items`:
+     * `title`: "Certified OJT: [Position Title]" or "On-Call Experience: [Project Name]"
+     * `associated_org_id`: verified hiring organization ID
+     * `is_verified`: 1 (Officially authenticated by corporate partner)
+   - When the student graduates and applies for career jobs, prospective HR recruiters can inspect
+     these verified credentials with zero risk of fabricated resumes.
+
+----------------------------------------------------------------------------------------------------
+FLOW 8: INCIDENT REPORTING, COMPLAINTS, ACCIDENT RECORDS & GRIEVANCE SHIELDING
+----------------------------------------------------------------------------------------------------
+InternConPH provides bidirectional accountability with structured conflict resolution:
+
+A. Employer Filing Against Intern:
+   - If an intern violates safety protocols, commits unexcused absences, or breaches conduct,
+     the Workplace Mentor/HR files a report via `POST /api/org/complaints`.
+   - If physical injury occurred, an `accident_reports` record is linked (capturing injury description,
+     medical attention given, witnesses, and preventive measures).
+   - This complaint is transmitted EXCLUSIVELY to the student's academic institution coordinator.
+   - The coordinator investigates, schedules a conference, and issues an institutional warning note.
+
+B. Student Filing Grievance Against Employer (With Whistleblower Protection):
+   - If a student encounters sexual harassment, unpaid overtime, safety hazards, or recruiter ghosting,
+     the student files a grievance via `POST /api/student/complaints`.
+   - The complaint is routed directly to the University Guidance Counselor.
+   - Privacy Shielding: When the university forwards the notice to the organization for formal response,
+     the university can toggle `include_student_details = 0`. The company sees "Student Intern
+     (Identity Protected by Institution)", preventing retaliation while active on site.
+   - If an organization exhibits repeat critical violations, the Institution escalates the dossier
+     to the System Administrator to revoke the company's nationwide platform accreditation.
+
+====================================================================================================
+4. DATA ARCHITECTURE & ENTITY RELATIONSHIPS (HOW DATA IS CONNECTED)
+====================================================================================================
+
+Below is the structured relational map showing how records interlock across tables:
+
++--------------------------------------------------------------------------------------------------+
+|                                    USERS & ACCESS CONTROL                                        |
++--------------------------------------------------------------------------------------------------+
+  [users] 1 --- * [roles]
+     |
+     +--- 1:1 --- [institutions] (Main account: Director)
+     |               |
+     |               +--- 1:* --- [programs] (Curricula & Degrees)
+     |               |               |
+     |               |               +--- 1:* --- [students]
+     |               |                              |
+     |               +--- 1:* --- [institution_staff] (Supervisors, Registrars, Counselors, Deans)
+     |
+     +--- 1:1 --- [hiring_organizations] (Main account: HR)
+                     |
+                     +--- 1:* --- [organization_staff] (Workplace Mentors, HR staff)
+                     |
+                     +--- 1:* --- [job_postings] (OJT, Career Jobs, On-Call)
+
++--------------------------------------------------------------------------------------------------+
+|                              ACCESS CODES & INVITATION DELEGATION                                |
++--------------------------------------------------------------------------------------------------+
+  [access_codes]
+     - code_hash (Unique cryptographic identifier)
+     - recipient_type ('institution_staff' | 'student' | 'workplace_mentor')
+     - institution_id / organization_id / program_id
+     - target_identifier (Employee ID or Student School ID)
+     - intended_position, intended_classification, assigned_permissions (JSON)
+     - is_used, used_by_user_id, expires_at
+
++--------------------------------------------------------------------------------------------------+
+|                             OPPORTUNITY & TRIPARTITE CLEARANCE                                   |
++--------------------------------------------------------------------------------------------------+
+  [job_postings] 1 --- * [institution_job_approvals] (Tripartite clearance gate)
+        |
+        +--- 1:* --- [job_required_programs] ---> [programs] (Curriculum eligibility matching)
+        |
+        +--- 1:* --- [job_required_skills]   ---> [skills]   (Algorithmic skill matching)
+        |
+        +--- 1:* --- [job_applications]
+                          |
+                          +--- 1:* --- [interviews]
+                          |
+                          +--- 1:1 --- [job_offers] (For Career Jobs)
+                          |
+                          +--- 1:1 --- [ojt_deployment_offers] (For OJT Internships)
+
++--------------------------------------------------------------------------------------------------+
+|                             ACTIVE OJT DEPLOYMENT & TIME TRACKING                                |
++--------------------------------------------------------------------------------------------------+
+  [students] 1 --- * [ojt_records] * --- 1 [hiring_organizations]
+                           |
+                           +--- 1:* --- [ojt_attendance_logs] (Daily DTR records)
+                           |               - log_date, time_in, time_out, hours_rendered
+                           |               - tasks_accomplished, status ('verified' | 'pending')
+                           |               - verified_by (Mentor User ID), verified_at
+                           |
+                           +--- 1:* --- [ojt_performance_records] (Midterm / Final Evaluations)
+                                           - evaluator_id, evaluation_period, rating, score_details
+
++--------------------------------------------------------------------------------------------------+
+|                             LIFELONG VERIFIED CAREER PORTFOLIOS                                  |
++--------------------------------------------------------------------------------------------------+
+  [students] 1 --- 1 [student_portfolios]
+                           |
+                           +--- 1:* --- [portfolio_items]
+                           |               - item_type ('work_experience', 'project', 'certification')
+                           |               - associated_org_id (Links to authentic company)
+                           |               - is_verified (1 = Authenticated by company)
+                           |
+                           +--- 1:* --- [student_resumes]
+                           |
+                           +--- 1:* --- [student_skills] ---> [skills]
+
++--------------------------------------------------------------------------------------------------+
+|                             INCIDENT REPORTING & COMPLIANCE                                      |
++--------------------------------------------------------------------------------------------------+
+  [complaints]
+     - student_id, organization_id, category_id
+     - complainant_type ('student' | 'organization')
+     - is_accident (Flag)
+     - forwarded_to_org, include_student_details (Whistleblower protection mask)
+     - status ('submitted', 'institution_review', 'admin_review', 'resolved')
+     |
+     +--- 1:1 --- [accident_reports] (Medical care, injuries, immediate actions, witnesses)
+
+====================================================================================================
+5. TECHNICAL IMPLEMENTATION STACK & REALTIME EVENT BUS
+====================================================================================================
+
+1. FRONTEND ARCHITECTURE:
+   - Framework: React 19 + Vite 6 Single Page Application (SPA).
+   - Routing: React Router DOM v7 with animated transitions (`framer-motion`).
+   - UI Design & Styling: Custom Vanilla Tailwind CSS tokens, dynamic Light/Dark mode (`ThemeProvider`),
+     responsive dashboard layout with slide-out drawer on mobile and persistent sidebar on desktop.
+   - Component System: Modular directory structure:
+     * `/src/pages/admin/` (System audit, institutions, orgs, skill intelligence, users)
+     * `/src/pages/institution/` (Directors, student intake, coordinators, monitoring, clearances)
+     * `/src/pages/organization/` (Job management, talent applicants, DTR verification, mentors)
+     * `/src/pages/student/` (Job discovery, DTR tracking, skills, complaints, career portfolio)
+     * `/src/pages/public/` (Landing, role-specific registration gates, login, policy disclosures)
+
+2. BACKEND ARCHITECTURE:
+   - Runtime: Node.js (ESM modules) with Express.js REST API.
+   - Database: MySQL 8 (via `mysql2/promise` connection pool with automatic schema alignment migrations).
+   - Authentication: Stateless JSON Web Tokens (JWT) signed with 64-character secret keys.
+   - Role-Based Access Control (RBAC): Two-tier middleware (`verifyToken` + `requireRole([allowed_roles])`).
+
+3. REALTIME WEBSOCKET EVENT BUS:
+   - Engine: Socket.IO v4.
+   - Events Emitted across Entities:
+     * `job_updated`: Instant alert when opportunity is approved or updated.
+     * `application_updated`: Live status updates on job applications.
+     * `ojt_updated`: Instant sync when attendance hours are certified by mentors.
+     * `notification_received`: Push notification bell update across all connected dashboards.
+     * `complaint_updated`: Urgent dispatch of incident reports to coordinators.
+
+====================================================================================================
+6. SUMMARY OF SYSTEM SAFEGUARDS & AUDIT MECHANISMS
+====================================================================================================
+
+1. TAMPER-PROOF ATTENDANCE:
+   Students cannot manually overwrite or forge their completed hours. Only the registered Workplace
+   Mentor assigned to the student's company branch has the authorization to certify DTR logs.
+
+2. TRIPARTITE JOB APPROVAL CHECK:
+   No organization can solicit students without academic sanction. The database strictly enforces
+   that an institution approval record must exist before an opportunity is rendered searchable.
+
+3. RESUME AND BADGE AUTHENTICITY:
+   Recruiters no longer need to conduct lengthy background checks for entry-level applicants. Any item
+   marked `is_verified = 1` on an InternConPH portfolio is cryptographically tied to the verified
+   organization ID that registered the student's internship or project.
+
+4. AUTOMATIC AUDIT LOGGING:
+   All high-risk operations (approvals, rejections, password resets, access-code generations, and
+   disciplinary complaints) are committed to the immutable `audit_logs` table capturing user ID,
+   action timestamp, target entity, and client IP address.
+
+====================================================================================================
+                                      END OF SYSTEM GUIDE
+====================================================================================================
