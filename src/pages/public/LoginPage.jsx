@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import PageTransition from '../../components/Layout/PageTransition';
 
 export default function LoginPage() {
@@ -11,6 +12,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const { login, getDashboardUrl } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -42,14 +44,32 @@ export default function LoginPage() {
           {/* LEFT PANEL - Form */}
           <div className="w-full lg:w-1/2 p-5 sm:p-8 md:p-12 lg:p-16 flex flex-col relative bg-surface">
             
-            {/* Top Back Button */}
-            <Link 
-              to="/" 
-              className="absolute top-4 left-4 sm:top-8 sm:left-8 flex items-center gap-1.5 text-sm font-bold text-on-surface-variant hover:text-vibrant-orange transition-colors"
-            >
-              <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-              Back
-            </Link>
+            {/* Top Navigation: Back Button & Theme Toggle */}
+            <div className="absolute top-4 left-4 right-4 sm:top-8 sm:left-8 sm:right-8 flex items-center justify-between">
+              <Link 
+                to="/" 
+                className="flex items-center gap-1.5 text-sm font-bold text-on-surface-variant hover:text-vibrant-orange transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                Back
+              </Link>
+              <button
+                type="button"
+                id="login-theme-toggle-btn"
+                onClick={toggleTheme}
+                className={`p-2 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 ${
+                  isDark
+                    ? 'bg-primary-container/20 text-primary-container hover:bg-primary-container/30 border border-primary-container/40'
+                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                }`}
+                title={isDark ? 'Switch to Light Mode' : 'Switch to Aura Radiant Dark Mode'}
+                aria-label="Toggle Theme Mode"
+              >
+                <span className="material-symbols-outlined text-[18px] block">
+                  {isDark ? 'light_mode' : 'dark_mode'}
+                </span>
+              </button>
+            </div>
 
             <div className="flex-grow flex flex-col justify-center mt-8 sm:mt-12 lg:mt-8">
               {/* Logo & Title */}
