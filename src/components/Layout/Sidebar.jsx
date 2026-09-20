@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSidebar } from './DashboardLayout';
+import { resolveFileUrl } from '../../utils/fileHelper';
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
@@ -343,7 +344,7 @@ export default function Sidebar() {
           <div className="w-9 h-9 rounded-full overflow-hidden bg-vibrant-orange text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
             {user.avatar_url ? (
               <img
-                src={user.avatar_url}
+                src={resolveFileUrl(user.avatar_url)}
                 alt="Avatar"
                 className="w-full h-full object-cover"
                 onError={(e) => {
