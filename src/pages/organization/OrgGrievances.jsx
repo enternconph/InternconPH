@@ -2,6 +2,46 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 
+export const CONDUCT_CATEGORIES = [
+  { value: 'misconduct', label: 'General Misconduct / Unprofessional Behavior' },
+  { value: 'attendance', label: 'Chronic Absenteeism / Unauthorized Tardiness' },
+  { value: 'safety_violation', label: 'Safety Protocol Violation' },
+  { value: 'property_damage', label: 'Company Property Damage / Negligence' },
+  { value: 'academic_integrity', label: 'Breach of NDA / Data Confidentiality' },
+  { value: 'harassment', label: 'Interpersonal Conflict / Harassment' },
+  { value: 'other', label: 'Other Workplace Concern' }
+];
+
+export const ACCIDENT_CATEGORIES = [
+  { value: 'workplace_accident', label: 'Workplace Accident & Physical Injury' },
+  { value: 'slip_fall', label: 'Slip, Trip or Fall Incident' },
+  { value: 'machinery_equipment', label: 'Machinery / Equipment Hazard' },
+  { value: 'chemical_hazardous', label: 'Chemical / Hazardous Substance Exposure' },
+  { value: 'physical_strain', label: 'Physical Strain / Ergonomic Injury' },
+  { value: 'medical_emergency', label: 'Medical Emergency / Acute Physical Trauma' },
+  { value: 'other_accident', label: 'Other Workplace Safety Incident' }
+];
+
+export const getCleanCategoryName = (c) => {
+  let cat = c?.incident_category || c?.category_name || (typeof c?.category === 'string' ? c.category : '');
+  // Sanitize if legacy mismatched to allowance/stipend
+  if (!cat || cat.toLowerCase().includes('allowance') || cat.toLowerCase().includes('stipend')) {
+    if (c?.is_accident || c?.accident_id) {
+      return 'Workplace Accident & Physical Injury';
+    }
+    const titleLower = (c?.title || c?.subject || '').toLowerCase();
+    if (titleLower.includes('server') || titleLower.includes('damage') || titleLower.includes('property')) {
+      return 'Company Property Damage / Negligence';
+    }
+    return 'General Misconduct / Unprofessional Behavior';
+  }
+  const foundConduct = CONDUCT_CATEGORIES.find(item => item.value === cat);
+  if (foundConduct) return foundConduct.label;
+  const foundAccident = ACCIDENT_CATEGORIES.find(item => item.value === cat);
+  if (foundAccident) return foundAccident.label;
+  return cat.replace(/_/g, ' ');
+};
+
 export default function OrgGrievances() {
   const [activeTab, setActiveTab] = useState('file'); // 'file' | 'filed' | 'notices'
   const [data, setData] = useState({
@@ -237,7 +277,7 @@ export default function OrgGrievances() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-1.5 bg-surface-container rounded-2xl border border-outline-variant">
               <button
                 type="button"
-                onClick={() => setFormData((prev) => ({ ...prev, is_accident: false }))}
+                onClick={() => setFormData((prev) => ({ ...prev, is_accident: false, category: prev.is_accident ? 'misconduct' : prev.category }))}
                 className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold transition-all ${
                   !formData.is_accident
                     ? 'bg-surface-container-lowest text-vibrant-orange shadow-sm border border-outline-variant/60'
@@ -249,7 +289,7 @@ export default function OrgGrievances() {
               </button>
               <button
                 type="button"
-                onClick={() => setFormData((prev) => ({ ...prev, is_accident: true }))}
+                onClick={() => setFormData((prev) => ({ ...prev, is_accident: true, category: !prev.is_accident ? 'workplace_accident' : prev.category }))}
                 className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold transition-all ${
                   formData.is_accident
                     ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-300'
@@ -321,21 +361,32 @@ export default function OrgGrievances() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-on-surface mb-1.5">
-                    Incident Category <span className="text-error">*</span>
+                    {formData.is_accident ? 'Accident & Injury Category' : 'Incident Category'}{' '}
+                    <span className="text-error">*</span>
                   </label>
                   <select
                     name="category"
                     value={formData.category}
                     onChange={handleInputChange}
-                    className="w-full bg-surface-container border border-outline-variant rounded-xl px-3.5 py-2.5 text-sm text-on-surface focus:outline-none focus:border-vibrant-orange"
+                    className={`w-full bg-surface-container border rounded-xl px-3.5 py-2.5 text-sm text-on-surface focus:outline-none transition-colors ${
+                      formData.is_accident
+                        ? 'border-rose-300 focus:border-rose-500'
+                        : 'border-outline-variant focus:border-vibrant-orange'
+                    }`}
                   >
-                    <option value="misconduct">General Misconduct / Unprofessional Behavior</option>
-                    <option value="attendance">Chronic Absenteeism / Unauthorized Tardiness</option>
-                    <option value="safety_violation">Safety Protocol Violation</option>
-                    <option value="property_damage">Company Property Damage / Negligence</option>
-                    <option value="academic_integrity">Breach of NDA / Data Confidentiality</option>
-                    <option value="harassment">Interpersonal Conflict / Harassment</option>
-                    <option value="other">Other Workplace Concern</option>
+                    {formData.is_accident ? (
+                      ACCIDENT_CATEGORIES.map((cat) => (
+                        <option key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </option>
+                      ))
+                    ) : (
+                      CONDUCT_CATEGORIES.map((cat) => (
+                        <option key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -682,35 +733,77 @@ export default function OrgGrievances() {
                   {displayedFiledList.map((c) => {
                     const internName = c.student_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Student Intern';
                     const incidentTitle = c.title || c.subject || 'Incident Report';
-                    const categoryText = c.category_name || c.category?.replace(/_/g, ' ') || 'Misconduct';
+                    const categoryText = getCleanCategoryName(c);
+                    const isAccident = Boolean(c.is_accident || c.accident_id);
+
                     return (
                       <tr key={c.complaint_id} className="hover:bg-surface-container-low/70 transition-colors text-xs group">
                         <td className="py-3.5 px-3.5 font-bold text-sm text-on-surface whitespace-nowrap">
-                          {internName}
+                          <div>{internName}</div>
+                          {c.course && (
+                            <div className="text-[11px] font-normal text-on-surface-variant truncate max-w-[160px]">
+                              {c.course}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3.5 px-3.5 text-xs text-on-surface-variant max-w-[180px] truncate font-medium" title={c.institution_name}>
                           {c.institution_name || 'Academic Institution'}
                         </td>
                         <td className="py-3.5 px-3.5 text-xs">
-                          <span
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-container-high text-on-surface border border-outline-variant/60 font-semibold text-[11px] whitespace-nowrap max-w-[190px] truncate shadow-xs"
-                            title={categoryText}
-                          >
-                            <span className="material-symbols-outlined text-[13px] text-on-surface-variant shrink-0">label</span>
-                            <span className="truncate">{categoryText}</span>
-                          </span>
+                          {isAccident ? (
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/10 text-rose-400 border border-rose-500/30 font-semibold text-[11px] whitespace-nowrap max-w-[200px] truncate shadow-xs"
+                              title={categoryText}
+                            >
+                              <span className="material-symbols-outlined text-[13px] text-rose-400 shrink-0">medical_services</span>
+                              <span className="truncate">{categoryText}</span>
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/30 font-semibold text-[11px] whitespace-nowrap max-w-[200px] truncate shadow-xs"
+                              title={categoryText}
+                            >
+                              <span className="material-symbols-outlined text-[13px] text-amber-400 shrink-0">gavel</span>
+                              <span className="truncate">{categoryText}</span>
+                            </span>
+                          )}
                         </td>
-                        <td className="py-3.5 px-3.5 font-medium text-xs text-on-surface max-w-[220px] truncate" title={incidentTitle}>
-                          {incidentTitle}
+                        <td className="py-3.5 px-3.5 text-xs max-w-[220px]">
+                          <div className="font-semibold text-on-surface truncate" title={incidentTitle}>
+                            {incidentTitle}
+                          </div>
+                          <div className="text-[10px] text-on-surface-variant flex items-center gap-1 mt-0.5">
+                            <span className="material-symbols-outlined text-[11px]">event</span>
+                            <span>
+                              {c.incident_datetime
+                                ? new Date(c.incident_datetime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                                : c.filed_at || c.created_at
+                                ? new Date(c.filed_at || c.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                                : 'Recent'}
+                            </span>
+                            {c.accident_location && (
+                              <>
+                                <span>•</span>
+                                <span className="truncate max-w-[100px]" title={c.accident_location}>{c.accident_location}</span>
+                              </>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3.5 px-3.5 text-xs whitespace-nowrap">
-                          {c.is_accident ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 text-[11px] font-bold">
+                          {isAccident ? (
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                              c.accident_severity === 'critical' || c.accident_severity === 'fatal'
+                                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                : c.accident_severity === 'severe'
+                                ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                                : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                            }`}>
                               <span className="material-symbols-outlined text-[13px]">emergency</span>
                               Accident ({c.accident_severity || 'Reported'})
                             </span>
                           ) : (
-                            <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant/60 text-[11px] font-medium">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant/60 text-[11px] font-medium">
+                              <span className="material-symbols-outlined text-[13px]">gavel</span>
                               Conduct Report
                             </span>
                           )}
@@ -722,6 +815,8 @@ export default function OrgGrievances() {
                                 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                                 : c.status === 'under_investigation'
                                 ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                                : c.status === 'admin_review'
+                                ? 'bg-purple-500/15 text-purple-400 border-purple-500/30'
                                 : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
                             }`}
                           >
@@ -734,7 +829,7 @@ export default function OrgGrievances() {
                               <span className="material-symbols-outlined text-[13px]">task_alt</span>
                               Warning Sent
                             </span>
-                          ) : (c.is_accident || c.accident_id) ? (
+                          ) : isAccident ? (
                             <span className="text-on-surface-variant text-[11px] px-2.5 py-0.5 rounded-full bg-surface-container border border-outline-variant/40 italic">
                               N/A (Accident)
                             </span>
@@ -746,7 +841,7 @@ export default function OrgGrievances() {
                         </td>
                         <td className="py-3.5 px-3.5 text-right whitespace-nowrap">
                           <button
-                            onClick={() => setSelectedItem({ type: 'complaint', data: c })}
+                            onClick={() => setSelectedItem({ type: 'complaint', data: { ...c, category_name: categoryText, incident_category: categoryText } })}
                             className="px-3 py-1.5 bg-surface-container text-on-surface hover:bg-vibrant-orange hover:text-white rounded-lg text-xs font-bold transition-all border border-outline-variant hover:border-vibrant-orange inline-flex items-center gap-1 shadow-xs"
                           >
                             <span>View Details</span>
@@ -860,94 +955,166 @@ export default function OrgGrievances() {
               </button>
             </div>
 
-            {selectedItem.type === 'complaint' && (
-              <div className="space-y-4 text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-surface-container-low rounded-xl">
-                  <div>
-                    <span className="text-on-surface-variant block">Subject Intern:</span>
-                    <strong className="text-on-surface">
-                      {selectedItem.data.student_name || `${selectedItem.data.first_name || ''} ${selectedItem.data.last_name || ''}`.trim()}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-on-surface-variant block">Academic Institution:</span>
-                    <strong className="text-on-surface">{selectedItem.data.institution_name}</strong>
-                  </div>
-                  <div>
-                    <span className="text-on-surface-variant block">Category:</span>
-                    <strong className="text-on-surface capitalize">
-                      {selectedItem.data.category_name || selectedItem.data.category?.replace(/_/g, ' ')}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-on-surface-variant block">Review Status:</span>
-                    <strong className="text-on-surface uppercase">{selectedItem.data.status}</strong>
-                  </div>
-                </div>
+            {selectedItem.type === 'complaint' && (() => {
+              const item = selectedItem.data;
+              const isAccident = Boolean(item.is_accident || item.accident_id);
+              const cleanCategory = getCleanCategoryName(item);
 
-                <div>
-                  <h4 className="font-bold text-on-surface mb-1">Narrative Description:</h4>
-                  <p className="p-3 bg-surface-container-low rounded-xl text-on-surface leading-relaxed whitespace-pre-wrap">
-                    {selectedItem.data.description}
-                  </p>
-                </div>
+              return (
+                <div className="space-y-4 text-xs">
+                  {/* Type Banner */}
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/60">
+                    <span className="inline-flex items-center gap-1.5 font-bold">
+                      <span className={`material-symbols-outlined text-[18px] ${isAccident ? 'text-rose-500' : 'text-vibrant-orange'}`}>
+                        {isAccident ? 'emergency' : 'gavel'}
+                      </span>
+                      <span className="text-on-surface">
+                        {isAccident ? 'Workplace Accident & Physical Injury Report' : 'Intern Conduct / Misconduct Complaint'}
+                      </span>
+                    </span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wider border ${
+                      item.status === 'resolved'
+                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                        : item.status === 'under_investigation'
+                        ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                        : item.status === 'admin_review'
+                        ? 'bg-purple-500/15 text-purple-400 border-purple-500/30'
+                        : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                    }`}>
+                      {item.status?.replace(/_/g, ' ').toUpperCase()}
+                    </span>
+                  </div>
 
-                {/* Accident Report Details if applicable */}
-                {selectedItem.data.is_accident && (
-                  <div className="p-4 bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-xl space-y-2.5">
-                    <h4 className="font-bold text-rose-800 dark:text-rose-200 flex items-center gap-1.5 text-sm">
-                      <span className="material-symbols-outlined text-[18px] text-rose-600 dark:text-rose-400">emergency</span>
-                      Accident & Safety Incident Report
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-800 dark:text-slate-200">
-                      <div>
-                        <span className="text-rose-700 dark:text-rose-300 font-semibold">Severity:</span>{' '}
-                        <span className="uppercase font-bold text-slate-900 dark:text-slate-100">{selectedItem.data.accident_severity}</span>
-                      </div>
-                      <div>
-                        <span className="text-rose-700 dark:text-rose-300 font-semibold">Location:</span>{' '}
-                        <span>{selectedItem.data.accident_location || selectedItem.data.incident_location || 'Facility'}</span>
-                      </div>
-                      <div className="col-span-1 sm:col-span-2">
-                        <span className="text-rose-700 dark:text-rose-300 font-semibold">Injuries:</span>{' '}
-                        <span>{selectedItem.data.injury_description || selectedItem.data.injuries_sustained}</span>
-                      </div>
-                      {(selectedItem.data.witnesses) && (
-                        <div className="col-span-1 sm:col-span-2">
-                          <span className="text-rose-700 dark:text-rose-300 font-semibold">Witnesses:</span>{' '}
-                          <span>{selectedItem.data.witnesses}</span>
-                        </div>
-                      )}
-                      {(selectedItem.data.immediate_action_taken || selectedItem.data.emergency_actions_taken) && (
-                        <div className="col-span-1 sm:col-span-2">
-                          <span className="text-rose-700 dark:text-rose-300 font-semibold">Actions Taken:</span>{' '}
-                          <span>{selectedItem.data.immediate_action_taken || selectedItem.data.emergency_actions_taken}</span>
-                        </div>
-                      )}
-                      {(selectedItem.data.preventive_measures) && (
-                        <div className="col-span-1 sm:col-span-2">
-                          <span className="text-rose-700 dark:text-rose-300 font-semibold">Preventive Plan:</span>{' '}
-                          <span>{selectedItem.data.preventive_measures}</span>
-                        </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-surface-container-low rounded-xl border border-outline-variant/40">
+                    <div>
+                      <span className="text-on-surface-variant block text-[11px]">Subject Intern:</span>
+                      <strong className="text-on-surface text-sm">
+                        {item.student_name || `${item.first_name || ''} ${item.last_name || ''}`.trim()}
+                      </strong>
+                      {item.student_number && (
+                        <div className="text-[10.5px] text-on-surface-variant">ID: {item.student_number}</div>
                       )}
                     </div>
+                    <div>
+                      <span className="text-on-surface-variant block text-[11px]">Academic Institution:</span>
+                      <strong className="text-on-surface text-sm">{item.institution_name}</strong>
+                    </div>
+                    <div>
+                      <span className="text-on-surface-variant block text-[11px]">Incident Category:</span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 mt-0.5 rounded-md text-[11px] font-semibold border ${
+                        isAccident
+                          ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                          : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                      }`}>
+                        <span className="material-symbols-outlined text-[13px]">{isAccident ? 'medical_services' : 'gavel'}</span>
+                        <span>{cleanCategory}</span>
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-on-surface-variant block text-[11px]">Date & Time Reported:</span>
+                      <strong className="text-on-surface">
+                        {new Date(item.filed_at || item.created_at || item.incident_datetime).toLocaleString(undefined, {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </strong>
+                    </div>
                   </div>
-                )}
 
-                {/* Institution Warning to Student */}
-                {selectedItem.data.warning_note_to_student && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
-                    <h4 className="font-bold text-amber-900 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[16px]">warning</span>
-                      Official Institution Warning Issued to Intern
-                    </h4>
-                    <p className="text-amber-800 leading-relaxed">
-                      {selectedItem.data.warning_note_to_student}
+                  <div>
+                    <h4 className="font-bold text-on-surface mb-1">Narrative Description:</h4>
+                    <p className="p-3 bg-surface-container-low rounded-xl text-on-surface leading-relaxed whitespace-pre-wrap border border-outline-variant/40">
+                      {item.description}
                     </p>
                   </div>
-                )}
-              </div>
-            )}
+
+                  {/* Supporting Document / Evidence */}
+                  {item.evidence_url && (
+                    <div>
+                      <h4 className="font-bold text-on-surface mb-1">Supporting Document / Evidence:</h4>
+                      <a
+                        href={item.evidence_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 p-2.5 bg-surface-container-low rounded-xl text-vibrant-orange hover:underline text-xs break-all border border-outline-variant/60 w-full"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">attach_file</span>
+                        <span className="truncate flex-1">{item.evidence_url}</span>
+                        <span className="material-symbols-outlined text-[14px] shrink-0">open_in_new</span>
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Accident Report Details if applicable */}
+                  {isAccident && (
+                    <div className="p-4 bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-xl space-y-2.5">
+                      <h4 className="font-bold text-rose-800 dark:text-rose-200 flex items-center gap-1.5 text-sm">
+                        <span className="material-symbols-outlined text-[18px] text-rose-600 dark:text-rose-400">medical_services</span>
+                        Workplace Accident & Physical Injury Details
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-800 dark:text-slate-200">
+                        <div>
+                          <span className="text-rose-700 dark:text-rose-300 font-semibold">Severity:</span>{' '}
+                          <span className="uppercase font-bold text-slate-900 dark:text-slate-100">{item.accident_severity || 'Reported'}</span>
+                        </div>
+                        <div>
+                          <span className="text-rose-700 dark:text-rose-300 font-semibold">Location:</span>{' '}
+                          <span>{item.accident_location || item.incident_location || 'Facility'}</span>
+                        </div>
+                        <div className="col-span-1 sm:col-span-2">
+                          <span className="text-rose-700 dark:text-rose-300 font-semibold">Injuries Sustained:</span>{' '}
+                          <span>{item.injury_description || item.injuries_sustained || 'N/A'}</span>
+                        </div>
+                        <div>
+                          <span className="text-rose-700 dark:text-rose-300 font-semibold">Medical Attention:</span>{' '}
+                          <span>{item.medical_attention_given || (item.medical_attention_required ? 'Required external medical attention' : 'No external medical attention required')}</span>
+                        </div>
+                        {item.incident_datetime && (
+                          <div>
+                            <span className="text-rose-700 dark:text-rose-300 font-semibold">Incident Time:</span>{' '}
+                            <span>{new Date(item.incident_datetime).toLocaleString()}</span>
+                          </div>
+                        )}
+                        {item.witnesses && (
+                          <div className="col-span-1 sm:col-span-2">
+                            <span className="text-rose-700 dark:text-rose-300 font-semibold">Witnesses:</span>{' '}
+                            <span>{item.witnesses}</span>
+                          </div>
+                        )}
+                        {(item.immediate_action_taken || item.emergency_actions_taken) && (
+                          <div className="col-span-1 sm:col-span-2">
+                            <span className="text-rose-700 dark:text-rose-300 font-semibold">Emergency Actions Taken:</span>{' '}
+                            <span>{item.immediate_action_taken || item.emergency_actions_taken}</span>
+                          </div>
+                        )}
+                        {(item.preventive_measures) && (
+                          <div className="col-span-1 sm:col-span-2">
+                            <span className="text-rose-700 dark:text-rose-300 font-semibold">Preventive Measures:</span>{' '}
+                            <span>{item.preventive_measures}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Institution Warning to Student */}
+                  {item.warning_note_to_student && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
+                      <h4 className="font-bold text-amber-900 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px]">warning</span>
+                        Official Institution Warning Issued to Intern
+                      </h4>
+                      <p className="text-amber-800 leading-relaxed">
+                        {item.warning_note_to_student}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {selectedItem.type === 'notice' && (
               <div className="space-y-4 text-xs">

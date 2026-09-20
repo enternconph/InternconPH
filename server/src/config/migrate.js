@@ -477,7 +477,23 @@ export async function runMigrations() {
       ['Safety & Working Conditions', 'Substandard health and occupational safety'],
       ['Excessive Hours / Exploitation', 'Hours exceeding CHED or MOA guidelines'],
       ['Allowance / Stipend Issues', 'Delayed or unpaid agreed allowance'],
-      ['Other', 'General complaints and grievances']
+      ['Other', 'General complaints and grievances'],
+      // Conduct Categories
+      ['General Misconduct / Unprofessional Behavior', 'Unprofessional conduct, behavioral infractions, or workplace disruption'],
+      ['Chronic Absenteeism / Unauthorized Tardiness', 'Unexcused absences, chronic lateness, or schedule abandonment'],
+      ['Safety Protocol Violation', 'Disregard of safety equipment, PPE, or operational health standards'],
+      ['Company Property Damage / Negligence', 'Negligent handling or willful damage to organization property, hardware, or facilities'],
+      ['Breach of NDA / Data Confidentiality', 'Unauthorized disclosure of proprietary data, intellectual property, or confidential client records'],
+      ['Interpersonal Conflict / Harassment', 'Verbal hostility, bullying, or conflict with colleagues or supervisors'],
+      ['Other Workplace Concern', 'General behavioral or workplace conduct matters'],
+      // Accident & Injury Categories
+      ['Workplace Accident & Physical Injury', 'Physical trauma, injury, or acute medical incident during work shift'],
+      ['Slip, Trip or Fall Incident', 'Slips, trips, or falls within facility premises'],
+      ['Machinery / Equipment Hazard', 'Injuries resulting from tools, machines, or laboratory apparatus'],
+      ['Chemical / Hazardous Exposure', 'Exposure to chemicals, biohazards, fumes, or toxic substances'],
+      ['Physical Strain / Ergonomic Injury', 'Acute musculoskeletal strain from heavy lifting or repetitive trauma'],
+      ['Medical Emergency / Acute Physical Trauma', 'Sudden medical event, fainting, cardiac, or respiratory distress on duty'],
+      ['Other Workplace Safety Incident', 'General workplace safety or physical hazard event']
     ];
     for (const [ccName, desc] of complaintCats) {
       await pool.query(
@@ -486,6 +502,22 @@ export async function runMigrations() {
          ON DUPLICATE KEY UPDATE description = VALUES(description)`,
         [ccName, desc]
       );
+    }
+
+    // Align complaints table columns for conduct & accident reporting
+    try {
+      const [compCols] = await pool.query('DESCRIBE complaints');
+      const compColNames = compCols.map(c => c.Field);
+      if (!compColNames.includes('incident_category')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN incident_category VARCHAR(150) NULL AFTER category_id');
+        console.log('[Migration] Added incident_category to complaints');
+      }
+      if (!compColNames.includes('evidence_url')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN evidence_url VARCHAR(500) NULL AFTER resolution_notes');
+        console.log('[Migration] Added evidence_url to complaints');
+      }
+    } catch (err) {
+      console.warn('[Migration] Complaints table check skipped:', err.message);
     }
 
     // 18. Align institutions table

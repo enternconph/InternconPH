@@ -55,6 +55,12 @@ async function runMigration() {
     if (!compColNames.includes('warning_sent_at')) {
       await pool.query('ALTER TABLE complaints ADD COLUMN warning_sent_at DATETIME NULL AFTER warning_note_to_student');
     }
+    if (!compColNames.includes('incident_category')) {
+      await pool.query('ALTER TABLE complaints ADD COLUMN incident_category VARCHAR(150) NULL AFTER category_id');
+    }
+    if (!compColNames.includes('evidence_url')) {
+      await pool.query('ALTER TABLE complaints ADD COLUMN evidence_url VARCHAR(500) NULL AFTER description');
+    }
     console.log('[Migration] complaints table updated successfully.');
 
     // 3. Create accident_reports table

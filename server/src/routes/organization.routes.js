@@ -2548,23 +2548,47 @@ const getOrgGrievancesHandler = async (req, res) => {
 
     // 1. Complaints filed by this Organization about interns
     const [filedComplaints] = await pool.query(
-      `SELECT c.*, cc.category_name,
+      `SELECT c.*, 
+              COALESCE(c.incident_category, cc.category_name) as category_name,
+              c.incident_category,
+              c.evidence_url,
               s.first_name, s.last_name, s.student_number, s.institution_id,
               CONCAT(s.first_name, ' ', s.last_name) as student_name,
+              p.program_name as course,
               c.subject as title,
               i.institution_name,
               ar.accident_id, ar.incident_datetime, ar.location as accident_location,
               ar.severity as accident_severity, ar.injury_description, ar.medical_attention_given,
               ar.witnesses, ar.immediate_action_taken, ar.preventive_measures
        FROM complaints c
-       JOIN complaint_categories cc ON c.category_id = cc.category_id
+       LEFT JOIN complaint_categories cc ON c.category_id = cc.category_id
        JOIN students s ON c.student_id = s.student_id
+       LEFT JOIN programs p ON s.program_id = p.program_id
        LEFT JOIN institutions i ON s.institution_id = i.institution_id
        LEFT JOIN accident_reports ar ON c.complaint_id = ar.complaint_id
        WHERE c.organization_id = ? AND c.complainant_type = 'organization'
        ORDER BY c.filed_at DESC`,
       [org.organization_id]
     );
+
+    // Sanitize any legacy mismatches where an organization filing was assigned an allowance category
+    const sanitizedFiledComplaints = filedComplaints.map(c => {
+      let cat = c.incident_category || c.category_name;
+      if (!cat || cat.toLowerCase().includes('allowance') || cat.toLowerCase().includes('stipend')) {
+        if (c.is_accident || c.accident_id) {
+          cat = 'Workplace Accident & Physical Injury';
+        } else if ((c.title || c.subject || '').toLowerCase().includes('server') || (c.title || c.subject || '').toLowerCase().includes('damage')) {
+          cat = 'Company Property Damage / Negligence';
+        } else {
+          cat = 'General Misconduct / Unprofessional Behavior';
+        }
+      }
+      return {
+        ...c,
+        category_name: cat,
+        incident_category: cat
+      };
+    });
 
     // 2. Grievances forwarded by Institutions to this Organization
     const [forwardedNotices] = await pool.query(
@@ -2609,7 +2633,7 @@ const getOrgGrievancesHandler = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        filedComplaints,
+        filedComplaints: sanitizedFiledComplaints,
         forwardedNotices,
         forwardedGrievances: forwardedNotices,
         deployedStudents,
@@ -2629,6 +2653,27 @@ router.get('/grievances', getOrgGrievancesHandler);
 // GET /api/org/compliance - Alias for compliance audits
 router.get('/compliance', getOrgGrievancesHandler);
 
+// Category mapping dictionaries for Conduct and Accident reports
+const CONDUCT_CATEGORY_MAP = {
+  misconduct: 'General Misconduct / Unprofessional Behavior',
+  attendance: 'Chronic Absenteeism / Unauthorized Tardiness',
+  safety_violation: 'Safety Protocol Violation',
+  property_damage: 'Company Property Damage / Negligence',
+  academic_integrity: 'Breach of NDA / Data Confidentiality',
+  harassment: 'Interpersonal Conflict / Harassment',
+  other: 'Other Workplace Concern'
+};
+
+const ACCIDENT_CATEGORY_MAP = {
+  workplace_accident: 'Workplace Accident & Physical Injury',
+  slip_fall: 'Slip, Trip or Fall Incident',
+  machinery_equipment: 'Machinery / Equipment Hazard',
+  chemical_hazardous: 'Chemical / Hazardous Exposure',
+  physical_strain: 'Physical Strain / Ergonomic Injury',
+  medical_emergency: 'Medical Emergency / Acute Physical Trauma',
+  other_accident: 'Other Workplace Safety Incident'
+};
+
 // POST /api/org/complaints - Workplace Mentor / HR filing intern complaint or accident report
 router.post('/complaints', async (req, res) => {
   const {
@@ -2638,6 +2683,7 @@ router.post('/complaints', async (req, res) => {
     subject: rawSubject,
     title,
     description,
+    evidence_url,
     job_id,
     is_accident,
     accident_details: rawAccidentDetails,
@@ -2680,13 +2726,32 @@ router.post('/complaints', async (req, res) => {
     }
     const student = studentRows[0];
 
-    let catId = category_id;
-    if (!catId) {
-      const [cats] = await connection.query('SELECT category_id FROM complaint_categories LIMIT 1');
-      catId = cats.length > 0 ? cats[0].category_id : 1;
+    const isAccidentFlag = Boolean(is_accident);
+
+    // Resolve target human-readable category name
+    let targetCategoryName = '';
+    if (isAccidentFlag) {
+      targetCategoryName = ACCIDENT_CATEGORY_MAP[category] || CONDUCT_CATEGORY_MAP[category] || category || 'Workplace Accident & Physical Injury';
+    } else {
+      targetCategoryName = CONDUCT_CATEGORY_MAP[category] || ACCIDENT_CATEGORY_MAP[category] || category || 'General Misconduct / Unprofessional Behavior';
     }
 
-    const isAccidentFlag = Boolean(is_accident);
+    let catId = category_id;
+    if (!catId) {
+      const [matchedCats] = await connection.query(
+        'SELECT category_id FROM complaint_categories WHERE category_name = ? LIMIT 1',
+        [targetCategoryName]
+      );
+      if (matchedCats.length > 0) {
+        catId = matchedCats[0].category_id;
+      } else {
+        const [insertCat] = await connection.query(
+          'INSERT INTO complaint_categories (category_name, description) VALUES (?, ?)',
+          [targetCategoryName, isAccidentFlag ? 'Workplace health, safety and physical injury report' : 'Intern conduct and workplace behavioral report']
+        );
+        catId = insertCat.insertId;
+      }
+    }
 
     // Sanitize severity to strictly match allowed ENUM values in accident_reports
     const sanitizeSeverity = (val) => {
@@ -2729,13 +2794,26 @@ router.post('/complaints', async (req, res) => {
 
     const [resRow] = await connection.query(
       `INSERT INTO complaints (
-         student_id, organization_id, category_id, job_id, subject, description,
-         complainant_type, is_accident, status, filed_at, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, 'organization', ?, 'submitted', NOW(), NOW(), NOW())`,
-      [student_id, org.organization_id, catId, job_id || null, subject, description, isAccidentFlag ? 1 : 0]
+         student_id, organization_id, category_id, incident_category, job_id, subject, description,
+         evidence_url, complainant_type, is_accident, status, filed_at, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'organization', ?, 'submitted', NOW(), NOW(), NOW())`,
+      [student_id, org.organization_id, catId, targetCategoryName, job_id || null, subject, description, evidence_url || null, isAccidentFlag ? 1 : 0]
     );
 
     const complaintId = resRow.insertId;
+
+    // Save evidence link into complaint_evidence if provided
+    if (evidence_url && evidence_url.trim()) {
+      try {
+        await connection.query(
+          `INSERT INTO complaint_evidence (complaint_id, file_path, description, uploaded_at, created_at, updated_at)
+           VALUES (?, ?, 'Supporting evidence or incident report link', NOW(), NOW(), NOW())`,
+          [complaintId, evidence_url.trim()]
+        );
+      } catch (evErr) {
+        console.warn('Failed to insert into complaint_evidence:', evErr.message);
+      }
+    }
 
     // If marked as accident, insert into accident_reports
     if (isAccidentFlag && accident_details) {

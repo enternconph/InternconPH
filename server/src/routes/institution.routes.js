@@ -2170,7 +2170,9 @@ router.get('/monitoring', async (req, res) => {
     let empCompSql = `SELECT c.*, c.subject as title, s.first_name, s.last_name, s.student_number,
               CONCAT(s.first_name, ' ', s.last_name) as student_name,
               ho.organization_name,
-              cc.category_name,
+              COALESCE(c.incident_category, cc.category_name) as category_name,
+              c.incident_category,
+              c.evidence_url,
               ar.accident_id, ar.incident_datetime, ar.location as accident_location,
               ar.location as incident_location,
               ar.severity as accident_severity, ar.injury_description,
@@ -2190,7 +2192,20 @@ router.get('/monitoring', async (req, res) => {
     const empCompParams = [inst.institution_id];
     empCompSql = appendProgramScopeSql(empCompSql, empCompParams, scope, 's.program_id');
     empCompSql += ' ORDER BY c.created_at DESC';
-    const [employerComplaints] = await pool.query(empCompSql, empCompParams);
+    const [rawEmployerComplaints] = await pool.query(empCompSql, empCompParams);
+    const employerComplaints = rawEmployerComplaints.map(c => {
+      let cat = c.incident_category || c.category_name;
+      if (!cat || cat.toLowerCase().includes('allowance') || cat.toLowerCase().includes('stipend')) {
+        if (c.is_accident || c.accident_id) {
+          cat = 'Workplace Accident & Physical Injury';
+        } else if ((c.title || c.subject || '').toLowerCase().includes('server') || (c.title || c.subject || '').toLowerCase().includes('damage')) {
+          cat = 'Company Property Damage / Negligence';
+        } else {
+          cat = 'General Misconduct / Unprofessional Behavior';
+        }
+      }
+      return { ...c, category_name: cat, incident_category: cat };
+    });
     const conductComplaints = employerComplaints.filter(c => !c.is_accident && !c.accident_id);
     const accidentReports = employerComplaints.filter(c => c.is_accident || c.accident_id);
 
