@@ -73,7 +73,10 @@ export default function StudentPortfolio() {
   // Upload file then create portfolio item
   const handleUploadItem = async (e) => {
     e.preventDefault();
-    if (!uploadFile || !uploadTitle) return;
+    if (!uploadFile || !uploadTitle) {
+      showNotification('Please provide a title and select a file to upload.', true);
+      return;
+    }
 
     setUploading(true);
     try {
@@ -82,23 +85,27 @@ export default function StudentPortfolio() {
       formData.append('file', uploadFile);
       const uploadRes = await api.post('/student/portfolio/upload', formData);
 
-      if (!uploadRes.success) {
-        showNotification(uploadRes.message || 'File upload failed.', true);
+      if (!uploadRes || !uploadRes.success) {
+        showNotification((uploadRes && uploadRes.message) || 'File upload failed. Please try again.', true);
         setUploading(false);
         return;
       }
+
+      const uploadedFilePath = uploadRes.data?.file_path || '';
+      const uploadedFileName = uploadRes.data?.file_name || uploadFile.name;
+      const uploadedFileSize = uploadRes.data?.file_size || uploadFile.size;
 
       // Step 2: Create portfolio item with file reference
       const itemRes = await api.post('/student/portfolio/items', {
         title: uploadTitle,
         description: uploadDesc,
-        file_path: uploadRes.data.file_path,
-        file_name: uploadRes.data.file_name,
-        file_size: uploadRes.data.file_size,
+        file_path: uploadedFilePath,
+        file_name: uploadedFileName,
+        file_size: uploadedFileSize,
         item_type: uploadCategory
       });
 
-      if (itemRes.success) {
+      if (itemRes && itemRes.success) {
         setUploadTitle('');
         setUploadDesc('');
         setUploadFile(null);
@@ -108,11 +115,11 @@ export default function StudentPortfolio() {
         showNotification('File uploaded and added to your portfolio!');
         fetchPortfolio();
       } else {
-        showNotification(itemRes.message || 'Failed to save portfolio item.', true);
+        showNotification((itemRes && itemRes.message) || 'Failed to save portfolio item.', true);
       }
     } catch (err) {
       console.error('Upload error:', err);
-      showNotification('Upload failed. Please try again.', true);
+      showNotification((err && err.message) || 'Upload failed. Please try again.', true);
     } finally {
       setUploading(false);
     }
@@ -121,7 +128,10 @@ export default function StudentPortfolio() {
   // Upload resume file
   const handleUploadResume = async (e) => {
     e.preventDefault();
-    if (!resumeFile) return;
+    if (!resumeFile) {
+      showNotification('Please select a resume file to upload.', true);
+      return;
+    }
 
     setResumeUploading(true);
     try {
@@ -129,29 +139,34 @@ export default function StudentPortfolio() {
       formData.append('file', resumeFile);
       const uploadRes = await api.post('/student/portfolio/upload', formData);
 
-      if (!uploadRes.success) {
-        showNotification(uploadRes.message || 'Resume upload failed.', true);
+      if (!uploadRes || !uploadRes.success) {
+        showNotification((uploadRes && uploadRes.message) || 'Resume upload failed. Please try again.', true);
         setResumeUploading(false);
         return;
       }
 
+      const uploadedFilePath = uploadRes.data?.file_path || '';
+      const uploadedFileName = uploadRes.data?.file_name || resumeFile.name;
+      const uploadedFileSize = uploadRes.data?.file_size || resumeFile.size;
+
       const saveRes = await api.post('/student/resumes', {
-        file_path: uploadRes.data.file_path,
-        file_name: uploadRes.data.file_name,
-        file_size: uploadRes.data.file_size
+        file_path: uploadedFilePath,
+        file_name: uploadedFileName,
+        file_size: uploadedFileSize
       });
 
-      if (saveRes.success) {
+      if (saveRes && saveRes.success) {
         setResumeFile(null);
         const fileInput = document.getElementById('resume-file-input');
         if (fileInput) fileInput.value = '';
         showNotification(saveRes.message || 'Resume uploaded successfully!');
         fetchPortfolio();
       } else {
-        showNotification(saveRes.message || 'Failed to save resume.', true);
+        showNotification((saveRes && saveRes.message) || 'Failed to save resume.', true);
       }
     } catch (err) {
-      showNotification('Resume upload failed.', true);
+      console.error('Resume upload error:', err);
+      showNotification((err && err.message) || 'Resume upload failed. Please try again.', true);
     } finally {
       setResumeUploading(false);
     }

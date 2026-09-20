@@ -14,12 +14,25 @@ import { PROGRAM_SKILLS_CATALOG } from '../data/programSkillsData.js';
 import { getUploadStorage, saveUploadedFile } from '../utils/upload.helper.js';
 
 const portfolioFileFilter = (req, file, cb) => {
-  const allowedExts = /jpeg|jpg|png|webp|gif|pdf|doc|docx|ppt|pptx|xls|xlsx|txt|zip|rar/i;
-  const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
-  if (allowedExts.test(ext)) {
+  const allowedExts = /jpeg|jpg|png|webp|gif|svg|bmp|tiff|heic|heif|pdf|doc|docx|odt|rtf|pages|ppt|pptx|odp|key|xls|xlsx|csv|ods|numbers|txt|zip|rar|7z|tar|gz|json|xml|md|sql/i;
+  const ext = path.extname(file.originalname || '').toLowerCase().replace('.', '');
+  const isDocOrMedia = file.mimetype && (
+    file.mimetype.startsWith('image/') ||
+    file.mimetype.startsWith('text/') ||
+    file.mimetype === 'application/pdf' ||
+    file.mimetype.includes('word') ||
+    file.mimetype.includes('excel') ||
+    file.mimetype.includes('spreadsheet') ||
+    file.mimetype.includes('presentation') ||
+    file.mimetype.includes('powerpoint') ||
+    file.mimetype.includes('zip') ||
+    file.mimetype.includes('compressed') ||
+    file.mimetype.includes('octet-stream')
+  );
+  if (allowedExts.test(ext) || isDocOrMedia) {
     cb(null, true);
   } else {
-    cb(new Error('File upload rejected: Only documents, images, and archives are allowed.'));
+    cb(new Error('File upload rejected: Please upload a valid document, image, spreadsheet, or archive file.'));
   }
 };
 
@@ -33,9 +46,20 @@ const reqUpload = multer({
   storage: getUploadStorage('requirements'),
   limits: { fileSize: 30 * 1024 * 1024 }, // 30MB
   fileFilter: (req, file, cb) => {
-    const allowedExts = /jpeg|jpg|png|webp|gif|pdf|doc|docx|ppt|pptx|xls|xlsx|txt|zip|rar/i;
-    const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
-    if (allowedExts.test(ext)) {
+    const allowedExts = /jpeg|jpg|png|webp|gif|svg|bmp|tiff|heic|heif|pdf|doc|docx|odt|rtf|pages|ppt|pptx|odp|key|xls|xlsx|csv|ods|numbers|txt|zip|rar|7z|tar|gz/i;
+    const ext = path.extname(file.originalname || '').toLowerCase().replace('.', '');
+    const isDocOrMedia = file.mimetype && (
+      file.mimetype.startsWith('image/') ||
+      file.mimetype.startsWith('text/') ||
+      file.mimetype === 'application/pdf' ||
+      file.mimetype.includes('word') ||
+      file.mimetype.includes('excel') ||
+      file.mimetype.includes('spreadsheet') ||
+      file.mimetype.includes('presentation') ||
+      file.mimetype.includes('zip') ||
+      file.mimetype.includes('octet-stream')
+    );
+    if (allowedExts.test(ext) || isDocOrMedia) {
       cb(null, true);
     } else {
       cb(new Error('File upload rejected: Only documents, images, and archives are allowed.'));
@@ -2483,12 +2507,38 @@ router.delete('/skills/:id', async (req, res) => {
 // --- DIGITAL PORTFOLIO & ACHIEVEMENTS ---
 
 // POST /api/student/portfolio/upload - Upload any portfolio document or image (docx, pdf, jpg, png, jpeg, etc.)
-router.post('/portfolio/upload', portfolioUpload.single('file'), async (req, res) => {
+router.post('/portfolio/upload', (req, res, next) => {
+  portfolioUpload.single('file')(req, res, (err) => {
+    if (err) {
+      console.error('[Portfolio Multer Error]', err);
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            message: 'File size exceeds the 30MB limit. Please upload a smaller file.'
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          message: `Upload error: ${err.message}`
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: err.message || 'File upload rejected.'
+      });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, message: 'No file uploaded.' });
+      return res.status(400).json({ success: false, message: 'No file selected for upload.' });
     }
     const relativePath = await saveUploadedFile(req.file, 'portfolio');
+    if (!relativePath) {
+      return res.status(500).json({ success: false, message: 'Failed to process and store uploaded file.' });
+    }
     return res.json({
       success: true,
       message: 'File uploaded successfully.',
@@ -2501,7 +2551,7 @@ router.post('/portfolio/upload', portfolioUpload.single('file'), async (req, res
     });
   } catch (err) {
     console.error('Portfolio file upload error:', err);
-    return res.status(500).json({ success: false, message: 'File upload failed.' });
+    return res.status(500).json({ success: false, message: err.message || 'File upload failed.' });
   }
 });
 
@@ -2678,22 +2728,46 @@ router.post('/portfolio/items', async (req, res) => {
 
     const savedFilePath = formatFilePath(file_path);
 
-    const [resRow] = await pool.query(
-      `INSERT INTO portfolio_items (portfolio_id, title, description, file_path, file_name, file_size, item_type, sub_category, associated_org_id, associated_job_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [portfolioId, title, description || '', savedFilePath || '', file_name || null, file_size || null, item_type || 'academic_portfolio', sub_category || null, associated_org_id || null, associated_job_id || null]
-    );
+    try {
+      const [resRow] = await pool.query(
+        `INSERT INTO portfolio_items (portfolio_id, title, description, file_path, file_name, file_size, item_type, sub_category, associated_org_id, associated_job_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [portfolioId, title, description || '', savedFilePath || '', file_name || null, file_size || null, item_type || 'academic_portfolio', sub_category || null, associated_org_id || null, associated_job_id || null]
+      );
 
-    emitUpdate('portfolio_updated', { student_id: student.student_id });
+      emitUpdate('portfolio_updated', { student_id: student.student_id });
 
-    return res.status(201).json({
-      success: true,
-      message: 'Portfolio item added successfully!',
-      data: { item_id: resRow.insertId }
-    });
+      return res.status(201).json({
+        success: true,
+        message: 'Portfolio item added successfully!',
+        data: { item_id: resRow.insertId }
+      });
+    } catch (insertError) {
+      console.warn('[Add Portfolio Item] Primary insert failed, executing schema fallback:', insertError.message);
+      // Fallback for schemas where item_type is enum('project','certificate','sample_work','other') or optional columns are absent
+      let safeType = item_type || 'project';
+      if (['credential', 'certificate'].includes(safeType)) safeType = 'certificate';
+      else if (['academic_portfolio', 'capstone', 'thesis', 'project'].includes(safeType)) safeType = 'project';
+      else if (['sample_work'].includes(safeType)) safeType = 'sample_work';
+      else safeType = 'other';
+
+      const [resRow] = await pool.query(
+        `INSERT INTO portfolio_items (portfolio_id, title, description, file_path, item_type, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [portfolioId, title, description || '', savedFilePath || '', safeType]
+      );
+
+      emitUpdate('portfolio_updated', { student_id: student.student_id });
+
+      return res.status(201).json({
+        success: true,
+        message: 'Portfolio item added successfully!',
+        data: { item_id: resRow.insertId }
+      });
+    }
   } catch (error) {
     console.error('Add portfolio item error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to add portfolio item.' });
+    return res.status(500).json({ success: false, message: error.message || 'Failed to add portfolio item.' });
   }
 });
 
@@ -2936,20 +3010,37 @@ router.post('/resumes', async (req, res) => {
     // Set other versions to inactive
     await pool.query('UPDATE student_resumes SET is_active = 0 WHERE student_id = ?', [student.student_id]);
 
-    const [resRow] = await pool.query(
-      `INSERT INTO student_resumes (student_id, file_path, file_name, file_size, version, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [student.student_id, file_path, file_name || 'Resume.pdf', file_size || null, newVer]
-    );
+    const savedPath = formatFilePath(file_path);
 
-    return res.status(201).json({
-      success: true,
-      message: `Resume v${newVer} saved and set as active.`,
-      data: { resume_id: resRow.insertId, version: newVer }
-    });
+    try {
+      const [resRow] = await pool.query(
+        `INSERT INTO student_resumes (student_id, file_path, file_name, file_size, version, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [student.student_id, savedPath, file_name || 'Resume.pdf', file_size || null, newVer]
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: `Resume v${newVer} saved and set as active.`,
+        data: { resume_id: resRow.insertId, version: newVer }
+      });
+    } catch (insertErr) {
+      console.warn('[Save Resume] Primary insert failed, falling back to core schema:', insertErr.message);
+      const [resRow] = await pool.query(
+        `INSERT INTO student_resumes (student_id, file_path, version, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [student.student_id, savedPath, newVer]
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: `Resume v${newVer} saved and set as active.`,
+        data: { resume_id: resRow.insertId, version: newVer }
+      });
+    }
   } catch (error) {
     console.error('Save resume error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to save resume.' });
+    return res.status(500).json({ success: false, message: error.message || 'Failed to save resume.' });
   }
 });
 
@@ -2977,11 +3068,28 @@ router.delete('/resumes/:id', async (req, res) => {
 // --- OJT REQUIREMENTS CHECKLIST ---
 
 // POST /api/student/requirements/upload - Upload requirement document/file
-router.post('/requirements/upload', reqUpload.single('file'), async (req, res) => {
+router.post('/requirements/upload', (req, res, next) => {
+  reqUpload.single('file')(req, res, (err) => {
+    if (err) {
+      console.error('[Req Multer Error]', err);
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ success: false, message: 'File size exceeds 30MB limit.' });
+        }
+        return res.status(400).json({ success: false, message: `Upload error: ${err.message}` });
+      }
+      return res.status(400).json({ success: false, message: err.message || 'File upload rejected.' });
+    }
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'No file provided.' });
   }
   const fileUrl = await saveUploadedFile(req.file, 'requirements');
+  if (!fileUrl) {
+    return res.status(500).json({ success: false, message: 'Failed to process and store requirement file.' });
+  }
   return res.json({
     success: true,
     data: {

@@ -38,15 +38,28 @@ export function getUploadStorage(subfolder) {
   }
 
   const destinationDir = path.join(UPLOADS_ROOT, subfolder);
-  if (!fs.existsSync(destinationDir)) {
-    fs.mkdirSync(destinationDir, { recursive: true });
+  try {
+    if (!fs.existsSync(destinationDir)) {
+      fs.mkdirSync(destinationDir, { recursive: true });
+    }
+  } catch (dirErr) {
+    console.warn(`[Upload Storage] Could not pre-create directory ${destinationDir}:`, dirErr.message);
   }
 
   return multer.diskStorage({
-    destination: (req, file, cb) => cb(null, destinationDir),
+    destination: (req, file, cb) => {
+      try {
+        if (!fs.existsSync(destinationDir)) {
+          fs.mkdirSync(destinationDir, { recursive: true });
+        }
+        cb(null, destinationDir);
+      } catch (err) {
+        cb(err, destinationDir);
+      }
+    },
     filename: (req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      const ext = path.extname(file.originalname);
+      const ext = path.extname(file.originalname || '');
       cb(null, `${subfolder}-${uniqueSuffix}${ext}`);
     }
   });
@@ -54,36 +67,70 @@ export function getUploadStorage(subfolder) {
 
 /**
  * Saves uploaded file either to Cloudinary (if configured) or returns the local relative URL.
+ * Falls back safely to local disk storage if Cloudinary upload encounters any issue or buffer is used.
  * @param {Object} file - The file object from req.file or req.files
  * @param {string} subfolder - Target logical folder ('avatars', 'portfolio', 'requirements', 'orgs', 'institutions')
  * @returns {Promise<string>} The resolved file URL (HTTPS for Cloudinary, /uploads/... for local)
  */
-export async function saveUploadedFile(file, subfolder) {
+export async function saveUploadedFile(file, subfolder = 'portfolio') {
   if (!file) return null;
 
-  // Cloudinary upload if memory buffer is present
+  const destinationDir = path.join(UPLOADS_ROOT, subfolder);
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const cleanBase = path.basename(file.originalname || 'document', ext)
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .slice(0, 50);
+
+  // Cloudinary upload if enabled and memory buffer is present
   if (isCloudinaryEnabled() && file.buffer) {
-    return new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: `internconph/${subfolder}`,
-          resource_type: 'auto'
-        },
-        (error, result) => {
-          if (error) {
-            console.error('[Cloudinary Upload Error]', error);
-            return reject(error);
+    try {
+      const secureUrl = await new Promise((resolve, reject) => {
+        const uniquePublicId = `${cleanBase}-${Date.now()}`;
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: `internconph/${subfolder}`,
+            resource_type: 'auto',
+            public_id: uniquePublicId,
+            use_filename: true,
+            unique_filename: true
+          },
+          (error, result) => {
+            if (error) {
+              console.error('[Cloudinary Upload Error]', error);
+              return reject(error);
+            }
+            resolve(result.secure_url);
           }
-          resolve(result.secure_url);
-        }
-      );
-      uploadStream.end(file.buffer);
-    });
+        );
+        uploadStream.end(file.buffer);
+      });
+      return secureUrl;
+    } catch (cloudErr) {
+      console.warn('[Upload Helper] Cloudinary upload failed, falling back to local disk storage:', cloudErr.message || cloudErr);
+      // Fall through to save buffer locally
+    }
   }
 
-  // Local disk fallback
+  // Local disk fallback when Multer diskStorage was used
   if (file.filename) {
     return `/uploads/${subfolder}/${file.filename}`;
+  }
+
+  // Local disk fallback when buffer is present (memoryStorage or Cloudinary fallback)
+  if (file.buffer) {
+    try {
+      if (!fs.existsSync(destinationDir)) {
+        fs.mkdirSync(destinationDir, { recursive: true });
+      }
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const safeFilename = `${subfolder}-${uniqueSuffix}${ext}`;
+      const targetFilePath = path.join(destinationDir, safeFilename);
+      fs.writeFileSync(targetFilePath, file.buffer);
+      return `/uploads/${subfolder}/${safeFilename}`;
+    } catch (diskErr) {
+      console.error('[Upload Helper] Local disk write error:', diskErr);
+      return null;
+    }
   }
 
   return null;
