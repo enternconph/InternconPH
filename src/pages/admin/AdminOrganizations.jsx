@@ -95,7 +95,13 @@ export default function AdminOrganizations() {
 
   const filteredOrgs = useMemo(() => {
     return orgs.filter((org) => {
-      const matchesStatus = statusFilter === 'all' || org.status === statusFilter;
+      const orgStatus = (org.status || '').toLowerCase();
+      let matchesStatus = true;
+      if (statusFilter === 'verified' || statusFilter === 'active') {
+        matchesStatus = orgStatus === 'active' || orgStatus === 'verified';
+      } else if (statusFilter !== 'all') {
+        matchesStatus = orgStatus === statusFilter.toLowerCase();
+      }
       if (!matchesStatus) return false;
 
       if (!debouncedSearchTerm.trim()) return true;
@@ -256,10 +262,12 @@ export default function AdminOrganizations() {
                                 ? 'bg-amber-500/10 text-amber-600'
                                 : org.status === 'rejected'
                                 ? 'bg-error-container text-error'
+                                : org.status === 'suspended'
+                                ? 'bg-rose-500/10 text-rose-600'
                                 : 'bg-green-tint text-pinoy-green'
                             }`}
                           >
-                            {org.status}
+                            {org.status === 'active' ? 'Verified' : org.status}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right">

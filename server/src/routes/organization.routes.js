@@ -2573,14 +2573,30 @@ const getOrgGrievancesHandler = async (req, res) => {
 
     // Sanitize any legacy mismatches where an organization filing was assigned an allowance category
     const sanitizedFiledComplaints = filedComplaints.map(c => {
+      const isAcc = Boolean(c.is_accident || c.accident_id || c.accident_severity);
       let cat = c.incident_category || c.category_name;
-      if (!cat || cat.toLowerCase().includes('allowance') || cat.toLowerCase().includes('stipend')) {
-        if (c.is_accident || c.accident_id) {
-          cat = 'Workplace Accident & Physical Injury';
-        } else if ((c.title || c.subject || '').toLowerCase().includes('server') || (c.title || c.subject || '').toLowerCase().includes('damage')) {
-          cat = 'Company Property Damage / Negligence';
-        } else {
-          cat = 'General Misconduct / Unprofessional Behavior';
+      if (isAcc) {
+        if (!cat || cat.toLowerCase().includes('allowance') || cat.toLowerCase().includes('stipend') || cat === 'misconduct' || cat.toLowerCase().includes('general misconduct')) {
+          const text = `${c.title || ''} ${c.subject || ''} ${c.injury_description || ''} ${c.description || ''}`.toLowerCase();
+          if (text.includes('slip') || text.includes('fall') || text.includes('trip')) cat = 'Slip, Trip or Fall Incident';
+          else if (text.includes('machine') || text.includes('equipment')) cat = 'Machinery / Equipment Hazard';
+          else if (text.includes('chemical') || text.includes('fume') || text.includes('hazard')) cat = 'Chemical / Hazardous Substance Exposure';
+          else if (text.includes('strain') || text.includes('lift') || text.includes('ergonomic')) cat = 'Physical Strain / Ergonomic Injury';
+          else if (text.includes('emergency') || text.includes('faint') || text.includes('trauma')) cat = 'Medical Emergency / Acute Physical Trauma';
+          else cat = 'Workplace Accident & Physical Injury';
+        }
+      } else {
+        if (!cat || cat.toLowerCase().includes('allowance') || cat.toLowerCase().includes('stipend')) {
+          const text = `${c.title || ''} ${c.subject || ''} ${c.description || ''}`.toLowerCase();
+          if (text.includes('server') || text.includes('damage') || text.includes('property')) {
+            cat = 'Company Property Damage / Negligence';
+          } else if (text.includes('absent') || text.includes('late') || text.includes('tardy') || text.includes('attendance')) {
+            cat = 'Chronic Absenteeism / Unauthorized Tardiness';
+          } else if (text.includes('safety') || text.includes('protocol') || text.includes('ppe')) {
+            cat = 'Safety Protocol Violation';
+          } else {
+            cat = 'General Misconduct / Unprofessional Behavior';
+          }
         }
       }
       return {

@@ -23,22 +23,53 @@ export const ACCIDENT_CATEGORIES = [
 ];
 
 export const getCleanCategoryName = (c) => {
+  const isAcc = Boolean(
+    c?.is_accident === 1 || 
+    c?.is_accident === true || 
+    c?.is_accident === '1' || 
+    c?.accident_id || 
+    c?.accident_severity
+  );
+
   let cat = c?.incident_category || c?.category_name || (typeof c?.category === 'string' ? c.category : '');
-  // Sanitize if legacy mismatched to allowance/stipend
-  if (!cat || cat.toLowerCase().includes('allowance') || cat.toLowerCase().includes('stipend')) {
-    if (c?.is_accident || c?.accident_id) {
+
+  // If this is an accident report:
+  if (isAcc) {
+    // If category is missing, empty, or wrongly set to allowance/stipend or general conduct
+    if (!cat || cat.toLowerCase().includes('allowance') || cat.toLowerCase().includes('stipend') || cat === 'misconduct' || cat.toLowerCase().includes('general misconduct')) {
+      const text = `${c?.title || ''} ${c?.subject || ''} ${c?.injury_description || ''} ${c?.description || ''}`.toLowerCase();
+      if (text.includes('slip') || text.includes('fall') || text.includes('trip')) return 'Slip, Trip or Fall Incident';
+      if (text.includes('machine') || text.includes('equipment')) return 'Machinery / Equipment Hazard';
+      if (text.includes('chemical') || text.includes('fume') || text.includes('hazard')) return 'Chemical / Hazardous Substance Exposure';
+      if (text.includes('strain') || text.includes('lift') || text.includes('ergonomic')) return 'Physical Strain / Ergonomic Injury';
+      if (text.includes('emergency') || text.includes('faint') || text.includes('trauma')) return 'Medical Emergency / Acute Physical Trauma';
       return 'Workplace Accident & Physical Injury';
     }
-    const titleLower = (c?.title || c?.subject || '').toLowerCase();
-    if (titleLower.includes('server') || titleLower.includes('damage') || titleLower.includes('property')) {
-      return 'Company Property Damage / Negligence';
-    }
-    return 'General Misconduct / Unprofessional Behavior';
   }
-  const foundConduct = CONDUCT_CATEGORIES.find(item => item.value === cat);
+
+  // If this is a conduct report:
+  if (!isAcc) {
+    if (!cat || cat.toLowerCase().includes('allowance') || cat.toLowerCase().includes('stipend')) {
+      const text = `${c?.title || ''} ${c?.subject || ''} ${c?.description || ''}`.toLowerCase();
+      if (text.includes('server') || text.includes('damage') || text.includes('property')) {
+        return 'Company Property Damage / Negligence';
+      }
+      if (text.includes('absent') || text.includes('late') || text.includes('tardy') || text.includes('attendance')) {
+        return 'Chronic Absenteeism / Unauthorized Tardiness';
+      }
+      if (text.includes('safety') || text.includes('protocol') || text.includes('ppe')) {
+        return 'Safety Protocol Violation';
+      }
+      return 'General Misconduct / Unprofessional Behavior';
+    }
+  }
+
+  // Check maps for slug conversion
+  const foundConduct = CONDUCT_CATEGORIES.find((item) => item.value === cat);
   if (foundConduct) return foundConduct.label;
-  const foundAccident = ACCIDENT_CATEGORIES.find(item => item.value === cat);
+  const foundAccident = ACCIDENT_CATEGORIES.find((item) => item.value === cat);
   if (foundAccident) return foundAccident.label;
+
   return cat.replace(/_/g, ' ');
 };
 

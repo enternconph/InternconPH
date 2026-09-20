@@ -95,7 +95,13 @@ export default function AdminInstitutions() {
 
   const filteredInstitutions = useMemo(() => {
     return institutions.filter((inst) => {
-      const matchesStatus = statusFilter === 'all' || inst.status === statusFilter;
+      const instStatus = (inst.status || '').toLowerCase();
+      let matchesStatus = true;
+      if (statusFilter === 'verified' || statusFilter === 'active') {
+        matchesStatus = instStatus === 'active' || instStatus === 'verified';
+      } else if (statusFilter !== 'all') {
+        matchesStatus = instStatus === statusFilter.toLowerCase();
+      }
       if (!matchesStatus) return false;
 
       if (!debouncedSearchTerm.trim()) return true;
@@ -256,10 +262,12 @@ export default function AdminInstitutions() {
                                 ? 'bg-amber-500/10 text-amber-600'
                                 : inst.status === 'rejected'
                                 ? 'bg-error-container text-error'
+                                : inst.status === 'suspended'
+                                ? 'bg-rose-500/10 text-rose-600'
                                 : 'bg-green-tint text-pinoy-green'
                             }`}
                           >
-                            {inst.status}
+                            {inst.status === 'active' ? 'Verified' : inst.status}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right">
