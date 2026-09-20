@@ -191,10 +191,10 @@ export default function RegisterStaffPage() {
         <div className="absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-green-tint rounded-full mix-blend-multiply filter blur-3xl opacity-60"></div>
 
         {/* Floating Card */}
-        <div className="w-full max-w-[1100px] bg-surface rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden flex relative z-10 border border-outline-variant/30 min-h-[700px]">
+        <div className="w-full max-w-[1100px] bg-surface rounded-2xl sm:rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden flex relative z-10 border border-outline-variant/30 min-h-0 lg:min-h-[700px]">
           
           {/* LEFT PANEL - Form */}
-          <div className="w-full lg:w-3/5 p-8 md:p-10 lg:p-12 flex flex-col relative bg-surface max-h-[85vh] overflow-y-auto custom-scrollbar">
+          <div className="w-full lg:w-3/5 p-4 sm:p-8 md:p-10 lg:p-12 flex flex-col relative bg-surface max-h-none lg:max-h-[85vh] overflow-y-auto custom-scrollbar">
             
             {/* Top Back Button */}
             <Link 

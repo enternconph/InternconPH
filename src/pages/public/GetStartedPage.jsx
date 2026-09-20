@@ -165,8 +165,8 @@ export default function GetStartedPage() {
         {/* PASSCODE REGISTRATION MODAL */}
         {showCodeModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-white max-w-lg w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden">
-              <div className="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+            <div className="bg-white dark:bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden max-h-[90dvh] flex flex-col">
+              <div className="p-5 sm:p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low shrink-0">
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-lg ${modalType === 'staff' ? 'bg-orange-tint text-vibrant-orange' : 'bg-green-tint text-pinoy-green'} flex items-center justify-center font-bold`}>
                     <span className="material-symbols-outlined">{modalType === 'staff' ? 'badge' : 'supervised_user_circle'}</span>
@@ -187,7 +187,7 @@ export default function GetStartedPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleCodeSubmit} className="p-6 space-y-4 text-sm">
+              <form onSubmit={handleCodeSubmit} className="p-5 sm:p-6 space-y-4 text-sm overflow-y-auto">
                 {error && (
                   <div className="p-3 bg-error-container text-error rounded-lg text-xs font-medium flex items-center gap-2">
                     <span className="material-symbols-outlined text-[18px]">error</span>

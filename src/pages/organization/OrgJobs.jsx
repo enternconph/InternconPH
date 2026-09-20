@@ -1228,7 +1228,7 @@ export default function OrgJobs() {
       {/* NO WORKPLACE MENTOR WARNING MODAL */}
       {showNoMentorWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-outline-variant p-6 w-full max-w-md space-y-4 shadow-2xl relative">
+          <div className="bg-white dark:bg-surface rounded-2xl border border-outline-variant p-5 sm:p-6 w-full max-w-md space-y-4 shadow-2xl relative max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-outline-variant/60 pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">

@@ -1859,9 +1859,9 @@ export default function InstStaff() {
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-surface max-w-md w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden flex flex-col animate-scale-up">
+            <div className="bg-surface max-w-md w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden flex flex-col animate-scale-up max-h-[90dvh]">
               {/* Modal Header */}
-              <div className="p-5 border-b border-outline-variant bg-surface-container-low flex items-center gap-3">
+              <div className="p-5 border-b border-outline-variant bg-surface-container-low flex items-center gap-3 shrink-0">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${isDelete ? 'bg-red-500/15 text-red-600' : 'bg-amber-500/15 text-amber-600'
                   }`}>
                   <span className="material-symbols-outlined text-[24px]">
@@ -1879,7 +1879,7 @@ export default function InstStaff() {
               </div>
 
               {/* Modal Content / Details */}
-              <div className="p-5 space-y-4 text-xs">
+              <div className="p-5 space-y-4 text-xs overflow-y-auto">
                 {/* Passcode Summary Card */}
                 <div className="p-3.5 bg-surface-container rounded-xl border border-outline-variant space-y-2">
                   <div className="flex items-center justify-between">

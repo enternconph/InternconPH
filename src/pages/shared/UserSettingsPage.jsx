@@ -318,10 +318,10 @@ export default function UserSettingsPage() {
       )}
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-outline-variant gap-2 overflow-x-auto text-xs font-bold">
+      <div className="flex border-b border-outline-variant gap-2 overflow-x-auto text-xs font-bold scrollbar-thin pb-0.5">
         <button
           onClick={() => setActiveTab('notifications')}
-          className={`pb-3 px-4 flex items-center gap-2 transition-all border-b-2 whitespace-nowrap ${
+          className={`min-h-[44px] pb-3 px-4 flex items-center gap-2 transition-all border-b-2 whitespace-nowrap cursor-pointer ${
             activeTab === 'notifications'
               ? 'border-vibrant-orange text-vibrant-orange'
               : 'border-transparent text-on-surface-variant hover:text-on-surface'
@@ -333,7 +333,7 @@ export default function UserSettingsPage() {
 
         <button
           onClick={() => setActiveTab('profile')}
-          className={`pb-3 px-4 flex items-center gap-2 transition-all border-b-2 whitespace-nowrap ${
+          className={`min-h-[44px] pb-3 px-4 flex items-center gap-2 transition-all border-b-2 whitespace-nowrap cursor-pointer ${
             activeTab === 'profile'
               ? 'border-vibrant-orange text-vibrant-orange'
               : 'border-transparent text-on-surface-variant hover:text-on-surface'
@@ -345,7 +345,7 @@ export default function UserSettingsPage() {
 
         <button
           onClick={() => setActiveTab('security')}
-          className={`pb-3 px-4 flex items-center gap-2 transition-all border-b-2 whitespace-nowrap ${
+          className={`min-h-[44px] pb-3 px-4 flex items-center gap-2 transition-all border-b-2 whitespace-nowrap cursor-pointer ${
             activeTab === 'security'
               ? 'border-vibrant-orange text-vibrant-orange'
               : 'border-transparent text-on-surface-variant hover:text-on-surface'
@@ -358,7 +358,7 @@ export default function UserSettingsPage() {
         <button
           id="appearance-tab-btn"
           onClick={() => setActiveTab('appearance')}
-          className={`pb-3 px-4 flex items-center gap-2 transition-all border-b-2 whitespace-nowrap ${
+          className={`min-h-[44px] pb-3 px-4 flex items-center gap-2 transition-all border-b-2 whitespace-nowrap cursor-pointer ${
             activeTab === 'appearance'
               ? 'border-vibrant-orange text-vibrant-orange'
               : 'border-transparent text-on-surface-variant hover:text-on-surface'

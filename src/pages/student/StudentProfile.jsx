@@ -664,7 +664,7 @@ export default function StudentProfile() {
         const isPdf = isPdfFile(fn, fp);
         return (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setPreviewItem(null)}>
-            <div className="bg-white rounded-2xl max-w-3xl w-full p-4 space-y-3 border border-outline-variant shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white dark:bg-surface rounded-2xl max-w-3xl w-full p-4 sm:p-5 space-y-3 border border-outline-variant shadow-2xl max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-sm font-bold text-on-surface">{previewItem.title || previewItem.file_name}</h3>
@@ -716,7 +716,7 @@ export default function StudentProfile() {
       {/* Change Password Modal */}
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-outline-variant shadow-2xl">
+          <div className="bg-white dark:bg-surface rounded-2xl max-w-md w-full p-5 sm:p-6 space-y-4 border border-outline-variant shadow-2xl max-h-[90dvh] overflow-y-auto">
             <h3 className="text-base font-bold text-on-surface">Update Account Password</h3>
             <form onSubmit={handleChangePassword} className="space-y-3">
               <div>

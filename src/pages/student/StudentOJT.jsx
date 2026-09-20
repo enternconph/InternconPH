@@ -638,7 +638,7 @@ export default function StudentOJT() {
       {/* Requirement Submission Modal with Draft & Submit actions */}
       {selectedReq && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-outline-variant rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+          <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-outline-variant pb-3">
               <div>
                 <h3 className="font-bold text-base text-on-surface flex items-center gap-2">

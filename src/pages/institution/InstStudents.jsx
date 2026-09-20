@@ -852,7 +852,7 @@ export default function InstStudents() {
       {/* MODAL 1: GENERATE PROGRAM ACCESS CODE */}
       {showCodeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden">
+          <div className="bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden max-h-[90dvh] flex flex-col">
             <div className="p-6 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-orange-tint text-vibrant-orange flex items-center justify-center font-bold">
@@ -872,7 +872,7 @@ export default function InstStudents() {
             </div>
 
             {generatedCode ? (
-              <div className="p-6 space-y-4 text-center">
+              <div className="p-5 sm:p-6 space-y-4 text-center overflow-y-auto">
                 <div className="p-5 bg-orange-tint/40 border border-vibrant-orange/30 rounded-2xl space-y-2">
                   <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block">
                     Active Program Access Code
@@ -1449,7 +1449,7 @@ export default function InstStudents() {
       {/* MODAL 3: REJECT CONFIRMATION */}
       {rejectModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-surface max-w-md w-full rounded-2xl shadow-2xl border border-outline-variant p-6 space-y-4 text-xs">
+          <div className="bg-surface max-w-md w-full rounded-2xl shadow-2xl border border-outline-variant p-5 sm:p-6 space-y-4 text-xs max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center gap-3 text-red-500">
               <span className="material-symbols-outlined text-[28px]">warning</span>
               <h3 className="text-base font-bold text-on-surface">Reject Student Registration</h3>

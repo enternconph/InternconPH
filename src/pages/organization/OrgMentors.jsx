@@ -1125,7 +1125,7 @@ export default function OrgMentors() {
       {/* GENERATE ACCESS CODE MODAL */}
       {showCodeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl border border-outline-variant shadow-2xl w-full max-w-md space-y-4 p-6">
+          <div className="bg-white dark:bg-surface rounded-2xl border border-outline-variant shadow-2xl w-full max-w-md space-y-4 p-5 sm:p-6 max-h-[90dvh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-outline-variant pb-3">
               <div>
                 <h3 className="font-bold text-on-surface">Generate Mentor Access Passcode</h3>

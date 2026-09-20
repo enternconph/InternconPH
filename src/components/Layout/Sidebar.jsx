@@ -39,7 +39,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-50 w-72 sm:w-64 bg-surface-container-lowest border-r border-outline-variant flex flex-col h-screen h-[100dvh] max-h-screen max-h-[100dvh] transition-transform duration-300 ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:w-64 lg:shrink-0 lg:h-full lg:shadow-none ${
+      className={`fixed inset-y-0 left-0 z-50 w-[min(18rem,calc(100vw-3rem))] sm:w-64 bg-surface-container-lowest border-r border-outline-variant flex flex-col h-screen h-[100dvh] max-h-screen max-h-[100dvh] transition-transform duration-300 ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:w-64 lg:shrink-0 lg:h-full lg:shadow-none ${
         sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
       }`}
     >

@@ -88,6 +88,22 @@ html.dark,
     box-sizing: border-box;
   }
 
+  /* Prevent mobile Safari and Chrome auto-zoom on inputs with font-size < 16px */
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+
+  /* Universal modal / dialog viewport protection for landscape phones and short screens */
+  .fixed.inset-0 > div[class*="rounded-"] {
+    max-height: min(90dvh, calc(100vh - 1.5rem));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   /* Sleek custom scrollbars */
   ::-webkit-scrollbar {
     width: 6px;

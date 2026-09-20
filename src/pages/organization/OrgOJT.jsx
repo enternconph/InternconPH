@@ -763,7 +763,7 @@ export default function OrgOJT() {
       {/* Incident / Misconduct Report Modal */}
       {showIncidentModal && incidentStudent && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-outline-variant rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+          <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-outline-variant pb-3">
               <h3 className="font-bold text-base text-on-surface flex items-center gap-2">
                 <span className="material-symbols-outlined text-error">report_problem</span>
@@ -831,7 +831,7 @@ export default function OrgOJT() {
       {/* Mentor Time-Out Modal */}
       {showTimeOutModal && timeOutStudent && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-outline-variant rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+          <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-outline-variant pb-3">
               <h3 className="font-bold text-base text-on-surface flex items-center gap-2">
                 <span className="material-symbols-outlined text-vibrant-orange">logout</span>
@@ -933,7 +933,7 @@ export default function OrgOJT() {
       {/* Manual / Backdated DTR Modal */}
       {showManualDtrModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-outline-variant rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+          <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-outline-variant pb-3">
               <h3 className="font-bold text-base text-on-surface flex items-center gap-2">
                 <span className="material-symbols-outlined text-vibrant-orange">calendar_add_on</span>
@@ -1050,7 +1050,7 @@ export default function OrgOJT() {
       {/* Edit DTR Modal */}
       {showEditDtrModal && editDtrLog && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-outline-variant rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+          <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-outline-variant pb-3">
               <h3 className="font-bold text-base text-on-surface flex items-center gap-2">
                 <span className="material-symbols-outlined text-vibrant-orange">edit_calendar</span>

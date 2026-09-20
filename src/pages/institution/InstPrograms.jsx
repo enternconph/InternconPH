@@ -969,7 +969,7 @@ export default function InstPrograms() {
       {/* EDIT REQUIRED OJT HOURS MODAL */}
       {editingProgram && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl border border-outline-variant shadow-2xl w-full max-w-md space-y-4 p-6">
+          <div className="bg-white dark:bg-surface rounded-2xl border border-outline-variant shadow-2xl w-full max-w-md space-y-4 p-5 sm:p-6 max-h-[90dvh] overflow-y-auto">
             <div className="flex justify-between items-start border-b border-outline-variant pb-3">
               <div>
                 <span className="text-[10px] font-bold uppercase text-vibrant-orange tracking-wider block">

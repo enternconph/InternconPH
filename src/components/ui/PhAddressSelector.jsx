@@ -184,7 +184,7 @@ export default function PhAddressSelector({ value, onChange }) {
             required
             value={value.regionCode || ''}
             onChange={(e) => handleChange('region', e)}
-            className="w-full px-4 py-2.5 bg-surface text-on-surface rounded-xl border border-outline-variant focus:border-vibrant-orange focus:ring-1 focus:ring-vibrant-orange outline-none transition-all text-sm"
+            className="w-full min-h-[44px] px-4 py-2.5 bg-surface text-on-surface rounded-xl border border-outline-variant focus:border-vibrant-orange focus:ring-1 focus:ring-vibrant-orange outline-none transition-all text-base md:text-sm"
           >
             <option value="" disabled>
               {loading.region ? 'Loading...' : 'Select Region'}
@@ -205,7 +205,7 @@ export default function PhAddressSelector({ value, onChange }) {
             value={value.provinceCode || ''}
             onChange={(e) => handleChange('province', e)}
             disabled={!value.regionCode || loading.province || value.provinceCode === 'NCR'}
-            className="w-full px-4 py-2.5 bg-surface text-on-surface rounded-xl border border-outline-variant focus:border-vibrant-orange focus:ring-1 focus:ring-vibrant-orange outline-none transition-all text-sm disabled:opacity-50"
+            className="w-full min-h-[44px] px-4 py-2.5 bg-surface text-on-surface rounded-xl border border-outline-variant focus:border-vibrant-orange focus:ring-1 focus:ring-vibrant-orange outline-none transition-all text-base md:text-sm disabled:opacity-50"
           >
             <option value="" disabled>
               {loading.province ? 'Loading...' : 'Select Province'}
@@ -228,7 +228,7 @@ export default function PhAddressSelector({ value, onChange }) {
             value={value.cityCode || ''}
             onChange={(e) => handleChange('city', e)}
             disabled={!value.provinceCode || loading.city}
-            className="w-full px-4 py-2.5 bg-surface text-on-surface rounded-xl border border-outline-variant focus:border-vibrant-orange focus:ring-1 focus:ring-vibrant-orange outline-none transition-all text-sm disabled:opacity-50"
+            className="w-full min-h-[44px] px-4 py-2.5 bg-surface text-on-surface rounded-xl border border-outline-variant focus:border-vibrant-orange focus:ring-1 focus:ring-vibrant-orange outline-none transition-all text-base md:text-sm disabled:opacity-50"
           >
             <option value="" disabled>
               {loading.city ? 'Loading...' : 'Select City / Municipality'}
@@ -250,7 +250,7 @@ export default function PhAddressSelector({ value, onChange }) {
             placeholder="e.g. 1000"
             value={value.postalCode || ''}
             onChange={(e) => onChange('postalCode', e.target.value)}
-            className="w-full px-4 py-2.5 bg-surface text-on-surface rounded-xl border border-outline-variant focus:border-vibrant-orange focus:ring-1 focus:ring-vibrant-orange outline-none transition-all text-sm"
+            className="w-full min-h-[44px] px-4 py-2.5 bg-surface text-on-surface rounded-xl border border-outline-variant focus:border-vibrant-orange focus:ring-1 focus:ring-vibrant-orange outline-none transition-all text-base md:text-sm"
           />
         </div>
       </div>
@@ -264,7 +264,7 @@ export default function PhAddressSelector({ value, onChange }) {
             value={value.barangayCode || ''}
             onChange={(e) => handleChange('barangay', e)}
             disabled={!value.cityCode || loading.barangay}
-            className="w-full px-4 py-2.5 bg-surface text-on-surface rounded-xl border border-outline-variant focus:border-vibrant-orange focus:ring-1 focus:ring-vibrant-orange outline-none transition-all text-sm disabled:opacity-50"
+            className="w-full min-h-[44px] px-4 py-2.5 bg-surface text-on-surface rounded-xl border border-outline-variant focus:border-vibrant-orange focus:ring-1 focus:ring-vibrant-orange outline-none transition-all text-base md:text-sm disabled:opacity-50"
           >
             <option value="" disabled>
               {loading.barangay ? 'Loading...' : 'Select Barangay'}
@@ -286,7 +286,7 @@ export default function PhAddressSelector({ value, onChange }) {
             placeholder="e.g. 123 Rizal St."
             value={value.street || ''}
             onChange={(e) => onChange('street', e.target.value)}
-            className="w-full px-4 py-2.5 bg-surface text-on-surface rounded-xl border border-outline-variant focus:border-vibrant-orange focus:ring-1 focus:ring-vibrant-orange outline-none transition-all text-sm"
+            className="w-full min-h-[44px] px-4 py-2.5 bg-surface text-on-surface rounded-xl border border-outline-variant focus:border-vibrant-orange focus:ring-1 focus:ring-vibrant-orange outline-none transition-all text-base md:text-sm"
           />
         </div>
       </div>

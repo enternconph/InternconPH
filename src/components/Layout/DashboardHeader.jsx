@@ -241,7 +241,7 @@ export default function DashboardHeader() {
 
           {/* Notifications Dropdown Panel */}
           {panelOpen && (
-            <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] sm:w-96 max-w-[400px] bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="absolute right-0 top-full mt-2 w-[min(calc(100vw-1.5rem),24rem)] max-w-[384px] bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200 max-h-[85vh] flex flex-col">
               {/* Panel Header */}
               <div className="p-4 border-b border-outline-variant bg-surface-container-low/50 flex items-center justify-between">
                 <div className="flex items-center gap-2">
