@@ -12,6 +12,9 @@ export function resolveFileUrl(filePath) {
   ) {
     return filePath;
   }
+  if (filePath.startsWith('/photo/') || filePath.startsWith('photo/')) {
+    return filePath.startsWith('/') ? filePath : `/${filePath}`;
+  }
   const apiBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/+$/, '') : '';
   let cleanPath = filePath;
   if (cleanPath.startsWith('/uploads/')) {

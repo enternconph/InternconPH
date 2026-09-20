@@ -22,15 +22,15 @@ import { getUploadStorage, saveUploadedFile } from '../utils/upload.helper.js';
 
 const avatarUpload = multer({
   storage: getUploadStorage('avatars'),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit to accommodate high-res phone camera photos
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|webp|gif/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
+    const allowedTypes = /jpeg|jpg|png|webp|gif|svg|bmp|tiff|heic|heif/i;
+    const ext = path.extname(file.originalname || '').toLowerCase().replace('.', '');
+    const isImageMime = file.mimetype && file.mimetype.startsWith('image/');
+    if (allowedTypes.test(ext) || isImageMime) {
       return cb(null, true);
     }
-    cb(new Error('Only image files (JPG, PNG, WebP, GIF) are allowed.'));
+    cb(new Error('Only image files (JPG, PNG, WebP, GIF, HEIC) are allowed.'));
   }
 });
 
@@ -222,13 +222,40 @@ router.put('/profile', verifyToken, async (req, res) => {
 });
 
 // POST /api/user/avatar - Upload profile picture file
-router.post('/avatar', verifyToken, avatarUpload.single('avatar'), async (req, res) => {
+router.post('/avatar', verifyToken, (req, res, next) => {
+  avatarUpload.single('avatar')(req, res, (err) => {
+    if (err) {
+      console.error('[Avatar Multer Error]', err);
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            message: 'Image size exceeds the 15MB limit. Please upload a smaller photo.'
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          message: `Upload error: ${err.message}`
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: err.message || 'Invalid image file.'
+      });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No image file uploaded.' });
     }
 
     const avatarUrl = await saveUploadedFile(req.file, 'avatars');
+    if (!avatarUrl) {
+      return res.status(500).json({ success: false, message: 'Failed to process and store avatar image.' });
+    }
+
     const userId = req.user.user_id;
 
     await pool.query('UPDATE users SET avatar_url = ? WHERE user_id = ?', [avatarUrl, userId]);

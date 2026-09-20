@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { testNotificationChime } from '../../utils/audio';
+import { resolveFileUrl } from '../../utils/fileHelper';
 import api from '../../api/client';
 
 export default function UserSettingsPage() {
@@ -127,8 +128,8 @@ export default function UserSettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      showNotification('error', 'File is too large. Maximum image size is 5MB.');
+    if (file.size > 15 * 1024 * 1024) {
+      showNotification('error', 'File is too large. Maximum image size is 15MB.');
       return;
     }
 
@@ -143,7 +144,7 @@ export default function UserSettingsPage() {
     try {
       setUploadingAvatar(true);
       const res = await api.post('/user/avatar', formData);
-      if (res.success && res.avatar_url) {
+      if (res && res.success && res.avatar_url) {
         const fullAvatarUrl = res.avatar_url;
         setProfileForm((prev) => ({ ...prev, avatar_url: fullAvatarUrl }));
         setAvatarPreview(fullAvatarUrl);
@@ -151,10 +152,10 @@ export default function UserSettingsPage() {
         setUser((prev) => (prev ? { ...prev, avatar_url: fullAvatarUrl } : prev));
         showNotification('success', 'Profile picture updated successfully!');
       } else {
-        showNotification('error', res.message || 'Avatar upload failed.');
+        showNotification('error', (res && res.message) || 'Avatar upload failed. Please try again.');
       }
     } catch (err) {
-      showNotification('error', 'Avatar upload error: ' + err.message);
+      showNotification('error', 'Avatar upload error: ' + (err.message || 'Please try again.'));
     } finally {
       setUploadingAvatar(false);
     }
@@ -586,7 +587,7 @@ export default function UserSettingsPage() {
                     <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-vibrant-orange shadow-md bg-surface-container-high flex items-center justify-center">
                       {avatarPreview ? (
                         <img
-                          src={avatarPreview}
+                          src={resolveFileUrl(avatarPreview)}
                           alt="Profile Preview"
                           className="w-full h-full object-cover"
                           onError={(e) => {
