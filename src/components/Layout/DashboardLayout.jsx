@@ -2,6 +2,7 @@ import React, { useState, createContext, useContext, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import DashboardHeader from './DashboardHeader';
+import MobileBottomBar from './MobileBottomBar';
 import PageTransition from './PageTransition';
 
 export const SidebarContext = createContext({
@@ -41,11 +42,12 @@ export default function DashboardLayout() {
         {/* Main Content Viewport */}
         <div className="flex-1 flex flex-col h-screen h-[100dvh] min-w-0 overflow-hidden">
           <DashboardHeader />
-          <main className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 relative">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 relative pb-16 lg:pb-0">
             <PageTransition>
               <Outlet />
             </PageTransition>
           </main>
+          <MobileBottomBar />
         </div>
       </div>
     </SidebarContext.Provider>
