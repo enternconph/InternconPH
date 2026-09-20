@@ -2125,25 +2125,105 @@ router.get('/offers', async (req, res) => {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Org not found' });
 
+    // 1. Formal Job & Internship Offers (job_offers PLUS accepted/hired/offered applications and active OJT deployments)
     const [jobOffers] = await pool.query(
-      `SELECT jo.*, ja.student_id, s.first_name, s.last_name, s.student_number, jp.title as job_title
-       FROM job_offers jo
-       JOIN job_applications ja ON jo.application_id = ja.application_id
+      `SELECT 
+         COALESCE(jo.offer_id, CONCAT('app-', ja.application_id)) as offer_id,
+         ja.application_id,
+         COALESCE(jo.status, ja.status) as status,
+         COALESCE(jo.offered_at, ja.accepted_at, ja.applied_at, ja.created_at) as offered_at,
+         COALESCE(jo.responded_at, ja.accepted_at) as responded_at,
+         ja.student_id,
+         s.first_name,
+         s.last_name,
+         s.student_number,
+         jp.title as job_title,
+         jp.posting_type,
+         jp.job_type
+       FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
        JOIN students s ON ja.student_id = s.student_id
+       LEFT JOIN job_offers jo ON ja.application_id = jo.application_id
        WHERE jp.organization_id = ?
-       ORDER BY jo.offered_at DESC`,
-      [org.organization_id]
+         AND (jo.offer_id IS NOT NULL OR ja.status IN ('offered', 'accepted', 'hired', 'completed'))
+
+       UNION
+
+       SELECT 
+         CONCAT('ojt-', o.ojt_id) as offer_id,
+         NULL as application_id,
+         CASE 
+           WHEN o.status = 'ongoing' THEN 'accepted'
+           WHEN o.status = 'completed' THEN 'completed'
+           ELSE o.status 
+         END as status,
+         COALESCE(o.start_date, o.created_at) as offered_at,
+         NULL as responded_at,
+         o.student_id,
+         s.first_name,
+         s.last_name,
+         s.student_number,
+         COALESCE(p.program_name, 'Internship Placement') as job_title,
+         'ojt' as posting_type,
+         'internship' as job_type
+       FROM ojt_records o
+       JOIN students s ON o.student_id = s.student_id
+       LEFT JOIN programs p ON o.program_id = p.program_id
+       WHERE o.organization_id = ?
+         AND o.student_id NOT IN (
+           SELECT ja2.student_id 
+           FROM job_applications ja2 
+           JOIN job_postings jp2 ON ja2.job_id = jp2.job_id 
+           WHERE jp2.organization_id = ? AND ja2.status IN ('offered', 'accepted', 'hired', 'completed')
+         )
+       ORDER BY offered_at DESC`,
+      [org.organization_id, org.organization_id, org.organization_id]
     );
 
+    // 2. Direct OJT Deployment Offers (ojt_deployment_offers PLUS active ojt_records)
     const [deploymentOffers] = await pool.query(
-      `SELECT odo.*, s.first_name, s.last_name, s.student_number, jp.title as job_title
+      `SELECT 
+         odo.offer_id,
+         odo.student_id,
+         odo.organization_id,
+         odo.job_id,
+         odo.status,
+         odo.offered_at,
+         s.first_name,
+         s.last_name,
+         s.student_number,
+         COALESCE(jp.title, 'OJT Placement Contract') as job_title
        FROM ojt_deployment_offers odo
        JOIN students s ON odo.student_id = s.student_id
        LEFT JOIN job_postings jp ON odo.job_id = jp.job_id
        WHERE odo.organization_id = ?
-       ORDER BY odo.offered_at DESC`,
-      [org.organization_id]
+
+       UNION ALL
+
+       SELECT 
+         CONCAT('ojt-', o.ojt_id) as offer_id,
+         o.student_id,
+         o.organization_id,
+         NULL as job_id,
+         CASE 
+           WHEN o.status = 'ongoing' THEN 'accepted'
+           WHEN o.status = 'completed' THEN 'completed'
+           ELSE o.status 
+         END as status,
+         COALESCE(o.start_date, o.created_at) as offered_at,
+         s.first_name,
+         s.last_name,
+         s.student_number,
+         COALESCE(p.program_name, 'Active OJT Deployment Contract') as job_title
+       FROM ojt_records o
+       JOIN students s ON o.student_id = s.student_id
+       LEFT JOIN programs p ON o.program_id = p.program_id
+       WHERE o.organization_id = ?
+         AND o.student_id NOT IN (
+           SELECT student_id FROM ojt_deployment_offers WHERE organization_id = ?
+         )
+       ORDER BY offered_at DESC`,
+      [org.organization_id, org.organization_id, org.organization_id]
     );
 
     return res.json({
@@ -2546,12 +2626,26 @@ const getOrgGrievancesHandler = async (req, res) => {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Organization profile not found.' });
 
-    // 1. Complaints filed by this Organization about interns
+    // 1. Check complaints table schema safely to prevent 500 on unmigrated deployments
+    let hasIncidentCategory = false;
+    let hasEvidenceUrl = false;
+    try {
+      const [compCols] = await pool.query('DESCRIBE complaints');
+      const compColNames = compCols.map(c => c.Field);
+      hasIncidentCategory = compColNames.includes('incident_category');
+      hasEvidenceUrl = compColNames.includes('evidence_url');
+    } catch (_) {}
+
+    const incCatSelect = hasIncidentCategory 
+      ? 'COALESCE(c.incident_category, cc.category_name) as category_name, c.incident_category,' 
+      : 'cc.category_name, NULL as incident_category,';
+    const evUrlSelect = hasEvidenceUrl ? 'c.evidence_url,' : 'NULL as evidence_url,';
+
+    // Complaints filed by this Organization about interns
     const [filedComplaints] = await pool.query(
       `SELECT c.*, 
-              COALESCE(c.incident_category, cc.category_name) as category_name,
-              c.incident_category,
-              c.evidence_url,
+              ${incCatSelect}
+              ${evUrlSelect}
               s.first_name, s.last_name, s.student_number, s.institution_id,
               CONCAT(s.first_name, ' ', s.last_name) as student_name,
               p.program_name as course,
@@ -2625,23 +2719,27 @@ const getOrgGrievancesHandler = async (req, res) => {
       [org.organization_id]
     );
 
-    // 3. Deployed interns eligible for filing incident complaints
+    // 3. Deployed interns eligible for filing incident complaints (from ojt_records, ojt_deployment_offers, and job_applications)
     const [deployedStudents] = await pool.query(
       `SELECT DISTINCT s.student_id, s.first_name, s.last_name,
               CONCAT(s.first_name, ' ', s.last_name) as student_name,
               s.student_number,
               s.institution_id, i.institution_name, p.program_name,
-              p.program_name as course
+              COALESCE(p.program_name, 'Intern') as course
        FROM students s
        LEFT JOIN institutions i ON s.institution_id = i.institution_id
        LEFT JOIN programs p ON s.program_id = p.program_id
        WHERE s.student_id IN (
          SELECT student_id FROM ojt_records WHERE organization_id = ?
          UNION
-         SELECT student_id FROM ojt_deployment_offers WHERE organization_id = ? AND status IN ('accepted', 'deployed')
+         SELECT student_id FROM ojt_deployment_offers WHERE organization_id = ? AND status IN ('accepted', 'deployed', 'active')
+         UNION
+         SELECT ja.student_id FROM job_applications ja 
+         JOIN job_postings jp ON ja.job_id = jp.job_id 
+         WHERE jp.organization_id = ? AND ja.status IN ('accepted', 'hired', 'offered', 'deployed')
        )
        ORDER BY s.last_name ASC`,
-      [org.organization_id, org.organization_id]
+      [org.organization_id, org.organization_id, org.organization_id]
     );
 
     const [categories] = await pool.query('SELECT * FROM complaint_categories ORDER BY category_name ASC');

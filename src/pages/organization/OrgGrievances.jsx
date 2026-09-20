@@ -108,17 +108,56 @@ export default function OrgGrievances() {
 
   const fetchGrievanceData = useCallback(async () => {
     try {
-      const res = await api.get('/org/grievances');
-      if (res.success && res.data) {
-        setData({
-          filedComplaints: res.data.filedComplaints || [],
-          forwardedNotices: res.data.forwardedNotices || res.data.forwardedGrievances || [],
-          forwardedGrievances: res.data.forwardedGrievances || res.data.forwardedNotices || [],
-          deployedStudents: res.data.deployedStudents || res.data.deployedInterns || [],
-          deployedInterns: res.data.deployedInterns || res.data.deployedStudents || [],
-          categories: res.data.categories || []
-        });
+      const [resResult, internsResult] = await Promise.allSettled([
+        api.get('/org/grievances'),
+        api.get('/org/interns')
+      ]);
+
+      let filedComplaints = [];
+      let forwardedNotices = [];
+      let deployedList = [];
+      let categories = [];
+
+      if (resResult.status === 'fulfilled' && resResult.value?.success && resResult.value?.data) {
+        const d = resResult.value.data;
+        filedComplaints = d.filedComplaints || [];
+        forwardedNotices = d.forwardedNotices || d.forwardedGrievances || [];
+        deployedList = d.deployedStudents || d.deployedInterns || [];
+        categories = d.categories || [];
       }
+
+      // Merge active deployed interns from /org/interns (which powers Active Intern Deployments)
+      if (internsResult.status === 'fulfilled' && internsResult.value?.success && Array.isArray(internsResult.value?.data)) {
+        const ojtInterns = internsResult.value.data.map(intern => ({
+          student_id: intern.student_id,
+          first_name: intern.first_name,
+          last_name: intern.last_name,
+          student_name: `${intern.first_name || ''} ${intern.last_name || ''}`.trim() || 'Student Intern',
+          student_number: intern.student_number,
+          institution_id: intern.institution_id,
+          institution_name: intern.institution_name,
+          program_name: intern.program_name,
+          course: intern.program_name || 'Intern',
+          ojt_id: intern.ojt_id
+        }));
+
+        const existingIds = new Set(deployedList.map(s => String(s.student_id)));
+        for (const oi of ojtInterns) {
+          if (!existingIds.has(String(oi.student_id))) {
+            deployedList.push(oi);
+            existingIds.add(String(oi.student_id));
+          }
+        }
+      }
+
+      setData({
+        filedComplaints,
+        forwardedNotices,
+        forwardedGrievances: forwardedNotices,
+        deployedStudents: deployedList,
+        deployedInterns: deployedList,
+        categories
+      });
     } catch (err) {
       console.error('Failed to fetch org grievances data:', err);
     } finally {

@@ -64,11 +64,14 @@ export default function OrgOffers() {
                   <div>
                     <p className="font-bold text-on-surface">{o.first_name} {o.last_name}</p>
                     <p className="text-on-surface-variant text-[11px]">{o.job_title} • ID: {o.student_number}</p>
-                    <span className="text-[10px] text-on-surface-variant block mt-1">Offered on: {new Date(o.offered_at).toLocaleDateString()}</span>
+                    <span className="text-[10px] text-on-surface-variant block mt-1">
+                      {o.status === 'accepted' ? 'Accepted on: ' : 'Offered on: '}
+                      {o.offered_at ? new Date(o.offered_at).toLocaleDateString() : 'Recent'}
+                    </span>
                   </div>
                   <span className={`self-start sm:self-auto px-2.5 py-1 rounded-full font-bold uppercase text-[10px] ${
-                    o.status === 'accepted' ? 'bg-green-tint text-pinoy-green' :
-                    o.status === 'declined' ? 'bg-surface-container-high text-error' :
+                    o.status === 'accepted' || o.status === 'hired' || o.status === 'completed' ? 'bg-green-tint text-pinoy-green' :
+                    o.status === 'declined' || o.status === 'rejected' ? 'bg-surface-container-high text-error' :
                     'bg-orange-tint text-vibrant-orange'
                   }`}>
                     {o.status}
@@ -100,10 +103,16 @@ export default function OrgOffers() {
                 <div key={d.offer_id} className="p-3 bg-surface-container rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border border-outline-variant text-xs">
                   <div>
                     <p className="font-bold text-on-surface">{d.first_name} {d.last_name}</p>
-                    <p className="text-on-surface-variant text-[11px]">{d.job_title || 'General OJT Placement'}</p>
-                    <span className="text-[10px] text-on-surface-variant block mt-1">Date: {new Date(d.offered_at).toLocaleDateString()}</span>
+                    <p className="text-on-surface-variant text-[11px]">{d.job_title || 'General OJT Placement'} {d.student_number ? `• ID: ${d.student_number}` : ''}</p>
+                    <span className="text-[10px] text-on-surface-variant block mt-1">
+                      Date: {d.offered_at ? new Date(d.offered_at).toLocaleDateString() : 'Active'}
+                    </span>
                   </div>
-                  <span className="self-start sm:self-auto px-2.5 py-1 rounded-full font-bold uppercase text-[10px] bg-green-tint text-pinoy-green">
+                  <span className={`self-start sm:self-auto px-2.5 py-1 rounded-full font-bold uppercase text-[10px] ${
+                    d.status === 'accepted' || d.status === 'ongoing' || d.status === 'completed'
+                      ? 'bg-green-tint text-pinoy-green'
+                      : 'bg-orange-tint text-vibrant-orange'
+                  }`}>
                     {d.status}
                   </span>
                 </div>
