@@ -894,39 +894,39 @@ export default function OrgGrievances() {
 
                 {/* Accident Report Details if applicable */}
                 {selectedItem.data.is_accident && (
-                  <div className="p-4 bg-rose-50/60 border border-rose-200 rounded-xl space-y-2.5">
-                    <h4 className="font-bold text-rose-800 flex items-center gap-1.5 text-sm">
-                      <span className="material-symbols-outlined text-[18px]">emergency</span>
+                  <div className="p-4 bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-xl space-y-2.5">
+                    <h4 className="font-bold text-rose-800 dark:text-rose-200 flex items-center gap-1.5 text-sm">
+                      <span className="material-symbols-outlined text-[18px] text-rose-600 dark:text-rose-400">emergency</span>
                       Accident & Safety Incident Report
                     </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-800 dark:text-slate-200">
                       <div>
-                        <span className="text-rose-700 font-semibold">Severity:</span>{' '}
-                        <span className="uppercase font-bold">{selectedItem.data.accident_severity}</span>
+                        <span className="text-rose-700 dark:text-rose-300 font-semibold">Severity:</span>{' '}
+                        <span className="uppercase font-bold text-slate-900 dark:text-slate-100">{selectedItem.data.accident_severity}</span>
                       </div>
                       <div>
-                        <span className="text-rose-700 font-semibold">Location:</span>{' '}
+                        <span className="text-rose-700 dark:text-rose-300 font-semibold">Location:</span>{' '}
                         <span>{selectedItem.data.accident_location || selectedItem.data.incident_location || 'Facility'}</span>
                       </div>
                       <div className="col-span-1 sm:col-span-2">
-                        <span className="text-rose-700 font-semibold">Injuries:</span>{' '}
+                        <span className="text-rose-700 dark:text-rose-300 font-semibold">Injuries:</span>{' '}
                         <span>{selectedItem.data.injury_description || selectedItem.data.injuries_sustained}</span>
                       </div>
                       {(selectedItem.data.witnesses) && (
                         <div className="col-span-1 sm:col-span-2">
-                          <span className="text-rose-700 font-semibold">Witnesses:</span>{' '}
+                          <span className="text-rose-700 dark:text-rose-300 font-semibold">Witnesses:</span>{' '}
                           <span>{selectedItem.data.witnesses}</span>
                         </div>
                       )}
                       {(selectedItem.data.immediate_action_taken || selectedItem.data.emergency_actions_taken) && (
                         <div className="col-span-1 sm:col-span-2">
-                          <span className="text-rose-700 font-semibold">Actions Taken:</span>{' '}
+                          <span className="text-rose-700 dark:text-rose-300 font-semibold">Actions Taken:</span>{' '}
                           <span>{selectedItem.data.immediate_action_taken || selectedItem.data.emergency_actions_taken}</span>
                         </div>
                       )}
                       {(selectedItem.data.preventive_measures) && (
                         <div className="col-span-1 sm:col-span-2">
-                          <span className="text-rose-700 font-semibold">Preventive Plan:</span>{' '}
+                          <span className="text-rose-700 dark:text-rose-300 font-semibold">Preventive Plan:</span>{' '}
                           <span>{selectedItem.data.preventive_measures}</span>
                         </div>
                       )}

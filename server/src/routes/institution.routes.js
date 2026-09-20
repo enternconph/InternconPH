@@ -2388,7 +2388,7 @@ router.post('/requirements', async (req, res) => {
           title: 'New OJT Clearance Requirement Published',
           message: `Your institution has published a new OJT clearance requirement: "${requirement_name}". Please view and complete the required document.`,
           type: 'requirement',
-          link: '/dashboard/student/requirements'
+          link: '/dashboard/student/ojt'
         });
       }
     }

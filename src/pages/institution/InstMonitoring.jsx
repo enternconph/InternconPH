@@ -672,21 +672,21 @@ export default function InstMonitoring() {
                           {c.status?.replace(/_/g, ' ') || 'SUBMITTED'}
                         </span>
                         <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                          c.accident_severity === 'fatal' || c.accident_severity === 'critical' ? 'bg-rose-100 text-rose-800 border-rose-300' :
-                          c.accident_severity === 'severe' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                          'bg-amber-50 text-amber-700 border-amber-200'
+                          c.accident_severity === 'fatal' || c.accident_severity === 'critical' ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-800/60' :
+                          c.accident_severity === 'severe' ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/50' :
+                          'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/50'
                         }`}>
                           <span className="material-symbols-outlined text-[13px]">emergency</span>
                           Severity: {c.accident_severity || 'Reported'}
                         </span>
                         {c.medical_attention_required ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 text-[10px] font-bold">
                             <span className="material-symbols-outlined text-[13px]">local_hospital</span>
                             Medical Attention Required
                           </span>
                         ) : null}
                         {Boolean(c.is_escalated_to_admin > 0 || c.status === 'admin_review') && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 text-[10px] font-bold">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800/60 text-[10px] font-bold">
                             <span className="material-symbols-outlined text-[13px]">shield</span>
                             Admin Escalated
                           </span>
@@ -710,32 +710,53 @@ export default function InstMonitoring() {
                   </div>
 
                   {/* Accident Details Grid */}
-                  <div className="p-3.5 bg-rose-50/60 border border-rose-200 rounded-xl text-xs space-y-1.5">
-                    <h5 className="font-bold text-rose-900 flex items-center gap-1.5 text-xs">
-                      <span className="material-symbols-outlined text-[16px] text-rose-600">medical_services</span>
+                  <div className="p-3.5 bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-xl text-xs space-y-2">
+                    <h5 className="font-bold text-rose-900 dark:text-rose-200 flex items-center gap-1.5 text-xs">
+                      <span className="material-symbols-outlined text-[16px] text-rose-600 dark:text-rose-400">medical_services</span>
                       Accident & Injury Details
                     </h5>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                       {(c.incident_location || c.accident_location) && (
-                        <div><strong className="text-rose-800">Facility Location:</strong> {c.incident_location || c.accident_location}</div>
+                        <div>
+                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Facility Location:</strong>{' '}
+                          <span className="text-slate-800 dark:text-slate-200 font-medium">{c.incident_location || c.accident_location}</span>
+                        </div>
                       )}
                       {(c.incident_datetime) && (
-                        <div><strong className="text-rose-800">Incident Date/Time:</strong> {new Date(c.incident_datetime).toLocaleString()}</div>
+                        <div>
+                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Incident Date/Time:</strong>{' '}
+                          <span className="text-slate-800 dark:text-slate-200 font-medium">{new Date(c.incident_datetime).toLocaleString()}</span>
+                        </div>
                       )}
                       {(c.injuries_sustained || c.injury_description) && (
-                        <div className="col-span-1 sm:col-span-2"><strong className="text-rose-800">Injuries Sustained:</strong> {c.injuries_sustained || c.injury_description}</div>
+                        <div className="col-span-1 sm:col-span-2">
+                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Injuries Sustained:</strong>{' '}
+                          <span className="text-slate-800 dark:text-slate-200 font-medium">{c.injuries_sustained || c.injury_description}</span>
+                        </div>
                       )}
                       {c.medical_attention_given && (
-                        <div className="col-span-1 sm:col-span-2"><strong className="text-rose-800">Medical Attention Provided:</strong> {c.medical_attention_given}</div>
+                        <div className="col-span-1 sm:col-span-2">
+                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Medical Attention Provided:</strong>{' '}
+                          <span className="text-slate-800 dark:text-slate-200 font-medium">{c.medical_attention_given}</span>
+                        </div>
                       )}
                       {(c.emergency_actions_taken || c.immediate_action_taken) && (
-                        <div className="col-span-1 sm:col-span-2"><strong className="text-rose-800">Immediate Action Taken:</strong> {c.emergency_actions_taken || c.immediate_action_taken}</div>
+                        <div className="col-span-1 sm:col-span-2">
+                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Immediate Action Taken:</strong>{' '}
+                          <span className="text-slate-800 dark:text-slate-200 font-medium">{c.emergency_actions_taken || c.immediate_action_taken}</span>
+                        </div>
                       )}
                       {c.preventive_measures && (
-                        <div className="col-span-1 sm:col-span-2"><strong className="text-rose-800">Preventive Measures:</strong> {c.preventive_measures}</div>
+                        <div className="col-span-1 sm:col-span-2">
+                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Preventive Measures:</strong>{' '}
+                          <span className="text-slate-800 dark:text-slate-200 font-medium">{c.preventive_measures}</span>
+                        </div>
                       )}
                       {c.witnesses && (
-                        <div className="col-span-1 sm:col-span-2"><strong className="text-rose-800">Witnesses:</strong> {c.witnesses}</div>
+                        <div className="col-span-1 sm:col-span-2">
+                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Witnesses:</strong>{' '}
+                          <span className="text-slate-800 dark:text-slate-200 font-medium">{c.witnesses}</span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -763,7 +784,7 @@ export default function InstMonitoring() {
                             recommendations: c.preventive_measures || ''
                           });
                         }}
-                        className="px-3 py-1.5 bg-rose-50 text-rose-700 text-xs font-bold rounded-lg border border-rose-200 hover:bg-rose-100 transition-colors flex items-center gap-1.5"
+                        className="px-3 py-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-xs font-bold rounded-lg border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors flex items-center gap-1.5"
                       >
                         <span className="material-symbols-outlined text-[16px]">shield</span>
                         Escalate Safety Issue to Admin
@@ -1096,19 +1117,19 @@ export default function InstMonitoring() {
             </div>
 
             {escalateModal.is_accident || escalateModal.accident_id ? (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 space-y-1">
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-xl text-xs text-rose-900 dark:text-rose-200 space-y-1">
                 <p className="font-bold flex items-center gap-1">
                   <span className="material-symbols-outlined text-[15px]">info</span>
                   Safety Escalation Rule (1-Time Escalation Limit)
                 </p>
-                <p>
+                <p className="text-slate-700 dark:text-slate-300">
                   This safety issue can only be escalated to the System Administrator <strong>1 time</strong>. Once submitted, this accident report will be flagged as Admin Escalated and cannot be escalated again.
                 </p>
               </div>
             ) : (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 space-y-1">
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-xl text-xs text-rose-900 dark:text-rose-200 space-y-1">
                 <p className="font-bold">Governance Rule</p>
-                <p>
+                <p className="text-slate-700 dark:text-slate-300">
                   System Admin can only issue Warning, Sanction, or Suspension against an Organization if the same Institution submits multiple reports referencing the same organization. A single report alone will not trigger admin enforcement.
                 </p>
               </div>
