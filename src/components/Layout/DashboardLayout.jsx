@@ -26,7 +26,7 @@ export default function DashboardLayout() {
 
   return (
     <SidebarContext.Provider value={{ sidebarOpen, setSidebarOpen, toggleSidebar }}>
-      <div className="flex h-screen h-[100dvh] w-full bg-surface-container-low text-on-surface overflow-hidden">
+      <div className="flex h-screen h-[100dvh] w-full max-w-full bg-surface-container-low text-on-surface overflow-hidden">
         {/* Mobile Backdrop Overlay */}
         {sidebarOpen && (
           <div
@@ -40,9 +40,9 @@ export default function DashboardLayout() {
         <Sidebar />
 
         {/* Main Content Viewport */}
-        <div className="flex-1 flex flex-col h-screen h-[100dvh] min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col h-screen h-[100dvh] w-full max-w-full min-w-0 overflow-hidden">
           <DashboardHeader />
-          <main className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 relative pb-16 lg:pb-0">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0 w-full max-w-full relative pb-16 lg:pb-0">
             <PageTransition>
               <Outlet />
             </PageTransition>

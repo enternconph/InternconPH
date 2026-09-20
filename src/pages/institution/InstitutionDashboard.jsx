@@ -458,7 +458,7 @@ export default function InstitutionDashboard() {
   const programsList = data?.programsList || [];
 
   return (
-    <div className="p-4 md:p-8 space-y-6">
+    <div className="p-3 sm:p-4 md:p-8 space-y-4 sm:space-y-6 w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Pending Dispatched Opportunities Alert Banner */}
       {(stats.pendingOffersCount || 0) > 0 && (
         <div className="p-4 bg-orange-tint/70 border border-vibrant-orange/40 rounded-2xl flex items-center justify-between flex-wrap gap-3 animate-fade-in shadow-xs">
@@ -779,9 +779,9 @@ export default function InstitutionDashboard() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full max-w-full">
           {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative flex-1 min-w-[200px] w-full">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
             <input
               type="text"
@@ -797,7 +797,7 @@ export default function InstitutionDashboard() {
             <select
               value={stuProgram}
               onChange={e => setStuProgram(e.target.value)}
-              className="px-3 py-2 bg-surface-container-low border border-outline-variant rounded-xl text-xs outline-none focus:border-vibrant-orange transition-colors"
+              className="w-full sm:w-auto max-w-full px-3 py-2 bg-surface-container-low border border-outline-variant rounded-xl text-xs outline-none focus:border-vibrant-orange transition-colors truncate"
             >
               <option value="">All Programs</option>
               {programsList.map(p => (
@@ -810,7 +810,7 @@ export default function InstitutionDashboard() {
           <select
             value={stuOjt}
             onChange={e => setStuOjt(e.target.value)}
-            className="px-3 py-2 bg-surface-container-low border border-outline-variant rounded-xl text-xs outline-none focus:border-vibrant-orange transition-colors"
+            className="w-full sm:w-auto max-w-full px-3 py-2 bg-surface-container-low border border-outline-variant rounded-xl text-xs outline-none focus:border-vibrant-orange transition-colors"
           >
             <option value="">All OJT Status</option>
             <option value="not_started">Not Started</option>
@@ -822,14 +822,14 @@ export default function InstitutionDashboard() {
           {(stuSearch || stuProgram || stuOjt) && (
             <button
               onClick={() => { setStuSearch(''); setStuProgram(''); setStuOjt(''); }}
-              className="px-3 py-2 bg-error-container text-error rounded-xl text-xs font-bold hover:bg-red-100 transition-colors flex items-center gap-1"
+              className="w-full sm:w-auto justify-center px-3 py-2 bg-error-container text-error rounded-xl text-xs font-bold hover:bg-red-100 transition-colors flex items-center gap-1"
             >
               <span className="material-symbols-outlined text-[14px]">clear</span> Clear
             </button>
           )}
         </div>
 
-        {/* Student Table */}
+        {/* Student Table / Cards */}
         {rawStudents.length === 0 ? (
           <div className="py-12 text-center text-on-surface-variant">
             <span className="material-symbols-outlined text-5xl text-outline opacity-50">manage_accounts</span>
@@ -846,55 +846,102 @@ export default function InstitutionDashboard() {
             <p className="text-sm mt-2">No students match your search filters.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-outline-variant">
-            <table className="w-full text-xs min-w-[700px]">
-              <thead className="bg-surface-container-low whitespace-nowrap">
-                <tr>
-                  <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Student</th>
-                  <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Program</th>
-                  <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">OJT Status</th>
-                  <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Hours</th>
-                  <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Portfolio</th>
-                  <th className="px-3 py-2.5 text-right font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant">
-                {filteredStudents.map(stu => (
-                  <tr key={stu.student_id} className="hover:bg-surface-container-low/60 transition-colors">
-                    <td className="px-3 py-2.5">
-                      <p className="font-bold text-on-surface">{stu.last_name}, {stu.first_name}</p>
-                      <p className="text-on-surface-variant">{stu.student_number}</p>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <p className="font-medium text-on-surface">{stu.program_code || '—'}</p>
-                      <p className="text-on-surface-variant line-clamp-1">{stu.program_name || '—'}</p>
-                    </td>
-                    <td className="px-3 py-2.5">{ojtBadge(stu.ojt_status)}</td>
-                    <td className="px-3 py-2.5">
-                      <p className="font-medium text-on-surface">{stu.completed_ojt_hours || 0} / {stu.required_ojt_hours || '—'}</p>
-                      <p className="text-on-surface-variant">hrs</p>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        (stu.portfolio_count || 0) > 0 ? 'bg-blue-50 text-blue-700' : 'bg-surface-container text-on-surface-variant'
-                      }`}>
-                        {stu.portfolio_count || 0} item{(stu.portfolio_count || 0) !== 1 ? 's' : ''}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <button
-                        onClick={() => setSelectedStudentId(stu.student_id)}
-                        className="px-3 py-1.5 bg-vibrant-orange text-white rounded-lg text-[11px] font-bold hover:bg-deep-orange transition-colors inline-flex items-center gap-1"
-                      >
-                        <span className="material-symbols-outlined text-[13px]">open_in_new</span>
-                        View Profile
-                      </button>
-                    </td>
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-outline-variant w-full max-w-full">
+              <table className="w-full text-xs min-w-[700px]">
+                <thead className="bg-surface-container-low whitespace-nowrap">
+                  <tr>
+                    <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Student</th>
+                    <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Program</th>
+                    <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">OJT Status</th>
+                    <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Hours</th>
+                    <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Portfolio</th>
+                    <th className="px-3 py-2.5 text-right font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-outline-variant">
+                  {filteredStudents.map(stu => (
+                    <tr key={stu.student_id} className="hover:bg-surface-container-low/60 transition-colors">
+                      <td className="px-3 py-2.5">
+                        <p className="font-bold text-on-surface">{stu.last_name}, {stu.first_name}</p>
+                        <p className="text-on-surface-variant">{stu.student_number}</p>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <p className="font-medium text-on-surface">{stu.program_code || '—'}</p>
+                        <p className="text-on-surface-variant line-clamp-1">{stu.program_name || '—'}</p>
+                      </td>
+                      <td className="px-3 py-2.5">{ojtBadge(stu.ojt_status)}</td>
+                      <td className="px-3 py-2.5">
+                        <p className="font-medium text-on-surface">{stu.completed_ojt_hours || 0} / {stu.required_ojt_hours || '—'}</p>
+                        <p className="text-on-surface-variant">hrs</p>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          (stu.portfolio_count || 0) > 0 ? 'bg-blue-50 text-blue-700' : 'bg-surface-container text-on-surface-variant'
+                        }`}>
+                          {stu.portfolio_count || 0} item{(stu.portfolio_count || 0) !== 1 ? 's' : ''}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <button
+                          onClick={() => setSelectedStudentId(stu.student_id)}
+                          className="px-3 py-1.5 bg-vibrant-orange text-white rounded-lg text-[11px] font-bold hover:bg-deep-orange transition-colors inline-flex items-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                          View Profile
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List View (Fits 100% on phone screens) */}
+            <div className="md:hidden divide-y divide-outline-variant/60 rounded-xl border border-outline-variant bg-surface-container-low/40 overflow-hidden w-full max-w-full">
+              {filteredStudents.map(stu => (
+                <div key={stu.student_id} className="p-3.5 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-sm text-on-surface truncate">
+                        {stu.last_name}, {stu.first_name}
+                      </p>
+                      <p className="text-[11px] text-on-surface-variant font-mono">
+                        {stu.student_number || 'No ID'}
+                      </p>
+                    </div>
+                    {ojtBadge(stu.ojt_status)}
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-on-surface-variant pt-1 border-t border-outline-variant/40">
+                    <span className="font-medium text-on-surface truncate max-w-[170px]">
+                      {stu.program_code || 'No Program'}
+                    </span>
+                    <span className="font-semibold text-on-surface">
+                      {stu.completed_ojt_hours || 0} / {stu.required_ojt_hours || 600} hrs
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      (stu.portfolio_count || 0) > 0 ? 'bg-blue-50 text-blue-700' : 'bg-surface-container text-on-surface-variant'
+                    }`}>
+                      {stu.portfolio_count || 0} item{(stu.portfolio_count || 0) !== 1 ? 's' : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStudentId(stu.student_id)}
+                      className="px-3 py-1.5 bg-vibrant-orange text-white rounded-lg text-xs font-bold hover:bg-deep-orange transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                      <span>View Profile</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 

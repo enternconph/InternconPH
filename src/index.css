@@ -77,6 +77,15 @@ html.dark,
   .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
+    max-width: 100%;
+  }
+
+  /* Prevent inputs and dropdowns from overflowing their container on mobile */
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   /* Sleek custom scrollbars */
@@ -101,9 +110,19 @@ html.dark,
     background-color: rgb(var(--surface-rgb));
     border: 1px solid rgb(var(--outline-variant-rgb));
     border-radius: 1rem;
-    padding: 1.5rem;
+    padding: 1rem;
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
     transition: all 0.2s ease-in-out;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  @media (min-width: 640px) {
+    .bento-card {
+      padding: 1.5rem;
+    }
   }
 
   .bento-card:hover {

@@ -34,7 +34,7 @@ export default function PageTransition({ children, className = '' }) {
       exit="out"
       variants={pageVariants}
       transition={pageTransition}
-      className={`w-full h-full ${className}`}
+      className={`w-full max-w-full min-w-0 h-full overflow-x-hidden ${className}`}
     >
       {children}
     </motion.div>
