@@ -38,7 +38,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-50 w-72 sm:w-64 bg-surface-container-lowest border-r border-outline-variant flex flex-col h-screen max-h-screen transition-transform duration-300 ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:w-64 lg:shrink-0 lg:h-full lg:shadow-none ${
+      className={`fixed inset-y-0 left-0 z-50 w-72 sm:w-64 bg-surface-container-lowest border-r border-outline-variant flex flex-col h-screen h-[100dvh] max-h-screen max-h-[100dvh] transition-transform duration-300 ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:w-64 lg:shrink-0 lg:h-full lg:shadow-none ${
         sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
       }`}
     >
@@ -316,11 +316,22 @@ export default function Sidebar() {
             </NavLink>
           </>
         )}
-
+        
+        {/* Mobile Quick Sign Out item inside scrollable nav */}
+        <div className="pt-3 mt-3 border-t border-outline-variant/60 lg:hidden">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm text-error hover:bg-error-container transition-colors cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[20px]">logout</span>
+            <span>Sign Out</span>
+          </button>
+        </div>
       </nav>
 
       {/* User Footer / Logout */}
-      <div className="p-4 border-t border-outline-variant bg-surface-container-low shrink-0 mt-auto">
+      <div className="p-4 pb-[max(1.25rem,calc(env(safe-area-inset-bottom)+0.5rem))] border-t border-outline-variant bg-surface-container-low shrink-0 mt-auto">
         <div
           onClick={() => {
             setSidebarOpen(false);
@@ -356,8 +367,9 @@ export default function Sidebar() {
         </div>
 
         <button
+          type="button"
           onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-surface-container rounded-lg text-xs font-bold text-error hover:bg-error-container transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-surface-container rounded-lg text-xs font-bold text-error hover:bg-error-container transition-colors cursor-pointer"
         >
           <span className="material-symbols-outlined text-[16px]">logout</span>
           <span>Sign Out</span>

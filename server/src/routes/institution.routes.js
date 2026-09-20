@@ -687,7 +687,7 @@ router.get('/students', async (req, res) => {
     const search = (req.query.search || '').trim();
     const programFilter = (req.query.program_id || req.query.program || '').trim();
 
-    let verifiedWhere = "WHERE s.institution_id = ? AND sr.status = 'verified'";
+    let verifiedWhere = 'WHERE s.institution_id = ? AND sr.status = \'verified\'';
     const verifiedParams = [inst.institution_id];
     if (isRestricted) {
       if (scope.isDean) {
@@ -700,7 +700,7 @@ router.get('/students', async (req, res) => {
     }
 
     if (search) {
-      verifiedWhere += " AND (s.first_name LIKE ? OR s.last_name LIKE ? OR s.student_number LIKE ? OR u.email LIKE ? OR CONCAT(s.first_name, ' ', s.last_name) LIKE ?)";
+      verifiedWhere += ' AND (s.first_name LIKE ? OR s.last_name LIKE ? OR s.student_number LIKE ? OR u.email LIKE ? OR CONCAT(s.first_name, \' \', s.last_name) LIKE ?)';
       const sTerm = `%${search}%`;
       verifiedParams.push(sTerm, sTerm, sTerm, sTerm, sTerm);
     }
@@ -729,7 +729,7 @@ router.get('/students', async (req, res) => {
     // Overall verified count for this institution (independent of search filter, for tab counter)
     let overallVerifiedCount = totalFilteredVerified;
     if (search || (programFilter && programFilter !== 'all')) {
-      let allWhere = "WHERE s.institution_id = ? AND sr.status = 'verified'";
+      let allWhere = 'WHERE s.institution_id = ? AND sr.status = \'verified\'';
       const allParams = [inst.institution_id];
       if (isRestricted) {
         if (scope.isDean) {
@@ -1363,7 +1363,7 @@ router.post('/students/:id/verify', async (req, res) => {
       await connection.query('DELETE FROM student_skills WHERE student_id = ?', [studentId]);
       await connection.query('DELETE FROM student_staff_assignments WHERE student_id = ?', [studentId]);
       await connection.query('DELETE FROM student_registrations WHERE student_id = ?', [studentId]);
-      await connection.query("DELETE FROM entity_registrations WHERE entity_type = 'student' AND entity_id = ?", [studentId]);
+      await connection.query('DELETE FROM entity_registrations WHERE entity_type = \'student\' AND entity_id = ?', [studentId]);
       await connection.query('DELETE FROM notifications WHERE user_id = ?', [userId]);
       await connection.query('DELETE FROM audit_logs WHERE user_id = ?', [userId]);
       await connection.query('DELETE FROM students WHERE student_id = ?', [studentId]);
@@ -1410,7 +1410,7 @@ router.post('/students/:studentId/toggle-status', async (req, res) => {
 
     if (newActiveState === 1) {
       await pool.query(
-        "UPDATE student_registrations SET status = 'verified', verified_by = ?, verified_at = CURRENT_TIMESTAMP WHERE student_id = ?",
+        'UPDATE student_registrations SET status = \'verified\', verified_by = ?, verified_at = CURRENT_TIMESTAMP WHERE student_id = ?',
         [req.user.user_id, studentId]
       );
       await pool.query('UPDATE users SET is_verified = 1 WHERE user_id = ?', [student.user_id]);
@@ -1655,7 +1655,7 @@ router.put('/staff/:id/verify', async (req, res) => {
         [staffMember.user_id, staffMember.employee_id || staffMember.staff_number]
       );
 
-      await connection.query("DELETE FROM entity_registrations WHERE entity_type = 'institution_staff' AND entity_id = ?", [staffId]);
+      await connection.query('DELETE FROM entity_registrations WHERE entity_type = \'institution_staff\' AND entity_id = ?', [staffId]);
       await connection.query('DELETE FROM notifications WHERE user_id = ?', [staffMember.user_id]);
       await connection.query('DELETE FROM audit_logs WHERE user_id = ?', [staffMember.user_id]);
       await connection.query('DELETE FROM institution_staff WHERE staff_id = ?', [staffId]);
@@ -1669,7 +1669,7 @@ router.put('/staff/:id/verify', async (req, res) => {
     // Mark staff verification notification as read
     try {
       await pool.query(
-        "UPDATE notifications SET is_read = 1 WHERE related_type = 'institution_staff' AND related_id = ?",
+        'UPDATE notifications SET is_read = 1 WHERE related_type = \'institution_staff\' AND related_id = ?',
         [staffId]
       );
     } catch (_) { }

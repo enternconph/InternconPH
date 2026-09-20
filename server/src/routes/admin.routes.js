@@ -52,13 +52,13 @@ router.get('/dashboard', async (req, res) => {
       pool.query('SELECT COUNT(*) as totalStudents FROM students'),
       pool.query('SELECT COUNT(*) as totalOrgs FROM hiring_organizations'),
       pool.query('SELECT COUNT(*) as totalInstitutions FROM institutions'),
-      pool.query("SELECT COUNT(*) as pendingOrgs FROM hiring_organizations WHERE status = 'pending'"),
-      pool.query("SELECT COUNT(*) as pendingInstitutions FROM institutions WHERE status = 'pending'"),
-      pool.query("SELECT COUNT(*) as activeOjts FROM ojt_records WHERE status = 'ongoing'"),
+      pool.query('SELECT COUNT(*) as pendingOrgs FROM hiring_organizations WHERE status = \'pending\''),
+      pool.query('SELECT COUNT(*) as pendingInstitutions FROM institutions WHERE status = \'pending\''),
+      pool.query('SELECT COUNT(*) as activeOjts FROM ojt_records WHERE status = \'ongoing\''),
       pool.query('SELECT COUNT(*) as totalJobs FROM job_postings'),
-      pool.query("SELECT COUNT(*) as pendingComplaints FROM institution_reports WHERE status = 'pending'"),
-      pool.query("SELECT COUNT(*) as totalComplaints FROM institution_reports"),
-      pool.query("SELECT COUNT(*) as activeSuspensions FROM organization_suspensions WHERE is_active = 1"),
+      pool.query('SELECT COUNT(*) as pendingComplaints FROM institution_reports WHERE status = \'pending\''),
+      pool.query('SELECT COUNT(*) as totalComplaints FROM institution_reports'),
+      pool.query('SELECT COUNT(*) as activeSuspensions FROM organization_suspensions WHERE is_active = 1'),
       pool.query(`
         SELECT r.role_name, COUNT(u.user_id) as count 
         FROM users u 
@@ -199,9 +199,9 @@ router.post('/institutions/:id/status', async (req, res) => {
     await connection.beginTransaction();
 
     if (action === 'approve') {
-      await connection.query("UPDATE institutions SET status = 'active' WHERE institution_id = ?", [instId]);
+      await connection.query('UPDATE institutions SET status = \'active\' WHERE institution_id = ?', [instId]);
       await connection.query(
-        "UPDATE institution_registrations SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE institution_id = ?",
+        'UPDATE institution_registrations SET status = \'approved\', reviewed_at = CURRENT_TIMESTAMP WHERE institution_id = ?',
         [instId]
       );
       await connection.query(
@@ -231,7 +231,7 @@ router.post('/institutions/:id/status', async (req, res) => {
 
       await connection.query('DELETE FROM institution_documents WHERE institution_id = ?', [instId]);
       await connection.query('DELETE FROM institution_registrations WHERE institution_id = ?', [instId]);
-      await connection.query("DELETE FROM entity_registrations WHERE entity_type = 'institution' AND entity_id = ?", [instId]);
+      await connection.query('DELETE FROM entity_registrations WHERE entity_type = \'institution\' AND entity_id = ?', [instId]);
       await connection.query('DELETE FROM institution_job_approvals WHERE institution_id = ?', [instId]);
       await connection.query('DELETE FROM institution_staff WHERE institution_id = ?', [instId]);
       await connection.query('DELETE FROM access_codes WHERE institution_id = ?', [instId]);
@@ -376,9 +376,9 @@ router.post('/organizations/:id/status', async (req, res) => {
     await connection.beginTransaction();
 
     if (action === 'approve') {
-      await connection.query("UPDATE hiring_organizations SET status = 'active' WHERE organization_id = ?", [orgId]);
+      await connection.query('UPDATE hiring_organizations SET status = \'active\' WHERE organization_id = ?', [orgId]);
       await connection.query(
-        "UPDATE organization_registrations SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE organization_id = ?",
+        'UPDATE organization_registrations SET status = \'approved\', reviewed_at = CURRENT_TIMESTAMP WHERE organization_id = ?',
         [orgId]
       );
       await connection.query(
@@ -409,7 +409,7 @@ router.post('/organizations/:id/status', async (req, res) => {
 
       await connection.query('DELETE FROM organization_documents WHERE organization_id = ?', [orgId]);
       await connection.query('DELETE FROM organization_registrations WHERE organization_id = ?', [orgId]);
-      await connection.query("DELETE FROM entity_registrations WHERE entity_type = 'organization' AND entity_id = ?", [orgId]);
+      await connection.query('DELETE FROM entity_registrations WHERE entity_type = \'organization\' AND entity_id = ?', [orgId]);
       await connection.query('DELETE FROM organization_staff WHERE organization_id = ?', [orgId]);
       await connection.query('DELETE FROM organization_warnings WHERE organization_id = ?', [orgId]);
       await connection.query('DELETE FROM organization_suspensions WHERE organization_id = ?', [orgId]);

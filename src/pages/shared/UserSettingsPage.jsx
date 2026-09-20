@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { testNotificationChime } from '../../utils/audio';
 import api from '../../api/client';
 
 export default function UserSettingsPage() {
-  const { user, setUser } = useAuth();
+  const { user, setUser, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
   const { theme, effectiveTheme, isDark, setTheme, toggleTheme } = useTheme();
 
   const [activeTab, setActiveTab] = useState('notifications'); // 'notifications' | 'profile' | 'security' | 'appearance'
@@ -278,6 +285,16 @@ export default function UserSettingsPage() {
             Configure real-time alert notifications, customize audio preferences, manage your profile avatar, and secure your account credentials.
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-container text-error border border-error/20 hover:bg-error-container hover:border-error/40 text-xs font-bold transition-all shrink-0 cursor-pointer shadow-sm"
+          title="Sign Out of Account"
+        >
+          <span className="material-symbols-outlined text-[18px]">logout</span>
+          <span>Sign Out</span>
+        </button>
       </div>
 
       {/* Alert Notification Message */}

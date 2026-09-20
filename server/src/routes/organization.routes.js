@@ -55,7 +55,7 @@ const getOrgId = async (userId) => {
     [userId]
   );
   if (adminUser && adminUser.role_name === 'system_admin') {
-    const [firstOrg] = await pool.query("SELECT * FROM hiring_organizations WHERE status = 'active' ORDER BY organization_id ASC LIMIT 1");
+    const [firstOrg] = await pool.query('SELECT * FROM hiring_organizations WHERE status = \'active\' ORDER BY organization_id ASC LIMIT 1');
     if (firstOrg.length > 0) return firstOrg[0];
   }
 
@@ -82,7 +82,7 @@ router.get('/dashboard', async (req, res) => {
 
     // 1. Active job postings count
     const [[{ activeJobs }]] = await pool.query(
-      "SELECT COUNT(*) as activeJobs FROM job_postings WHERE organization_id = ? AND status = 'active'",
+      'SELECT COUNT(*) as activeJobs FROM job_postings WHERE organization_id = ? AND status = \'active\'',
       [orgId]
     );
 
@@ -97,7 +97,7 @@ router.get('/dashboard', async (req, res) => {
 
     // 3. Active interns (OJT)
     const [[{ activeInterns }]] = await pool.query(
-      "SELECT COUNT(*) as activeInterns FROM ojt_records WHERE organization_id = ? AND status = 'ongoing'",
+      'SELECT COUNT(*) as activeInterns FROM ojt_records WHERE organization_id = ? AND status = \'ongoing\'',
       [orgId]
     );
 
@@ -455,7 +455,7 @@ router.post('/jobs', requireHROrAdmin, async (req, res) => {
     const org = await getOrgId(req.user.user_id);
     if (org) {
       const [mentors] = await pool.query(
-        "SELECT org_staff_id FROM organization_staff WHERE organization_id = ? AND (position = 'workplace_mentor' OR position = 'mentor')",
+        'SELECT org_staff_id FROM organization_staff WHERE organization_id = ? AND (position = \'workplace_mentor\' OR position = \'mentor\')',
         [org.organization_id]
       );
       if (mentors.length === 0) {
@@ -515,7 +515,7 @@ router.post('/jobs', requireHROrAdmin, async (req, res) => {
 
     let selectedInstitutions = Array.isArray(institution_ids) ? institution_ids : [];
     if (selectedInstitutions.length === 0) {
-      const [allInsts] = await connection.query("SELECT institution_id FROM institutions WHERE status = 'active'");
+      const [allInsts] = await connection.query('SELECT institution_id FROM institutions WHERE status = \'active\'');
       selectedInstitutions = allInsts.map(i => i.institution_id);
     }
 
@@ -1002,7 +1002,7 @@ router.post('/applicants/:id/accept-on-call', requireHROrAdmin, async (req, res)
 
     // Mark application as accepted
     await connection.query(
-      "UPDATE job_applications SET status = 'accepted', updated_at = NOW() WHERE application_id = ?",
+      'UPDATE job_applications SET status = \'accepted\', updated_at = NOW() WHERE application_id = ?',
       [appId]
     );
 
@@ -2006,7 +2006,7 @@ router.post('/evaluations', async (req, res) => {
 
     // Ensure OJT status is marked completed
     await pool.query(
-      "UPDATE ojt_records SET status = 'completed', end_date = COALESCE(end_date, CURRENT_DATE), updated_at = NOW() WHERE ojt_id = ?",
+      'UPDATE ojt_records SET status = \'completed\', end_date = COALESCE(end_date, CURRENT_DATE), updated_at = NOW() WHERE ojt_id = ?',
       [targetOjtId]
     );
 

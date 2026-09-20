@@ -8,11 +8,16 @@ import { playNotificationChime } from '../../utils/audio';
 import api from '../../api/client';
 
 export default function DashboardHeader() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { toggleSidebar } = useSidebar();
   const { socket } = useSocket() || {};
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
 
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -213,13 +218,25 @@ export default function DashboardHeader() {
             type="button"
             id="settings-header-btn"
             onClick={() => navigate('/dashboard/settings')}
-            className="p-2 rounded-xl bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all duration-200"
+            className="p-2 rounded-xl bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all duration-200 cursor-pointer"
             title="Account Settings & Preferences"
             aria-label="Account Settings"
           >
             <span className="material-symbols-outlined text-[22px] block hover:rotate-45 transition-transform duration-300">
               settings
             </span>
+          </button>
+
+          {/* Quick Sign Out Action */}
+          <button
+            type="button"
+            id="header-logout-btn"
+            onClick={handleLogout}
+            className="p-2 rounded-xl bg-surface-container text-error hover:bg-error-container hover:text-error transition-all duration-200 cursor-pointer"
+            title="Sign Out"
+            aria-label="Sign Out"
+          >
+            <span className="material-symbols-outlined text-[22px] block">logout</span>
           </button>
 
           {/* Notifications Dropdown Panel */}

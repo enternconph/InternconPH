@@ -615,10 +615,10 @@ router.post('/register/student', async (req, res) => {
         connection.release();
         return res.status(400).json({ success: false, message: 'This email is already registered and verified.' });
       } else {
-        await connection.query("DELETE FROM student_registrations WHERE student_id IN (SELECT student_id FROM students WHERE user_id = ?)", [oldUser.user_id]);
-        await connection.query("DELETE FROM entity_registrations WHERE user_id = ?", [oldUser.user_id]);
-        await connection.query("DELETE FROM students WHERE user_id = ?", [oldUser.user_id]);
-        await connection.query("DELETE FROM users WHERE user_id = ?", [oldUser.user_id]);
+        await connection.query('DELETE FROM student_registrations WHERE student_id IN (SELECT student_id FROM students WHERE user_id = ?)', [oldUser.user_id]);
+        await connection.query('DELETE FROM entity_registrations WHERE user_id = ?', [oldUser.user_id]);
+        await connection.query('DELETE FROM students WHERE user_id = ?', [oldUser.user_id]);
+        await connection.query('DELETE FROM users WHERE user_id = ?', [oldUser.user_id]);
       }
     }
 
@@ -729,7 +729,7 @@ router.post('/register/student', async (req, res) => {
         });
       } else {
         await connection.query('DELETE FROM student_registrations WHERE student_id = ?', [oldStu.student_id]);
-        await connection.query("DELETE FROM entity_registrations WHERE entity_type = 'student' AND entity_id = ?", [oldStu.student_id]);
+        await connection.query('DELETE FROM entity_registrations WHERE entity_type = \'student\' AND entity_id = ?', [oldStu.student_id]);
         await connection.query('DELETE FROM student_staff_assignments WHERE student_id = ?', [oldStu.student_id]);
         await connection.query('DELETE FROM student_skills WHERE student_id = ?', [oldStu.student_id]);
         await connection.query('DELETE FROM student_documents WHERE student_id = ?', [oldStu.student_id]);
@@ -746,7 +746,7 @@ router.post('/register/student', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Get student role_id
-    const [roles] = await connection.query("SELECT role_id FROM roles WHERE role_name = 'student' LIMIT 1");
+    const [roles] = await connection.query('SELECT role_id FROM roles WHERE role_name = \'student\' LIMIT 1');
     const roleId = roles[0].role_id;
 
     // 5. Insert user (pending verification)
@@ -777,7 +777,7 @@ router.post('/register/student', async (req, res) => {
 
     // Resolve status_id
     let statId = 1;
-    const [statusRows] = await connection.query("SELECT status_id FROM student_statuses WHERE status_name = 'pending' LIMIT 1");
+    const [statusRows] = await connection.query('SELECT status_id FROM student_statuses WHERE status_name = \'pending\' LIMIT 1');
     if (statusRows.length > 0) {
       statId = statusRows[0].status_id;
     } else {
@@ -981,7 +981,7 @@ router.post('/register/organization', orgUpload, async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const [roles] = await connection.query("SELECT role_id FROM roles WHERE role_name = 'hiring_organization'");
+    const [roles] = await connection.query('SELECT role_id FROM roles WHERE role_name = \'hiring_organization\'');
     const roleId = roles[0].role_id;
 
     // 1. Insert user
@@ -1015,7 +1015,7 @@ router.post('/register/organization', orgUpload, async (req, res) => {
 
     // 3. Insert organization_registration
     await connection.query(
-      "INSERT INTO organization_registrations (organization_id, submitted_by, status) VALUES (?, ?, 'pending')",
+      'INSERT INTO organization_registrations (organization_id, submitted_by, status) VALUES (?, ?, \'pending\')',
       [orgId, userId]
     );
 
@@ -1157,7 +1157,7 @@ router.post('/register/institution', instUpload, async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const [roles] = await connection.query("SELECT role_id FROM roles WHERE role_name = 'institution'");
+    const [roles] = await connection.query('SELECT role_id FROM roles WHERE role_name = \'institution\'');
     const roleId = roles[0].role_id;
 
     // 1. Insert user
@@ -1191,7 +1191,7 @@ router.post('/register/institution', instUpload, async (req, res) => {
 
     // 3. Insert institution_registration
     await connection.query(
-      "INSERT INTO institution_registrations (institution_id, submitted_by, status) VALUES (?, ?, 'pending')",
+      'INSERT INTO institution_registrations (institution_id, submitted_by, status) VALUES (?, ?, \'pending\')',
       [instId, userId]
     );
 
@@ -1364,7 +1364,7 @@ router.post('/register/staff', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     const [roles] = await connection.query(
-      "SELECT role_id FROM roles WHERE role_name = 'institution_staff' LIMIT 1"
+      'SELECT role_id FROM roles WHERE role_name = \'institution_staff\' LIMIT 1'
     );
     let roleId = roles.length > 0 ? roles[0].role_id : 3;
 
@@ -1710,7 +1710,7 @@ router.post('/register/mentor', async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const [roles] = await connection.query("SELECT role_id FROM roles WHERE role_name = 'hiring_organization' LIMIT 1");
+    const [roles] = await connection.query('SELECT role_id FROM roles WHERE role_name = \'hiring_organization\' LIMIT 1');
     const roleId = roles[0].role_id;
 
     // 1. Insert user

@@ -53,9 +53,9 @@ async function getInstitutionPrograms(institutionId) {
 router.get('/stats', async (req, res) => {
   try {
     const [[{ studentCount }]] = await pool.query('SELECT COUNT(*) as studentCount FROM students');
-    const [[{ jobCount }]] = await pool.query("SELECT COUNT(*) as jobCount FROM job_postings WHERE status = 'open' OR status = 'published'");
-    const [[{ orgCount }]] = await pool.query("SELECT COUNT(*) as orgCount FROM hiring_organizations WHERE status = 'approved' OR status = 'active'");
-    const [[{ instCount }]] = await pool.query("SELECT COUNT(*) as instCount FROM institutions WHERE status = 'approved' OR status = 'active'");
+    const [[{ jobCount }]] = await pool.query('SELECT COUNT(*) as jobCount FROM job_postings WHERE status = \'open\' OR status = \'published\'');
+    const [[{ orgCount }]] = await pool.query('SELECT COUNT(*) as orgCount FROM hiring_organizations WHERE status = \'approved\' OR status = \'active\'');
+    const [[{ instCount }]] = await pool.query('SELECT COUNT(*) as instCount FROM institutions WHERE status = \'approved\' OR status = \'active\'');
 
     return res.json({
       success: true,
@@ -84,7 +84,7 @@ router.get('/stats', async (req, res) => {
 router.get('/institutions', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT institution_id, institution_name, institution_code FROM institutions WHERE status = 'approved' OR status = 'active' ORDER BY institution_name ASC"
+      'SELECT institution_id, institution_name, institution_code FROM institutions WHERE status = \'approved\' OR status = \'active\' ORDER BY institution_name ASC'
     );
     return res.json({ success: true, data: rows });
   } catch (error) {
@@ -191,7 +191,7 @@ router.get('/programs', async (req, res) => {
 router.get('/organizations', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT organization_id, organization_name, industry, status FROM hiring_organizations ORDER BY organization_name ASC"
+      'SELECT organization_id, organization_name, industry, status FROM hiring_organizations ORDER BY organization_name ASC'
     );
     return res.json({ success: true, data: rows });
   } catch (error) {

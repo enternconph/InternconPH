@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function Header() {
-  const { user, getDashboardUrl } = useAuth();
+  const { user, logout, getDashboardUrl } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -99,12 +99,26 @@ export default function Header() {
           {/* Desktop auth buttons */}
           <div className="hidden sm:flex items-center gap-2">
             {user ? (
-              <Link
-                to={getDashboardUrl(user.role_name || user.role)}
-                className="bg-vibrant-orange text-white px-4 lg:px-5 py-2 rounded-full text-sm font-bold hover:bg-deep-orange transition-colors shadow-sm whitespace-nowrap"
-              >
-                My Dashboard
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link
+                  to={getDashboardUrl(user.role_name || user.role)}
+                  className="bg-vibrant-orange text-white px-4 lg:px-5 py-2 rounded-full text-sm font-bold hover:bg-deep-orange transition-colors shadow-sm whitespace-nowrap"
+                >
+                  My Dashboard
+                </Link>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await logout();
+                    window.location.href = '/login';
+                  }}
+                  className="p-2 rounded-xl bg-surface-container text-error hover:bg-error-container hover:text-error transition-all duration-200 cursor-pointer"
+                  title="Sign Out"
+                  aria-label="Sign Out"
+                >
+                  <span className="material-symbols-outlined text-[20px] block">logout</span>
+                </button>
+              </div>
             ) : (
               <>
                 <Link
@@ -189,13 +203,27 @@ export default function Header() {
           {/* Mobile Auth Actions */}
           <div className="pt-3 border-t border-outline-variant flex flex-col gap-2">
             {user ? (
-              <Link
-                to={getDashboardUrl(user.role_name || user.role)}
-                onClick={() => setMobileMenuOpen(false)}
-                className="w-full text-center bg-vibrant-orange text-white py-2.5 rounded-xl text-sm font-bold hover:bg-deep-orange transition-colors shadow-sm"
-              >
-                Go to My Dashboard
-              </Link>
+              <>
+                <Link
+                  to={getDashboardUrl(user.role_name || user.role)}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full text-center bg-vibrant-orange text-white py-2.5 rounded-xl text-sm font-bold hover:bg-deep-orange transition-colors shadow-sm"
+                >
+                  Go to My Dashboard
+                </Link>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setMobileMenuOpen(false);
+                    await logout();
+                    window.location.href = '/login';
+                  }}
+                  className="w-full py-2.5 rounded-xl border border-error/30 text-error text-sm font-bold hover:bg-error-container transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">logout</span>
+                  <span>Sign Out</span>
+                </button>
+              </>
             ) : (
               <>
                 <Link
