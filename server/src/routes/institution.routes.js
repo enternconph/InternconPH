@@ -2293,19 +2293,45 @@ router.get('/requirements', async (req, res) => {
 });
 
 // POST /api/inst/requirements/upload - Upload template form/document for students to download
-router.post('/requirements/upload', reqUpload.single('file'), async (req, res) => {
+router.post('/requirements/upload', (req, res, next) => {
+  reqUpload.single('file')(req, res, (err) => {
+    if (err) {
+      console.error('[Inst Req Multer Error]', err);
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ success: false, message: 'File size exceeds 30MB limit.' });
+        }
+        return res.status(400).json({ success: false, message: `Upload error: ${err.message}` });
+      }
+      return res.status(400).json({ success: false, message: err.message || 'File upload rejected.' });
+    }
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'No file provided.' });
   }
-  const fileUrl = await saveUploadedFile(req.file, 'requirements');
-  return res.json({
-    success: true,
-    data: {
-      file_url: fileUrl,
-      file_name: req.file.originalname,
-      file_size: req.file.size
+  try {
+    const fileUrl = await saveUploadedFile(req.file, 'requirements');
+    if (!fileUrl) {
+      return res.status(500).json({ success: false, message: 'Failed to process and store requirement template.' });
     }
-  });
+    return res.json({
+      success: true,
+      url: fileUrl,
+      file_url: fileUrl,
+      data: {
+        url: fileUrl,
+        file_url: fileUrl,
+        file_path: fileUrl,
+        file_name: req.file.originalname,
+        file_size: req.file.size
+      }
+    });
+  } catch (err) {
+    console.error('[Inst Req Upload Error]', err);
+    return res.status(500).json({ success: false, message: 'Failed to upload template file.' });
+  }
 });
 
 // POST /api/inst/requirements - Create requirement and notify affected students

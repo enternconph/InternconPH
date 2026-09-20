@@ -74,8 +74,9 @@ export default function StudentOJT() {
       const formData = new FormData();
       formData.append('file', uploadFile);
       const res = await api.post('/student/requirements/upload', formData);
-      if (res.success && res.url) {
-        return res.url;
+      const resolvedUrl = res.url || res.file_url || res.data?.url || res.data?.file_url || res.data?.file_path;
+      if (res.success && resolvedUrl) {
+        return resolvedUrl;
       } else {
         throw new Error(res.message || 'Failed to upload document.');
       }

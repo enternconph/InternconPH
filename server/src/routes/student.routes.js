@@ -3092,7 +3092,11 @@ router.post('/requirements/upload', (req, res, next) => {
   }
   return res.json({
     success: true,
+    url: fileUrl,
+    file_url: fileUrl,
     data: {
+      url: fileUrl,
+      file_url: fileUrl,
       file_path: fileUrl,
       file_name: req.file.originalname,
       file_size: req.file.size

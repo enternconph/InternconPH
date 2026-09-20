@@ -51,8 +51,9 @@ export default function InstRequirements() {
         const formData = new FormData();
         formData.append('file', templateFile);
         const uploadRes = await api.post('/inst/requirements/upload', formData);
-        if (uploadRes.success && uploadRes.url) {
-          document_template_url = uploadRes.url;
+        const resolvedUrl = uploadRes.url || uploadRes.file_url || uploadRes.data?.url || uploadRes.data?.file_url || uploadRes.data?.file_path;
+        if (uploadRes.success && resolvedUrl) {
+          document_template_url = resolvedUrl;
         } else {
           alert(uploadRes.message || 'Failed to upload template file.');
           setActionLoading(false);
