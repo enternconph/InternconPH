@@ -94,7 +94,7 @@ export async function runMigrations() {
       console.log('[Migration] Added is_verified to institution_staff');
     }
 
-    await pool.query('ALTER TABLE institution_staff MODIFY COLUMN position VARCHAR(50) NOT NULL DEFAULT "ojt_supervisor"');
+    await pool.query("ALTER TABLE institution_staff MODIFY COLUMN position VARCHAR(50) NOT NULL DEFAULT 'ojt_supervisor'");
 
     // 4. Create institution_job_approvals
     await pool.query(`

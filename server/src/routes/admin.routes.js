@@ -1225,7 +1225,7 @@ router.get('/analytics/skills', async (req, res) => {
 
     // Total counts
     const [totalSkillsRow] = await pool.query('SELECT COUNT(*) as c FROM skills');
-    const [totalJobsRow] = await pool.query('SELECT COUNT(*) as c FROM job_postings WHERE status = "active"');
+    const [totalJobsRow] = await pool.query("SELECT COUNT(*) as c FROM job_postings WHERE status = 'active'");
     const [totalStudentsRow] = await pool.query('SELECT COUNT(DISTINCT student_id) as c FROM student_skills');
 
     return res.json({

@@ -969,7 +969,7 @@ router.post('/register/organization', orgUpload, async (req, res) => {
         for (const lo of linkedOrgs) {
           await connection.query('DELETE FROM organization_documents WHERE organization_id = ?', [lo.organization_id]);
           await connection.query('DELETE FROM organization_registrations WHERE organization_id = ?', [lo.organization_id]);
-          await connection.query('DELETE FROM entity_registrations WHERE entity_type = "organization" AND entity_id = ?', [lo.organization_id]);
+          await connection.query("DELETE FROM entity_registrations WHERE entity_type = 'organization' AND entity_id = ?", [lo.organization_id]);
           await connection.query('DELETE FROM hiring_organizations WHERE organization_id = ?', [lo.organization_id]);
         }
         await connection.query('DELETE FROM users WHERE user_id = ?', [existingUser.user_id]);
@@ -1145,7 +1145,7 @@ router.post('/register/institution', instUpload, async (req, res) => {
         for (const li of linkedInsts) {
           await connection.query('DELETE FROM institution_documents WHERE institution_id = ?', [li.institution_id]);
           await connection.query('DELETE FROM institution_registrations WHERE institution_id = ?', [li.institution_id]);
-          await connection.query('DELETE FROM entity_registrations WHERE entity_type = "institution" AND entity_id = ?', [li.institution_id]);
+          await connection.query("DELETE FROM entity_registrations WHERE entity_type = 'institution' AND entity_id = ?", [li.institution_id]);
           await connection.query('DELETE FROM institutions WHERE institution_id = ?', [li.institution_id]);
         }
         await connection.query('DELETE FROM users WHERE user_id = ?', [existingUser.user_id]);

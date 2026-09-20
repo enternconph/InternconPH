@@ -778,7 +778,7 @@ router.get('/attendance', async (req, res) => {
        LEFT JOIN programs p ON s.program_id = p.program_id
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
        LEFT JOIN organization_staff os ON os.organization_id = o.organization_id AND (os.position = 'workplace_mentor' OR os.position = 'mentor' OR os.position = 'hr_officer')
-       WHERE o.student_id = ? AND o.status = "ongoing"
+       WHERE o.student_id = ? AND o.status = 'ongoing'
        ORDER BY (CASE WHEN os.position = 'workplace_mentor' THEN 0 ELSE 1 END), o.created_at DESC
        LIMIT 1`,
       [student.student_id]
@@ -865,7 +865,7 @@ router.post('/attendance/clock-in', async (req, res) => {
 
     // Must have ongoing OJT
     const [ojts] = await pool.query(
-      'SELECT * FROM ojt_records WHERE student_id = ? AND status = "ongoing" ORDER BY created_at DESC LIMIT 1',
+      "SELECT * FROM ojt_records WHERE student_id = ? AND status = 'ongoing' ORDER BY created_at DESC LIMIT 1",
       [student.student_id]
     );
 
@@ -3048,7 +3048,7 @@ router.post('/requirements/:id/save', async (req, res) => {
 
     let ojtId = ojts.length > 0 ? ojts[0].ojt_id : null;
     if (!ojtId) {
-      const [orgs] = await pool.query('SELECT organization_id FROM hiring_organizations ORDER BY (CASE WHEN status = "approved" THEN 0 ELSE 1 END) LIMIT 1');
+      const [orgs] = await pool.query("SELECT organization_id FROM hiring_organizations ORDER BY (CASE WHEN status = 'approved' THEN 0 ELSE 1 END) LIMIT 1");
       const validOrgId = orgs.length > 0 ? orgs[0].organization_id : 1;
 
       const [newOjt] = await pool.query(
@@ -3108,7 +3108,7 @@ router.post('/requirements/:id/submit', async (req, res) => {
 
     let ojtId = ojts.length > 0 ? ojts[0].ojt_id : null;
     if (!ojtId) {
-      const [orgs] = await pool.query('SELECT organization_id FROM hiring_organizations ORDER BY (CASE WHEN status = "approved" THEN 0 ELSE 1 END) LIMIT 1');
+      const [orgs] = await pool.query("SELECT organization_id FROM hiring_organizations ORDER BY (CASE WHEN status = 'approved' THEN 0 ELSE 1 END) LIMIT 1");
       const validOrgId = orgs.length > 0 ? orgs[0].organization_id : 1;
 
       const [newOjt] = await pool.query(

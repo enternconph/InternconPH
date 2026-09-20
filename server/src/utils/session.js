@@ -125,7 +125,7 @@ export async function validateSession(rawToken, req) {
   // Check absolute expiration (hard limit)
   if (now > new Date(session.absolute_expires_at)) {
     await pool.query(
-      'UPDATE user_sessions SET revoked_at = NOW(), revoked_reason = "absolute_timeout" WHERE session_id = ?',
+      "UPDATE user_sessions SET revoked_at = NOW(), revoked_reason = 'absolute_timeout' WHERE session_id = ?",
       [session.session_id]
     ).catch(() => {});
     return { valid: false, code: 'SESSION_EXPIRED', message: 'Session expired. Please log in again.' };
@@ -134,7 +134,7 @@ export async function validateSession(rawToken, req) {
   // Check inactivity expiration (idle limit)
   if (now > new Date(session.expires_at)) {
     await pool.query(
-      'UPDATE user_sessions SET revoked_at = NOW(), revoked_reason = "inactivity_timeout" WHERE session_id = ?',
+      "UPDATE user_sessions SET revoked_at = NOW(), revoked_reason = 'inactivity_timeout' WHERE session_id = ?",
       [session.session_id]
     ).catch(() => {});
     return { valid: false, code: 'SESSION_INACTIVE', message: 'Session expired due to inactivity. Please log in again.' };
