@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/client';
+import { resolveFileUrl } from '../../utils/fileHelper';
 
 export default function InstRequirements() {
   const [data, setData] = useState({ requirements: [], submissions: [], programs: [], staff_scope: null });
@@ -312,7 +313,7 @@ export default function InstRequirements() {
                     <div className="flex items-center gap-2 flex-wrap">
                       {req.document_template_url && (
                         <a
-                          href={req.document_template_url}
+                          href={resolveFileUrl(req.document_template_url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           download
@@ -366,7 +367,7 @@ export default function InstRequirements() {
                       {/* View Student Submitted File */}
                       {sub.file_url ? (
                         <a
-                          href={sub.file_url}
+                          href={resolveFileUrl(sub.file_url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="px-3 py-1.5 bg-surface-container-high text-on-surface hover:text-vibrant-orange border border-outline-variant rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors"

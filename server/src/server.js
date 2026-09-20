@@ -67,11 +67,187 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+import pool from './config/db.js';
+
 // Serve static uploaded documents with 7-day browser caching
 app.use('/uploads', express.static(UPLOADS_DIR, {
   maxAge: '7d',
   immutable: true
 }));
+
+// Fallback for uploaded documents when local disk has been cleared (e.g. Render restart/redeploy)
+app.get(['/uploads/:subfolder/:filename', '/uploads/:filename'], async (req, res) => {
+  const subfolder = req.params.subfolder || '';
+  const filename = req.params.filename;
+
+  if (!filename) {
+    return res.status(404).send('File not found');
+  }
+
+  const filePathRel = subfolder ? `/uploads/${subfolder}/${filename}` : `/uploads/${filename}`;
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT file_name, mime_type, file_data 
+       FROM stored_uploads 
+       WHERE file_path = ? OR file_path LIKE ? OR file_name = ?
+       ORDER BY upload_id DESC LIMIT 1`,
+      [filePathRel, `%/${filename}`, filename]
+    );
+
+    if (rows && rows.length > 0) {
+      const record = rows[0];
+      // Re-hydrate local disk cache so subsequent requests are served ultra-fast by express.static
+      try {
+        const localDir = subfolder ? path.join(UPLOADS_DIR, subfolder) : UPLOADS_DIR;
+        if (!fs.existsSync(localDir)) {
+          fs.mkdirSync(localDir, { recursive: true });
+        }
+        const localPath = path.join(localDir, filename);
+        fs.writeFileSync(localPath, record.file_data);
+      } catch (cacheErr) {
+        console.warn('[Upload Fallback] Could not write to disk cache:', cacheErr.message);
+      }
+
+      // Determine MIME type
+      let contentType = record.mime_type;
+      if (!contentType) {
+        const ext = path.extname(filename).toLowerCase();
+        const mimeMap = {
+          '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          '.doc': 'application/msword',
+          '.pdf': 'application/pdf',
+          '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          '.xls': 'application/vnd.ms-excel',
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.webp': 'image/webp',
+          '.zip': 'application/zip'
+        };
+        contentType = mimeMap[ext] || 'application/octet-stream';
+      }
+
+      res.setHeader('Content-Type', contentType);
+      const isDownload = req.query.download === 'true' || req.query.download === '1' || !['.pdf', '.png', '.jpg', '.jpeg', '.webp'].includes(path.extname(filename).toLowerCase());
+      const dispositionType = isDownload ? 'attachment' : 'inline';
+      res.setHeader('Content-Disposition', `${dispositionType}; filename="${encodeURIComponent(record.file_name || filename)}"`);
+      return res.send(record.file_data);
+    }
+  } catch (err) {
+    console.error('[Upload Fallback Handler Error]', err);
+  }
+
+  // If not found in database, check if it was associated with an OJT requirement
+  let requirementInfo = null;
+  try {
+    const [reqRows] = await pool.query(
+      `SELECT requirement_name, description FROM ojt_requirements 
+       WHERE document_template_url LIKE ? OR document_template_url LIKE ? LIMIT 1`,
+      [`%${filename}%`, `%${filePathRel}%`]
+    );
+    if (reqRows && reqRows.length > 0) {
+      requirementInfo = reqRows[0];
+    }
+  } catch (qErr) {
+    // Ignore query error
+  }
+
+  // Graceful human-friendly response if file is missing from both disk and database
+  return res.status(404).send(`
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Document Not Found - InternConPH</title>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1.5rem;
+          }
+          .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            max-width: 540px;
+            width: 100%;
+            padding: 2.5rem;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+          }
+          .icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 1.25rem;
+            background: rgba(249, 115, 22, 0.15);
+            color: #f97316;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+          }
+          h1 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: #f8fafc;
+            margin-bottom: 0.75rem;
+          }
+          p {
+            font-size: 0.925rem;
+            color: #94a3b8;
+            line-height: 1.6;
+            margin-bottom: 1.25rem;
+          }
+          .note {
+            background: #0f172a;
+            border-left: 4px solid #f97316;
+            padding: 0.85rem 1.15rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            color: #cbd5e1;
+            text-align: left;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+          }
+          .btn {
+            display: inline-block;
+            background: #f97316;
+            color: #fff;
+            padding: 0.65rem 1.5rem;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+          }
+          .btn:hover {
+            background: #ea580c;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="icon">&#9888;</div>
+          <h1>Template Document Currently Unavailable</h1>
+          <p>${requirementInfo ? `The template document for <strong>"${requirementInfo.requirement_name}"</strong> was created on an ephemeral container before permanent database storage synchronization.` : 'The requested document was created before permanent database storage synchronization or has expired.'}</p>
+          <div class="note">
+            <strong>Action Needed:</strong> Please request your OJT Coordinator or Institution Staff to re-upload the official template file in their <em>Clearance Requirements</em> dashboard. Any future uploads are permanently saved and will never be lost!
+          </div>
+          <a href="javascript:history.back()" class="btn">&larr; Return to Dashboard</a>
+        </div>
+      </body>
+    </html>
+  `);
+});
 
 // Health Check: lightweight, no auth, no database dependency
 app.get('/api/health', (req, res) => {

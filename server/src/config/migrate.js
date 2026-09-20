@@ -646,6 +646,22 @@ export async function runMigrations() {
     `);
     console.log('[Migration] user_sessions table aligned.');
 
+    // 26. Persistent Upload Storage (stored_uploads) for Ephemeral Server Environments
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS stored_uploads (
+        upload_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        file_path VARCHAR(255) NOT NULL UNIQUE,
+        file_name VARCHAR(255) NOT NULL,
+        mime_type VARCHAR(100) NULL,
+        file_size BIGINT UNSIGNED NOT NULL,
+        file_data LONGBLOB NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_file_path (file_path),
+        INDEX idx_file_name (file_name)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('[Migration] stored_uploads table aligned.');
+
     console.log('[Migration] All schema alignments completed successfully!');
   } catch (error) {
     console.error('[Migration Error]', error);

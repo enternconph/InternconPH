@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import pool from '../config/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,6 +69,8 @@ export function getUploadStorage(subfolder) {
 /**
  * Saves uploaded file either to Cloudinary (if configured) or returns the local relative URL.
  * Falls back safely to local disk storage if Cloudinary upload encounters any issue or buffer is used.
+ * Persists all uploaded assets to the database (stored_uploads) so ephemeral hosts (like Render)
+ * retain templates, student submissions, resumes, and legal credentials across restarts and redeploys.
  * @param {Object} file - The file object from req.file or req.files
  * @param {string} subfolder - Target logical folder ('avatars', 'portfolio', 'requirements', 'orgs', 'institutions')
  * @returns {Promise<string>} The resolved file URL (HTTPS for Cloudinary, /uploads/... for local)
@@ -111,13 +114,27 @@ export async function saveUploadedFile(file, subfolder = 'portfolio') {
     }
   }
 
+  let finalWebPath = null;
+  let bufferToPersist = file.buffer || null;
+  const fileName = file.originalname || file.filename || 'document';
+  const mimeType = file.mimetype || null;
+  const fileSize = file.size || (bufferToPersist ? bufferToPersist.length : 0);
+
   // Local disk fallback when Multer diskStorage was used
   if (file.filename) {
-    return `/uploads/${subfolder}/${file.filename}`;
-  }
-
-  // Local disk fallback when buffer is present (memoryStorage or Cloudinary fallback)
-  if (file.buffer) {
+    finalWebPath = `/uploads/${subfolder}/${file.filename}`;
+    if (!bufferToPersist) {
+      const fullDiskPath = file.path || path.join(destinationDir, file.filename);
+      if (fs.existsSync(fullDiskPath)) {
+        try {
+          bufferToPersist = fs.readFileSync(fullDiskPath);
+        } catch (readErr) {
+          console.warn('[Upload Helper] Could not read disk file for DB persistence:', readErr.message);
+        }
+      }
+    }
+  } else if (file.buffer) {
+    // Local disk fallback when buffer is present (memoryStorage or Cloudinary fallback)
     try {
       if (!fs.existsSync(destinationDir)) {
         fs.mkdirSync(destinationDir, { recursive: true });
@@ -126,12 +143,31 @@ export async function saveUploadedFile(file, subfolder = 'portfolio') {
       const safeFilename = `${subfolder}-${uniqueSuffix}${ext}`;
       const targetFilePath = path.join(destinationDir, safeFilename);
       fs.writeFileSync(targetFilePath, file.buffer);
-      return `/uploads/${subfolder}/${safeFilename}`;
+      finalWebPath = `/uploads/${subfolder}/${safeFilename}`;
+      bufferToPersist = file.buffer;
     } catch (diskErr) {
       console.error('[Upload Helper] Local disk write error:', diskErr);
       return null;
     }
   }
 
-  return null;
+  // Persist into database so ephemeral containers (Render/Fly/Heroku) never lose uploaded documents
+  if (finalWebPath && bufferToPersist) {
+    try {
+      await pool.query(
+        `INSERT INTO stored_uploads (file_path, file_name, mime_type, file_size, file_data)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           file_name = VALUES(file_name),
+           mime_type = VALUES(mime_type),
+           file_size = VALUES(file_size),
+           file_data = VALUES(file_data)`,
+        [finalWebPath, fileName, mimeType, fileSize || bufferToPersist.length, bufferToPersist]
+      );
+    } catch (dbErr) {
+      console.warn('[Upload Helper] Could not persist upload to stored_uploads table:', dbErr.message);
+    }
+  }
+
+  return finalWebPath;
 }

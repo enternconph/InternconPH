@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
+import { resolveFileUrl } from '../../utils/fileHelper';
 
 export default function StudentOJT() {
   const [searchParams] = useSearchParams();
@@ -547,7 +548,7 @@ export default function StudentOJT() {
                     <div className="flex items-center gap-2 flex-wrap pt-1">
                       {req.document_template_url && (
                         <a
-                          href={req.document_template_url}
+                          href={resolveFileUrl(req.document_template_url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           download
@@ -560,7 +561,7 @@ export default function StudentOJT() {
 
                       {(req.file_url || req.submitted_file) && (
                         <a
-                          href={req.file_url || req.submitted_file}
+                          href={resolveFileUrl(req.file_url || req.submitted_file)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-container hover:bg-surface-container-high text-on-surface rounded-lg text-xs font-bold border border-outline-variant transition-colors"
@@ -670,7 +671,7 @@ export default function StudentOJT() {
                   <span className="text-[11px] text-blue-800">Download the institution's template before completing.</span>
                 </div>
                 <a
-                  href={selectedReq.document_template_url}
+                  href={resolveFileUrl(selectedReq.document_template_url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   download
