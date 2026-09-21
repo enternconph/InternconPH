@@ -6,6 +6,7 @@ export default function InstPrograms() {
   const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [staffScope, setStaffScope] = useState(null);
   const [message, setMessage] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -36,6 +37,9 @@ export default function InstPrograms() {
       const res = await api.get('/inst/programs');
       if (res.success && res.data) {
         setActivePrograms(res.data);
+        if (res.staff_scope) {
+          setStaffScope(res.staff_scope);
+        }
       }
     } catch (err) {
       console.error('Error fetching active programs:', err);
@@ -51,6 +55,9 @@ export default function InstPrograms() {
       const res = await api.get('/inst/catalog-programs');
       if (res.success && res.data) {
         setCatalog(res.data);
+        if (res.staff_scope) {
+          setStaffScope(res.staff_scope);
+        }
       }
     } catch (err) {
       console.error('Error fetching nationwide catalog:', err);
@@ -242,17 +249,37 @@ export default function InstPrograms() {
     return 'domain';
   };
 
-  // Filter catalog by search query and discipline
-  const disciplines = ['All', ...Array.from(new Set(catalog.map(c => c.discipline))).filter(Boolean)];
+  // Assigned department for restricted staff / deans
+  const assignedDeptName = useMemo(() => {
+    if (!staffScope?.isRestricted) return null;
+    return staffScope.department || staffScope.program?.program_name || staffScope.programs?.[0]?.department || staffScope.programs?.[0]?.program_name || 'Assigned Department';
+  }, [staffScope]);
 
-  const filteredCatalog = catalog.filter(prog => {
-    const matchesSearch = 
-      prog.program_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prog.program_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (prog.discipline && prog.discipline.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesDiscipline = selectedDiscipline === 'All' || prog.discipline === selectedDiscipline;
-    return matchesSearch && matchesDiscipline;
-  });
+  // Filter catalog by search query and discipline
+  const disciplines = useMemo(() => {
+    if (staffScope?.isRestricted && assignedDeptName) {
+      return [assignedDeptName];
+    }
+    return ['All', ...Array.from(new Set(catalog.map(c => c.discipline))).filter(Boolean)];
+  }, [catalog, staffScope, assignedDeptName]);
+
+  const filteredCatalog = useMemo(() => {
+    return catalog.filter(prog => {
+      const matchesSearch = 
+        prog.program_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        prog.program_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (prog.discipline && prog.discipline.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      const matchesDept = !staffScope?.isRestricted || !assignedDeptName || (() => {
+        const d1 = (prog.discipline || '').toLowerCase().trim();
+        const d2 = assignedDeptName.toLowerCase().trim();
+        return d1 === d2 || d1.includes(d2) || d2.includes(d1);
+      })();
+
+      const matchesDiscipline = selectedDiscipline === 'All' || prog.discipline === selectedDiscipline;
+      return matchesSearch && matchesDiscipline && matchesDept;
+    });
+  }, [catalog, searchQuery, selectedDiscipline, staffScope, assignedDeptName]);
 
   return (
     <div className="p-4 md:p-8 space-y-6">
@@ -261,16 +288,22 @@ export default function InstPrograms() {
         <div>
           <h1 className="text-2xl font-bold text-on-surface">Academic Programs & OJT Matrices</h1>
           <p className="text-sm text-on-surface-variant">
-            Select standardized CHED curricular degree programs nationwide, organize by department, and configure institutional training hours.
+            {staffScope?.isRestricted
+              ? `Manage degree programs and curricular training requirements for ${assignedDeptName}.`
+              : 'Select standardized CHED curricular degree programs nationwide, organize by department, and configure institutional training hours.'}
           </p>
         </div>
 
         <button
           onClick={handleOpenCatalog}
-          className="px-5 py-2.5 bg-vibrant-orange text-white rounded-lg font-bold text-sm hover:bg-deep-orange transition-colors shadow-sm flex items-center gap-2 self-start sm:self-auto whitespace-nowrap"
+          className="px-5 py-2.5 bg-vibrant-orange text-white rounded-lg font-bold text-sm hover:bg-deep-orange transition-colors shadow-sm flex items-center gap-2 self-start sm:self-auto whitespace-nowrap cursor-pointer"
         >
           <span className="material-symbols-outlined text-[18px]">library_add</span>
-          <span>+ Select from Nationwide Catalog</span>
+          <span>
+            {staffScope?.isRestricted
+              ? `+ Select program from ${assignedDeptName}`
+              : '+ Select from Nationwide Catalog'}
+          </span>
         </button>
       </div>
 
@@ -693,17 +726,23 @@ export default function InstPrograms() {
             <div className="flex justify-between items-start border-b border-outline-variant pb-3 shrink-0">
               <div>
                 <span className="text-[10px] font-bold uppercase text-vibrant-orange tracking-wider block mb-0.5">
-                  Standardized Curriculum Catalog
+                  {staffScope?.isRestricted ? 'Departmental Curriculum Catalog' : 'Standardized Curriculum Catalog'}
                 </span>
-                <h2 className="text-xl font-bold text-on-surface">Nationwide CHED Degree Programs Catalog</h2>
+                <h2 className="text-xl font-bold text-on-surface">
+                  {staffScope?.isRestricted
+                    ? `Curricular Catalog: ${assignedDeptName}`
+                    : 'Nationwide CHED Degree Programs Catalog'}
+                </h2>
                 <p className="text-xs text-on-surface-variant">
-                  Select accredited degree programs to activate in your university. Standard CHED course titles and codes prevent duplication across institutions.
+                  {staffScope?.isRestricted
+                    ? `Select and activate degree courses authorized for your assigned department (${assignedDeptName}).`
+                    : 'Select accredited degree programs to activate in your university. Standard CHED course titles and codes prevent duplication across institutions.'}
                 </p>
               </div>
 
               <button
                 onClick={() => setShowCatalogModal(false)}
-                className="p-1 rounded-lg text-on-surface-variant hover:bg-surface-container"
+                className="p-1 rounded-lg text-on-surface-variant hover:bg-surface-container cursor-pointer"
               >
                 <span className="material-symbols-outlined">close</span>
               </button>

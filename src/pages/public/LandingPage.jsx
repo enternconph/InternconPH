@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Header from '../../components/Layout/Header';
 import Footer from '../../components/Layout/Footer';
@@ -7,6 +7,7 @@ import api from '../../api/client';
 import PageTransition from '../../components/Layout/PageTransition';
 
 export default function LandingPage() {
+  const location = useLocation();
   const [stats, setStats] = useState({
     students: 10000,
     jobs: 500,
@@ -156,6 +157,24 @@ export default function LandingPage() {
       }
     });
   }, []);
+
+  // Smooth scroll to section when hash is present in URL
+  useEffect(() => {
+    if (location.hash) {
+      const targetId = location.hash.replace('#', '');
+      const scrollToTarget = () => {
+        const element = document.getElementById(targetId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+      };
+      scrollToTarget();
+      const timer = setTimeout(scrollToTarget, 150);
+      return () => clearTimeout(timer);
+    } else if (location.pathname === '/') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [location.hash, location.pathname]);
 
   return (
     <PageTransition>

@@ -28,16 +28,18 @@ export async function apiRequest(endpoint, options = {}) {
   const data = await response.json().catch(() => ({ success: false, message: 'Invalid response from server' }));
 
   if (!response.ok && response.status === 401) {
-    // If unauthorized and not logging in, safely clear auth and redirect once
-    if (!endpoint.includes('/auth/login') && !isRedirectingToLogin) {
+    // If unauthorized, clean up stale tokens
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+
+    // Only redirect to login if the user is currently on a protected route.
+    // Passive session checks (/auth/me, /auth/session) and public routes must never force a login redirect.
+    const isAuthCheck = endpoint.includes('/auth/login') || endpoint.includes('/auth/me') || endpoint.includes('/auth/session') || endpoint.includes('/public/');
+    const isProtectedRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard');
+
+    if (!isAuthCheck && isProtectedRoute && !isRedirectingToLogin) {
       isRedirectingToLogin = true;
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      } else {
-        isRedirectingToLogin = false;
-      }
+      window.location.href = '/login';
     }
   }
 

@@ -4,6 +4,7 @@ import { verifyToken, requireRole } from '../middleware/auth.js';
 import { emitUpdate } from '../config/socket.js';
 import { sendNotification } from '../utils/notification.helper.js';
 import { checkAndGenerateCertificate } from '../services/certificate.service.js';
+import { isValidEmail, normalizeEmail } from '../utils/email.js';
 
 const router = express.Router();
 router.use(verifyToken);
@@ -1083,6 +1084,28 @@ router.get('/interns', async (req, res) => {
 
     const [interns] = await pool.query(
       `SELECT o.*, 
+              COALESCE(
+                (
+                  SELECT jp.title
+                  FROM job_applications ja
+                  JOIN job_postings jp ON ja.job_id = jp.job_id
+                  WHERE ja.student_id = o.student_id AND jp.organization_id = o.organization_id
+                  ORDER BY (CASE WHEN ja.status = 'accepted' THEN 0 WHEN ja.status = 'hired' THEN 1 ELSE 2 END), ja.updated_at DESC
+                  LIMIT 1
+                ),
+                'Intern'
+              ) as position_title,
+              COALESCE(
+                (
+                  SELECT jp.title
+                  FROM job_applications ja
+                  JOIN job_postings jp ON ja.job_id = jp.job_id
+                  WHERE ja.student_id = o.student_id AND jp.organization_id = o.organization_id
+                  ORDER BY (CASE WHEN ja.status = 'accepted' THEN 0 WHEN ja.status = 'hired' THEN 1 ELSE 2 END), ja.updated_at DESC
+                  LIMIT 1
+                ),
+                'Intern'
+              ) as job_title,
               COALESCE(o.required_hours, s.required_ojt_hours, p.required_ojt_hours, 600) as required_hours,
               COALESCE(s.required_ojt_hours, o.required_hours, p.required_ojt_hours, 600) as required_ojt_hours,
               s.first_name, s.last_name, s.student_number, s.completed_ojt_hours,
@@ -2423,8 +2446,18 @@ router.post('/mentors/access-code', requireHROrAdmin, async (req, res) => {
   }
 
   const cleanIdentifier = target_identifier.trim();
-  const cleanLower = cleanIdentifier.toLowerCase();
   const isEmail = cleanIdentifier.includes('@');
+  let normalizedEmailVal = null;
+
+  if (isEmail) {
+    if (!isValidEmail(cleanIdentifier)) {
+      return res.status(400).json({ success: false, message: 'Enter a valid email address, like name@university.edu.ph.' });
+    }
+    normalizedEmailVal = normalizeEmail(cleanIdentifier);
+  }
+
+  const cleanTarget = normalizedEmailVal || cleanIdentifier;
+  const cleanLower = cleanTarget.toLowerCase();
 
   try {
     const org = await getOrgId(req.user.user_id);
@@ -2445,7 +2478,7 @@ router.post('/mentors/access-code', requireHROrAdmin, async (req, res) => {
     if (existingCodes.length > 0) {
       return res.status(409).json({
         success: false,
-        message: `An active, unused mentor passcode [${existingCodes[0].code_hash}] has already been generated for this ${isEmail ? 'email' : 'Employee ID'} (${cleanIdentifier}). Please share or use the existing passcode.`
+        message: `An active, unused mentor passcode [${existingCodes[0].code_hash}] has already been generated for this ${isEmail ? 'email' : 'Employee ID'} (${cleanTarget}). Please share or use the existing passcode.`
       });
     }
 
@@ -2466,7 +2499,7 @@ router.post('/mentors/access-code', requireHROrAdmin, async (req, res) => {
         : 'has already registered and is awaiting verification in your Pending tab';
       return res.status(409).json({
         success: false,
-        message: `Workplace mentor "${m.first_name} ${m.last_name}" with this ${isEmail ? 'email' : 'Employee ID'} (${cleanIdentifier}) ${statusText}.`
+        message: `Workplace mentor "${m.first_name} ${m.last_name}" with this ${isEmail ? 'email' : 'Employee ID'} (${cleanTarget}) ${statusText}.`
       });
     }
 
@@ -2479,7 +2512,7 @@ router.post('/mentors/access-code', requireHROrAdmin, async (req, res) => {
       if (existingUsers.length > 0) {
         return res.status(409).json({
           success: false,
-          message: `A user account with email "${cleanIdentifier}" already exists on the platform. Please use another email or their employee ID.`
+          message: `A user account with email "${cleanTarget}" already exists on the platform. Please use another email or their employee ID.`
         });
       }
     }
@@ -2495,10 +2528,10 @@ router.post('/mentors/access-code', requireHROrAdmin, async (req, res) => {
       [
         codeRaw,
         org.organization_id,
-        cleanIdentifier,
+        cleanTarget,
         intended_position || 'workplace_mentor',
         department ? department.trim() : null,
-        isEmail ? cleanLower : null,
+        normalizedEmailVal,
         req.user.user_id
       ]
     );

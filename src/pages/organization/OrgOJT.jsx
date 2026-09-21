@@ -492,10 +492,9 @@ export default function OrgOJT() {
                   <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
                     <th className="py-3 px-4">Intern Name</th>
                     <th className="py-3 px-4">University & Course</th>
-                    <th className="py-3 px-4">Role</th>
+                    <th className="py-3 px-4">Position / Role Title</th>
                     <th className="py-3 px-4">Rendered / Required</th>
                     <th className="py-3 px-4">Today's DTR Shift (Mentor Handled)</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-container">
@@ -515,7 +514,9 @@ export default function OrgOJT() {
                           <p className="font-bold text-on-surface">{intern.institution_name}</p>
                           <p>{intern.program_name}</p>
                         </td>
-                        <td className="py-3 px-4 font-bold text-xs text-on-surface">{intern.job_title || 'Intern'}</td>
+                        <td className="py-3 px-4 font-bold text-xs text-on-surface">
+                          {intern.position_title || intern.job_title || 'Intern'}
+                        </td>
                         <td className="py-3 px-4">
                           <div className="space-y-1">
                             <div className="flex justify-between text-xs font-bold">
@@ -577,30 +578,6 @@ export default function OrgOJT() {
                               </span>
                             </div>
                           )}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="inline-flex items-center gap-1.5 justify-end">
-                            <button
-                              onClick={() => handleInspectIntern(intern.ojt_id)}
-                              className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high border border-outline-variant text-vibrant-orange text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
-                              title="View complete Career Portfolio, Credentials, and Academic Records"
-                            >
-                              <span className="material-symbols-outlined text-[15px]">folder_special</span>
-                              <span>Portfolio</span>
-                            </button>
-                            {!isCompleted && (
-                              <button
-                                onClick={() => {
-                                  setIncidentStudent(intern);
-                                  setShowIncidentModal(true);
-                                }}
-                                className="px-2.5 py-1.5 bg-surface-container text-error border border-error/20 hover:bg-error-container text-xs font-bold rounded-lg transition-colors"
-                                title="Report incident or misconduct to Institution Coordinator"
-                              >
-                                Report Issue
-                              </button>
-                            )}
-                          </div>
                         </td>
                       </tr>
                     );

@@ -839,6 +839,7 @@ export default function InstMonitoring() {
                 <thead>
                   <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
                     <th className="py-3 px-3">Report Title</th>
+                    <th className="py-3 px-3">Intern Involved</th>
                     <th className="py-3 px-3">Organization</th>
                     <th className="py-3 px-3">Findings</th>
                     <th className="py-3 px-3">Status</th>
@@ -848,15 +849,26 @@ export default function InstMonitoring() {
                 <tbody className="divide-y divide-outline-variant/40">
                   {data.institutionReports.map((r) => (
                     <tr key={r.report_id} className="hover:bg-surface-container-low transition-colors">
-                      <td className="py-3 px-3 font-semibold text-on-surface text-xs">{r.report_title}</td>
+                      <td className="py-3 px-3 font-semibold text-on-surface text-xs">{r.report_title || r.title}</td>
+                      <td className="py-3 px-3 text-xs">
+                        {r.student_name ? (
+                          <div>
+                            <p className="font-bold text-on-surface">{r.student_name}</p>
+                            {r.student_number && <p className="text-[11px] text-on-surface-variant">ID #{r.student_number}</p>}
+                          </div>
+                        ) : (
+                          <span className="text-on-surface-variant italic">Institution-level</span>
+                        )}
+                      </td>
                       <td className="py-3 px-3 text-xs text-on-surface-variant">{r.organization_name}</td>
                       <td className="py-3 px-3 text-xs text-on-surface-variant max-w-xs truncate">{r.findings}</td>
                       <td className="py-3 px-3">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          r.admin_action === 'resolved' ? 'bg-emerald-50 text-emerald-700' :
-                          r.admin_action ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
+                          r.admin_action === 'resolved' || r.status === 'closed' ? 'bg-emerald-50 text-emerald-700' :
+                          r.admin_action === 'action_taken' ? 'bg-purple-50 text-purple-700' :
+                          r.admin_action === 'under_review' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
                         }`}>
-                          {r.admin_action || 'Pending Review'}
+                          {r.admin_action?.replace(/_/g, ' ') || r.status?.replace(/_/g, ' ') || 'Pending Review'}
                         </span>
                       </td>
                       <td className="py-3 px-3 text-xs text-on-surface-variant">

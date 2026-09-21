@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Header from '../../components/Layout/Header';
 import Footer from '../../components/Layout/Footer';
 import api from '../../api/client';
 import PageTransition from '../../components/Layout/PageTransition';
 import PasswordStrengthMeter from '../../components/Auth/PasswordStrengthMeter';
+import EmailInput from '../../components/ui/EmailInput';
+import { validateEmail } from '../../utils/email';
 
 export default function GetStartedPage() {
   const navigate = useNavigate();
+  const emailInputRef = useRef(null);
+  const [emailError, setEmailError] = useState(null);
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [modalType, setModalType] = useState('staff'); // 'staff' or 'mentor'
   const [showPassword, setShowPassword] = useState(false);
@@ -34,6 +38,13 @@ export default function GetStartedPage() {
 
     if (codeForm.password !== codeForm.confirm_password) {
       setError('Passwords do not match.');
+      return;
+    }
+
+    const emailErr = validateEmail(codeForm.email, { required: true });
+    if (emailErr) {
+      setEmailError(emailErr);
+      emailInputRef.current?.focus();
       return;
     }
 
@@ -187,7 +198,7 @@ export default function GetStartedPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleCodeSubmit} className="p-5 sm:p-6 space-y-4 text-sm overflow-y-auto">
+              <form onSubmit={handleCodeSubmit} noValidate className="p-5 sm:p-6 space-y-4 text-sm overflow-y-auto">
                 {error && (
                   <div className="p-3 bg-error-container text-error rounded-lg text-xs font-medium flex items-center gap-2">
                     <span className="material-symbols-outlined text-[18px]">error</span>
@@ -233,14 +244,16 @@ export default function GetStartedPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-on-surface-variant uppercase mb-1">Official Email Address *</label>
-                  <input
-                    type="email"
+                  <EmailInput
+                    label="Official Email Address"
                     required
                     placeholder="official.email@organization.ph"
                     value={codeForm.email}
-                    onChange={(e) => setCodeForm({ ...codeForm, email: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface text-sm outline-none focus:ring-2 focus:ring-vibrant-orange"
+                    onChange={(e) => setCodeForm((prev) => ({ ...prev, email: e.target.value }))}
+                    error={emailError}
+                    onErrorChange={setEmailError}
+                    ref={emailInputRef}
+                    className="bg-surface-container-low text-on-surface"
                   />
                 </div>
 
@@ -257,11 +270,17 @@ export default function GetStartedPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors p-1 flex items-center justify-center"
+                        tabIndex={-1}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowPassword((prev) => !prev);
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors p-1 flex items-center justify-center cursor-pointer rounded-lg hover:bg-surface-container"
                         title={showPassword ? 'Hide password' : 'Show password'}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
-                        <span className="material-symbols-outlined text-[18px]">
+                        <span className="material-symbols-outlined text-[18px] pointer-events-none select-none">
                           {showPassword ? 'visibility_off' : 'visibility'}
                         </span>
                       </button>
@@ -284,11 +303,17 @@ export default function GetStartedPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors p-1 flex items-center justify-center"
+                        tabIndex={-1}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowConfirmPassword((prev) => !prev);
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors p-1 flex items-center justify-center cursor-pointer rounded-lg hover:bg-surface-container"
                         title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                        aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                       >
-                        <span className="material-symbols-outlined text-[18px]">
+                        <span className="material-symbols-outlined text-[18px] pointer-events-none select-none">
                           {showConfirmPassword ? 'visibility_off' : 'visibility'}
                         </span>
                       </button>

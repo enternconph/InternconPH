@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Disable native Windows/Edge password reveal and clear buttons to prevent collisions with custom toggles */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear,
+input::-ms-reveal,
+input::-ms-clear {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  pointer-events: none !important;
+}
+
 :root {
   /* InternConPH Original Light Mode Tokens (100% Exact Match) */
   --surface-rgb: 255, 255, 255;

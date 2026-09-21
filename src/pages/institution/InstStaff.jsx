@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import api from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import PasscodeGeneratedModal from '../../components/Institution/PasscodeGeneratedModal';
+import EmailInput from '../../components/ui/EmailInput';
+import { validateEmail } from '../../utils/email';
 
 export default function InstStaff() {
   const { user } = useAuth();
@@ -44,6 +46,8 @@ export default function InstStaff() {
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedProgram, setSelectedProgram] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
+  const [staffEmailError, setStaffEmailError] = useState(null);
+  const emailInputRef = useRef(null);
   const [expirationDate, setExpirationDate] = useState(() => getDefaultExpirationDate(14));
   const [permissions, setPermissions] = useState({
     can_verify_students: true,
@@ -140,6 +144,15 @@ export default function InstStaff() {
     if (position === 'dean' && !selectedDepartment) {
       alert('Please select the Assigned Academic Department / College for the College Dean.');
       return;
+    }
+
+    if (staffEmail && staffEmail.trim()) {
+      const emailErr = validateEmail(staffEmail.trim(), { required: false });
+      if (emailErr) {
+        setStaffEmailError(emailErr);
+        emailInputRef.current?.focus();
+        return;
+      }
     }
 
     setIsGenerating(true);
@@ -480,7 +493,7 @@ export default function InstStaff() {
             </div>
           </div>
 
-          <form onSubmit={handleGenerateCode} className="space-y-3 text-xs">
+          <form noValidate onSubmit={handleGenerateCode} className="space-y-3 text-xs">
             <div>
               <label className="block font-bold text-on-surface-variant uppercase mb-1">
                 Staff / Employee ID *
@@ -617,15 +630,16 @@ export default function InstStaff() {
             )}
 
             <div>
-              <label className="block font-bold text-on-surface-variant uppercase mb-1">
-                Staff Official Email (Optional)
-              </label>
-              <input
-                type="email"
+              <EmailInput
+                label="Staff Official Email (Optional)"
+                required={false}
                 placeholder="faculty@university.edu.ph"
                 value={staffEmail}
                 onChange={(e) => setStaffEmail(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface outline-none focus:ring-2 focus:ring-vibrant-orange"
+                error={staffEmailError}
+                onErrorChange={setStaffEmailError}
+                ref={emailInputRef}
+                className="bg-surface-container-low text-on-surface"
               />
             </div>
 

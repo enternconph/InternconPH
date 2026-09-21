@@ -155,6 +155,59 @@ export default function AdminComplaints() {
 
   const pendingReportsCount = data.institutionReports.filter((r) => r.status === 'pending').length;
   const activeSuspensionsCount = data.suspensions.filter((s) => s.is_active).length;
+  const unreadAccidentsCount = useMemo(() => {
+    return data.escalatedAccidents.filter((a) => !a.is_read).length;
+  }, [data.escalatedAccidents]);
+
+  const handleToggleAccidentRead = async (accidentId, currentStatus) => {
+    try {
+      const res = await api.patch(`/admin/complaints/accidents/${accidentId}/read`, {
+        read: !currentStatus
+      });
+      if (res.success) {
+        setData(prev => ({
+          ...prev,
+          escalatedAccidents: prev.escalatedAccidents.map(acc => 
+            acc.accident_id === accidentId ? { ...acc, is_read: res.data?.is_read ? 1 : 0, admin_read_at: res.data?.admin_read_at } : acc
+          )
+        }));
+        if (viewingAccident && viewingAccident.accident_id === accidentId) {
+          setViewingAccident(prev => ({
+            ...prev,
+            is_read: res.data?.is_read ? 1 : 0,
+            admin_read_at: res.data?.admin_read_at
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to toggle accident read status:', err);
+    }
+  };
+
+  const handleMarkAllAccidentsRead = async () => {
+    try {
+      const res = await api.post('/admin/complaints/accidents/read-all');
+      if (res.success) {
+        setData(prev => ({
+          ...prev,
+          escalatedAccidents: prev.escalatedAccidents.map(acc => ({
+            ...acc,
+            is_read: 1,
+            admin_read_at: new Date().toISOString()
+          }))
+        }));
+        if (viewingAccident) {
+          setViewingAccident(prev => ({
+            ...prev,
+            is_read: 1,
+            admin_read_at: new Date().toISOString()
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to mark all accidents as read:', err);
+    }
+  };
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
@@ -262,9 +315,16 @@ export default function AdminComplaints() {
           <span className="material-symbols-outlined text-[18px]">emergency</span>
           <span>Escalated Accident Reports</span>
           {data.escalatedAccidents?.length > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-500 text-white">
-              {data.escalatedAccidents.length}
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-500 text-white">
+                {data.escalatedAccidents.length}
+              </span>
+              {unreadAccidentsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-500 text-white animate-pulse" title={`${unreadAccidentsCount} unread reports`}>
+                  {unreadAccidentsCount} new
+                </span>
+              )}
+            </div>
           )}
         </button>
 
@@ -479,13 +539,23 @@ export default function AdminComplaints() {
       {/* TAB 2: ESCALATED ACCIDENT REPORTS */}
       {activeTab === 'accidents' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-on-surface">Escalated Workplace Accidents Register</h2>
               <p className="text-xs text-on-surface-variant">
                 Read-only archive of verified student workplace accidents submitted by organizations and escalated by academic institutions.
               </p>
             </div>
+            {unreadAccidentsCount > 0 && (
+              <button
+                type="button"
+                onClick={handleMarkAllAccidentsRead}
+                className="self-start sm:self-auto px-3 py-1.5 text-xs font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/60 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                <span className="material-symbols-outlined text-[16px]">done_all</span>
+                <span>Mark All as Read ({unreadAccidentsCount})</span>
+              </button>
+            )}
           </div>
 
           {loading ? (
@@ -509,11 +579,15 @@ export default function AdminComplaints() {
                 return (
                   <div
                     key={acc.accident_id}
-                    className="bento-card border border-outline-variant/60 hover:border-outline-variant transition-all p-5 space-y-3"
+                    className={`bento-card border transition-all p-5 space-y-3 ${
+                      acc.is_read
+                        ? 'border-outline-variant/50 opacity-90'
+                        : 'border-amber-400/80 bg-amber-500/[0.02] shadow-sm ring-1 ring-amber-400/20'
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-2 border-b border-outline-variant/40 pb-3">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                               acc.severity === 'critical' || acc.severity === 'fatal'
@@ -527,6 +601,17 @@ export default function AdminComplaints() {
                           >
                             Severity: {acc.severity}
                           </span>
+                          {acc.is_read ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700 flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[12px]">done_all</span>
+                              Read
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-ping"></span>
+                              Unread
+                            </span>
+                          )}
                           <span className="text-[11px] text-on-surface-variant">
                             {new Date(acc.accident_date || acc.created_at).toLocaleDateString(undefined, {
                               year: 'numeric',
@@ -575,7 +660,23 @@ export default function AdminComplaints() {
                       </div>
                     </div>
 
-                    <div className="pt-2 border-t border-outline-variant/40 flex justify-end">
+                    <div className="pt-2 border-t border-outline-variant/40 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleAccidentRead(acc.accident_id, !!acc.is_read)}
+                        className={`px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 ${
+                          acc.is_read
+                            ? 'text-on-surface-variant hover:bg-surface-container-high border border-outline-variant/40'
+                            : 'text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800 shadow-sm'
+                        }`}
+                        title={acc.is_read ? 'Mark as Unread' : 'Mark as Read'}
+                      >
+                        <span className="material-symbols-outlined text-[16px]">
+                          {acc.is_read ? 'mark_chat_unread' : 'mark_chat_read'}
+                        </span>
+                        <span>{acc.is_read ? 'Mark Unread' : 'Mark as Read'}</span>
+                      </button>
+
                       <button
                         onClick={() => setViewingAccident(acc)}
                         className="px-3 py-1.5 text-xs font-bold text-vibrant-orange hover:bg-orange-tint rounded-lg transition-colors flex items-center gap-1"
@@ -1057,12 +1158,26 @@ export default function AdminComplaints() {
               </div>
             </div>
 
-            <div className="flex justify-end pt-3 border-t border-outline-variant">
+            <div className="flex justify-between items-center pt-3 border-t border-outline-variant">
+              <button
+                type="button"
+                onClick={() => handleToggleAccidentRead(viewingAccident.accident_id, !!viewingAccident.is_read)}
+                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-sm ${
+                  viewingAccident.is_read
+                    ? 'bg-surface-container-high hover:bg-surface-container-highest text-on-surface border border-outline-variant/40'
+                    : 'bg-amber-500 hover:bg-amber-600 text-white ring-2 ring-amber-400/20'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">
+                  {viewingAccident.is_read ? 'mark_chat_unread' : 'mark_chat_read'}
+                </span>
+                <span>{viewingAccident.is_read ? 'Mark as Unread' : 'Mark as Read'}</span>
+              </button>
               <button
                 onClick={() => setViewingAccident(null)}
-                className="px-4 py-2 bg-surface-container text-on-surface rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-surface-container hover:bg-surface-container-high text-on-surface rounded-xl text-xs font-bold transition-colors"
               >
-                Close
+                Close Dossier
               </button>
             </div>
           </div>

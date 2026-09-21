@@ -401,11 +401,11 @@ export default function StudentOJT() {
             </div>
 
             {/* Supervision Protocol Notice */}
-            <div className="p-3 bg-blue-50/80 border border-blue-200/80 rounded-xl flex items-start gap-2.5 text-xs text-blue-900">
-              <span className="material-symbols-outlined text-[18px] text-blue-600 shrink-0 mt-0.5">verified_user</span>
+            <div className="p-3.5 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60 rounded-xl flex items-start gap-2.5 text-xs text-blue-950 dark:text-blue-100">
+              <span className="material-symbols-outlined text-[18px] text-blue-600 dark:text-blue-400 shrink-0 mt-0.5">verified_user</span>
               <div className="space-y-0.5">
-                <p className="font-bold">Workplace Mentor Supervision Protocol</p>
-                <p className="text-[11px] text-blue-800 leading-relaxed">
+                <p className="font-bold text-blue-950 dark:text-blue-100">Workplace Mentor Supervision Protocol</p>
+                <p className="text-[11px] text-blue-800 dark:text-blue-200 leading-relaxed">
                   Daily Time Records (Time-In and Time-Out) are exclusively recorded and certified by your assigned Workplace Mentor in compliance with institutional OJT agreements. Please report directly to your supervisor upon shift arrival and conclusion.
                 </p>
               </div>

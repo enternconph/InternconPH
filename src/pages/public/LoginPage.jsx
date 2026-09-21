@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import PageTransition from '../../components/Layout/PageTransition';
+import EmailInput from '../../components/ui/EmailInput';
+import { validateEmail } from '../../utils/email';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [emailError, setEmailError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const emailInputRef = useRef(null);
 
   const { login, getDashboardUrl } = useAuth();
   const { isDark, toggleTheme } = useTheme();
@@ -18,6 +22,14 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    const validationError = validateEmail(email, { required: true });
+    if (validationError) {
+      setEmailError(validationError);
+      emailInputRef.current?.focus();
+      return;
+    }
+
     setLoading(true);
 
     const res = await login(email, password);
@@ -89,20 +101,24 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form noValidate onSubmit={handleSubmit} className="space-y-5">
                 <div>
-                  <label className="block text-xs font-bold text-on-surface-variant uppercase mb-1.5">Email Address</label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">person</span>
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="name@university.edu.ph"
-                      className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface text-sm focus:ring-2 focus:ring-vibrant-orange outline-none transition-all focus:border-vibrant-orange"
-                    />
-                  </div>
+                  <EmailInput
+                    label="Email Address"
+                    required
+                    showIcon
+                    icon="person"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailError) setEmailError(null);
+                    }}
+                    error={emailError}
+                    onErrorChange={setEmailError}
+                    ref={emailInputRef}
+                    placeholder="name@university.edu.ph"
+                    className="py-3.5 bg-surface-container-lowest"
+                  />
                 </div>
 
                 <div>
@@ -119,11 +135,17 @@ export default function LoginPage() {
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors p-1 flex items-center justify-center"
+                      tabIndex={-1}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowPassword((prev) => !prev);
+                      }}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors p-1.5 flex items-center justify-center cursor-pointer rounded-lg hover:bg-surface-container"
                       title={showPassword ? 'Hide password' : 'Show password'}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
-                      <span className="material-symbols-outlined text-[20px]">
+                      <span className="material-symbols-outlined text-[20px] pointer-events-none select-none">
                         {showPassword ? 'visibility_off' : 'visibility'}
                       </span>
                     </button>

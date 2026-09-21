@@ -10,6 +10,7 @@ import { verifyToken } from '../middleware/auth.js';
 import { emitUpdate } from '../config/socket.js';
 import { sendNotification } from '../utils/notification.helper.js';
 import { createSession, revokeSession, getSessionCookieOptions } from '../utils/session.js';
+import { isValidEmail, normalizeEmail } from '../utils/email.js';
 
 const router = express.Router();
 
@@ -97,13 +98,15 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Email and password are required.' });
   }
 
+  const normalizedEmail = normalizeEmail(email);
+
   try {
     const [users] = await pool.query(
       `SELECT u.user_id, u.email, u.avatar_url, u.display_name, u.password_hash, u.is_active, u.is_verified, r.role_name
        FROM users u
        JOIN roles r ON u.role_id = r.role_id
        WHERE u.email = ?`,
-      [email.trim()]
+      [normalizedEmail]
     );
 
     if (users.length === 0) {
@@ -576,6 +579,12 @@ router.post('/register/student', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Institution Passcode, Student ID, Name, Email, and Password are required.' });
   }
 
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ success: false, message: 'Enter a valid email address, like name@university.edu.ph.' });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
   if (password.length < 8) {
     return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long.' });
   }
@@ -607,7 +616,7 @@ router.post('/register/student', async (req, res) => {
     await connection.beginTransaction();
 
     // 1. Check email uniqueness & clean up any unverified/rejected user
-    const [existing] = await connection.query('SELECT user_id, is_verified FROM users WHERE email = ?', [email.trim()]);
+    const [existing] = await connection.query('SELECT user_id, is_verified FROM users WHERE email = ?', [normalizedEmail]);
     if (existing.length > 0) {
       const oldUser = existing[0];
       if (oldUser.is_verified === 1) {
@@ -752,7 +761,7 @@ router.post('/register/student', async (req, res) => {
     // 5. Insert user (pending verification)
     const [userRes] = await connection.query(
       'INSERT INTO users (role_id, email, password_hash, is_active, is_verified) VALUES (?, ?, ?, 1, 0)',
-      [roleId, email.trim(), passwordHash]
+      [roleId, normalizedEmail, passwordHash]
     );
     const userId = userRes.insertId;
 
@@ -929,6 +938,12 @@ router.post('/register/organization', orgUpload, async (req, res) => {
     return res.status(400).json({ success: false, message: 'Company name, email, and password are required.' });
   }
 
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ success: false, message: 'Enter a valid email address, like name@university.edu.ph.' });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
   if (password.length < 8) {
     return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long.' });
   }
@@ -956,7 +971,7 @@ router.post('/register/organization', orgUpload, async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const [existingUsers] = await connection.query('SELECT user_id, is_verified FROM users WHERE email = ?', [email.trim()]);
+    const [existingUsers] = await connection.query('SELECT user_id, is_verified FROM users WHERE email = ?', [normalizedEmail]);
     if (existingUsers.length > 0) {
       const existingUser = existingUsers[0];
       if (existingUser.is_verified === 0) {
@@ -964,7 +979,7 @@ router.post('/register/organization', orgUpload, async (req, res) => {
           `SELECT organization_id FROM hiring_organizations WHERE contact_email = ? OR organization_id IN (
             SELECT organization_id FROM organization_registrations WHERE submitted_by = ?
           )`,
-          [email.trim(), existingUser.user_id]
+          [normalizedEmail, existingUser.user_id]
         );
         for (const lo of linkedOrgs) {
           await connection.query('DELETE FROM organization_documents WHERE organization_id = ?', [lo.organization_id]);
@@ -987,7 +1002,7 @@ router.post('/register/organization', orgUpload, async (req, res) => {
     // 1. Insert user
     const [userRes] = await connection.query(
       'INSERT INTO users (role_id, email, password_hash, is_active, is_verified) VALUES (?, ?, ?, 1, 0)',
-      [roleId, email.trim(), passwordHash]
+      [roleId, normalizedEmail, passwordHash]
     );
     const userId = userRes.insertId;
 
@@ -1004,7 +1019,7 @@ router.post('/register/organization', orgUpload, async (req, res) => {
         website || null,
         address || null,
         google_map_link || null,
-        email.trim(),
+        normalizedEmail,
         normalizedOrgPhone || null,
         sec_dti_number || null,
         bir_tin || null,
@@ -1105,6 +1120,12 @@ router.post('/register/institution', instUpload, async (req, res) => {
     return res.status(400).json({ success: false, message: 'Institution name, code, email, and password are required.' });
   }
 
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ success: false, message: 'Enter a valid email address, like name@university.edu.ph.' });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
   if (password.length < 8) {
     return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long.' });
   }
@@ -1132,7 +1153,7 @@ router.post('/register/institution', instUpload, async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const [existingUsers] = await connection.query('SELECT user_id, is_verified FROM users WHERE email = ?', [email.trim()]);
+    const [existingUsers] = await connection.query('SELECT user_id, is_verified FROM users WHERE email = ?', [normalizedEmail]);
     if (existingUsers.length > 0) {
       const existingUser = existingUsers[0];
       if (existingUser.is_verified === 0) {
@@ -1140,7 +1161,7 @@ router.post('/register/institution', instUpload, async (req, res) => {
           `SELECT institution_id FROM institutions WHERE contact_email = ? OR institution_id IN (
             SELECT institution_id FROM institution_registrations WHERE submitted_by = ?
           )`,
-          [email.trim(), existingUser.user_id]
+          [normalizedEmail, existingUser.user_id]
         );
         for (const li of linkedInsts) {
           await connection.query('DELETE FROM institution_documents WHERE institution_id = ?', [li.institution_id]);
@@ -1163,7 +1184,7 @@ router.post('/register/institution', instUpload, async (req, res) => {
     // 1. Insert user
     const [userRes] = await connection.query(
       'INSERT INTO users (role_id, email, password_hash, is_active, is_verified) VALUES (?, ?, ?, 1, 0)',
-      [roleId, email.trim(), passwordHash]
+      [roleId, normalizedEmail, passwordHash]
     );
     const userId = userRes.insertId;
 
@@ -1180,7 +1201,7 @@ router.post('/register/institution', instUpload, async (req, res) => {
         website || null,
         address || null,
         google_map_link || null,
-        email.trim(),
+        normalizedEmail,
         normalizedInstPhone || null,
         accreditation_number || null,
         director_name || null,
@@ -1276,6 +1297,12 @@ router.post('/register/staff', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Director Passcode, Staff Name, Email, and Password are required.' });
   }
 
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ success: false, message: 'Enter a valid email address, like name@university.edu.ph.' });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
   if (password.length < 8) {
     return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long.' });
   }
@@ -1307,7 +1334,7 @@ router.post('/register/staff', async (req, res) => {
     await connection.beginTransaction();
 
     // 1. Check email uniqueness
-    const [existing] = await connection.query('SELECT user_id FROM users WHERE email = ?', [email.trim()]);
+    const [existing] = await connection.query('SELECT user_id FROM users WHERE email = ?', [normalizedEmail]);
     if (existing.length > 0) {
       await connection.rollback();
       connection.release();
@@ -1371,7 +1398,7 @@ router.post('/register/staff', async (req, res) => {
     // 4. Insert user
     const [userRes] = await connection.query(
       'INSERT INTO users (role_id, email, password_hash, is_active, is_verified) VALUES (?, ?, ?, 1, 0)',
-      [roleId, email.trim(), passwordHash]
+      [roleId, normalizedEmail, passwordHash]
     );
     const userId = userRes.insertId;
 
@@ -1597,6 +1624,12 @@ router.post('/register/mentor', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Access code, name, email, and password are required.' });
   }
 
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ success: false, message: 'Enter a valid email address, like name@university.edu.ph.' });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
   if (password.length < 8) {
     return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long.' });
   }
@@ -1626,7 +1659,7 @@ router.post('/register/mentor', async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const [existing] = await connection.query('SELECT user_id FROM users WHERE email = ?', [email.trim()]);
+    const [existing] = await connection.query('SELECT user_id FROM users WHERE email = ?', [normalizedEmail]);
     if (existing.length > 0) {
       await connection.rollback();
       connection.release();
@@ -1716,7 +1749,7 @@ router.post('/register/mentor', async (req, res) => {
     // 1. Insert user
     const [userRes] = await connection.query(
       'INSERT INTO users (role_id, email, password_hash, is_active, is_verified) VALUES (?, ?, ?, 1, 0)',
-      [roleId, email.trim(), passwordHash]
+      [roleId, normalizedEmail, passwordHash]
     );
     const userId = userRes.insertId;
 

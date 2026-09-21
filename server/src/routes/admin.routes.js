@@ -878,7 +878,8 @@ router.get('/complaints', async (req, res) => {
               c.subject, c.description as complaint_description, c.status as complaint_status,
               ho.organization_name, ho.contact_email as org_email,
               s.first_name, s.last_name, s.student_number,
-              i.institution_name
+              i.institution_name,
+              IF(ar.admin_read_at IS NOT NULL, 1, 0) as is_read
        FROM accident_reports ar
        JOIN complaints c ON ar.complaint_id = c.complaint_id
        JOIN hiring_organizations ho ON ar.organization_id = ho.organization_id
@@ -917,6 +918,49 @@ router.get('/complaints', async (req, res) => {
   } catch (error) {
     console.error('Fetch admin complaints error:', error);
     return res.status(500).json({ success: false, message: 'Could not fetch institution reports.' });
+  }
+});
+
+// PATCH /api/admin/complaints/accidents/:id/read - Toggle or Mark an accident report as read
+router.patch('/complaints/accidents/:id/read', async (req, res) => {
+  const accidentId = req.params.id;
+  const { mark_read } = req.body;
+
+  try {
+    const [rows] = await pool.query('SELECT accident_id, admin_read_at FROM accident_reports WHERE accident_id = ?', [accidentId]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'Accident report not found.' });
+
+    let newReadAt = null;
+    if (mark_read === true) {
+      newReadAt = new Date();
+    } else if (mark_read === false) {
+      newReadAt = null;
+    } else {
+      newReadAt = rows[0].admin_read_at ? null : new Date();
+    }
+
+    await pool.query('UPDATE accident_reports SET admin_read_at = ? WHERE accident_id = ?', [newReadAt, accidentId]);
+
+    return res.json({
+      success: true,
+      message: newReadAt ? 'Accident report marked as read.' : 'Accident report marked as unread.',
+      is_read: Boolean(newReadAt),
+      admin_read_at: newReadAt
+    });
+  } catch (error) {
+    console.error('Update accident read status error:', error);
+    return res.status(500).json({ success: false, message: 'Could not update accident read status.' });
+  }
+});
+
+// POST /api/admin/complaints/accidents/read-all - Mark all escalated accident reports as read
+router.post('/complaints/accidents/read-all', async (req, res) => {
+  try {
+    await pool.query('UPDATE accident_reports SET admin_read_at = NOW() WHERE admin_read_at IS NULL');
+    return res.json({ success: true, message: 'All accident reports marked as read.' });
+  } catch (error) {
+    console.error('Mark all accidents read error:', error);
+    return res.status(500).json({ success: false, message: 'Could not mark all accidents as read.' });
   }
 });
 

@@ -785,10 +785,17 @@ export default function UserSettingsPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
-                        className="absolute right-3 top-2.5 text-on-surface-variant hover:text-on-surface"
+                        tabIndex={-1}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowPasswords((prev) => ({ ...prev, current: !prev.current }));
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-1 rounded-lg hover:bg-surface-container cursor-pointer"
+                        title={showPasswords.current ? 'Hide password' : 'Show password'}
+                        aria-label={showPasswords.current ? 'Hide password' : 'Show password'}
                       >
-                        <span className="material-symbols-outlined text-[18px]">
+                        <span className="material-symbols-outlined text-[18px] pointer-events-none select-none">
                           {showPasswords.current ? 'visibility_off' : 'visibility'}
                         </span>
                       </button>
@@ -811,10 +818,17 @@ export default function UserSettingsPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
-                        className="absolute right-3 top-2.5 text-on-surface-variant hover:text-on-surface"
+                        tabIndex={-1}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowPasswords((prev) => ({ ...prev, new: !prev.new }));
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-1 rounded-lg hover:bg-surface-container cursor-pointer"
+                        title={showPasswords.new ? 'Hide password' : 'Show password'}
+                        aria-label={showPasswords.new ? 'Hide password' : 'Show password'}
                       >
-                        <span className="material-symbols-outlined text-[18px]">
+                        <span className="material-symbols-outlined text-[18px] pointer-events-none select-none">
                           {showPasswords.new ? 'visibility_off' : 'visibility'}
                         </span>
                       </button>
@@ -857,10 +871,17 @@ export default function UserSettingsPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
-                        className="absolute right-3 top-2.5 text-on-surface-variant hover:text-on-surface"
+                        tabIndex={-1}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowPasswords((prev) => ({ ...prev, confirm: !prev.confirm }));
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-1 rounded-lg hover:bg-surface-container cursor-pointer"
+                        title={showPasswords.confirm ? 'Hide password' : 'Show password'}
+                        aria-label={showPasswords.confirm ? 'Hide password' : 'Show password'}
                       >
-                        <span className="material-symbols-outlined text-[18px]">
+                        <span className="material-symbols-outlined text-[18px] pointer-events-none select-none">
                           {showPasswords.confirm ? 'visibility_off' : 'visibility'}
                         </span>
                       </button>

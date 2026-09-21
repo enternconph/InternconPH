@@ -694,6 +694,19 @@ export async function runMigrations() {
     `);
     console.log('[Migration] stored_uploads table aligned.');
 
+    // 27. Ensure accident_reports has admin_read_at column for mark-as-read tracking
+    try {
+      const [arCols] = await pool.query('DESCRIBE accident_reports');
+      const arColNames = arCols.map(c => c.Field);
+      if (!arColNames.includes('admin_read_at')) {
+        await pool.query('ALTER TABLE accident_reports ADD COLUMN admin_read_at DATETIME NULL DEFAULT NULL AFTER reported_by');
+        console.log('[Migration] Added admin_read_at to accident_reports');
+      }
+    } catch (arErr) {
+      console.warn('[Migration Warning] accident_reports check failed:', arErr.message);
+    }
+    console.log('[Migration] accident_reports table aligned.');
+
     console.log('[Migration] All schema alignments completed successfully!');
   } catch (error) {
     console.error('[Migration Error]', error);

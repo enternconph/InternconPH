@@ -18,11 +18,11 @@ export default function Footer() {
         <div>
           <h4 className="font-bold text-on-surface text-sm uppercase tracking-wider mb-4">Platform</h4>
           <ul className="space-y-2 text-sm text-on-surface-variant">
-            <li><a href="/#how-it-works" className="hover:text-vibrant-orange transition-colors">How It Works</a></li>
-            <li><a href="/#opportunities" className="hover:text-vibrant-orange transition-colors">Find Internships</a></li>
-            <li><a href="/#for-students" className="hover:text-vibrant-orange transition-colors">For Students</a></li>
-            <li><a href="/#for-organizations" className="hover:text-vibrant-orange transition-colors">For Organizations</a></li>
-            <li><a href="/#policies" className="hover:text-vibrant-orange transition-colors">Policies & Compliance</a></li>
+            <li><Link to="/#how-it-works" className="hover:text-vibrant-orange transition-colors">How It Works</Link></li>
+            <li><Link to="/#opportunities" className="hover:text-vibrant-orange transition-colors">Find Internships</Link></li>
+            <li><Link to="/#for-students" className="hover:text-vibrant-orange transition-colors">For Students</Link></li>
+            <li><Link to="/#for-organizations" className="hover:text-vibrant-orange transition-colors">For Organizations</Link></li>
+            <li><Link to="/#policies" className="hover:text-vibrant-orange transition-colors">Policies & Compliance</Link></li>
           </ul>
         </div>
 

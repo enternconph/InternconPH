@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -7,15 +7,25 @@ export default function Header() {
   const { user, logout, getDashboardUrl } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleNavClick = (hash) => {
     setMobileMenuOpen(false);
+    const targetId = hash ? hash.replace('#', '') : null;
+
     if (location.pathname !== '/') {
-      window.location.href = hash ? `/${hash}` : '/';
+      navigate({ pathname: '/', hash: hash || '' });
+      setTimeout(() => {
+        if (targetId) {
+          document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth' });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }, 200);
     } else {
-      if (hash) {
-        document.getElementById(hash.replace('#', ''))?.scrollIntoView({ behavior: 'smooth' });
+      if (targetId) {
+        document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth' });
       } else {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -34,42 +44,49 @@ export default function Header() {
         {/* Desktop Navigation Links */}
         <nav className="hidden md:flex items-center gap-4 lg:gap-6">
           <button
+            type="button"
             onClick={() => handleNavClick('')}
             className="relative text-on-surface-variant font-medium text-sm hover:text-vibrant-orange transition-colors py-1 cursor-pointer"
           >
             Home
           </button>
           <button
+            type="button"
             onClick={() => handleNavClick('#how-it-works')}
             className="relative text-on-surface-variant font-medium text-sm hover:text-vibrant-orange transition-colors py-1 cursor-pointer"
           >
             How It Works
           </button>
           <button
+            type="button"
             onClick={() => handleNavClick('#opportunities')}
             className="relative text-on-surface-variant font-medium text-sm hover:text-vibrant-orange transition-colors py-1 cursor-pointer"
           >
             Opportunities
           </button>
           <button
+            type="button"
             onClick={() => handleNavClick('#for-students')}
             className="relative text-on-surface-variant font-medium text-sm hover:text-vibrant-orange transition-colors py-1 cursor-pointer"
           >
             For Students
           </button>
           <button
+            type="button"
             onClick={() => handleNavClick('#for-organizations')}
             className="relative text-on-surface-variant font-medium text-sm hover:text-vibrant-orange transition-colors py-1 cursor-pointer"
           >
             For Organizations
           </button>
           <button
+            type="button"
             onClick={() => handleNavClick('#for-institutions')}
             className="relative text-on-surface-variant font-medium text-sm hover:text-vibrant-orange transition-colors py-1 cursor-pointer"
           >
             For Institutions
           </button>
           <button
+            type="button"
             onClick={() => handleNavClick('#policies')}
             className="relative text-on-surface-variant font-medium text-sm hover:text-vibrant-orange transition-colors py-1 cursor-pointer"
           >
@@ -157,44 +174,51 @@ export default function Header() {
         <div className="md:hidden border-t border-outline-variant bg-surface-container-lowest/98 backdrop-blur-lg px-4 py-5 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
           <nav className="flex flex-col space-y-2 mb-5">
             <button
+              type="button"
               onClick={() => handleNavClick('')}
-              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors"
+              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors cursor-pointer"
             >
               Home
             </button>
             <button
+              type="button"
               onClick={() => handleNavClick('#how-it-works')}
-              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors"
+              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors cursor-pointer"
             >
               How It Works
             </button>
             <button
+              type="button"
               onClick={() => handleNavClick('#opportunities')}
-              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors"
+              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors cursor-pointer"
             >
               Opportunities
             </button>
             <button
+              type="button"
               onClick={() => handleNavClick('#for-students')}
-              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors"
+              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors cursor-pointer"
             >
               For Students
             </button>
             <button
+              type="button"
               onClick={() => handleNavClick('#for-organizations')}
-              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors"
+              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors cursor-pointer"
             >
               For Organizations
             </button>
             <button
+              type="button"
               onClick={() => handleNavClick('#for-institutions')}
-              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors"
+              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors cursor-pointer"
             >
               For Institutions
             </button>
             <button
+              type="button"
               onClick={() => handleNavClick('#policies')}
-              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors"
+              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors cursor-pointer"
             >
               Policies & Compliance
             </button>

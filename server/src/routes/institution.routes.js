@@ -8,6 +8,7 @@ import { verifyToken, requireRole } from '../middleware/auth.js';
 import { emitUpdate } from '../config/socket.js';
 import { sendNotification } from '../utils/notification.helper.js';
 import { checkAndGenerateCertificate } from '../services/certificate.service.js';
+import { isValidEmail, normalizeEmail } from '../utils/email.js';
 
 import { getUploadStorage, saveUploadedFile } from '../utils/upload.helper.js';
 
@@ -86,18 +87,47 @@ const getStaffProgramScope = async (userId, userRole, institutionId) => {
 
     if (staffRows.length > 0) {
       const staff = staffRows[0];
-      const isDean = staff.position === 'dean';
+      const positionLower = (staff.position || '').toLowerCase().trim();
+      const isDean = positionLower.includes('dean');
       const staffDept = staff.department || staff.prog_department;
+      const deptLower = (staffDept || '').toLowerCase().trim();
+      const isAllDepts = !staffDept || ['all', 'all departments', 'all programs', 'institution-wide', 'n/a', 'none', 'entire institution'].includes(deptLower);
 
-      if (isDean && staffDept) {
-        const [deptPrograms] = await pool.query(
+      // If staff position or department indicates all-programs / institution-wide access, do not restrict
+      if (isAllDepts && !staff.program_id) {
+        return { isRestricted: false, isDean: false, department: null, programId: null, programIds: [], program: null, programs: [] };
+      }
+
+      if (isDean && staffDept && !isAllDepts) {
+        let [deptPrograms] = await pool.query(
           `SELECT program_id, program_name, program_code, department 
            FROM programs 
-           WHERE institution_id = ? AND department = ? 
+           WHERE institution_id = ? AND (
+             department = ? OR 
+             department LIKE ? OR 
+             ? LIKE CONCAT('%', department, '%')
+           )
            ORDER BY program_name ASC`,
-          [institutionId, staffDept]
+          [institutionId, staffDept, `%${staffDept}%`, staffDept]
         );
-        const progIds = deptPrograms.map(p => p.program_id);
+
+        if (deptPrograms.length === 0 && staff.assigned_program_id) {
+          const [assignedProg] = await pool.query(
+            `SELECT program_id, program_name, program_code, department
+             FROM programs
+             WHERE program_id = ? AND institution_id = ?`,
+            [staff.assigned_program_id, institutionId]
+          );
+          if (assignedProg.length > 0) {
+            deptPrograms = assignedProg;
+          }
+        }
+
+        let progIds = deptPrograms.map(p => p.program_id);
+        if (staff.assigned_program_id && !progIds.includes(staff.assigned_program_id)) {
+          progIds.push(staff.assigned_program_id);
+        }
+
         return {
           isRestricted: true,
           isDean: true,
@@ -133,6 +163,34 @@ const getStaffProgramScope = async (userId, userRole, institutionId) => {
           }
         };
       }
+
+      if (staffDept && !isAllDepts) {
+        let [deptPrograms] = await pool.query(
+          `SELECT program_id, program_name, program_code, department 
+           FROM programs 
+           WHERE institution_id = ? AND (
+             department = ? OR 
+             department LIKE ? OR 
+             ? LIKE CONCAT('%', department, '%')
+           )
+           ORDER BY program_name ASC`,
+          [institutionId, staffDept, `%${staffDept}%`, staffDept]
+        );
+        if (deptPrograms.length > 0) {
+          const progIds = deptPrograms.map(p => p.program_id);
+          return {
+            isRestricted: true,
+            isDean: false,
+            department: staffDept,
+            programId: progIds[0],
+            programIds: progIds,
+            staffId: staff.staff_id,
+            position: staff.position,
+            programs: deptPrograms,
+            program: deptPrograms[0]
+          };
+        }
+      }
     }
   }
 
@@ -144,9 +202,9 @@ const getStaffProgramScope = async (userId, userRole, institutionId) => {
  */
 const isProgramAllowed = (scope, programId) => {
   if (!scope || !scope.isRestricted) return true;
-  if (!programId) return false;
-  if (scope.isDean) {
-    return Array.isArray(scope.programIds) && scope.programIds.includes(Number(programId));
+  if (!programId) return true;
+  if (scope.isDean || (scope.programIds && scope.programIds.length > 1)) {
+    return Array.isArray(scope.programIds) && (scope.programIds.length === 0 || scope.programIds.includes(Number(programId)));
   }
   return Number(scope.programId) === Number(programId);
 };
@@ -156,15 +214,22 @@ const isProgramAllowed = (scope, programId) => {
  */
 const appendProgramScopeSql = (sql, params, scope, column = 's.program_id') => {
   if (!scope || !scope.isRestricted) return sql;
-  if (scope.isDean) {
+  if (scope.isDean || (scope.programIds && scope.programIds.length > 1)) {
     if (scope.programIds && scope.programIds.length > 0) {
       params.push(scope.programIds);
-      return sql + ` AND ${column} IN (?)`;
+      return sql + ` AND (${column} IN (?) OR ${column} IS NULL)`;
     }
-    return sql + ` AND (${column} IS NULL AND 1=0)`;
+    if (scope.programId) {
+      params.push(scope.programId);
+      return sql + ` AND (${column} = ? OR ${column} IS NULL)`;
+    }
+    return sql;
   }
-  params.push(scope.programId);
-  return sql + ` AND ${column} = ?`;
+  if (scope.programId) {
+    params.push(scope.programId);
+    return sql + ` AND (${column} = ? OR ${column} IS NULL)`;
+  }
+  return sql;
 };
 
 /**
@@ -962,7 +1027,13 @@ router.get('/students', async (req, res) => {
 // POST /api/inst/staff/access-code
 router.post('/staff/access-code', async (req, res) => {
   const { staff_number, position, program_id, department, intended_email, staff_email, permissions, expires_at, expiration_date } = req.body;
-  const emailToSave = (intended_email || staff_email || '').trim().toLowerCase() || null;
+  const rawEmail = (intended_email || staff_email || '').trim();
+
+  if (rawEmail && !isValidEmail(rawEmail)) {
+    return res.status(400).json({ success: false, message: 'Enter a valid email address, like name@university.edu.ph.' });
+  }
+
+  const emailToSave = rawEmail ? normalizeEmail(rawEmail) : null;
 
   if (!staff_number || !staff_number.trim()) {
     return res.status(400).json({ success: false, message: 'Staff / Employee ID is required.' });
@@ -1708,8 +1779,9 @@ router.get('/catalog-programs', async (req, res) => {
     const inst = await getInstId(req.user.user_id);
     if (!inst) return res.status(404).json({ success: false, message: 'Institution not found.' });
 
-    const [catalog] = await pool.query(
-      `SELECT mp.*,
+    const scope = await getStaffProgramScope(req.user.user_id, req.user.role, inst.institution_id);
+
+    let catSql = `SELECT mp.*,
               p.program_id as institution_program_id,
               IF(p.program_id IS NOT NULL, 1, 0) as is_active_in_institution,
               COALESCE(p.required_ojt_hours, mp.default_ojt_hours) as current_ojt_hours,
@@ -1722,12 +1794,22 @@ router.get('/catalog-programs', async (req, res) => {
            ORDER BY (TRIM(p2.program_code) = TRIM(mp.program_code) AND LOWER(TRIM(p2.program_name)) = LOWER(TRIM(mp.program_name))) DESC,
                     (TRIM(p2.program_code) = TRIM(mp.program_code)) DESC
            LIMIT 1
-       )
-       ORDER BY mp.discipline ASC, mp.program_name ASC`,
-      [inst.institution_id]
-    );
+       )`;
+    const catParams = [inst.institution_id];
 
-    return res.json({ success: true, data: catalog });
+    if (scope.isRestricted && scope.department) {
+      catSql += ` WHERE (
+        mp.discipline = ? OR 
+        mp.discipline LIKE ? OR 
+        ? LIKE CONCAT('%', mp.discipline, '%')
+      )`;
+      catParams.push(scope.department, `%${scope.department}%`, scope.department);
+    }
+
+    catSql += ` ORDER BY mp.discipline ASC, mp.program_name ASC`;
+    const [catalog] = await pool.query(catSql, catParams);
+
+    return res.json({ success: true, data: catalog, staff_scope: scope });
   } catch (error) {
     console.error('Fetch catalog programs error:', error);
     return res.status(500).json({ success: false, message: 'Could not fetch catalog programs.' });
@@ -1783,11 +1865,30 @@ router.post('/programs', async (req, res) => {
     const inst = await getInstId(req.user.user_id);
     if (!inst) return res.status(404).json({ success: false, message: 'Institution not found.' });
 
+    const scope = await getStaffProgramScope(req.user.user_id, req.user.role, inst.institution_id);
+
+    const matchesDept = (discipline, targetDept) => {
+      if (!discipline || !targetDept) return false;
+      const d1 = discipline.toLowerCase().trim();
+      const d2 = targetDept.toLowerCase().trim();
+      return d1 === d2 || d1.includes(d2) || d2.includes(d1);
+    };
+
     if (Array.isArray(master_program_ids) && master_program_ids.length > 0) {
       const [selectedFromMaster] = await pool.query(
         'SELECT * FROM master_programs WHERE master_program_id IN (?)',
         [master_program_ids]
       );
+
+      if (scope.isRestricted && scope.department) {
+        const unauthorized = selectedFromMaster.filter(mp => !matchesDept(mp.discipline, scope.department));
+        if (unauthorized.length > 0) {
+          return res.status(403).json({
+            success: false,
+            message: `Access Denied: You are restricted to the "${scope.department}" department and cannot activate "${unauthorized[0].program_name}" (${unauthorized[0].discipline}).`
+          });
+        }
+      }
 
       let activatedCount = 0;
       for (const mp of selectedFromMaster) {
@@ -1832,7 +1933,7 @@ router.post('/programs', async (req, res) => {
 
       return res.status(201).json({
         success: true,
-        message: `Successfully activated ${activatedCount} degree program(s) from the nationwide catalog for ${inst.institution_name}!`
+        message: `Successfully activated ${activatedCount} degree program(s) from the catalog for ${inst.institution_name}!`
       });
     }
 
@@ -1842,6 +1943,16 @@ router.post('/programs', async (req, res) => {
         return res.status(404).json({ success: false, message: 'Program not found in nationwide catalog.' });
       }
       const mp = masterRows[0];
+
+      if (scope.isRestricted && scope.department) {
+        if (!matchesDept(mp.discipline, scope.department)) {
+          return res.status(403).json({
+            success: false,
+            message: `Access Denied: You are restricted to the "${scope.department}" department and cannot activate "${mp.program_name}" (${mp.discipline}).`
+          });
+        }
+      }
+
       const hours = required_ojt_hours ? parseInt(required_ojt_hours) : mp.default_ojt_hours;
 
       const [existing] = await pool.query(
@@ -1890,6 +2001,16 @@ router.post('/programs', async (req, res) => {
       );
 
       const discipline = existingMaster[0]?.discipline || 'General Academic';
+
+      if (scope.isRestricted && scope.department) {
+        if (!matchesDept(discipline, scope.department)) {
+          return res.status(403).json({
+            success: false,
+            message: `Access Denied: You are restricted to the "${scope.department}" department and cannot activate programs under "${discipline}".`
+          });
+        }
+      }
+
       const hours = required_ojt_hours ? parseInt(required_ojt_hours) : (existingMaster[0]?.default_ojt_hours || 600);
 
       const [existing] = await pool.query(
@@ -2115,7 +2236,7 @@ router.get('/monitoring', async (req, res) => {
               cert.certificate_id, cert.certificate_code, cert.issued_at as certificate_issued_at, cert.certificate_data
        FROM ojt_records o
        JOIN students s ON o.student_id = s.student_id
-       JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
+       LEFT JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
        LEFT JOIN programs p ON s.program_id = p.program_id
        LEFT JOIN ojt_certificates cert ON o.ojt_id = cert.ojt_id
        WHERE s.institution_id = ?`;
@@ -2207,23 +2328,71 @@ router.get('/monitoring', async (req, res) => {
       return { ...c, category_name: cat, incident_category: cat };
     });
     const conductComplaints = employerComplaints.filter(c => !c.is_accident && !c.accident_id);
-    const accidentReports = employerComplaints.filter(c => c.is_accident || c.accident_id);
 
-    let instRepSql = `SELECT ir.*, ho.organization_name, cc.category_name
+    // Dedicated query for accident reports to ensure all recorded accidents for institution interns are found
+    let accSql = `SELECT ar.accident_id, ar.complaint_id, ar.organization_id, ar.student_id,
+              ar.incident_datetime, ar.location as accident_location, ar.location as incident_location,
+              ar.severity as accident_severity, ar.severity,
+              ar.injury_description, ar.injury_description as injuries_sustained,
+              ar.medical_attention_given,
+              CASE WHEN ar.medical_attention_given IS NOT NULL AND ar.medical_attention_given != '' AND ar.medical_attention_given != 'No external medical attention required' THEN 1 ELSE 0 END as medical_attention_required,
+              ar.witnesses, ar.immediate_action_taken,
+              ar.immediate_action_taken as emergency_actions_taken,
+              ar.preventive_measures,
+              ar.created_at, ar.created_at as filed_at,
+              s.first_name, s.last_name, s.student_number,
+              CONCAT(s.first_name, ' ', s.last_name) as student_name,
+              ho.organization_name,
+              COALESCE(c.subject, CONCAT('Workplace Incident - ', ar.severity)) as title,
+              COALESCE(c.subject, CONCAT('Workplace Incident - ', ar.severity)) as subject,
+              COALESCE(c.description, ar.injury_description, 'Workplace accident reported') as description,
+              COALESCE(c.status, 'submitted') as status,
+              (SELECT COUNT(*) FROM institution_reports ir WHERE (c.complaint_id IS NOT NULL AND ir.complaint_id = c.complaint_id) OR ir.title LIKE CONCAT('%', ar.accident_id, '%')) as is_escalated_to_admin
+       FROM accident_reports ar
+       JOIN students s ON ar.student_id = s.student_id
+       LEFT JOIN hiring_organizations ho ON ar.organization_id = ho.organization_id
+       LEFT JOIN complaints c ON ar.complaint_id = c.complaint_id
+       WHERE s.institution_id = ?`;
+    const accParams = [inst.institution_id];
+    accSql = appendProgramScopeSql(accSql, accParams, scope, 's.program_id');
+    accSql += ' ORDER BY ar.created_at DESC';
+    const [directAccidents] = await pool.query(accSql, accParams);
+
+    const seenAccidentIds = new Set();
+    const seenComplaintIds = new Set();
+    const combinedAccidents = [];
+
+    for (const acc of directAccidents) {
+      if (acc.accident_id) seenAccidentIds.add(Number(acc.accident_id));
+      if (acc.complaint_id) seenComplaintIds.add(Number(acc.complaint_id));
+      combinedAccidents.push(acc);
+    }
+
+    for (const c of employerComplaints.filter(item => item.is_accident || item.accident_id)) {
+      if (c.accident_id && seenAccidentIds.has(Number(c.accident_id))) continue;
+      if (c.complaint_id && seenComplaintIds.has(Number(c.complaint_id))) continue;
+      combinedAccidents.push(c);
+    }
+
+    let instRepSql = `SELECT ir.*, ir.title as report_title,
+              COALESCE(ir.action_taken, ir.status, 'submitted') as admin_action,
+              ho.organization_name, cc.category_name,
+              s.first_name, s.last_name, s.student_number,
+              CONCAT(s.first_name, ' ', s.last_name) as student_name,
+              p.program_name
        FROM institution_reports ir
        JOIN hiring_organizations ho ON ir.organization_id = ho.organization_id
-       LEFT JOIN complaint_categories cc ON ir.category_id = cc.category_id`;
+       LEFT JOIN complaint_categories cc ON ir.category_id = cc.category_id
+       LEFT JOIN complaints c ON ir.complaint_id = c.complaint_id
+       LEFT JOIN students s ON c.student_id = s.student_id
+       LEFT JOIN programs p ON s.program_id = p.program_id`;
     const instRepParams = [inst.institution_id];
     if (scope.isRestricted) {
       if (scope.isDean) {
-        instRepSql += ` LEFT JOIN complaints c ON ir.complaint_id = c.complaint_id
-                        LEFT JOIN students s ON c.student_id = s.student_id
-                        WHERE ir.institution_id = ? AND (s.program_id IN (?) OR c.complaint_id IS NULL)`;
+        instRepSql += ` WHERE ir.institution_id = ? AND (s.program_id IN (?) OR c.complaint_id IS NULL OR s.program_id IS NULL)`;
         instRepParams.push(scope.programIds.length > 0 ? scope.programIds : [-1]);
       } else {
-        instRepSql += ` LEFT JOIN complaints c ON ir.complaint_id = c.complaint_id
-                        LEFT JOIN students s ON c.student_id = s.student_id
-                        WHERE ir.institution_id = ? AND (s.program_id = ? OR c.complaint_id IS NULL)`;
+        instRepSql += ` WHERE ir.institution_id = ? AND (s.program_id = ? OR c.complaint_id IS NULL OR s.program_id IS NULL)`;
         instRepParams.push(scope.programId);
       }
     } else {
@@ -2239,7 +2408,7 @@ router.get('/monitoring', async (req, res) => {
         complaints,
         employerComplaints: conductComplaints,
         conductComplaints,
-        accidentReports,
+        accidentReports: combinedAccidents,
         institutionReports,
         staff_scope: scope
       }

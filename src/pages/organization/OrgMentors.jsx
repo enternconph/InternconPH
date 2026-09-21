@@ -3,6 +3,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import MentorPasscodeGeneratedModal from '../../components/Organization/MentorPasscodeGeneratedModal';
+import { validateEmail, getDomainSuggestion } from '../../utils/email';
 
 export default function OrgMentors() {
   const location = useLocation();
@@ -27,6 +28,8 @@ export default function OrgMentors() {
   const [isCustomDept, setIsCustomDept] = useState(false);
   const [generatedCode, setGeneratedCode] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [identifierError, setIdentifierError] = useState(null);
+  const [identifierSuggestion, setIdentifierSuggestion] = useState(null);
   const [codeForm, setCodeForm] = useState({
     target_identifier: '',
     department: '',
@@ -137,9 +140,50 @@ export default function OrgMentors() {
     return null;
   }, [codeForm.target_identifier, data.accessCodes, data.verifiedMentors, data.pendingMentors]);
 
+  const handleIdentifierChange = (val) => {
+    setCodeForm((prev) => ({ ...prev, target_identifier: val }));
+    if (val.includes('@')) {
+      const sugg = getDomainSuggestion(val);
+      setIdentifierSuggestion(sugg);
+      if (identifierError) {
+        const err = validateEmail(val.trim(), { required: true });
+        setIdentifierError(err);
+      }
+    } else {
+      setIdentifierSuggestion(null);
+      setIdentifierError(null);
+    }
+  };
+
+  const handleIdentifierBlur = (e) => {
+    const rawVal = e.target.value;
+    const trimmed = (rawVal || '').trim();
+    if (trimmed !== rawVal) {
+      setCodeForm((prev) => ({ ...prev, target_identifier: trimmed }));
+    }
+    if (trimmed.includes('@')) {
+      const err = validateEmail(trimmed, { required: true });
+      setIdentifierError(err);
+      const sugg = getDomainSuggestion(trimmed);
+      setIdentifierSuggestion(sugg);
+    } else {
+      setIdentifierError(null);
+      setIdentifierSuggestion(null);
+    }
+  };
+
   const handleGenerateCode = async (e) => {
     e.preventDefault();
-    if (!codeForm.target_identifier || !codeForm.target_identifier.trim()) return;
+    const cleanId = (codeForm.target_identifier || '').trim();
+    if (!cleanId) return;
+
+    if (cleanId.includes('@')) {
+      const emailErr = validateEmail(cleanId, { required: true });
+      if (emailErr) {
+        setIdentifierError(emailErr);
+        return;
+      }
+    }
 
     if (duplicateWarning) {
       setErrorMsg(duplicateWarning.message);
@@ -1139,7 +1183,7 @@ export default function OrgMentors() {
               </button>
             </div>
 
-            <form onSubmit={handleGenerateCode} className="space-y-3 text-xs">
+            <form noValidate onSubmit={handleGenerateCode} className="space-y-3 text-xs">
               <div>
                 <label className="font-bold text-on-surface block mb-1">
                   Mentor Identifier (Employee ID or Email) *
@@ -1149,19 +1193,44 @@ export default function OrgMentors() {
                   required
                   placeholder="e.g., EMP-2026-889 or mentor@company.com"
                   value={codeForm.target_identifier}
-                  onChange={(e) => setCodeForm({ ...codeForm, target_identifier: e.target.value })}
+                  onChange={(e) => handleIdentifierChange(e.target.value)}
+                  onBlur={handleIdentifierBlur}
                   className={`w-full px-3 py-2 rounded-lg border bg-surface text-on-surface outline-none transition-colors ${
-                    duplicateWarning
-                      ? 'border-error bg-red-50/20 focus:border-error'
+                    duplicateWarning || identifierError
+                      ? 'border-error bg-red-50/20 focus:border-error ring-1 ring-error/30'
                       : 'border-outline-variant focus:border-vibrant-orange'
                   }`}
                 />
+                {identifierError && (
+                  <div role="alert" className="mt-1.5 flex items-center gap-1.5 text-xs text-red-600 font-bold animate-fadeIn">
+                    <span className="material-symbols-outlined text-[15px] shrink-0 text-red-500">error</span>
+                    <span>{identifierError}</span>
+                  </div>
+                )}
+                {identifierSuggestion && (
+                  <div className="mt-1.5 text-xs text-vibrant-orange font-medium flex items-center gap-1.5 animate-fadeIn">
+                    <span className="material-symbols-outlined text-[15px] shrink-0">lightbulb</span>
+                    <span>Did you mean </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCodeForm((prev) => ({ ...prev, target_identifier: identifierSuggestion }));
+                        setIdentifierSuggestion(null);
+                        setIdentifierError(null);
+                      }}
+                      className="font-bold underline hover:text-deep-orange focus:outline-none focus:ring-1 focus:ring-vibrant-orange rounded px-1 transition-colors"
+                    >
+                      {identifierSuggestion}
+                    </button>
+                    <span>?</span>
+                  </div>
+                )}
                 {duplicateWarning ? (
                   <div className="mt-1.5 p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[11px] flex items-start gap-1.5 animate-fade-in">
                     <span className="material-symbols-outlined text-[16px] text-red-600 shrink-0 mt-0.5">error</span>
                     <span className="font-medium leading-tight">{duplicateWarning.message}</span>
                   </div>
-                ) : (
+                ) : !identifierError && !identifierSuggestion && (
                   <p className="text-[10px] text-on-surface-variant mt-1">
                     Enter the mentor's official Employee ID or work email. Multiple passcodes or duplicate accounts for the same identifier are prevented.
                   </p>
