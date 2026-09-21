@@ -165,95 +165,108 @@ export default function LandingPage() {
       <main className="flex-grow">
         {/* HERO SECTION */}
         <section className="relative overflow-hidden bg-surface-container-lowest py-12 sm:py-16 md:py-20 px-4 sm:px-6 md:px-8 border-b border-outline-variant">
-          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+          <div className="max-w-5xl mx-auto text-center space-y-6 sm:space-y-8">
+            {/* Top Text Cluster: Badge & Main Headline */}
             <motion.div 
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: -20 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.6 }}
-              className="space-y-4 sm:space-y-6"
+              className="space-y-4 max-w-4xl mx-auto"
             >
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-tint text-vibrant-orange font-bold text-xs">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-tint text-vibrant-orange font-bold text-xs shadow-xs border border-vibrant-orange/20">
                 <span className="material-symbols-outlined text-[16px]">verified</span>
-                Philippine OJT & Internship Ecosystem
+                <span>Philippine OJT & Internship Ecosystem</span>
               </div>
-              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-on-surface leading-tight">
+              <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-on-surface leading-[1.15]">
                 Connect Your <span className="text-vibrant-orange">OJT Experience</span> to Your Future Career
               </h1>
-              <p className="text-base sm:text-lg text-on-surface-variant leading-relaxed">
+            </motion.div>
+
+            {/* Central 3D Video Showcase */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7, delay: 0.15 }}
+              className="relative mx-auto w-full max-w-2xl sm:max-w-3xl px-1 sm:px-0"
+            >
+              {/* Dynamic ambient halo glow behind the 3D logo */}
+              <div className="absolute -inset-2 sm:-inset-4 bg-gradient-to-r from-vibrant-orange/25 via-pinoy-green/15 to-vibrant-orange/25 rounded-3xl blur-2xl opacity-70 pointer-events-none -z-10" />
+
+              {/* Framed Display Container */}
+              <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-outline-variant bg-surface-container shadow-2xl transition-all hover:border-vibrant-orange/40">
+                <video
+                  src="/landingpage.mp4"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full h-auto aspect-video object-cover block select-none pointer-events-none"
+                />
+
+                {/* Floating Subtle Micro-Trust Badge */}
+                <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 px-3 py-1.5 rounded-xl bg-surface/90 backdrop-blur-md border border-outline-variant/60 text-[11px] sm:text-xs font-bold text-on-surface flex items-center gap-1.5 shadow-md">
+                  <span className="w-2 h-2 rounded-full bg-pinoy-green animate-pulse" />
+                  <span>Interactive 3D Ecosystem Showcase</span>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Bottom Text Cluster: Subheading, CTA Buttons & Platform Metrics */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="space-y-6 max-w-2xl mx-auto"
+            >
+              <p className="text-sm sm:text-base md:text-lg text-on-surface-variant leading-relaxed">
                 The centralized portal bridging Filipino college students, CHED-accredited universities, and leading hiring organizations for verified on-the-job training.
               </p>
-              <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 pt-2">
+
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-1">
                 <Link
                   to="/get-started"
-                  className="px-6 sm:px-8 py-3 sm:py-3.5 bg-vibrant-orange text-white rounded-full font-bold text-center text-sm sm:text-base hover:bg-deep-orange transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:scale-95"
+                  className="w-full sm:w-auto px-8 py-3.5 bg-vibrant-orange text-white rounded-full font-bold text-center text-sm sm:text-base hover:bg-deep-orange transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2"
                 >
-                  Join InternConPH
+                  <span>Join InternConPH</span>
+                  <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
                 </Link>
                 <a
                   href="#how-it-works"
-                  className="px-6 sm:px-8 py-3 sm:py-3.5 border border-outline-variant text-on-surface rounded-full font-bold text-center text-sm sm:text-base hover:bg-surface-container transition-colors active:scale-95"
+                  className="w-full sm:w-auto px-8 py-3.5 border border-outline-variant text-on-surface rounded-full font-bold text-center text-sm sm:text-base hover:bg-surface-container transition-colors active:scale-95"
                 >
                   Learn More
                 </a>
               </div>
-            </motion.div>
 
-            {/* Hero Stats Card Bento */}
-            <motion.div 
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, staggerChildren: 0.1 }}
-              className="grid grid-cols-2 gap-2.5 sm:gap-4"
-            >
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.8 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.1 }}
-                className="bento-card flex flex-col justify-center items-center text-center p-4 sm:p-6 md:p-8 bg-gradient-to-br from-vibrant-orange to-deep-orange border-vibrant-orange/30 hover:scale-105 transition-transform cursor-default"
-              >
-                <span className="material-symbols-outlined text-white/90 text-[28px] sm:text-[36px] mb-1 sm:mb-2">school</span>
-                <span className="text-2xl sm:text-3xl font-bold text-white">{stats.students.toLocaleString()}+</span>
-                <span className="text-[10px] sm:text-xs font-bold text-white/70 uppercase tracking-wider mt-1">Students Enrolled</span>
-              </motion.div>
-
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.8 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-                className="bento-card flex flex-col justify-center items-center text-center p-4 sm:p-6 md:p-8 bg-gradient-to-br from-vibrant-orange to-deep-orange border-vibrant-orange/30 hover:scale-105 transition-transform cursor-default"
-              >
-                <span className="material-symbols-outlined text-white/90 text-[28px] sm:text-[36px] mb-1 sm:mb-2">work</span>
-                <span className="text-2xl sm:text-3xl font-bold text-white">{stats.jobs.toLocaleString()}+</span>
-                <span className="text-[10px] sm:text-xs font-bold text-white/70 uppercase tracking-wider mt-1">Open Positions</span>
-              </motion.div>
-
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.8 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-                className="bento-card flex flex-col justify-center items-center text-center p-4 sm:p-6 md:p-8 bg-gradient-to-br from-vibrant-orange to-deep-orange border-vibrant-orange/30 hover:scale-105 transition-transform cursor-default"
-              >
-                <span className="material-symbols-outlined text-white/90 text-[28px] sm:text-[36px] mb-1 sm:mb-2">business</span>
-                <span className="text-2xl sm:text-3xl font-bold text-white">{stats.organizations.toLocaleString()}+</span>
-                <span className="text-[10px] sm:text-xs font-bold text-white/70 uppercase tracking-wider mt-1">Employer Partners</span>
-              </motion.div>
-
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.8 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-                className="bento-card flex flex-col justify-center items-center text-center p-4 sm:p-6 md:p-8 bg-gradient-to-br from-vibrant-orange to-deep-orange border-vibrant-orange/30 hover:scale-105 transition-transform cursor-default"
-              >
-                <span className="material-symbols-outlined text-white/90 text-[28px] sm:text-[36px] mb-1 sm:mb-2">account_balance</span>
-                <span className="text-2xl sm:text-3xl font-bold text-white">{stats.institutions.toLocaleString()}+</span>
-                <span className="text-[10px] sm:text-xs font-bold text-white/70 uppercase tracking-wider mt-1">Universities</span>
-              </motion.div>
+              {/* Minimalist Live Platform Metrics Strip */}
+              <div className="pt-4 border-t border-outline-variant/60 flex items-center justify-center flex-wrap gap-4 sm:gap-6 text-xs text-on-surface-variant font-semibold">
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-vibrant-orange text-[16px]">school</span>
+                  <span className="font-bold text-on-surface">{stats.students.toLocaleString()}+</span>
+                  <span>Students Enrolled</span>
+                </div>
+                <span className="hidden sm:inline text-outline-variant">•</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-vibrant-orange text-[16px]">work</span>
+                  <span className="font-bold text-on-surface">{stats.jobs.toLocaleString()}+</span>
+                  <span>Open Positions</span>
+                </div>
+                <span className="hidden sm:inline text-outline-variant">•</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-vibrant-orange text-[16px]">business</span>
+                  <span className="font-bold text-on-surface">{stats.organizations.toLocaleString()}+</span>
+                  <span>Employer Partners</span>
+                </div>
+                <span className="hidden sm:inline text-outline-variant">•</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-vibrant-orange text-[16px]">account_balance</span>
+                  <span className="font-bold text-on-surface">{stats.institutions.toLocaleString()}+</span>
+                  <span>Universities</span>
+                </div>
+              </div>
             </motion.div>
           </div>
         </section>
