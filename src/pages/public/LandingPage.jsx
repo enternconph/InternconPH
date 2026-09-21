@@ -245,25 +245,25 @@ export default function LandingPage() {
               <div className="pt-4 border-t border-outline-variant/60 flex items-center justify-center flex-wrap gap-4 sm:gap-6 text-xs text-on-surface-variant font-semibold">
                 <div className="flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-vibrant-orange text-[16px]">school</span>
-                  <span className="font-bold text-on-surface">{stats.students.toLocaleString()}+</span>
+                  <span className="font-bold text-on-surface">{(stats?.students ?? 10).toLocaleString()}+</span>
                   <span>Students Enrolled</span>
                 </div>
                 <span className="hidden sm:inline text-outline-variant">•</span>
                 <div className="flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-vibrant-orange text-[16px]">work</span>
-                  <span className="font-bold text-on-surface">{stats.jobs.toLocaleString()}+</span>
+                  <span className="font-bold text-on-surface">{(stats?.jobs ?? 5).toLocaleString()}+</span>
                   <span>Open Positions</span>
                 </div>
                 <span className="hidden sm:inline text-outline-variant">•</span>
                 <div className="flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-vibrant-orange text-[16px]">business</span>
-                  <span className="font-bold text-on-surface">{stats.organizations.toLocaleString()}+</span>
+                  <span className="font-bold text-on-surface">{(stats?.organizations ?? 3).toLocaleString()}+</span>
                   <span>Employer Partners</span>
                 </div>
                 <span className="hidden sm:inline text-outline-variant">•</span>
                 <div className="flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-vibrant-orange text-[16px]">account_balance</span>
-                  <span className="font-bold text-on-surface">{stats.institutions.toLocaleString()}+</span>
+                  <span className="font-bold text-on-surface">{(stats?.institutions ?? 2).toLocaleString()}+</span>
                   <span>Universities</span>
                 </div>
               </div>
