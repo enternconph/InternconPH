@@ -57,16 +57,16 @@ const COMPETENCY_CRITERIA = [
 const getRatingDescriptor = (val) => {
   switch (val) {
     case 5:
-      return { label: 'Exceptional', color: 'text-pinoy-green bg-green-tint' };
+      return { label: 'Exceptional', color: 'text-pinoy-green bg-green-tint dark:bg-emerald-950/50 dark:text-emerald-300' };
     case 4:
-      return { label: 'Very Satisfactory', color: 'text-blue-600 bg-blue-50' };
+      return { label: 'Very Satisfactory', color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50' };
     case 3:
       return { label: 'Satisfactory', color: 'text-vibrant-orange bg-orange-tint' };
     case 2:
-      return { label: 'Fair', color: 'text-amber-600 bg-amber-50' };
+      return { label: 'Fair', color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50' };
     case 1:
     default:
-      return { label: 'Needs Improvement', color: 'text-red-500 bg-red-50' };
+      return { label: 'Needs Improvement', color: 'text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-950/50' };
   }
 };
 
@@ -217,15 +217,15 @@ export default function OrgEvaluations() {
         </div>
 
         {/* Evaluation Eligibility & Immutability Rules Notice */}
-        <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-2.5 text-xs text-blue-900">
-          <span className="material-symbols-outlined text-blue-600 text-[20px] shrink-0 mt-0.5">verified_user</span>
+        <div className="p-3.5 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-xl flex items-start gap-2.5 text-xs text-blue-900 dark:text-blue-200 shadow-xs">
+          <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[20px] shrink-0 mt-0.5">verified_user</span>
           <div className="space-y-1">
-            <p className="font-bold">Evaluation Eligibility & Immutability Policy</p>
-            <p className="text-[11px] text-blue-800 leading-relaxed">
-              • <strong>Eligibility Condition:</strong> Interns can only be evaluated once they have completed their required OJT hours (Rendered Hours ≥ Required Hours). Ongoing interns cannot be evaluated.
+            <p className="font-bold text-blue-950 dark:text-blue-100">Evaluation Eligibility & Immutability Policy</p>
+            <p className="text-[11px] text-blue-800 dark:text-blue-300 leading-relaxed">
+              • <strong className="text-blue-950 dark:text-blue-100">Eligibility Condition:</strong> Interns can only be evaluated once they have completed their required OJT hours (Rendered Hours ≥ Required Hours). Ongoing interns cannot be evaluated.
             </p>
-            <p className="text-[11px] text-blue-800 leading-relaxed">
-              • <strong>One-Time Evaluation Rule:</strong> An organization can evaluate a student <strong>only once</strong>. Submitted scorecards are permanently finalized (read-only) and trigger institutional certificate issuance.
+            <p className="text-[11px] text-blue-800 dark:text-blue-300 leading-relaxed">
+              • <strong className="text-blue-950 dark:text-blue-100">One-Time Evaluation Rule:</strong> An organization can evaluate a student <strong className="text-blue-950 dark:text-blue-100">only once</strong>. Submitted scorecards are permanently finalized (read-only) and trigger institutional certificate issuance.
             </p>
           </div>
         </div>
@@ -413,7 +413,7 @@ export default function OrgEvaluations() {
                       <div className="text-[10px] text-on-surface-variant font-normal">{ev.student_number}</div>
                     </td>
                     <td className="py-2.5 px-3">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-[10px] font-bold">
                         <span className="material-symbols-outlined text-[12px]">lock</span>
                         Finalized
                       </span>
