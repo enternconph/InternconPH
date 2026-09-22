@@ -63,6 +63,24 @@ const getOrgId = async (userId) => {
   return null;
 };
 
+// Helper to determine if requester is a Workplace Mentor
+const isMentorUser = (req, org) => {
+  const role = req.user.role_name || req.user.role;
+  return role === 'workplace_mentor' || role === 'mentor' || (org && (org.staff_position === 'workplace_mentor' || org.staff_position === 'mentor'));
+};
+
+// Helper to get mentor staff record
+const getMentorStaffId = async (userId, orgId) => {
+  const [staffRows] = await pool.query(
+    `SELECT os.org_staff_id, os.position, os.first_name, os.last_name, os.job_title, os.contact_number
+     FROM organization_staff os
+     WHERE os.user_id = ? AND (os.position = 'workplace_mentor' OR os.position = 'mentor')`,
+    [userId]
+  );
+  if (staffRows.length > 0) return staffRows[0];
+  return null;
+};
+
 const formatFilePath = (fp) => {
   if (!fp) return '';
   if (fp.startsWith('http://') || fp.startsWith('https://') || fp.startsWith('blob:') || fp.startsWith('data:')) return fp;
@@ -1082,8 +1100,11 @@ router.get('/interns', async (req, res) => {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Org not found' });
 
-    const [interns] = await pool.query(
-      `SELECT o.*, 
+    const isMentor = isMentorUser(req, org);
+    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
+
+    let query = `
+      SELECT o.*, 
               COALESCE(
                 (
                   SELECT jp.title
@@ -1110,6 +1131,9 @@ router.get('/interns', async (req, res) => {
               COALESCE(s.required_ojt_hours, o.required_hours, p.required_ojt_hours, 600) as required_ojt_hours,
               s.first_name, s.last_name, s.student_number, s.completed_ojt_hours,
               p.program_name, i.institution_name,
+              COALESCE(mentor_os.first_name, '') as mentor_first_name,
+              COALESCE(mentor_os.last_name, '') as mentor_last_name,
+              mentor_os.job_title as mentor_title,
               today_att.attendance_id as today_attendance_id,
               today_att.time_in as today_time_in,
               today_att.time_out as today_time_out,
@@ -1120,16 +1144,25 @@ router.get('/interns', async (req, res) => {
        JOIN students s ON o.student_id = s.student_id
        LEFT JOIN programs p ON s.program_id = p.program_id
        LEFT JOIN institutions i ON s.institution_id = i.institution_id
+       LEFT JOIN organization_staff mentor_os ON o.mentor_id = mentor_os.org_staff_id
        LEFT JOIN ojt_attendance_logs today_att ON today_att.attendance_id = (
          SELECT MAX(al.attendance_id)
          FROM ojt_attendance_logs al
          WHERE al.ojt_id = o.ojt_id AND al.log_date = CURRENT_DATE()
        )
        WHERE o.organization_id = ?
-       ORDER BY (CASE WHEN o.status = 'ongoing' THEN 0 ELSE 1 END), o.created_at DESC`,
-      [org.organization_id]
-    );
+    `;
+    const params = [org.organization_id];
 
+    // If requester is a Workplace Mentor, restrict visibility ONLY to interns assigned to them
+    if (isMentor && mentor) {
+      query += ' AND (o.mentor_id = ? OR (o.mentor_id IS NULL AND (o.supervisor_name = ? OR o.supervisor_name = ?)))';
+      params.push(mentor.org_staff_id, `${mentor.first_name} ${mentor.last_name}`, mentor.first_name);
+    }
+
+    query += ' ORDER BY (CASE WHEN o.status = \'ongoing\' THEN 0 ELSE 1 END), o.created_at DESC';
+
+    const [interns] = await pool.query(query, params);
     return res.json({ success: true, data: interns });
   } catch (error) {
     console.error('Fetch org interns error:', error);
@@ -1143,6 +1176,9 @@ router.get('/interns/:id/profile', async (req, res) => {
   try {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Org not found' });
+
+    const isMentor = isMentorUser(req, org);
+    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
 
     const [ojtRows] = await pool.query(
       `SELECT o.*, 
@@ -1167,6 +1203,17 @@ router.get('/interns/:id/profile', async (req, res) => {
     }
 
     const intern = ojtRows[0];
+
+    // Enforce workplace mentor isolation
+    if (isMentor && mentor) {
+      const isAssigned = (intern.mentor_id && intern.mentor_id === mentor.org_staff_id) ||
+                         (intern.supervisor_name === `${mentor.first_name} ${mentor.last_name}`) ||
+                         (intern.supervisor_name === mentor.first_name);
+      if (!isAssigned) {
+        return res.status(403).json({ success: false, message: 'Forbidden: You are not the assigned workplace mentor for this intern.' });
+      }
+    }
+
     const studentId = intern.student_id;
     const isGraduated = intern.ojt_status === 'graduated' || intern.status_id === 5;
     const isOjtCompleter = intern.ojt_status === 'completed' || intern.ojt_status === 'completed_ojt' || intern.status_id === 4 || (intern.completed_ojt_hours && intern.required_ojt_hours && intern.completed_ojt_hours >= intern.required_ojt_hours);
@@ -1195,7 +1242,7 @@ router.get('/interns/:id/profile', async (req, res) => {
               os.first_name as mentor_first_name, os.last_name as mentor_last_name, os.contact_number as mentor_contact
        FROM ojt_records o
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
-       LEFT JOIN organization_staff os ON os.organization_id = o.organization_id AND (os.position = 'workplace_mentor' OR os.position = 'mentor' OR os.position = 'hr_officer')
+       LEFT JOIN organization_staff os ON (o.mentor_id = os.org_staff_id OR (o.mentor_id IS NULL AND os.organization_id = o.organization_id AND os.position = 'workplace_mentor'))
        WHERE o.student_id = ?
        ORDER BY (CASE WHEN o.status = 'completed' THEN 0 ELSE 1 END), o.created_at DESC`,
       [studentId]
@@ -1265,6 +1312,9 @@ router.post('/interns/:ojtId/hours', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Org not found' });
     }
 
+    const isMentor = isMentorUser(req, org);
+    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
+
     const [ojtRows] = await connection.query(
       `SELECT o.*, s.user_id as student_user_id, s.first_name, s.last_name, s.completed_ojt_hours, s.required_ojt_hours,
               ho.organization_name
@@ -1281,6 +1331,18 @@ router.post('/interns/:ojtId/hours', async (req, res) => {
     }
 
     const ojt = ojtRows[0];
+
+    // Enforce workplace mentor isolation
+    if (isMentor && mentor) {
+      const isAssigned = (ojt.mentor_id && ojt.mentor_id === mentor.org_staff_id) ||
+                         (ojt.supervisor_name === `${mentor.first_name} ${mentor.last_name}`) ||
+                         (ojt.supervisor_name === mentor.first_name);
+      if (!isAssigned) {
+        await connection.rollback();
+        return res.status(403).json({ success: false, message: 'Unauthorized: You can only log hours for interns assigned to you.' });
+      }
+    }
+
     const newRendered = (parseFloat(ojt.rendered_hours) || 0) + hoursToAdd;
     const newStudentCompleted = (parseFloat(ojt.completed_ojt_hours) || 0) + hoursToAdd;
 
@@ -1288,9 +1350,10 @@ router.post('/interns/:ojtId/hours', async (req, res) => {
       `UPDATE ojt_records 
        SET rendered_hours = ?, 
            status = CASE WHEN ? >= required_hours THEN 'completed' ELSE status END,
+           mentor_id = COALESCE(mentor_id, ?),
            updated_at = NOW() 
        WHERE ojt_id = ?`,
-      [newRendered, newRendered, ojtId]
+      [newRendered, newRendered, mentor ? mentor.org_staff_id : ojt.mentor_id, ojtId]
     );
 
     await connection.query(
@@ -1308,9 +1371,9 @@ router.post('/interns/:ojtId/hours', async (req, res) => {
 
     await connection.query(
       `INSERT INTO ojt_attendance_logs (
-        ojt_id, student_id, log_date, time_in, time_out, hours_rendered, tasks_accomplished, status, verified_by, verified_at, created_at, updated_at
-      ) VALUES (?, ?, CURRENT_DATE(), '08:00:00', '17:00:00', ?, 'Manual supervisor verified OJT training hours credit.', 'verified', ?, NOW(), NOW(), NOW())`,
-      [ojtId, ojt.student_id, hoursToAdd, req.user.user_id]
+        ojt_id, student_id, mentor_id, log_date, time_in, time_out, hours_rendered, tasks_accomplished, status, verified_by, verified_at, created_at, updated_at
+      ) VALUES (?, ?, ?, CURRENT_DATE(), '08:00:00', '17:00:00', ?, 'Manual supervisor verified OJT training hours credit.', 'verified', ?, NOW(), NOW(), NOW())`,
+      [ojtId, ojt.student_id, mentor ? mentor.org_staff_id : ojt.mentor_id, hoursToAdd, req.user.user_id]
     );
 
     await connection.commit();
@@ -1362,16 +1425,28 @@ router.get('/attendance', async (req, res) => {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Org not found' });
 
+    const isMentor = isMentorUser(req, org);
+    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
+
     let query = `
       SELECT att.*, s.first_name, s.last_name, s.student_number, p.program_name,
-             o.required_hours, o.rendered_hours
+             o.required_hours, o.rendered_hours,
+             COALESCE(mentor_os.first_name, '') as mentor_first_name,
+             COALESCE(mentor_os.last_name, '') as mentor_last_name
       FROM ojt_attendance_logs att
       JOIN ojt_records o ON att.ojt_id = o.ojt_id
       JOIN students s ON att.student_id = s.student_id
       LEFT JOIN programs p ON s.program_id = p.program_id
+      LEFT JOIN organization_staff mentor_os ON (att.mentor_id = mentor_os.org_staff_id OR o.mentor_id = mentor_os.org_staff_id)
       WHERE o.organization_id = ?
     `;
     const params = [org.organization_id];
+
+    // If requester is a Workplace Mentor, restrict visibility ONLY to attendance logs of their assigned interns
+    if (isMentor && mentor) {
+      query += ' AND (att.mentor_id = ? OR o.mentor_id = ? OR (o.mentor_id IS NULL AND (o.supervisor_name = ? OR o.supervisor_name = ?)))';
+      params.push(mentor.org_staff_id, mentor.org_staff_id, `${mentor.first_name} ${mentor.last_name}`, mentor.first_name);
+    }
 
     if (ojt_id) {
       query += ' AND att.ojt_id = ?';
@@ -1414,8 +1489,11 @@ router.post('/attendance/:id/verify', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Org not found' });
     }
 
+    const isMentor = isMentorUser(req, org);
+    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
+
     const [attRows] = await connection.query(
-      `SELECT att.*, o.organization_id, o.ojt_id, s.student_id, s.user_id as student_user_id
+      `SELECT att.*, o.organization_id, o.ojt_id, o.mentor_id as ojt_mentor_id, o.supervisor_name, s.student_id, s.user_id as student_user_id
        FROM ojt_attendance_logs att
        JOIN ojt_records o ON att.ojt_id = o.ojt_id
        JOIN students s ON att.student_id = s.student_id
@@ -1429,15 +1507,31 @@ router.post('/attendance/:id/verify', async (req, res) => {
     }
 
     const att = attRows[0];
+
+    // Enforce workplace mentor isolation: Only assigned mentor can validate
+    if (isMentor && mentor) {
+      const isAssigned = (att.mentor_id && att.mentor_id === mentor.org_staff_id) ||
+                         (att.ojt_mentor_id && att.ojt_mentor_id === mentor.org_staff_id) ||
+                         (att.supervisor_name === `${mentor.first_name} ${mentor.last_name}`) ||
+                         (att.supervisor_name === mentor.first_name);
+      if (!isAssigned) {
+        await connection.rollback();
+        return res.status(403).json({
+          success: false,
+          message: 'Unauthorized: You can only validate or reject attendance logs for interns assigned to you.'
+        });
+      }
+    }
+
     const previousHours = parseFloat(att.hours_rendered) || 0;
     const newHours = hours_rendered !== undefined ? parseFloat(hours_rendered) : previousHours;
 
     if (action === 'verify') {
       await connection.query(
         `UPDATE ojt_attendance_logs 
-         SET status = 'verified', hours_rendered = ?, verified_by = ?, verified_at = NOW(), rejection_notes = NULL
+         SET status = 'verified', hours_rendered = ?, mentor_id = COALESCE(mentor_id, ?), verified_by = ?, verified_at = NOW(), rejection_notes = NULL
          WHERE attendance_id = ?`,
-        [newHours, req.user.user_id, attendanceId]
+        [newHours, mentor ? mentor.org_staff_id : att.mentor_id, req.user.user_id, attendanceId]
       );
 
       // Increment rendered hours on ojt_records and student profile
@@ -1462,9 +1556,9 @@ router.post('/attendance/:id/verify', async (req, res) => {
     } else {
       await connection.query(
         `UPDATE ojt_attendance_logs 
-         SET status = 'rejected', rejection_notes = ?, verified_by = ?, verified_at = NOW()
+         SET status = 'rejected', rejection_notes = ?, mentor_id = COALESCE(mentor_id, ?), verified_by = ?, verified_at = NOW()
          WHERE attendance_id = ?`,
-        [rejection_notes || 'Attendance entry rejected by Mentor.', req.user.user_id, attendanceId]
+        [rejection_notes || 'Attendance entry rejected by Mentor.', mentor ? mentor.org_staff_id : att.mentor_id, req.user.user_id, attendanceId]
       );
 
       // If previously verified, deduct hours
@@ -1517,6 +1611,9 @@ router.post('/interns/:ojtId/time-in', async (req, res) => {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
 
+    const isMentor = isMentorUser(req, org);
+    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
+
     const [ojts] = await pool.query(
       `SELECT o.*, s.student_id, s.first_name, s.last_name, s.user_id as student_user_id
        FROM ojt_records o
@@ -1531,6 +1628,19 @@ router.post('/interns/:ojtId/time-in', async (req, res) => {
 
     const ojt = ojts[0];
 
+    // Enforce workplace mentor isolation: Only assigned mentor can time in
+    if (isMentor && mentor) {
+      const isAssigned = (ojt.mentor_id && ojt.mentor_id === mentor.org_staff_id) ||
+                         (ojt.supervisor_name === `${mentor.first_name} ${mentor.last_name}`) ||
+                         (ojt.supervisor_name === mentor.first_name);
+      if (!isAssigned) {
+        return res.status(403).json({
+          success: false,
+          message: 'Unauthorized: You can only time in interns assigned to you.'
+        });
+      }
+    }
+
     // Disable time-in if student has completed required hours or status is completed
     const reqHours = Number(ojt.required_hours) || 600;
     const renHours = Number(ojt.rendered_hours) || 0;
@@ -1539,6 +1649,18 @@ router.post('/interns/:ojtId/time-in', async (req, res) => {
         success: false,
         message: `${ojt.first_name} has already completed their required OJT hours (${renHours}/${reqHours} hrs). Time In is disabled.`
       });
+    }
+
+    // Ensure ojt_records has mentor_id assigned
+    if (mentor && (!ojt.mentor_id || !ojt.supervisor_name)) {
+      await pool.query(
+        `UPDATE ojt_records 
+         SET mentor_id = COALESCE(mentor_id, ?),
+             supervisor_name = COALESCE(supervisor_name, ?),
+             supervisor_contact = COALESCE(supervisor_contact, ?)
+         WHERE ojt_id = ?`,
+        [mentor.org_staff_id, `${mentor.first_name} ${mentor.last_name}`, mentor.contact_number, ojtId]
+      );
     }
 
     // Check if already timed in today
@@ -1552,6 +1674,8 @@ router.post('/interns/:ojtId/time-in', async (req, res) => {
     const formattedNow = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
     const timeInToRecord = time_in || formattedNow;
 
+    const assignedMentorStaffId = mentor ? mentor.org_staff_id : (ojt.mentor_id || null);
+
     if (existing.length > 0) {
       if (existing[0].time_in) {
         return res.status(400).json({
@@ -1561,15 +1685,15 @@ router.post('/interns/:ojtId/time-in', async (req, res) => {
       }
       await pool.query(
         `UPDATE ojt_attendance_logs 
-         SET time_in = ?, verified_by = ?, verified_at = NOW(), updated_at = NOW()
+         SET time_in = ?, mentor_id = COALESCE(mentor_id, ?), verified_by = ?, verified_at = NOW(), updated_at = NOW()
          WHERE attendance_id = ?`,
-        [timeInToRecord, req.user.user_id, existing[0].attendance_id]
+        [timeInToRecord, assignedMentorStaffId, req.user.user_id, existing[0].attendance_id]
       );
     } else {
       await pool.query(
-        `INSERT INTO ojt_attendance_logs (ojt_id, student_id, log_date, time_in, status, verified_by, verified_at, created_at, updated_at)
-         VALUES (?, ?, CURRENT_DATE(), ?, 'verified', ?, NOW(), NOW(), NOW())`,
-        [ojtId, ojt.student_id, timeInToRecord, req.user.user_id]
+        `INSERT INTO ojt_attendance_logs (ojt_id, student_id, mentor_id, log_date, time_in, status, verified_by, verified_at, created_at, updated_at)
+         VALUES (?, ?, ?, CURRENT_DATE(), ?, 'verified', ?, NOW(), NOW(), NOW())`,
+        [ojtId, ojt.student_id, assignedMentorStaffId, timeInToRecord, req.user.user_id]
       );
     }
 
@@ -1616,6 +1740,9 @@ router.post('/interns/:ojtId/time-out', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Organization not found.' });
     }
 
+    const isMentor = isMentorUser(req, org);
+    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
+
     const [ojts] = await connection.query(
       `SELECT o.*, s.student_id, s.first_name, s.last_name, s.user_id as student_user_id
        FROM ojt_records o
@@ -1630,6 +1757,20 @@ router.post('/interns/:ojtId/time-out', async (req, res) => {
     }
 
     const ojt = ojts[0];
+
+    // Enforce workplace mentor isolation: Only assigned mentor can time out
+    if (isMentor && mentor) {
+      const isAssigned = (ojt.mentor_id && ojt.mentor_id === mentor.org_staff_id) ||
+                         (ojt.supervisor_name === `${mentor.first_name} ${mentor.last_name}`) ||
+                         (ojt.supervisor_name === mentor.first_name);
+      if (!isAssigned) {
+        await connection.rollback();
+        return res.status(403).json({
+          success: false,
+          message: 'Unauthorized: You can only time out interns assigned to you.'
+        });
+      }
+    }
 
     const [existing] = await connection.query(
       'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND log_date = CURRENT_DATE()',
@@ -1660,6 +1801,7 @@ router.post('/interns/:ojtId/time-out', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid training hours rendered (must be between 0 and 24 hours).' });
     }
 
+    const assignedMentorStaffId = mentor ? mentor.org_staff_id : (ojt.mentor_id || null);
     let attendanceId;
     let prevHours = 0;
 
@@ -1669,15 +1811,15 @@ router.post('/interns/:ojtId/time-out', async (req, res) => {
       await connection.query(
         `UPDATE ojt_attendance_logs 
          SET time_out = ?, hours_rendered = ?, tasks_accomplished = ?, status = 'verified',
-             verified_by = ?, verified_at = NOW(), updated_at = NOW()
+             mentor_id = COALESCE(mentor_id, ?), verified_by = ?, verified_at = NOW(), updated_at = NOW()
          WHERE attendance_id = ?`,
-        [timeOutToRecord, computedHours, tasks_accomplished || 'Workplace training shift tasks completed.', req.user.user_id, attendanceId]
+        [timeOutToRecord, computedHours, tasks_accomplished || 'Workplace training shift tasks completed.', assignedMentorStaffId, req.user.user_id, attendanceId]
       );
     } else {
       const [insRes] = await connection.query(
-        `INSERT INTO ojt_attendance_logs (ojt_id, student_id, log_date, time_in, time_out, hours_rendered, tasks_accomplished, status, verified_by, verified_at, created_at, updated_at)
-         VALUES (?, ?, CURRENT_DATE(), '08:00:00', ?, ?, ?, 'verified', ?, NOW(), NOW(), NOW())`,
-        [ojtId, ojt.student_id, timeOutToRecord, computedHours, tasks_accomplished || 'Workplace training shift tasks completed.', req.user.user_id]
+        `INSERT INTO ojt_attendance_logs (ojt_id, student_id, mentor_id, log_date, time_in, time_out, hours_rendered, tasks_accomplished, status, verified_by, verified_at, created_at, updated_at)
+         VALUES (?, ?, ?, CURRENT_DATE(), '08:00:00', ?, ?, ?, 'verified', ?, NOW(), NOW(), NOW())`,
+        [ojtId, ojt.student_id, assignedMentorStaffId, timeOutToRecord, computedHours, tasks_accomplished || 'Workplace training shift tasks completed.', req.user.user_id]
       );
       attendanceId = insRes.insertId;
     }
@@ -1753,6 +1895,9 @@ router.post('/interns/:ojtId/attendance', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Organization not found.' });
     }
 
+    const isMentor = isMentorUser(req, org);
+    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
+
     const [ojts] = await connection.query(
       `SELECT o.*, s.student_id, s.first_name, s.last_name, s.user_id as student_user_id
        FROM ojt_records o
@@ -1767,6 +1912,21 @@ router.post('/interns/:ojtId/attendance', async (req, res) => {
     }
 
     const ojt = ojts[0];
+
+    // Enforce workplace mentor isolation
+    if (isMentor && mentor) {
+      const isAssigned = (ojt.mentor_id && ojt.mentor_id === mentor.org_staff_id) ||
+                         (ojt.supervisor_name === `${mentor.first_name} ${mentor.last_name}`) ||
+                         (ojt.supervisor_name === mentor.first_name);
+      if (!isAssigned) {
+        await connection.rollback();
+        return res.status(403).json({
+          success: false,
+          message: 'Unauthorized: You can only record attendance logs for interns assigned to you.'
+        });
+      }
+    }
+
     const hours = parseFloat(hours_rendered) || 8.0;
 
     if (isNaN(hours) || hours <= 0 || hours > 24) {
@@ -1774,10 +1934,12 @@ router.post('/interns/:ojtId/attendance', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid training hours rendered (must be between 0.1 and 24 hours).' });
     }
 
+    const assignedMentorStaffId = mentor ? mentor.org_staff_id : (ojt.mentor_id || null);
+
     await connection.query(
-      `INSERT INTO ojt_attendance_logs (ojt_id, student_id, log_date, time_in, time_out, hours_rendered, tasks_accomplished, status, verified_by, verified_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'verified', ?, NOW(), NOW(), NOW())`,
-      [ojtId, ojt.student_id, log_date, time_in || '08:00:00', time_out || '17:00:00', hours, tasks_accomplished || 'Shift completed.', req.user.user_id]
+      `INSERT INTO ojt_attendance_logs (ojt_id, student_id, mentor_id, log_date, time_in, time_out, hours_rendered, tasks_accomplished, status, verified_by, verified_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'verified', ?, NOW(), NOW(), NOW())`,
+      [ojtId, ojt.student_id, assignedMentorStaffId, log_date, time_in || '08:00:00', time_out || '17:00:00', hours, tasks_accomplished || 'Shift completed.', req.user.user_id]
     );
 
     await connection.query(
@@ -1835,8 +1997,11 @@ router.put('/attendance/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Organization not found.' });
     }
 
+    const isMentor = isMentorUser(req, org);
+    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
+
     const [attRows] = await connection.query(
-      `SELECT att.*, o.ojt_id, s.student_id
+      `SELECT att.*, o.ojt_id, o.mentor_id as ojt_mentor_id, o.supervisor_name, s.student_id
        FROM ojt_attendance_logs att
        JOIN ojt_records o ON att.ojt_id = o.ojt_id
        JOIN students s ON att.student_id = s.student_id
@@ -1850,6 +2015,22 @@ router.put('/attendance/:id', async (req, res) => {
     }
 
     const att = attRows[0];
+
+    // Enforce workplace mentor isolation
+    if (isMentor && mentor) {
+      const isAssigned = (att.mentor_id && att.mentor_id === mentor.org_staff_id) ||
+                         (att.ojt_mentor_id && att.ojt_mentor_id === mentor.org_staff_id) ||
+                         (att.supervisor_name === `${mentor.first_name} ${mentor.last_name}`) ||
+                         (att.supervisor_name === mentor.first_name);
+      if (!isAssigned) {
+        await connection.rollback();
+        return res.status(403).json({
+          success: false,
+          message: 'Unauthorized: You can only edit attendance logs for interns assigned to you.'
+        });
+      }
+    }
+
     const prevHours = parseFloat(att.hours_rendered) || 0;
     const newHours = hours_rendered !== undefined ? parseFloat(hours_rendered) : prevHours;
 
@@ -1865,11 +2046,12 @@ router.put('/attendance/:id', async (req, res) => {
            hours_rendered = ?,
            tasks_accomplished = COALESCE(?, tasks_accomplished),
            status = 'verified',
+           mentor_id = COALESCE(mentor_id, ?),
            verified_by = ?,
            verified_at = NOW(),
            updated_at = NOW()
        WHERE attendance_id = ?`,
-      [time_in, time_out, newHours, tasks_accomplished, req.user.user_id, attendanceId]
+      [time_in, time_out, newHours, tasks_accomplished, mentor ? mentor.org_staff_id : att.mentor_id, req.user.user_id, attendanceId]
     );
 
     const diff = att.status === 'verified' ? (newHours - prevHours) : newHours;
@@ -1914,36 +2096,60 @@ router.get('/evaluations', async (req, res) => {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Org not found' });
 
-    // Eligible interns: only completed required hours (rendered >= required) AND not yet evaluated
-    const [interns] = await pool.query(
-      `SELECT DISTINCT o.ojt_id, o.rendered_hours, o.required_hours, o.status as ojt_status,
+    const isMentor = isMentorUser(req, org);
+    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
+
+    let internsQuery = `
+      SELECT DISTINCT o.ojt_id, o.rendered_hours, o.required_hours, o.status as ojt_status,
               s.student_id, s.first_name, s.last_name, s.student_number, p.program_name,
-              inst.institution_name
+              inst.institution_name,
+              COALESCE(mentor_os.first_name, '') as mentor_first_name,
+              COALESCE(mentor_os.last_name, '') as mentor_last_name
        FROM ojt_records o
        JOIN students s ON o.student_id = s.student_id
        LEFT JOIN programs p ON s.program_id = p.program_id
        LEFT JOIN institutions inst ON s.institution_id = inst.institution_id
+       LEFT JOIN organization_staff mentor_os ON o.mentor_id = mentor_os.org_staff_id
        WHERE o.organization_id = ?
          AND (o.rendered_hours >= o.required_hours OR o.status = 'completed')
          AND o.ojt_id NOT IN (SELECT ojt_id FROM ojt_performance_records)
-       ORDER BY s.last_name ASC, s.first_name ASC`,
-      [org.organization_id]
-    );
+    `;
+    const internsParams = [org.organization_id];
+
+    if (isMentor && mentor) {
+      internsQuery += ' AND (o.mentor_id = ? OR (o.mentor_id IS NULL AND (o.supervisor_name = ? OR o.supervisor_name = ?)))';
+      internsParams.push(mentor.org_staff_id, `${mentor.first_name} ${mentor.last_name}`, mentor.first_name);
+    }
+
+    internsQuery += ' ORDER BY s.last_name ASC, s.first_name ASC';
+
+    const [interns] = await pool.query(internsQuery, internsParams);
 
     // Finalized evaluations submitted by this organization
-    const [evaluations] = await pool.query(
-      `SELECT r.*, s.first_name, s.last_name, s.student_number, p.program_name,
+    let evalQuery = `
+      SELECT r.*, s.first_name, s.last_name, s.student_number, p.program_name,
               o.rendered_hours, o.required_hours, o.start_date, o.end_date,
-              cert.certificate_code, cert.certificate_id
+              cert.certificate_code, cert.certificate_id,
+              COALESCE(eval_os.first_name, '') as evaluator_first_name,
+              COALESCE(eval_os.last_name, '') as evaluator_last_name
        FROM ojt_performance_records r
        JOIN ojt_records o ON r.ojt_id = o.ojt_id
        JOIN students s ON o.student_id = s.student_id
        LEFT JOIN programs p ON s.program_id = p.program_id
        LEFT JOIN ojt_certificates cert ON o.ojt_id = cert.ojt_id
+       LEFT JOIN organization_staff eval_os ON r.evaluator_id = eval_os.user_id
        WHERE o.organization_id = ?
-       ORDER BY r.evaluated_at DESC`,
-      [org.organization_id]
-    );
+    `;
+    const evalParams = [org.organization_id];
+
+    if (isMentor && mentor) {
+      evalQuery += ' AND (o.mentor_id = ? OR r.evaluator_id = ? OR (o.mentor_id IS NULL AND (o.supervisor_name = ? OR o.supervisor_name = ?)))';
+      evalParams.push(mentor.org_staff_id, req.user.user_id, `${mentor.first_name} ${mentor.last_name}`, mentor.first_name);
+    }
+
+    evalQuery += ' ORDER BY r.evaluated_at DESC';
+
+    const [evaluations] = await pool.query(evalQuery, evalParams);
 
     return res.json({ success: true, data: { interns, evaluations } });
   } catch (error) {
@@ -1963,6 +2169,9 @@ router.post('/evaluations', async (req, res) => {
   try {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Org not found' });
+
+    const isMentor = isMentorUser(req, org);
+    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
 
     let targetOjtId = ojt_id;
     if (!targetOjtId && student_id) {
@@ -1987,6 +2196,19 @@ router.post('/evaluations', async (req, res) => {
     }
 
     const ojtRecord = ojtRows[0];
+
+    // Enforce workplace mentor isolation: Only assigned mentor can evaluate
+    if (isMentor && mentor) {
+      const isAssigned = (ojtRecord.mentor_id && ojtRecord.mentor_id === mentor.org_staff_id) ||
+                         (ojtRecord.supervisor_name === `${mentor.first_name} ${mentor.last_name}`) ||
+                         (ojtRecord.supervisor_name === mentor.first_name);
+      if (!isAssigned) {
+        return res.status(403).json({
+          success: false,
+          message: 'Unauthorized: You can only evaluate performance for interns assigned to you.'
+        });
+      }
+    }
     const renHours = Number(ojtRecord.rendered_hours) || 0;
     const reqHours = Number(ojtRecord.required_hours) || 600;
 
@@ -2674,9 +2896,12 @@ const getOrgGrievancesHandler = async (req, res) => {
       : 'cc.category_name, NULL as incident_category,';
     const evUrlSelect = hasEvidenceUrl ? 'c.evidence_url,' : 'NULL as evidence_url,';
 
+    const isMentor = await isMentorUser(req, org);
+    const mentorStaff = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
+    const mentorFullName = mentorStaff ? `${mentorStaff.first_name || ''} ${mentorStaff.last_name || ''}`.trim() : '';
+
     // Complaints filed by this Organization about interns
-    const [filedComplaints] = await pool.query(
-      `SELECT c.*, 
+    let filedQuery = `SELECT c.*, 
               ${incCatSelect}
               ${evUrlSelect}
               s.first_name, s.last_name, s.student_number, s.institution_id,
@@ -2693,10 +2918,19 @@ const getOrgGrievancesHandler = async (req, res) => {
        LEFT JOIN programs p ON s.program_id = p.program_id
        LEFT JOIN institutions i ON s.institution_id = i.institution_id
        LEFT JOIN accident_reports ar ON c.complaint_id = ar.complaint_id
-       WHERE c.organization_id = ? AND c.complainant_type = 'organization'
-       ORDER BY c.filed_at DESC`,
-      [org.organization_id]
-    );
+       WHERE c.organization_id = ? AND c.complainant_type = 'organization'`;
+    let filedParams = [org.organization_id];
+
+    if (isMentor && mentorStaff) {
+      filedQuery += ` AND (c.student_id IN (
+        SELECT student_id FROM ojt_records 
+        WHERE organization_id = ? AND (mentor_id = ? OR supervisor_name = ? OR supervisor_name = ?)
+      ) OR (c.reported_by = ?))`;
+      filedParams.push(org.organization_id, mentorStaff.org_staff_id, mentorFullName, mentorStaff.first_name || mentorFullName, req.user.user_id);
+    }
+
+    filedQuery += ` ORDER BY c.filed_at DESC`;
+    const [filedComplaints] = await pool.query(filedQuery, filedParams);
 
     // Sanitize any legacy mismatches where an organization filing was assigned an allowance category
     const sanitizedFiledComplaints = filedComplaints.map(c => {
@@ -2734,8 +2968,7 @@ const getOrgGrievancesHandler = async (req, res) => {
     });
 
     // 2. Grievances forwarded by Institutions to this Organization
-    const [forwardedNotices] = await pool.query(
-      `SELECT c.complaint_id, c.subject, c.subject as title, c.description, c.org_notice_summary, c.forwarded_to_org_at,
+    let forwardedQuery = `SELECT c.complaint_id, c.subject, c.subject as title, c.description, c.org_notice_summary, c.forwarded_to_org_at,
               c.include_student_details, c.status, c.filed_at,
               cc.category_name,
               i.institution_name,
@@ -2747,33 +2980,62 @@ const getOrgGrievancesHandler = async (req, res) => {
        JOIN complaint_categories cc ON c.category_id = cc.category_id
        JOIN students s ON c.student_id = s.student_id
        LEFT JOIN institutions i ON s.institution_id = i.institution_id
-       WHERE c.organization_id = ? AND c.forwarded_to_org = 1
-       ORDER BY c.forwarded_to_org_at DESC`,
-      [org.organization_id]
-    );
+       WHERE c.organization_id = ? AND c.forwarded_to_org = 1`;
+    let forwardedParams = [org.organization_id];
+
+    if (isMentor && mentorStaff) {
+      forwardedQuery += ` AND c.student_id IN (
+        SELECT student_id FROM ojt_records 
+        WHERE organization_id = ? AND (mentor_id = ? OR supervisor_name = ? OR supervisor_name = ?)
+      )`;
+      forwardedParams.push(org.organization_id, mentorStaff.org_staff_id, mentorFullName, mentorStaff.first_name || mentorFullName);
+    }
+
+    forwardedQuery += ` ORDER BY c.forwarded_to_org_at DESC`;
+    const [forwardedNotices] = await pool.query(forwardedQuery, forwardedParams);
 
     // 3. Deployed interns eligible for filing incident complaints (from ojt_records, ojt_deployment_offers, and job_applications)
-    const [deployedStudents] = await pool.query(
-      `SELECT DISTINCT s.student_id, s.first_name, s.last_name,
-              CONCAT(s.first_name, ' ', s.last_name) as student_name,
-              s.student_number,
-              s.institution_id, i.institution_name, p.program_name,
-              COALESCE(p.program_name, 'Intern') as course
-       FROM students s
-       LEFT JOIN institutions i ON s.institution_id = i.institution_id
-       LEFT JOIN programs p ON s.program_id = p.program_id
-       WHERE s.student_id IN (
-         SELECT student_id FROM ojt_records WHERE organization_id = ?
-         UNION
-         SELECT student_id FROM ojt_deployment_offers WHERE organization_id = ? AND status IN ('accepted', 'deployed', 'active')
-         UNION
-         SELECT ja.student_id FROM job_applications ja 
-         JOIN job_postings jp ON ja.job_id = jp.job_id 
-         WHERE jp.organization_id = ? AND ja.status IN ('accepted', 'hired', 'offered', 'deployed')
-       )
-       ORDER BY s.last_name ASC`,
-      [org.organization_id, org.organization_id, org.organization_id]
-    );
+    let deployedStudents = [];
+    if (isMentor && mentorStaff) {
+      const [mentorInterns] = await pool.query(
+        `SELECT DISTINCT s.student_id, s.first_name, s.last_name,
+                CONCAT(s.first_name, ' ', s.last_name) as student_name,
+                s.student_number,
+                s.institution_id, i.institution_name, p.program_name,
+                COALESCE(p.program_name, 'Intern') as course
+         FROM students s
+         LEFT JOIN institutions i ON s.institution_id = i.institution_id
+         LEFT JOIN programs p ON s.program_id = p.program_id
+         JOIN ojt_records o ON s.student_id = o.student_id
+         WHERE o.organization_id = ? AND (o.mentor_id = ? OR o.supervisor_name = ? OR o.supervisor_name = ?)
+         ORDER BY s.last_name ASC`,
+        [org.organization_id, mentorStaff.org_staff_id, mentorFullName, mentorStaff.first_name || mentorFullName]
+      );
+      deployedStudents = mentorInterns;
+    } else {
+      const [allDeployed] = await pool.query(
+        `SELECT DISTINCT s.student_id, s.first_name, s.last_name,
+                CONCAT(s.first_name, ' ', s.last_name) as student_name,
+                s.student_number,
+                s.institution_id, i.institution_name, p.program_name,
+                COALESCE(p.program_name, 'Intern') as course
+         FROM students s
+         LEFT JOIN institutions i ON s.institution_id = i.institution_id
+         LEFT JOIN programs p ON s.program_id = p.program_id
+         WHERE s.student_id IN (
+           SELECT student_id FROM ojt_records WHERE organization_id = ?
+           UNION
+           SELECT student_id FROM ojt_deployment_offers WHERE organization_id = ? AND status IN ('accepted', 'deployed', 'active')
+           UNION
+           SELECT ja.student_id FROM job_applications ja 
+           JOIN job_postings jp ON ja.job_id = jp.job_id 
+           WHERE jp.organization_id = ? AND ja.status IN ('accepted', 'hired', 'offered', 'deployed')
+         )
+         ORDER BY s.last_name ASC`,
+        [org.organization_id, org.organization_id, org.organization_id]
+      );
+      deployedStudents = allDeployed;
+    }
 
     const [categories] = await pool.query('SELECT * FROM complaint_categories ORDER BY category_name ASC');
 
@@ -2859,6 +3121,32 @@ router.post('/complaints', async (req, res) => {
       await connection.rollback();
       connection.release();
       return res.status(404).json({ success: false, message: 'Organization profile not found.' });
+    }
+
+    // Verify if requester is a workplace mentor and enforce student assignment
+    const isMentor = isMentorUser(req, org);
+    if (isMentor) {
+      const mentorStaff = await getMentorStaffId(req.user.user_id, org.organization_id);
+      if (!mentorStaff) {
+        await connection.rollback();
+        connection.release();
+        return res.status(403).json({ success: false, message: 'You are not registered as a workplace mentor in this organization.' });
+      }
+      const mentorFullName = `${mentorStaff.first_name || ''} ${mentorStaff.last_name || ''}`.trim();
+      const [assigned] = await connection.query(
+        `SELECT ojt_id FROM ojt_records 
+         WHERE student_id = ? AND organization_id = ? 
+           AND (mentor_id = ? OR supervisor_name = ? OR supervisor_name = ?)`,
+        [student_id, org.organization_id, mentorStaff.org_staff_id, mentorFullName, mentorStaff.first_name || mentorFullName]
+      );
+      if (assigned.length === 0) {
+        await connection.rollback();
+        connection.release();
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied: You can only file Incident Reports & Grievances for interns assigned to you.'
+        });
+      }
     }
 
     // Verify student and retrieve student's institution

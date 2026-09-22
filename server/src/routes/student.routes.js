@@ -664,9 +664,9 @@ router.post('/applications/:id/respond', async (req, res) => {
     const student = await getStudentId(req.user.user_id);
     const studentId = student.student_id;
 
-    // Get application details
+    // Get application details with mentor info from job posting
     const [apps] = await connection.query(
-      `SELECT ja.*, jp.organization_id, jp.job_id, jp.title as job_title, ho.organization_name
+      `SELECT ja.*, jp.organization_id, jp.job_id, jp.title as job_title, jp.mentor_id, ho.organization_name
        FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
        JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
@@ -688,12 +688,24 @@ router.post('/applications/:id/respond', async (req, res) => {
       [appStatus, action === 'accepted' ? new Date() : null, appId]
     );
 
-    // If accepted, create active ojt_record
+    // If accepted, create active ojt_record with assigned mentor
     if (action === 'accepted') {
+      let mentorStaff = null;
+      if (app.mentor_id) {
+        const [mRows] = await connection.query(
+          'SELECT org_staff_id, first_name, last_name, contact_number, position FROM organization_staff WHERE org_staff_id = ?',
+          [app.mentor_id]
+        );
+        if (mRows.length > 0) mentorStaff = mRows[0];
+      }
+
+      const supervisorName = mentorStaff ? `${mentorStaff.first_name} ${mentorStaff.last_name}`.trim() : null;
+      const supervisorContact = mentorStaff ? mentorStaff.contact_number : null;
+
       await connection.query(
-        `INSERT INTO ojt_records (student_id, organization_id, program_id, required_hours, rendered_hours, status, start_date)
-         VALUES (?, ?, ?, ?, 0, 'ongoing', CURRENT_DATE)`,
-        [studentId, app.organization_id, student.program_id, student.required_ojt_hours || 600]
+        `INSERT INTO ojt_records (student_id, organization_id, mentor_id, program_id, required_hours, rendered_hours, status, supervisor_name, supervisor_contact, start_date)
+         VALUES (?, ?, ?, ?, ?, 0, 'ongoing', ?, ?, CURRENT_DATE)`,
+        [studentId, app.organization_id, app.mentor_id || null, student.program_id, student.required_ojt_hours || 600, supervisorName, supervisorContact]
       );
     }
 
@@ -740,18 +752,18 @@ router.get('/ojt', async (req, res) => {
       `SELECT o.*, 
               COALESCE(o.required_hours, s.required_ojt_hours, p.required_ojt_hours, 600) as required_hours,
               ho.organization_name, ho.industry, ho.contact_email,
-              COALESCE(os.first_name, '') as mentor_first_name,
-              COALESCE(os.last_name, '') as mentor_last_name,
-              os.job_title as mentor_title,
-              os.department as mentor_department,
-              os.contact_number as mentor_contact
+              COALESCE(os.first_name, SUBSTRING_INDEX(o.supervisor_name, ' ', 1), '') as mentor_first_name,
+              COALESCE(os.last_name, SUBSTRING(o.supervisor_name, LENGTH(SUBSTRING_INDEX(o.supervisor_name, ' ', 1)) + 2), '') as mentor_last_name,
+              COALESCE(os.job_title, 'Workplace Mentor') as mentor_title,
+              COALESCE(os.department, 'Workplace Mentorship') as mentor_department,
+              COALESCE(os.contact_number, o.supervisor_contact, '') as mentor_contact
        FROM ojt_records o
        JOIN students s ON o.student_id = s.student_id
        LEFT JOIN programs p ON s.program_id = p.program_id
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
-       LEFT JOIN organization_staff os ON os.organization_id = o.organization_id AND (os.position = 'workplace_mentor' OR os.position = 'mentor' OR os.position = 'hr_officer')
+       LEFT JOIN organization_staff os ON o.mentor_id = os.org_staff_id
        WHERE o.student_id = ?
-       ORDER BY (CASE WHEN os.position = 'workplace_mentor' THEN 0 ELSE 1 END), o.created_at DESC`,
+       ORDER BY o.created_at DESC`,
       [student.student_id]
     );
 
@@ -792,18 +804,18 @@ router.get('/attendance', async (req, res) => {
       `SELECT o.*, 
               COALESCE(o.required_hours, s.required_ojt_hours, p.required_ojt_hours, 600) as required_hours,
               ho.organization_name, ho.industry, ho.contact_email,
-              COALESCE(os.first_name, '') as mentor_first_name,
-              COALESCE(os.last_name, '') as mentor_last_name,
-              os.job_title as mentor_title,
-              os.department as mentor_department,
-              os.contact_number as mentor_contact
+              COALESCE(os.first_name, SUBSTRING_INDEX(o.supervisor_name, ' ', 1), '') as mentor_first_name,
+              COALESCE(os.last_name, SUBSTRING(o.supervisor_name, LENGTH(SUBSTRING_INDEX(o.supervisor_name, ' ', 1)) + 2), '') as mentor_last_name,
+              COALESCE(os.job_title, 'Workplace Mentor') as mentor_title,
+              COALESCE(os.department, 'Workplace Mentorship') as mentor_department,
+              COALESCE(os.contact_number, o.supervisor_contact, '') as mentor_contact
        FROM ojt_records o
        JOIN students s ON o.student_id = s.student_id
        LEFT JOIN programs p ON s.program_id = p.program_id
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
-       LEFT JOIN organization_staff os ON os.organization_id = o.organization_id AND (os.position = 'workplace_mentor' OR os.position = 'mentor' OR os.position = 'hr_officer')
+       LEFT JOIN organization_staff os ON o.mentor_id = os.org_staff_id
        WHERE o.student_id = ? AND o.status = 'ongoing'
-       ORDER BY (CASE WHEN os.position = 'workplace_mentor' THEN 0 ELSE 1 END), o.created_at DESC
+       ORDER BY o.created_at DESC
        LIMIT 1`,
       [student.student_id]
     );
@@ -812,26 +824,41 @@ router.get('/attendance', async (req, res) => {
 
     // Fetch attendance logs with mentor verification info
     const [logs] = await pool.query(
-      `SELECT att.*, ho.organization_name,
+      `SELECT att.*, 
+              DATE_FORMAT(att.log_date, '%Y-%m-%d') as log_date_str,
+              ho.organization_name,
               COALESCE(os.first_name, v_os.first_name, 'Workplace') as mentor_first_name,
               COALESCE(os.last_name, v_os.last_name, 'Mentor') as mentor_last_name,
               COALESCE(os.job_title, v_os.job_title, 'Supervisor') as mentor_title
        FROM ojt_attendance_logs att
        JOIN ojt_records o ON att.ojt_id = o.ojt_id
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
-       LEFT JOIN organization_staff os ON att.mentor_id = os.org_staff_id
+       LEFT JOIN organization_staff os ON COALESCE(att.mentor_id, o.mentor_id) = os.org_staff_id
        LEFT JOIN organization_staff v_os ON att.verified_by = v_os.user_id
        WHERE att.student_id = ?
        ORDER BY att.log_date DESC, att.time_in DESC`,
       [student.student_id]
     );
 
-    // Check today's active log
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayLog = logs.find(l => {
-      const d = new Date(l.log_date).toISOString().split('T')[0];
-      return d === todayStr;
-    }) || null;
+    // Fetch today's active log using MySQL CURRENT_DATE() directly for 100% accuracy and timezone safety
+    const [todayRows] = await pool.query(
+      `SELECT att.*,
+              DATE_FORMAT(att.log_date, '%Y-%m-%d') as log_date_str,
+              ho.organization_name,
+              COALESCE(os.first_name, v_os.first_name, 'Workplace') as mentor_first_name,
+              COALESCE(os.last_name, v_os.last_name, 'Mentor') as mentor_last_name,
+              COALESCE(os.job_title, v_os.job_title, 'Supervisor') as mentor_title
+       FROM ojt_attendance_logs att
+       JOIN ojt_records o ON att.ojt_id = o.ojt_id
+       JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
+       LEFT JOIN organization_staff os ON COALESCE(att.mentor_id, o.mentor_id) = os.org_staff_id
+       LEFT JOIN organization_staff v_os ON att.verified_by = v_os.user_id
+       WHERE att.student_id = ? AND att.log_date = CURRENT_DATE()
+       ORDER BY att.attendance_id DESC
+       LIMIT 1`,
+      [student.student_id]
+    );
+    const todayLog = todayRows.length > 0 ? todayRows[0] : null;
 
     return res.json({
       success: true,

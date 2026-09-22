@@ -268,6 +268,63 @@ export async function runMigrations() {
     `);
     console.log('[Migration] ojt_attendance_logs table ready.');
 
+    // 11b. Ensure ojt_records has mentor_id and backfill assigned mentors
+    const [ojtCols] = await pool.query('DESCRIBE ojt_records');
+    const ojtColNames = ojtCols.map(c => c.Field);
+    if (!ojtColNames.includes('mentor_id')) {
+      await pool.query('ALTER TABLE ojt_records ADD COLUMN mentor_id BIGINT UNSIGNED NULL AFTER organization_id');
+      console.log('[Migration] Added mentor_id column to ojt_records');
+    }
+    await pool.query('CREATE INDEX idx_ojt_mentor ON ojt_records(mentor_id)').catch(() => {});
+
+    // Backfill ojt_records.mentor_id from job_postings where student applied
+    await pool.query(`
+      UPDATE ojt_records o
+      JOIN job_applications ja ON o.student_id = ja.student_id
+      JOIN job_postings jp ON ja.job_id = jp.job_id AND jp.organization_id = o.organization_id
+      SET o.mentor_id = jp.mentor_id
+      WHERE o.mentor_id IS NULL AND jp.mentor_id IS NOT NULL
+    `).catch(() => {});
+
+    // Backfill ojt_records.mentor_id from supervisor_name matching organization_staff
+    await pool.query(`
+      UPDATE ojt_records o
+      JOIN organization_staff os ON o.organization_id = os.organization_id 
+        AND (o.supervisor_name = CONCAT(os.first_name, ' ', os.last_name) OR o.supervisor_name = os.first_name)
+      SET o.mentor_id = os.org_staff_id
+      WHERE o.mentor_id IS NULL
+    `).catch(() => {});
+
+    // Fallback: assign to first active workplace mentor in the organization if still null
+    await pool.query(`
+      UPDATE ojt_records o
+      JOIN (
+        SELECT organization_id, MIN(org_staff_id) as first_mentor_id
+        FROM organization_staff
+        WHERE position = 'workplace_mentor' OR position = 'mentor'
+        GROUP BY organization_id
+      ) m ON o.organization_id = m.organization_id
+      SET o.mentor_id = m.first_mentor_id
+      WHERE o.mentor_id IS NULL
+    `).catch(() => {});
+
+    // Sync supervisor_name & supervisor_contact on ojt_records from organization_staff
+    await pool.query(`
+      UPDATE ojt_records o
+      JOIN organization_staff os ON o.mentor_id = os.org_staff_id
+      SET o.supervisor_name = CONCAT(os.first_name, ' ', os.last_name),
+          o.supervisor_contact = os.contact_number
+      WHERE o.supervisor_name IS NULL OR o.supervisor_name = ''
+    `).catch(() => {});
+
+    // Backfill ojt_attendance_logs.mentor_id from ojt_records
+    await pool.query(`
+      UPDATE ojt_attendance_logs al
+      JOIN ojt_records o ON al.ojt_id = o.ojt_id
+      SET al.mentor_id = o.mentor_id
+      WHERE al.mentor_id IS NULL AND o.mentor_id IS NOT NULL
+    `).catch(() => {});
+
     // 12. Create master_programs if missing
     await pool.query(`
       CREATE TABLE IF NOT EXISTS master_programs (
@@ -860,6 +917,104 @@ export async function runMigrations() {
       console.log('[Migration] Complaints, accident reports, and grievance workflow tables aligned.');
     } catch (arErr) {
       console.warn('[Migration Warning] Grievance workflow migration error:', arErr.message);
+    }
+
+    // 28. Add mentor_id to ojt_records and ojt_attendance_logs for mentor assignment tracking
+    try {
+      const [ojtCols] = await pool.query('DESCRIBE ojt_records');
+      const ojtColNames = ojtCols.map(c => c.Field);
+
+      if (!ojtColNames.includes('mentor_id')) {
+        await pool.query('ALTER TABLE ojt_records ADD COLUMN mentor_id BIGINT UNSIGNED NULL AFTER organization_id');
+        console.log('[Migration] Added mentor_id to ojt_records');
+      }
+
+      // Ensure supervisor_name and supervisor_contact exist for fallback
+      if (!ojtColNames.includes('supervisor_name')) {
+        await pool.query("ALTER TABLE ojt_records ADD COLUMN supervisor_name VARCHAR(150) NULL");
+        console.log('[Migration] Added supervisor_name to ojt_records');
+      }
+      if (!ojtColNames.includes('supervisor_contact')) {
+        await pool.query("ALTER TABLE ojt_records ADD COLUMN supervisor_contact VARCHAR(100) NULL");
+        console.log('[Migration] Added supervisor_contact to ojt_records');
+      }
+
+      // Create index on mentor_id
+      try {
+        await pool.query('CREATE INDEX idx_ojt_mentor ON ojt_records(mentor_id)');
+        console.log('[Migration] Created index idx_ojt_mentor');
+      } catch (_) { /* index may already exist */ }
+
+      // Add mentor_id to ojt_attendance_logs
+      const [attCols] = await pool.query('DESCRIBE ojt_attendance_logs');
+      const attColNames = attCols.map(c => c.Field);
+      if (!attColNames.includes('mentor_id')) {
+        await pool.query('ALTER TABLE ojt_attendance_logs ADD COLUMN mentor_id BIGINT UNSIGNED NULL AFTER ojt_id');
+        console.log('[Migration] Added mentor_id to ojt_attendance_logs');
+      }
+
+      // Backfill ojt_records.mentor_id from job_postings via job_applications
+      const [unassigned] = await pool.query(
+        `SELECT o.ojt_id, o.student_id, o.organization_id
+         FROM ojt_records o
+         WHERE o.mentor_id IS NULL`
+      );
+      if (unassigned.length > 0) {
+        for (const rec of unassigned) {
+          // Try to find mentor from the job posting the student applied to
+          const [jpRows] = await pool.query(
+            `SELECT jp.mentor_id
+             FROM job_applications ja
+             JOIN job_postings jp ON ja.job_id = jp.job_id
+             WHERE ja.student_id = ? AND jp.organization_id = ? AND jp.mentor_id IS NOT NULL
+             ORDER BY ja.application_id DESC LIMIT 1`,
+            [rec.student_id, rec.organization_id]
+          );
+          if (jpRows.length > 0 && jpRows[0].mentor_id) {
+            const mId = jpRows[0].mentor_id;
+            const [mRows] = await pool.query(
+              'SELECT first_name, last_name, contact_number FROM organization_staff WHERE org_staff_id = ?',
+              [mId]
+            );
+            const supName = mRows.length > 0 ? `${mRows[0].first_name} ${mRows[0].last_name}`.trim() : null;
+            const supContact = mRows.length > 0 ? mRows[0].contact_number : null;
+            await pool.query(
+              'UPDATE ojt_records SET mentor_id = ?, supervisor_name = COALESCE(supervisor_name, ?), supervisor_contact = COALESCE(supervisor_contact, ?) WHERE ojt_id = ?',
+              [mId, supName, supContact, rec.ojt_id]
+            );
+          } else {
+            // Fallback: assign the first workplace_mentor in the org
+            const [mentors] = await pool.query(
+              `SELECT org_staff_id, first_name, last_name, contact_number
+               FROM organization_staff
+               WHERE organization_id = ? AND (position = 'workplace_mentor' OR position = 'mentor')
+               ORDER BY org_staff_id ASC LIMIT 1`,
+              [rec.organization_id]
+            );
+            if (mentors.length > 0) {
+              const m = mentors[0];
+              await pool.query(
+                'UPDATE ojt_records SET mentor_id = ?, supervisor_name = COALESCE(supervisor_name, ?), supervisor_contact = COALESCE(supervisor_contact, ?) WHERE ojt_id = ?',
+                [m.org_staff_id, `${m.first_name} ${m.last_name}`.trim(), m.contact_number, rec.ojt_id]
+              );
+            }
+          }
+        }
+        console.log(`[Migration] Backfilled mentor_id for ${unassigned.length} ojt_records.`);
+      }
+
+      // Backfill ojt_attendance_logs.mentor_id from ojt_records
+      await pool.query(
+        `UPDATE ojt_attendance_logs att
+         JOIN ojt_records o ON att.ojt_id = o.ojt_id
+         SET att.mentor_id = o.mentor_id
+         WHERE att.mentor_id IS NULL AND o.mentor_id IS NOT NULL`
+      );
+      console.log('[Migration] Backfilled ojt_attendance_logs.mentor_id from ojt_records.');
+
+      console.log('[Migration] Mentor assignment tracking columns aligned.');
+    } catch (mentorErr) {
+      console.warn('[Migration Warning] Mentor assignment migration error:', mentorErr.message);
     }
 
     console.log('[Migration] All schema alignments completed successfully!');

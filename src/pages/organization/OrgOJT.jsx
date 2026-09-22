@@ -509,6 +509,12 @@ export default function OrgOJT() {
                         <td className="py-3 px-4">
                           <p className="font-bold text-on-surface">{intern.first_name} {intern.last_name}</p>
                           <p className="text-xs text-on-surface-variant">ID #{intern.student_number}</p>
+                          {(intern.mentor_first_name || intern.supervisor_name) && (
+                            <p className="text-[11px] text-primary dark:text-primary-container font-medium mt-0.5 flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[13px]">person_check</span>
+                              <span>Mentor: {intern.mentor_first_name ? `${intern.mentor_first_name} ${intern.mentor_last_name}` : intern.supervisor_name}</span>
+                            </p>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-xs text-on-surface-variant">
                           <p className="font-bold text-on-surface">{intern.institution_name}</p>
@@ -667,6 +673,12 @@ export default function OrgOJT() {
                       <td className="py-3 px-4">
                         <p className="font-bold text-xs text-on-surface">{log.first_name} {log.last_name}</p>
                         <p className="text-[11px] text-on-surface-variant">#{log.student_number}</p>
+                        {log.mentor_first_name && (
+                          <p className="text-[10px] text-on-surface-variant flex items-center gap-0.5 mt-0.5">
+                            <span className="material-symbols-outlined text-[11px] text-vibrant-orange">person</span>
+                            <span>Mentor: {log.mentor_first_name} {log.mentor_last_name}</span>
+                          </p>
+                        )}
                       </td>
                       <td className="py-3 px-4 font-mono text-xs text-on-surface">{log.time_in ? log.time_in.slice(0, 5) : '—'}</td>
                       <td className="py-3 px-4 font-mono text-xs text-on-surface">{log.time_out ? log.time_out.slice(0, 5) : (log.time_in ? 'In Progress' : '—')}</td>
