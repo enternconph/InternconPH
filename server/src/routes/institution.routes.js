@@ -1088,6 +1088,7 @@ router.post('/staff/access-code', async (req, res) => {
 
     const isCallerDean = (req.user.role === 'institution_staff' && (scope.isDean || req.user.position === 'dean' || scope.position === 'dean'));
     const isCallerRestricted = (req.user.role === 'institution_staff' && scope.isRestricted);
+    const isDeanOrRestricted = isCallerDean || isCallerRestricted;
 
     if (isCallerDean) {
       if (position === 'dean') {
