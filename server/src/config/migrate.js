@@ -694,18 +694,173 @@ export async function runMigrations() {
     `);
     console.log('[Migration] stored_uploads table aligned.');
 
-    // 27. Ensure accident_reports has admin_read_at column for mark-as-read tracking
+    // 27. Ensure accident_reports, institution_reports, complaints, and complaint_evidence are fully aligned
     try {
+      console.log('[Migration] Aligning complaints, accident_reports, and grievance workflow tables...');
+
+      // 27a. Align complaints table
+      const [compCols] = await pool.query('DESCRIBE complaints');
+      const compColNames = compCols.map(c => c.Field);
+
+      if (!compColNames.includes('complainant_type')) {
+        await pool.query("ALTER TABLE complaints ADD COLUMN complainant_type ENUM('student', 'organization') DEFAULT 'student' AFTER student_id");
+        console.log('[Migration] Added complainant_type to complaints');
+      }
+      if (!compColNames.includes('is_accident')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN is_accident TINYINT(1) DEFAULT 0 AFTER description');
+        console.log('[Migration] Added is_accident to complaints');
+      }
+      if (!compColNames.includes('forwarded_to_org')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN forwarded_to_org TINYINT(1) DEFAULT 0 AFTER is_accident');
+        console.log('[Migration] Added forwarded_to_org to complaints');
+      }
+      if (!compColNames.includes('forwarded_to_org_at')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN forwarded_to_org_at DATETIME NULL AFTER forwarded_to_org');
+        console.log('[Migration] Added forwarded_to_org_at to complaints');
+      }
+      if (!compColNames.includes('org_notice_summary')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN org_notice_summary TEXT NULL AFTER forwarded_to_org_at');
+        console.log('[Migration] Added org_notice_summary to complaints');
+      }
+      if (!compColNames.includes('include_student_details')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN include_student_details TINYINT(1) DEFAULT 0 AFTER org_notice_summary');
+        console.log('[Migration] Added include_student_details to complaints');
+      }
+      if (!compColNames.includes('warning_note_to_student')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN warning_note_to_student TEXT NULL AFTER include_student_details');
+        console.log('[Migration] Added warning_note_to_student to complaints');
+      }
+      if (!compColNames.includes('warning_sent_at')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN warning_sent_at DATETIME NULL AFTER warning_note_to_student');
+        console.log('[Migration] Added warning_sent_at to complaints');
+      }
+      if (!compColNames.includes('incident_category')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN incident_category VARCHAR(150) NULL AFTER category_id');
+        console.log('[Migration] Added incident_category to complaints');
+      }
+      if (!compColNames.includes('evidence_url')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN evidence_url VARCHAR(500) NULL AFTER description');
+        console.log('[Migration] Added evidence_url to complaints');
+      }
+
+      // 27b. Ensure accident_reports table exists and has all columns
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS accident_reports (
+          accident_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          complaint_id BIGINT UNSIGNED NOT NULL,
+          organization_id BIGINT UNSIGNED NOT NULL,
+          student_id BIGINT UNSIGNED NOT NULL,
+          incident_datetime DATETIME NOT NULL,
+          location VARCHAR(255) NOT NULL,
+          severity ENUM('minor', 'moderate', 'severe', 'critical', 'fatal') NOT NULL DEFAULT 'moderate',
+          injury_description TEXT NOT NULL,
+          medical_attention_given TEXT,
+          witnesses TEXT,
+          immediate_action_taken TEXT,
+          preventive_measures TEXT,
+          reported_by BIGINT UNSIGNED NOT NULL,
+          admin_read_at DATETIME NULL DEFAULT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_complaint (complaint_id),
+          INDEX idx_org (organization_id),
+          INDEX idx_student (student_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
       const [arCols] = await pool.query('DESCRIBE accident_reports');
       const arColNames = arCols.map(c => c.Field);
       if (!arColNames.includes('admin_read_at')) {
         await pool.query('ALTER TABLE accident_reports ADD COLUMN admin_read_at DATETIME NULL DEFAULT NULL AFTER reported_by');
         console.log('[Migration] Added admin_read_at to accident_reports');
       }
+      await pool.query("ALTER TABLE accident_reports MODIFY COLUMN severity ENUM('minor', 'moderate', 'severe', 'critical', 'fatal') NOT NULL DEFAULT 'moderate'").catch(() => {});
+
+      // 27c. Ensure institution_reports table exists
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS institution_reports (
+          report_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          institution_id BIGINT UNSIGNED NOT NULL,
+          organization_id BIGINT UNSIGNED NOT NULL,
+          complaint_id BIGINT UNSIGNED NOT NULL,
+          category_id INT UNSIGNED NOT NULL,
+          title VARCHAR(200) NOT NULL,
+          findings TEXT NOT NULL,
+          recommendation TEXT NOT NULL,
+          action_taken TEXT,
+          reported_by BIGINT UNSIGNED NOT NULL,
+          status ENUM('submitted', 'under_review', 'action_taken', 'closed') DEFAULT 'submitted',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_inst (institution_id),
+          INDEX idx_org (organization_id),
+          INDEX idx_complaint (complaint_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
+      // 27d. Ensure complaint_evidence table exists
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS complaint_evidence (
+          evidence_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          complaint_id BIGINT UNSIGNED NOT NULL,
+          file_path VARCHAR(500) NOT NULL,
+          file_type VARCHAR(50) NULL,
+          description TEXT NULL,
+          uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_comp_ev (complaint_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+
+      // 27e. Align notifications table
+      const [notifCols] = await pool.query('DESCRIBE notifications');
+      const notifColNames = notifCols.map(c => c.Field);
+      if (!notifColNames.includes('sender_id')) {
+        await pool.query('ALTER TABLE notifications ADD COLUMN sender_id BIGINT UNSIGNED NULL AFTER user_id');
+      }
+      if (!notifColNames.includes('sender_name')) {
+        await pool.query('ALTER TABLE notifications ADD COLUMN sender_name VARCHAR(150) NULL AFTER sender_id');
+      }
+      if (!notifColNames.includes('link')) {
+        await pool.query('ALTER TABLE notifications ADD COLUMN link VARCHAR(255) NULL AFTER message');
+      }
+      if (!notifColNames.includes('related_type')) {
+        await pool.query('ALTER TABLE notifications ADD COLUMN related_type VARCHAR(50) NULL AFTER link');
+      }
+      if (!notifColNames.includes('related_id')) {
+        await pool.query('ALTER TABLE notifications ADD COLUMN related_id BIGINT UNSIGNED NULL AFTER related_type');
+      }
+
+      // 27f. Seed standard complaint categories if missing
+      const standardCategories = [
+        ['General Misconduct / Unprofessional Behavior', 'Unprofessional conduct, behavioral infractions, or workplace disruption'],
+        ['Chronic Absenteeism / Unauthorized Tardiness', 'Unexcused absences, chronic lateness, or schedule abandonment'],
+        ['Safety Protocol Violation', 'Disregard of safety equipment, PPE, or operational health standards'],
+        ['Company Property Damage / Negligence', 'Negligent handling or willful damage to organization property, hardware, or facilities'],
+        ['Breach of NDA / Data Confidentiality', 'Unauthorized disclosure of proprietary data, intellectual property, or confidential client records'],
+        ['Interpersonal Conflict / Harassment', 'Verbal hostility, bullying, or conflict with colleagues or supervisors'],
+        ['Other Workplace Concern', 'General behavioral or workplace conduct matters'],
+        ['Workplace Accident & Physical Injury', 'Physical trauma, injury, or acute medical incident during work shift'],
+        ['Slip, Trip or Fall Incident', 'Slips, trips, or falls within facility premises'],
+        ['Machinery / Equipment Hazard', 'Injuries resulting from tools, machines, or laboratory apparatus'],
+        ['Chemical / Hazardous Exposure', 'Exposure to chemicals, biohazards, fumes, or toxic substances'],
+        ['Physical Strain / Ergonomic Injury', 'Acute musculoskeletal strain from heavy lifting or repetitive trauma'],
+        ['Medical Emergency / Acute Physical Trauma', 'Sudden medical event, fainting, cardiac, or respiratory distress on duty'],
+        ['Other Workplace Safety Incident', 'General workplace safety or physical hazard event']
+      ];
+
+      for (const [catName, catDesc] of standardCategories) {
+        const [found] = await pool.query('SELECT category_id FROM complaint_categories WHERE category_name = ? LIMIT 1', [catName]);
+        if (found.length === 0) {
+          await pool.query('INSERT INTO complaint_categories (category_name, description) VALUES (?, ?)', [catName, catDesc]);
+        }
+      }
+
+      console.log('[Migration] Complaints, accident reports, and grievance workflow tables aligned.');
     } catch (arErr) {
-      console.warn('[Migration Warning] accident_reports check failed:', arErr.message);
+      console.warn('[Migration Warning] Grievance workflow migration error:', arErr.message);
     }
-    console.log('[Migration] accident_reports table aligned.');
 
     console.log('[Migration] All schema alignments completed successfully!');
   } catch (error) {

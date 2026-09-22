@@ -2939,12 +2939,39 @@ router.post('/complaints', async (req, res) => {
       }
     }
 
+    let connectionReleased = false;
+
+    // Check available columns in complaints to prevent ER_BAD_FIELD_ERROR on unmigrated deployments
+    const [compCols] = await connection.query('DESCRIBE complaints');
+    const compColNames = compCols.map(c => c.Field);
+
+    const compFields = ['student_id', 'organization_id', 'category_id', 'job_id', 'subject', 'description', 'status', 'filed_at', 'created_at', 'updated_at'];
+    const compPlaceholders = ['?', '?', '?', '?', '?', '?', "'submitted'", 'NOW()', 'NOW()', 'NOW()'];
+    const compValues = [student_id, org.organization_id, catId, job_id || null, subject, description];
+
+    if (compColNames.includes('incident_category')) {
+      compFields.push('incident_category');
+      compPlaceholders.push('?');
+      compValues.push(targetCategoryName);
+    }
+    if (compColNames.includes('evidence_url')) {
+      compFields.push('evidence_url');
+      compPlaceholders.push('?');
+      compValues.push(evidence_url || null);
+    }
+    if (compColNames.includes('complainant_type')) {
+      compFields.push('complainant_type');
+      compPlaceholders.push("'organization'");
+    }
+    if (compColNames.includes('is_accident')) {
+      compFields.push('is_accident');
+      compPlaceholders.push('?');
+      compValues.push(isAccidentFlag ? 1 : 0);
+    }
+
     const [resRow] = await connection.query(
-      `INSERT INTO complaints (
-         student_id, organization_id, category_id, incident_category, job_id, subject, description,
-         evidence_url, complainant_type, is_accident, status, filed_at, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'organization', ?, 'submitted', NOW(), NOW(), NOW())`,
-      [student_id, org.organization_id, catId, targetCategoryName, job_id || null, subject, description, evidence_url || null, isAccidentFlag ? 1 : 0]
+      `INSERT INTO complaints (${compFields.join(', ')}) VALUES (${compPlaceholders.join(', ')})`,
+      compValues
     );
 
     const complaintId = resRow.insertId;
@@ -2979,27 +3006,31 @@ router.post('/complaints', async (req, res) => {
       const parsedDt = rawDt ? new Date(rawDt) : new Date();
       const validIncidentDate = (!isNaN(parsedDt.getTime())) ? parsedDt : new Date();
 
-      await connection.query(
-        `INSERT INTO accident_reports (
-           complaint_id, organization_id, student_id, incident_datetime, location,
-           severity, injury_description, medical_attention_given, witnesses,
-           immediate_action_taken, preventive_measures, reported_by, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-        [
-          complaintId,
-          org.organization_id,
-          student_id,
-          validIncidentDate,
-          location,
-          sanitizeSeverity(severity),
-          injury_description,
-          medical_attention_given || '',
-          accWitnesses !== undefined ? accWitnesses : (witnesses || ''),
-          immediate_action_taken || '',
-          accPreventive !== undefined ? accPreventive : (preventive_measures || ''),
-          req.user.user_id
-        ]
-      );
+      try {
+        await connection.query(
+          `INSERT INTO accident_reports (
+             complaint_id, organization_id, student_id, incident_datetime, location,
+             severity, injury_description, medical_attention_given, witnesses,
+             immediate_action_taken, preventive_measures, reported_by, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+          [
+            complaintId,
+            org.organization_id,
+            student_id,
+            validIncidentDate,
+            location,
+            sanitizeSeverity(severity),
+            injury_description,
+            medical_attention_given || '',
+            accWitnesses !== undefined ? accWitnesses : (witnesses || ''),
+            immediate_action_taken || '',
+            accPreventive !== undefined ? accPreventive : (preventive_measures || ''),
+            req.user.user_id
+          ]
+        );
+      } catch (accErr) {
+        console.error('Failed to insert into accident_reports:', accErr.message);
+      }
     }
 
     // Audit log
@@ -3010,11 +3041,12 @@ router.post('/complaints', async (req, res) => {
 
     await connection.commit();
     connection.release();
+    connectionReleased = true;
 
     // Resolve target institution ID with fallbacks if not directly on student row
     let targetInstitutionId = student.institution_id;
     if (!targetInstitutionId) {
-      const [prog] = await connection.query(
+      const [prog] = await pool.query(
         'SELECT p.institution_id FROM students s JOIN programs p ON s.program_id = p.program_id WHERE s.student_id = ?',
         [student_id]
       );
@@ -3023,7 +3055,7 @@ router.post('/complaints', async (req, res) => {
       }
     }
     if (!targetInstitutionId) {
-      const [directStu] = await connection.query(
+      const [directStu] = await pool.query(
         'SELECT institution_id FROM students WHERE student_id = ? AND institution_id IS NOT NULL LIMIT 1',
         [student_id]
       );
@@ -3100,8 +3132,14 @@ router.post('/complaints', async (req, res) => {
         : 'Student incident complaint submitted to the Institution OJT Supervisor for review.'
     });
   } catch (error) {
-    await connection.rollback();
-    connection.release();
+    if (!connectionReleased) {
+      try {
+        await connection.rollback();
+      } catch (_) {}
+      try {
+        connection.release();
+      } catch (_) {}
+    }
     console.error('Submit org complaint error:', error);
     return res.status(500).json({ success: false, message: 'Failed to submit complaint: ' + error.message });
   }
