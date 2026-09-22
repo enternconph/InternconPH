@@ -251,9 +251,14 @@ app.get(['/uploads/:subfolder/:filename', '/uploads/:filename'], async (req, res
   `);
 });
 
-// Health Check: lightweight, no auth, no database dependency
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true });
+// Health Check: verifies service and database connectivity
+app.get('/api/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ ok: true, status: 'ok', database: 'connected' });
+  } catch (err) {
+    res.status(500).json({ ok: false, status: 'error', database: 'disconnected', error: err.message });
+  }
 });
 
 // Route Mounts
@@ -267,9 +272,9 @@ app.use('/api/inst', instRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 
-// Serve frontend dist for production deployment with SPA routing fallback & asset caching
+// Serve frontend dist with SPA routing fallback & asset caching
 const DIST_DIR = path.resolve(__dirname, '../../dist');
-if (process.env.NODE_ENV === 'production' && fs.existsSync(DIST_DIR)) {
+if (fs.existsSync(DIST_DIR)) {
   app.use(express.static(DIST_DIR, {
     maxAge: '1d',
     setHeaders: (res, filePath) => {
