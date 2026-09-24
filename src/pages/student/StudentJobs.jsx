@@ -215,58 +215,6 @@ export default function StudentJobs() {
         )}
 
         {/* ========================================================================= */}
-        {/* TOP STORIES / CATEGORY FILTER TRAY (Instagram Stories Vibe)              */}
-        {/* ========================================================================= */}
-        <div className="mb-6 bg-surface border border-outline-variant/70 rounded-3xl p-3.5 sm:p-4 shadow-xs">
-          <div className="flex items-center justify-between gap-2 mb-3 px-1">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-vibrant-orange animate-ping"></span>
-              <span className="text-xs font-black uppercase tracking-wider text-on-surface">Explore Categories</span>
-            </div>
-            <span className="text-[11px] text-on-surface-variant font-medium">
-              {displayedJobs.length} {displayedJobs.length === 1 ? 'post' : 'posts'} available
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto pb-1 scrollbar-none">
-            {[
-              { id: 'all', label: 'All Feed', icon: 'dynamic_feed', gradient: 'from-orange-500 via-amber-500 to-yellow-500', count: jobs.length },
-              { id: 'ojt', label: 'OJT Interns', icon: 'school', gradient: 'from-blue-600 via-indigo-500 to-cyan-400', count: jobs.filter((j) => (j.posting_type || 'ojt') === 'ojt').length },
-              { id: 'on_call', label: 'On-Call Gigs', icon: 'bolt', gradient: 'from-amber-500 via-orange-500 to-rose-500', count: jobs.filter((j) => j.posting_type === 'on_call').length },
-              { id: 'career_job', label: 'Career Jobs', icon: 'work', gradient: 'from-emerald-500 via-teal-500 to-sky-500', count: jobs.filter((j) => j.posting_type === 'career_job' || j.posting_type === 'job').length },
-              { id: 'saved', label: 'Saved Posts', icon: 'bookmark', gradient: 'from-purple-600 via-pink-500 to-rose-400', count: bookmarkedJobs.length }
-            ].map((story) => {
-              const isActive = typeFilter === story.id;
-              return (
-                <button
-                  key={story.id}
-                  onClick={() => setTypeFilter(story.id)}
-                  className="flex flex-col items-center gap-1.5 shrink-0 group focus:outline-none"
-                >
-                  {/* Story Circle with Glowing Ring */}
-                  <div
-                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full p-[2.5px] transition-all duration-300 ${
-                      isActive
-                        ? `bg-gradient-to-tr ${story.gradient} ring-2 ring-vibrant-orange/50 scale-105 shadow-md`
-                        : 'bg-gradient-to-tr from-outline-variant to-outline-variant/40 hover:scale-102 hover:p-[3px] hover:bg-gradient-to-tr hover:from-vibrant-orange hover:to-pink-500'
-                    }`}
-                  >
-                    <div className="w-full h-full rounded-full bg-surface flex items-center justify-center text-on-surface">
-                      <span className={`material-symbols-outlined text-[24px] sm:text-[26px] ${isActive ? 'text-vibrant-orange' : 'text-on-surface-variant group-hover:text-on-surface'}`}>
-                        {story.icon}
-                      </span>
-                    </div>
-                  </div>
-                  <span className={`text-[11px] font-bold max-w-[70px] truncate text-center ${isActive ? 'text-vibrant-orange' : 'text-on-surface-variant group-hover:text-on-surface'}`}>
-                    {story.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
         {/* MAIN FEED & SIDEBAR TWO-COLUMN LAYOUT (Facebook / Instagram Web Style)   */}
         {/* ========================================================================= */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -275,6 +223,58 @@ export default function StudentJobs() {
           {/* CENTER SOCIAL FEED STREAM (Col 1-8 on desktop, centered)               */}
           {/* ======================================================================= */}
           <div className="lg:col-span-8 space-y-6 max-w-2xl mx-auto w-full">
+
+            {/* =================================================================== */}
+            {/* TOP STORIES / CATEGORY FILTER TRAY (Instagram Stories Vibe)        */}
+            {/* =================================================================== */}
+            <div className="bg-surface border border-outline-variant/70 rounded-3xl p-3.5 sm:p-4 shadow-xs">
+              <div className="flex items-center justify-between gap-2 mb-3.5 px-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-vibrant-orange animate-pulse"></span>
+                  <span className="text-xs font-black uppercase tracking-wider text-on-surface">Explore Categories</span>
+                </div>
+                <span className="text-[11px] text-on-surface-variant font-medium">
+                  {displayedJobs.length} {displayedJobs.length === 1 ? 'post' : 'posts'} available
+                </span>
+              </div>
+
+              <div className="grid grid-cols-5 gap-1.5 sm:gap-3 items-center justify-items-center">
+                {[
+                  { id: 'all', label: 'All Feed', icon: 'dynamic_feed', gradient: 'from-orange-500 via-amber-500 to-yellow-500', count: jobs.length },
+                  { id: 'ojt', label: 'OJT Interns', icon: 'school', gradient: 'from-blue-600 via-indigo-500 to-cyan-400', count: jobs.filter((j) => (j.posting_type || 'ojt') === 'ojt').length },
+                  { id: 'on_call', label: 'On-Call Gigs', icon: 'bolt', gradient: 'from-amber-500 via-orange-500 to-rose-500', count: jobs.filter((j) => j.posting_type === 'on_call').length },
+                  { id: 'career_job', label: 'Career Jobs', icon: 'work', gradient: 'from-emerald-500 via-teal-500 to-sky-500', count: jobs.filter((j) => j.posting_type === 'career_job' || j.posting_type === 'job').length },
+                  { id: 'saved', label: 'Saved Posts', icon: 'bookmark', gradient: 'from-purple-600 via-pink-500 to-rose-400', count: bookmarkedJobs.length }
+                ].map((story) => {
+                  const isActive = typeFilter === story.id;
+                  return (
+                    <button
+                      key={story.id}
+                      onClick={() => setTypeFilter(story.id)}
+                      className="flex flex-col items-center gap-1.5 w-full group focus:outline-none cursor-pointer"
+                    >
+                      {/* Story Circle with Glowing Ring */}
+                      <div
+                        className={`w-13 h-13 sm:w-16 sm:h-16 rounded-full p-[2.5px] transition-all duration-300 ${
+                          isActive
+                            ? `bg-gradient-to-tr ${story.gradient} ring-2 ring-vibrant-orange/50 scale-105 shadow-md`
+                            : 'bg-gradient-to-tr from-outline-variant to-outline-variant/40 hover:scale-105 hover:p-[3px] hover:bg-gradient-to-tr hover:from-vibrant-orange hover:to-pink-500'
+                        }`}
+                      >
+                        <div className="w-full h-full rounded-full bg-surface flex items-center justify-center text-on-surface">
+                          <span className={`material-symbols-outlined text-[22px] sm:text-[26px] ${isActive ? 'text-vibrant-orange' : 'text-on-surface-variant group-hover:text-on-surface'}`}>
+                            {story.icon}
+                          </span>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full ${isActive ? 'text-vibrant-orange' : 'text-on-surface-variant group-hover:text-on-surface'}`}>
+                        {story.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             
             {/* "What's on your mind?" / Search Filter Bar (Facebook Style) */}
             <div className="bg-surface rounded-3xl border border-outline-variant/70 p-4 shadow-xs">
