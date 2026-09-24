@@ -11,20 +11,56 @@ async function findCertificate(identifier) {
   const [rows] = await pool.query(
     `SELECT c.*, 
             o.start_date, o.end_date, o.supervisor_name,
-            s.first_name, s.last_name, s.student_number as student_no, s.email as student_email,
+            s.first_name, s.last_name, s.student_number as student_no,
+            u.email as student_email,
             inst.institution_name, inst.address as inst_address,
             ho.organization_name, ho.industry, ho.address as org_address
      FROM ojt_certificates c
-     JOIN ojt_records o ON c.ojt_id = o.ojt_id
-     JOIN students s ON c.student_id = s.student_id
-     JOIN institutions inst ON c.institution_id = inst.institution_id
-     JOIN hiring_organizations ho ON c.organization_id = ho.organization_id
+     LEFT JOIN ojt_records o ON c.ojt_id = o.ojt_id
+     LEFT JOIN students s ON c.student_id = s.student_id
+     LEFT JOIN users u ON s.user_id = u.user_id
+     LEFT JOIN institutions inst ON c.institution_id = inst.institution_id
+     LEFT JOIN hiring_organizations ho ON c.organization_id = ho.organization_id
      WHERE c.certificate_code = ? OR c.certificate_id = ? OR c.certificate_code LIKE ?
      LIMIT 1`,
     [cleanCode, isNaN(cleanCode) ? -1 : parseInt(cleanCode, 10), `%${cleanCode}%`]
   );
 
-  return rows.length > 0 ? rows[0] : null;
+  if (rows.length > 0) {
+    return rows[0];
+  }
+
+  // Fallback: check if cleanCode matches an ojt_id or can be derived from portfolio_items
+  const [portRows] = await pool.query(
+    `SELECT pi.*, sp.student_id, o.ojt_id
+     FROM portfolio_items pi
+     JOIN student_portfolios sp ON pi.portfolio_id = sp.portfolio_id
+     LEFT JOIN ojt_records o ON sp.student_id = o.student_id
+     WHERE pi.file_path LIKE ? OR pi.title LIKE ?
+     ORDER BY pi.item_id DESC LIMIT 1`,
+    [`%${cleanCode}%`, `%${cleanCode}%`]
+  );
+
+  if (portRows.length > 0 && portRows[0].ojt_id) {
+    const [ojtCert] = await pool.query(
+      `SELECT c.*, o.start_date, o.end_date, o.supervisor_name,
+              s.first_name, s.last_name, s.student_number as student_no,
+              u.email as student_email,
+              inst.institution_name, inst.address as inst_address,
+              ho.organization_name, ho.industry, ho.address as org_address
+       FROM ojt_certificates c
+       LEFT JOIN ojt_records o ON c.ojt_id = o.ojt_id
+       LEFT JOIN students s ON c.student_id = s.student_id
+       LEFT JOIN users u ON s.user_id = u.user_id
+       LEFT JOIN institutions inst ON c.institution_id = inst.institution_id
+       LEFT JOIN hiring_organizations ho ON c.organization_id = ho.organization_id
+       WHERE c.ojt_id = ? LIMIT 1`,
+      [portRows[0].ojt_id]
+    );
+    if (ojtCert.length > 0) return ojtCert[0];
+  }
+
+  return null;
 }
 
 // GET /api/certificates/:code - JSON certificate details
