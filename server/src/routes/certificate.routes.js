@@ -171,6 +171,8 @@ router.get('/render/:code', async (req, res) => {
       ? new Date(cert.completion_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
       : issuedDate;
 
+    const isViewOnly = req.query.viewOnly === 'true' || req.query.role === 'organization' || req.query.role === 'org' || req.query.mode === 'view';
+
     return res.send(`
       <!DOCTYPE html>
       <html lang="en">
@@ -193,6 +195,7 @@ router.get('/render/:code', async (req, res) => {
               align-items: center;
               justify-content: center;
               padding: 1.5rem;
+              ${isViewOnly ? 'user-select: none; -webkit-user-select: none;' : ''}
             }
             .action-bar {
               width: 100%;
@@ -230,6 +233,18 @@ router.get('/render/:code', async (req, res) => {
               transition: all 0.2s;
             }
             .btn-print:hover { opacity: 0.95; transform: translateY(-1px); }
+            .badge-viewonly {
+              background: rgba(245, 158, 11, 0.15);
+              color: #f59e0b;
+              border: 1px solid rgba(245, 158, 11, 0.35);
+              padding: 0.55rem 1.25rem;
+              border-radius: 10px;
+              font-size: 0.8rem;
+              font-weight: 700;
+              display: inline-flex;
+              align-items: center;
+              gap: 0.4rem;
+            }
 
             /* Certificate Frame */
             .cert-wrapper {
@@ -433,30 +448,53 @@ router.get('/render/:code', async (req, res) => {
             }
 
             @media print {
-              body {
-                background: #ffffff !important;
-                padding: 0 !important;
-              }
-              .action-bar {
-                display: none !important;
-              }
-              .cert-wrapper {
-                box-shadow: none !important;
-                max-width: 100% !important;
-                border-radius: 0 !important;
-                padding: 0 !important;
-              }
-              @page {
-                size: landscape;
-                margin: 0.5cm;
-              }
+              ${isViewOnly ? `
+                body {
+                  display: none !important;
+                }
+              ` : `
+                body {
+                  background: #ffffff !important;
+                  padding: 0 !important;
+                }
+                .action-bar {
+                  display: none !important;
+                }
+                .cert-wrapper {
+                  box-shadow: none !important;
+                  max-width: 100% !important;
+                  border-radius: 0 !important;
+                  padding: 0 !important;
+                }
+                @page {
+                  size: landscape;
+                  margin: 0.5cm;
+                }
+              `}
             }
           </style>
+          ${isViewOnly ? `
+            <script>
+              window.addEventListener('keydown', function(e) {
+                if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P' || e.key === 's' || e.key === 'S')) {
+                  e.preventDefault();
+                  alert('Printing and saving are not authorized for organization viewers.');
+                }
+              });
+              window.print = function() {
+                alert('Printing is not authorized for organization viewers.');
+              };
+            </script>
+          ` : ''}
         </head>
         <body>
           <div class="action-bar">
             <a href="javascript:window.close()" class="back-link">&larr; Close / Return</a>
-            <button onclick="window.print()" class="btn-print">&#128424; Print / Save PDF</button>
+            ${isViewOnly ? `
+              <span class="badge-viewonly">&#128274; View-Only Mode &middot; Organization Read-Only Copy</span>
+            ` : `
+              <button onclick="window.print()" class="btn-print">&#128424; Print / Save PDF</button>
+            `}
           </div>
 
           <div class="cert-wrapper">

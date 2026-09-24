@@ -800,7 +800,10 @@ export default function OrgOJT() {
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                           {inspectData.academic_portfolio.map((item) => {
-                            const fileUrl = resolveFileUrl(item.file_path);
+                            let fileUrl = resolveFileUrl(item.file_path);
+                            if (fileUrl.includes('/api/certificates/render/')) {
+                              fileUrl += (fileUrl.includes('?') ? '&' : '?') + 'viewOnly=true';
+                            }
                             const isImg = isImageFile(item.file_name, item.file_path);
                             return (
                               <div key={item.item_id} className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
@@ -815,8 +818,9 @@ export default function OrgOJT() {
                                   </div>
                                   {item.file_path && (
                                     <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                                       className="px-2 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 text-[10px] font-bold flex items-center gap-0.5 flex-shrink-0">
-                                      <span className="material-symbols-outlined text-[12px]">open_in_new</span> File
+                                       className="px-2 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 text-[10px] font-bold flex items-center gap-0.5 flex-shrink-0"
+                                       title="View File (Read-Only)">
+                                      <span className="material-symbols-outlined text-[12px]">visibility</span> View
                                     </a>
                                   )}
                                 </div>
@@ -838,7 +842,10 @@ export default function OrgOJT() {
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                           {inspectData.credentials.map((item) => {
-                            const fileUrl = resolveFileUrl(item.file_path);
+                            let fileUrl = resolveFileUrl(item.file_path);
+                            if (fileUrl.includes('/api/certificates/render/')) {
+                              fileUrl += (fileUrl.includes('?') ? '&' : '?') + 'viewOnly=true';
+                            }
                             const isImg = isImageFile(item.file_name, item.file_path);
                             return (
                               <div key={item.item_id} className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
@@ -853,8 +860,9 @@ export default function OrgOJT() {
                                   </div>
                                   {item.file_path && (
                                     <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                                       className="px-2 py-0.5 rounded bg-amber-50 text-amber-600 hover:bg-amber-100 text-[10px] font-bold flex items-center gap-0.5 flex-shrink-0">
-                                      <span className="material-symbols-outlined text-[12px]">open_in_new</span> File
+                                       className="px-2 py-0.5 rounded bg-amber-50 text-amber-600 hover:bg-amber-100 text-[10px] font-bold flex items-center gap-0.5 flex-shrink-0"
+                                       title="View Credential (Read-Only)">
+                                      <span className="material-symbols-outlined text-[12px]">visibility</span> View
                                     </a>
                                   )}
                                 </div>
@@ -876,7 +884,10 @@ export default function OrgOJT() {
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                           {inspectData.academic_records.map((item) => {
-                            const fileUrl = resolveFileUrl(item.file_path);
+                            let fileUrl = resolveFileUrl(item.file_path);
+                            if (fileUrl.includes('/api/certificates/render/')) {
+                              fileUrl += (fileUrl.includes('?') ? '&' : '?') + 'viewOnly=true';
+                            }
                             const isImg = isImageFile(item.file_name, item.file_path);
                             return (
                               <div key={item.item_id} className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
@@ -891,8 +902,9 @@ export default function OrgOJT() {
                                   </div>
                                   {item.file_path && (
                                     <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                                       className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 text-[10px] font-bold flex items-center gap-0.5 flex-shrink-0">
-                                      <span className="material-symbols-outlined text-[12px]">open_in_new</span> Document
+                                       className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 text-[10px] font-bold flex items-center gap-0.5 flex-shrink-0"
+                                       title="View Record (Read-Only)">
+                                      <span className="material-symbols-outlined text-[12px]">visibility</span> View
                                     </a>
                                   )}
                                 </div>
@@ -974,9 +986,10 @@ export default function OrgOJT() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="px-3 py-1.5 bg-purple-600 text-white rounded-lg font-bold text-xs hover:bg-purple-700 transition-colors flex items-center gap-1 shadow-sm"
+                                title="View Resume (Read-Only)"
                               >
-                                <span className="material-symbols-outlined text-[14px]">download</span>
-                                <span>Download</span>
+                                <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                <span>View Resume</span>
                               </a>
                             )}
                           </div>

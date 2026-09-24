@@ -599,7 +599,10 @@ export default function OrgApplicants() {
                         </h4>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                           {inspectData.academic_portfolio.map((item) => {
-                            const fileUrl = resolveFileUrl(item.file_path);
+                            let fileUrl = resolveFileUrl(item.file_path);
+                            if (fileUrl.includes('/api/certificates/render/')) {
+                              fileUrl += (fileUrl.includes('?') ? '&' : '?') + 'viewOnly=true';
+                            }
                             const isImg = isImageFile(item.file_name, item.file_path);
                             return (
                               <div key={item.item_id} className="p-3 bg-surface rounded-xl border border-outline-variant space-y-1">
@@ -616,8 +619,9 @@ export default function OrgApplicants() {
                                     <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 text-[10px] font-bold capitalize">{item.item_type?.replace('_', ' ')}</span>
                                     {item.file_path && (
                                       <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                                         className="px-2 py-0.5 rounded bg-vibrant-orange text-white text-[10px] font-bold hover:bg-deep-orange transition-colors flex items-center gap-0.5">
-                                        <span className="material-symbols-outlined text-[12px]">open_in_new</span> View
+                                         className="px-2 py-0.5 rounded bg-vibrant-orange text-white text-[10px] font-bold hover:bg-deep-orange transition-colors flex items-center gap-0.5"
+                                         title="View Item (Read-Only)">
+                                        <span className="material-symbols-outlined text-[12px]">visibility</span> View
                                       </a>
                                     )}
                                   </div>
@@ -645,7 +649,10 @@ export default function OrgApplicants() {
                         </h4>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                           {inspectData.credentials.map((item) => {
-                            const fileUrl = resolveFileUrl(item.file_path);
+                            let fileUrl = resolveFileUrl(item.file_path);
+                            if (fileUrl.includes('/api/certificates/render/')) {
+                              fileUrl += (fileUrl.includes('?') ? '&' : '?') + 'viewOnly=true';
+                            }
                             const isImg = isImageFile(item.file_name, item.file_path);
                             return (
                               <div key={item.item_id} className="p-3 bg-surface rounded-xl border border-outline-variant space-y-1">
@@ -662,8 +669,9 @@ export default function OrgApplicants() {
                                     <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 text-[10px] font-bold capitalize">{item.item_type?.replace('_', ' ')}</span>
                                     {item.file_path && (
                                       <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                                         className="px-2 py-0.5 rounded bg-vibrant-orange text-white text-[10px] font-bold hover:bg-deep-orange transition-colors flex items-center gap-0.5">
-                                        <span className="material-symbols-outlined text-[12px]">open_in_new</span> View
+                                         className="px-2 py-0.5 rounded bg-vibrant-orange text-white text-[10px] font-bold hover:bg-deep-orange transition-colors flex items-center gap-0.5"
+                                         title="View Credential (Read-Only)">
+                                        <span className="material-symbols-outlined text-[12px]">visibility</span> View
                                       </a>
                                     )}
                                   </div>
@@ -686,7 +694,10 @@ export default function OrgApplicants() {
                         </h4>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                           {inspectData.academic_records.map((item) => {
-                            const fileUrl = resolveFileUrl(item.file_path);
+                            let fileUrl = resolveFileUrl(item.file_path);
+                            if (fileUrl.includes('/api/certificates/render/')) {
+                              fileUrl += (fileUrl.includes('?') ? '&' : '?') + 'viewOnly=true';
+                            }
                             const isImg = isImageFile(item.file_name, item.file_path);
                             return (
                               <div key={item.item_id} className="p-3 bg-surface rounded-xl border border-outline-variant space-y-1">
@@ -703,8 +714,9 @@ export default function OrgApplicants() {
                                     <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 text-[10px] font-bold capitalize">{item.item_type?.replace('_', ' ')}</span>
                                     {item.file_path && (
                                       <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                                         className="px-2 py-0.5 rounded bg-vibrant-orange text-white text-[10px] font-bold hover:bg-deep-orange transition-colors flex items-center gap-0.5">
-                                        <span className="material-symbols-outlined text-[12px]">open_in_new</span> View
+                                         className="px-2 py-0.5 rounded bg-vibrant-orange text-white text-[10px] font-bold hover:bg-deep-orange transition-colors flex items-center gap-0.5"
+                                         title="View Record (Read-Only)">
+                                        <span className="material-symbols-outlined text-[12px]">visibility</span> View
                                       </a>
                                     )}
                                   </div>
@@ -822,9 +834,10 @@ export default function OrgApplicants() {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="px-3 py-1.5 bg-vibrant-orange text-white rounded-lg font-bold text-xs hover:bg-deep-orange transition-colors flex items-center gap-1 shadow-sm"
+                              title="View Resume (Read-Only)"
                             >
-                              <span className="material-symbols-outlined text-[15px]">download</span>
-                              <span>View / Download</span>
+                              <span className="material-symbols-outlined text-[15px]">visibility</span>
+                              <span>View Resume</span>
                             </a>
                           )}
                         </div>
