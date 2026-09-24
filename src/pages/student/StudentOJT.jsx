@@ -450,88 +450,112 @@ export default function StudentOJT() {
                 <p className="text-xs mt-1">Your assigned Workplace Mentor will record your daily time-in and time-out as you report for your training shifts.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[780px] text-left text-sm">
+              <div className="overflow-x-auto rounded-2xl border border-outline-variant/70 shadow-xs">
+                <table className="w-full min-w-[780px] text-left text-sm border-collapse">
                   <thead>
-                    <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
-                      <th className="py-3 px-4">Date</th>
-                      <th className="py-3 px-4">Host Company</th>
-                      <th className="py-3 px-4">Time In (PST)</th>
-                      <th className="py-3 px-4">Time Out (PST)</th>
-                      <th className="py-3 px-4">Hours Credited</th>
-                      <th className="py-3 px-4">Tasks Accomplished</th>
-                      <th className="py-3 px-4">Mentor Certification</th>
-                      <th className="py-3 px-4 text-right">Actions</th>
+                    <tr className="bg-surface-container-low/90 text-on-surface-variant text-[11px] uppercase tracking-wider font-extrabold border-b border-outline-variant">
+                      <th className="py-3.5 px-4 sm:px-5">Date</th>
+                      <th className="py-3.5 px-4">Host Company</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap">Time In (PST)</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap">Time Out (PST)</th>
+                      <th className="py-3.5 px-4 text-center whitespace-nowrap">Hours Credited</th>
+                      <th className="py-3.5 px-4">Tasks Accomplished</th>
+                      <th className="py-3.5 px-4 text-center whitespace-nowrap">Mentor Certification</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-surface-container">
+                  <tbody className="divide-y divide-outline-variant/40 bg-surface">
                     {attendanceData.logs.map((log) => (
-                      <tr key={log.attendance_id} className="hover:bg-surface-container-low transition-colors">
-                        <td className="py-3 px-4 font-bold text-xs text-on-surface">
-                          {new Date(log.log_date).toLocaleDateString()}
+                      <tr key={log.attendance_id} className="hover:bg-surface-container-low/60 transition-colors">
+                        {/* Date */}
+                        <td className="py-3.5 px-4 sm:px-5 font-bold text-xs text-on-surface whitespace-nowrap">
+                          {new Date(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         </td>
-                        <td className="py-3 px-4 text-xs text-on-surface-variant">{log.organization_name}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono text-xs text-on-surface">{log.time_in ? log.time_in.slice(0, 5) : '—'}</span>
+
+                        {/* Host Company */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-1.5 font-bold text-xs text-on-surface whitespace-nowrap">
+                            <span className="material-symbols-outlined text-[16px] text-vibrant-orange shrink-0">apartment</span>
+                            <span className="truncate max-w-[200px]" title={log.organization_name}>{log.organization_name}</span>
+                          </div>
+                        </td>
+
+                        {/* Time In */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5">
+                            <span className="font-mono text-xs font-semibold text-on-surface">
+                              {log.time_in ? log.time_in.slice(0, 5) : '—'}
+                            </span>
                             {log.time_in && (
-                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${
                                 log.time_in_status === 'late'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-emerald-100 text-emerald-800'
+                                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/20'
+                                  : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
                               }`}>
                                 {log.time_in_status === 'late' ? 'Late' : 'On-Time'}
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono text-xs text-on-surface">
-                              {log.time_out ? log.time_out.slice(0, 5) : (log.time_in ? 'In Progress' : '—')}
-                            </span>
-                            {log.time_out && (
-                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
-                                log.time_out_status === 'early'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : log.time_out_status === 'overtime'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : 'bg-emerald-100 text-emerald-800'
-                              }`}>
-                                {log.time_out_status === 'early' ? 'Early' : log.time_out_status === 'overtime' ? 'Overtime (Capped)' : 'On-Time'}
+
+                        {/* Time Out */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5">
+                            {log.time_out ? (
+                              <>
+                                <span className="font-mono text-xs font-semibold text-on-surface">
+                                  {log.time_out.slice(0, 5)}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${
+                                  log.time_out_status === 'early'
+                                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/20'
+                                    : log.time_out_status === 'overtime'
+                                    ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/20'
+                                    : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
+                                }`}>
+                                  {log.time_out_status === 'early' ? 'Early' : log.time_out_status === 'overtime' ? 'Overtime (Capped)' : 'On-Time'}
+                                </span>
+                              </>
+                            ) : log.time_in ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[11px] font-bold border border-amber-500/20">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                In Progress
                               </span>
+                            ) : (
+                              <span className="font-mono text-xs text-on-surface-variant">—</span>
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-4 font-bold text-xs text-on-surface">
-                          {log.hours_rendered ? `${log.hours_rendered} hrs` : '—'}
-                        </td>
-                        <td className="py-3 px-4 text-xs text-on-surface-variant max-w-xs truncate" title={log.tasks_accomplished || ''}>
-                          {log.tasks_accomplished || 'Daily internship tasks completed.'}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
-                              log.status === 'verified'
-                                ? 'bg-green-tint text-pinoy-green'
-                                : log.status === 'rejected'
-                                ? 'bg-error-container text-error'
-                                : 'bg-amber-500/10 text-amber-600'
-                            }`}
-                          >
-                            {log.status === 'verified' ? 'Certified' : log.status}
+
+                        {/* Hours Credited */}
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          <span className="inline-block px-2.5 py-1 rounded-xl bg-surface-container-low font-mono font-extrabold text-xs text-on-surface border border-outline-variant/60">
+                            {log.hours_rendered ? `${parseFloat(log.hours_rendered).toFixed(2)} hrs` : '0.00 hrs'}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-right">
-                          {log.status !== 'verified' && (
-                            <button
-                              onClick={() => handleDeleteAttendance(log.attendance_id)}
-                              className="text-on-surface-variant hover:text-error transition-colors p-1"
-                              title="Delete Pending Log"
-                            >
-                              <span className="material-symbols-outlined text-[18px]">delete</span>
-                            </button>
-                          )}
+
+                        {/* Tasks Accomplished */}
+                        <td className="py-3.5 px-4 max-w-xs">
+                          <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-2" title={log.tasks_accomplished || ''}>
+                            {log.tasks_accomplished || 'Daily internship tasks completed.'}
+                          </p>
+                        </td>
+
+                        {/* Mentor Certification */}
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-extrabold capitalize ${
+                              log.status === 'verified'
+                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                                : log.status === 'rejected'
+                                ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'
+                                : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-[15px]">
+                              {log.status === 'verified' ? 'verified' : log.status === 'rejected' ? 'cancel' : 'pending'}
+                            </span>
+                            <span>{log.status === 'verified' ? 'Certified' : log.status}</span>
+                          </span>
                         </td>
                       </tr>
                     ))}
