@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket, useRealtimeRefresh } from '../../contexts/SocketContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -7,12 +7,51 @@ import { useSidebar } from './DashboardLayout';
 import { playNotificationChime } from '../../utils/audio';
 import api from '../../api/client';
 
+const ROUTE_LABELS = {
+  '/dashboard/student': 'Dashboard',
+  '/dashboard/student/jobs': 'Browse Jobs & Feed',
+  '/dashboard/student/applications': 'My Applications',
+  '/dashboard/student/ojt': 'OJT Progress & DTR',
+  '/dashboard/student/skills': 'Skills & Matches',
+  '/dashboard/student/portfolio': 'Career Portfolio',
+  '/dashboard/student/complaints': 'Grievance Reports',
+  '/dashboard/student/profile': 'My Profile',
+  '/dashboard/organization': 'Employer Dashboard',
+  '/dashboard/organization/jobs': 'Job Postings',
+  '/dashboard/organization/applicants': 'Applicants & Talent Pool',
+  '/dashboard/organization/interviews': 'Interviews',
+  '/dashboard/organization/offers': 'Offers & Deployments',
+  '/dashboard/organization/ojt': 'Deployed Interns & DTR',
+  '/dashboard/organization/evaluations': 'Student Evaluations',
+  '/dashboard/organization/grievances': 'Grievance & Incidents',
+  '/dashboard/organization/mentors': 'Workplace Mentors',
+  '/dashboard/institution': 'Institution Overview',
+  '/dashboard/institution/students': 'Student Verification',
+  '/dashboard/institution/monitoring': 'OJT Monitoring & DTR',
+  '/dashboard/institution/ojt-offers': 'Dispatched Opportunities',
+  '/dashboard/institution/staff': 'Faculty & Staff Accounts',
+  '/dashboard/institution/programs': 'Degree Programs',
+  '/dashboard/institution/requirements': 'Clearance Requirements',
+  '/dashboard/admin': 'System Overview',
+  '/dashboard/admin/institutions': 'Institutions Directory',
+  '/dashboard/admin/organizations': 'Organizations Directory',
+  '/dashboard/admin/jobs': 'Job Moderation',
+  '/dashboard/admin/users': 'User Accounts',
+  '/dashboard/admin/complaints': 'Grievance Oversight',
+  '/dashboard/admin/analytics': 'Skill Analytics',
+  '/dashboard/admin/audit-logs': 'Audit Trail',
+  '/dashboard/settings': 'Account Settings'
+};
+
 export default function DashboardHeader() {
   const { user, logout } = useAuth();
   const { toggleSidebar } = useSidebar();
   const { socket } = useSocket() || {};
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const currentLabel = ROUTE_LABELS[location.pathname] || 'Dashboard';
 
   const handleLogout = async () => {
     await logout();
@@ -153,7 +192,7 @@ export default function DashboardHeader() {
   return (
     <header className="sticky top-0 z-30 bg-surface-container-lowest/90 backdrop-blur-md border-b border-outline-variant px-3 sm:px-4 md:px-8 py-2.5 sm:py-3 transition-colors shrink-0">
       <div className="flex items-center justify-between gap-2 sm:gap-4">
-        {/* Left: Mobile Hamburger Toggle + Branding */}
+        {/* Left: Mobile Hamburger Toggle + Branding + Desktop Breadcrumbs */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             type="button"
@@ -170,6 +209,16 @@ export default function DashboardHeader() {
           <div className="flex items-center gap-2 lg:hidden overflow-hidden">
             <img src="/logo.png" alt="internconPH Logo" className="h-7 w-auto object-contain shrink-0" decoding="async" />
             <span className="font-bold text-base text-vibrant-orange tracking-tight truncate">íntєrncσnᵖʰ</span>
+          </div>
+
+          {/* Desktop Breadcrumbs & Section Title */}
+          <div className="hidden lg:flex items-center gap-2 text-xs text-on-surface-variant font-medium">
+            <Link to="/dashboard/student" className="hover:text-vibrant-orange transition-colors flex items-center gap-1">
+              <span className="material-symbols-outlined text-[16px]">home</span>
+              <span>Portal</span>
+            </Link>
+            <span className="text-outline-variant">/</span>
+            <span className="text-on-surface font-bold text-sm">{currentLabel}</span>
           </div>
         </div>
 
