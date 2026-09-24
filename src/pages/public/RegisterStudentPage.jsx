@@ -537,14 +537,7 @@ export default function RegisterStudentPage() {
               alt="Student Registration" 
               loading="lazy"
               decoding="async"
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105 dark:hidden"
-            />
-            <img 
-              src="/photo/StudentReg_darkmode.jpg" 
-              alt="Student Registration Dark" 
-              loading="lazy"
-              decoding="async"
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105 hidden dark:block"
+              className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
             />
             {/* Overlay to ensure image blends elegantly */}
             <div className="absolute inset-0 bg-gradient-to-tr from-vibrant-orange/20 to-transparent mix-blend-overlay"></div>

@@ -8,7 +8,6 @@ import Pagination from '../../components/ui/Pagination';
 export default function OrgApplicants() {
   const navigate = useNavigate();
   const [data, setData] = useState({ applicants: [], jobs: [] });
-  const [selectedJob, setSelectedJob] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [candidateSearch, setCandidateSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -40,8 +39,7 @@ export default function OrgApplicants() {
 
   const fetchApplicants = useCallback(async () => {
     try {
-      const query = selectedJob ? `?job_id=${selectedJob}` : '';
-      const res = await api.get(`/org/applicants${query}`);
+      const res = await api.get('/org/applicants');
       if (res.success && res.data) {
         setData(res.data);
       }
@@ -50,7 +48,7 @@ export default function OrgApplicants() {
     } finally {
       setLoading(false);
     }
-  }, [selectedJob]);
+  }, []);
 
   useEffect(() => {
     fetchApplicants();
@@ -166,7 +164,7 @@ export default function OrgApplicants() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, selectedJob, candidateSearch]);
+  }, [activeTab, candidateSearch]);
 
   const paginatedApplicants = useMemo(() => {
     return filteredApplicants.slice((page - 1) * itemsPerPage, page * itemsPerPage);
@@ -251,9 +249,8 @@ export default function OrgApplicants() {
           </div>
         </div>
 
-        {/* Bottom Row: Search & Opening Selector */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          {/* Candidate Search Bar */}
+        {/* Bottom Row: Candidate Search */}
+        <div className="flex items-center gap-3">
           <div className="relative flex-1">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">
               search
@@ -276,40 +273,20 @@ export default function OrgApplicants() {
             )}
           </div>
 
-          {/* Opening Filter Dropdown */}
-          <div className="flex items-center gap-2 sm:w-auto w-full">
-            <label className="text-xs font-bold text-on-surface-variant whitespace-nowrap flex items-center gap-1">
-              <span className="material-symbols-outlined text-[16px]">filter_list</span>
-              <span>Opening:</span>
-            </label>
-            <select
-              value={selectedJob}
-              onChange={(e) => setSelectedJob(e.target.value)}
-              className="w-full sm:w-64 px-3 py-2 rounded-xl border border-outline-variant bg-surface text-xs text-on-surface outline-none font-medium focus:border-vibrant-orange"
+          {(candidateSearch || activeTab !== 'all') && (
+            <button
+              type="button"
+              onClick={() => {
+                setCandidateSearch('');
+                setActiveTab('all');
+              }}
+              className="px-3 py-2 text-xs font-bold text-vibrant-orange hover:bg-orange-tint rounded-xl transition-colors whitespace-nowrap flex items-center gap-1 shrink-0"
+              title="Reset search & filters"
             >
-              <option value="">All Job Postings</option>
-              {data.jobs?.map((j) => (
-                <option key={j.job_id} value={j.job_id}>
-                  {j.title} ({j.posting_type === 'on_call' ? 'On-Call' : j.posting_type === 'career_job' ? 'Career' : 'OJT'})
-                </option>
-              ))}
-            </select>
-            {(selectedJob || candidateSearch || activeTab !== 'all') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedJob('');
-                  setCandidateSearch('');
-                  setActiveTab('all');
-                }}
-                className="px-2.5 py-2 text-xs font-bold text-vibrant-orange hover:bg-orange-tint rounded-xl transition-colors whitespace-nowrap flex items-center gap-1"
-                title="Reset all filters"
-              >
-                <span className="material-symbols-outlined text-[16px]">restart_alt</span>
-                <span>Reset</span>
-              </button>
-            )}
-          </div>
+              <span className="material-symbols-outlined text-[16px]">restart_alt</span>
+              <span>Reset</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -577,10 +577,13 @@ export default function RegisterStaffPage() {
           {/* RIGHT PANEL - Image */}
           <div className="hidden lg:block lg:w-2/5 relative bg-surface-container-high overflow-hidden">
             <img 
-              src="/register_staff.jpg" 
+              src="/photo/staff.jpg" 
               alt="Staff Registration" 
               loading="lazy"
               decoding="async"
+              onError={(e) => {
+                e.target.src = '/staff.jpg';
+              }}
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-tr from-orange-tint/40 to-transparent mix-blend-overlay"></div>
