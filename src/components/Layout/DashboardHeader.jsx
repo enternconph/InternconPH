@@ -168,7 +168,7 @@ export default function DashboardHeader() {
 
           {/* Mobile branding next to hamburger */}
           <div className="flex items-center gap-2 lg:hidden overflow-hidden">
-            <img src="/logo.png" alt="internconPH Logo" className="h-7 w-auto object-contain shrink-0" />
+            <img src="/logo.png" alt="internconPH Logo" className="h-7 w-auto object-contain shrink-0" decoding="async" />
             <span className="font-bold text-base text-vibrant-orange tracking-tight truncate">íntєrncσnᵖʰ</span>
           </div>
         </div>

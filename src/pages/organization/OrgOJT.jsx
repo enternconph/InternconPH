@@ -810,7 +810,16 @@ export default function OrgOJT() {
                                 <div className="flex justify-between items-center gap-2">
                                   <div className="flex items-center gap-2 min-w-0">
                                     {isImg && fileUrl ? (
-                                      <img src={fileUrl} alt={item.title} className="w-6 h-6 rounded object-cover border border-outline-variant shrink-0" />
+                                      <img
+                                        src={fileUrl}
+                                        alt={item.title}
+                                        className="w-6 h-6 rounded object-cover border border-outline-variant shrink-0"
+                                        loading="lazy"
+                                        decoding="async"
+                                        onError={(e) => {
+                                          e.target.style.display = 'none';
+                                        }}
+                                      />
                                     ) : (
                                       <span className="material-symbols-outlined text-[16px] text-blue-600 shrink-0">{getFileIcon(item.file_name)}</span>
                                     )}
@@ -852,7 +861,16 @@ export default function OrgOJT() {
                                 <div className="flex justify-between items-center gap-2">
                                   <div className="flex items-center gap-2 min-w-0">
                                     {isImg && fileUrl ? (
-                                      <img src={fileUrl} alt={item.title} className="w-6 h-6 rounded object-cover border border-outline-variant shrink-0" />
+                                      <img
+                                        src={fileUrl}
+                                        alt={item.title}
+                                        className="w-6 h-6 rounded object-cover border border-outline-variant shrink-0"
+                                        loading="lazy"
+                                        decoding="async"
+                                        onError={(e) => {
+                                          e.target.style.display = 'none';
+                                        }}
+                                      />
                                     ) : (
                                       <span className="material-symbols-outlined text-[16px] text-amber-600 shrink-0">{getFileIcon(item.file_name)}</span>
                                     )}
@@ -894,7 +912,16 @@ export default function OrgOJT() {
                                 <div className="flex justify-between items-center gap-2">
                                   <div className="flex items-center gap-2 min-w-0">
                                     {isImg && fileUrl ? (
-                                      <img src={fileUrl} alt={item.title} className="w-6 h-6 rounded object-cover border border-outline-variant shrink-0" />
+                                      <img
+                                        src={fileUrl}
+                                        alt={item.title}
+                                        className="w-6 h-6 rounded object-cover border border-outline-variant shrink-0"
+                                        loading="lazy"
+                                        decoding="async"
+                                        onError={(e) => {
+                                          e.target.style.display = 'none';
+                                        }}
+                                      />
                                     ) : (
                                       <span className="material-symbols-outlined text-[16px] text-emerald-600 shrink-0">{getFileIcon(item.file_name)}</span>
                                     )}

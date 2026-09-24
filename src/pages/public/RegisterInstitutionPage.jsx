@@ -502,11 +502,15 @@ export default function RegisterInstitutionPage() {
             <img 
               src="/photo/institutionreg.jpg" 
               alt="Institution Registration" 
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105 dark:hidden"
             />
             <img 
               src="/photo/institutionReg_dark.jpg" 
               alt="Institution Registration Dark" 
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105 hidden dark:block"
             />
             {/* Overlay to ensure image blends elegantly */}

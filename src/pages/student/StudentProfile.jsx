@@ -365,6 +365,11 @@ export default function StudentProfile() {
                           src={resolveFileUrl(item.file_path)}
                           alt={item.title}
                           className="w-8 h-8 rounded-lg object-cover cursor-pointer flex-shrink-0 border border-outline-variant"
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
                           onClick={() => setPreviewItem(item)}
                         />
                       ) : (
@@ -434,6 +439,11 @@ export default function StudentProfile() {
                           src={resolveFileUrl(item.file_path)}
                           alt={item.title}
                           className="w-8 h-8 rounded-lg object-cover cursor-pointer flex-shrink-0 border border-outline-variant"
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
                           onClick={() => setPreviewItem(item)}
                         />
                       ) : (
@@ -503,6 +513,11 @@ export default function StudentProfile() {
                           src={resolveFileUrl(item.file_path)}
                           alt={item.title}
                           className="w-8 h-8 rounded-lg object-cover cursor-pointer flex-shrink-0 border border-outline-variant"
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
                           onClick={() => setPreviewItem(item)}
                         />
                       ) : (
@@ -695,7 +710,7 @@ export default function StudentProfile() {
                 {isCert && fp ? (
                   <iframe src={fp} title={previewItem.title} className="w-full h-[75vh] border-0 rounded-xl" />
                 ) : isImg && fp ? (
-                  <img src={fp} alt={previewItem.title} className="w-full max-h-[70vh] object-contain" />
+                  <img src={fp} alt={previewItem.title} loading="lazy" decoding="async" className="w-full max-h-[70vh] object-contain" />
                 ) : isPdf && fp ? (
                   <iframe src={fp} title={previewItem.title} className="w-full h-[70vh] border-0" />
                 ) : fp ? (

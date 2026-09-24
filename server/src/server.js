@@ -151,6 +151,7 @@ app.get(['/uploads/:subfolder/:filename', '/uploads/:filename'], async (req, res
       }
 
       res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
       const isDownload = req.query.download === 'true' || req.query.download === '1' || !['.pdf', '.png', '.jpg', '.jpeg', '.webp'].includes(path.extname(filename).toLowerCase());
       const dispositionType = isDownload ? 'attachment' : 'inline';
       res.setHeader('Content-Disposition', `${dispositionType}; filename="${encodeURIComponent(record.file_name || filename)}"`);

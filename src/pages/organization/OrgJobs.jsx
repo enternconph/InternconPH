@@ -541,6 +541,11 @@ export default function OrgJobs() {
                               src={resolveFileUrl(job.flyer_image_url)}
                               alt="Flyer thumbnail"
                               className="w-12 h-12 object-cover rounded-lg border border-outline-variant shrink-0"
+                              loading="lazy"
+                              decoding="async"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                              }}
                             />
                           )}
                           <div>
@@ -1026,6 +1031,11 @@ export default function OrgJobs() {
                         <img
                           src={resolveFileUrl(formData.flyer_image_url)}
                           alt="Opportunity Flyer"
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
                           className="w-full h-full object-cover rounded-lg"
                         />
                         <button

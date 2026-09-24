@@ -579,6 +579,8 @@ export default function RegisterStaffPage() {
             <img 
               src="/register_staff.jpg" 
               alt="Staff Registration" 
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-tr from-orange-tint/40 to-transparent mix-blend-overlay"></div>

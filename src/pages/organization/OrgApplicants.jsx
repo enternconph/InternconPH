@@ -609,7 +609,16 @@ export default function OrgApplicants() {
                                 <div className="flex justify-between items-center gap-2">
                                   <div className="flex items-center gap-2 min-w-0">
                                     {isImg && fileUrl ? (
-                                      <img src={fileUrl} alt={item.title} className="w-7 h-7 rounded-lg object-cover border border-outline-variant shrink-0" />
+                                      <img
+                                        src={fileUrl}
+                                        alt={item.title}
+                                        className="w-7 h-7 rounded-lg object-cover border border-outline-variant shrink-0"
+                                        loading="lazy"
+                                        decoding="async"
+                                        onError={(e) => {
+                                          e.target.style.display = 'none';
+                                        }}
+                                      />
                                     ) : (
                                       <span className="material-symbols-outlined text-[18px] text-blue-600 shrink-0">{getFileIcon(item.file_name)}</span>
                                     )}
@@ -659,7 +668,16 @@ export default function OrgApplicants() {
                                 <div className="flex justify-between items-center gap-2">
                                   <div className="flex items-center gap-2 min-w-0">
                                     {isImg && fileUrl ? (
-                                      <img src={fileUrl} alt={item.title} className="w-7 h-7 rounded-lg object-cover border border-outline-variant shrink-0" />
+                                      <img
+                                        src={fileUrl}
+                                        alt={item.title}
+                                        className="w-7 h-7 rounded-lg object-cover border border-outline-variant shrink-0"
+                                        loading="lazy"
+                                        decoding="async"
+                                        onError={(e) => {
+                                          e.target.style.display = 'none';
+                                        }}
+                                      />
                                     ) : (
                                       <span className="material-symbols-outlined text-[18px] text-amber-600 shrink-0">{getFileIcon(item.file_name)}</span>
                                     )}
@@ -704,7 +722,16 @@ export default function OrgApplicants() {
                                 <div className="flex justify-between items-center gap-2">
                                   <div className="flex items-center gap-2 min-w-0">
                                     {isImg && fileUrl ? (
-                                      <img src={fileUrl} alt={item.title} className="w-7 h-7 rounded-lg object-cover border border-outline-variant shrink-0" />
+                                      <img
+                                        src={fileUrl}
+                                        alt={item.title}
+                                        className="w-7 h-7 rounded-lg object-cover border border-outline-variant shrink-0"
+                                        loading="lazy"
+                                        decoding="async"
+                                        onError={(e) => {
+                                          e.target.style.display = 'none';
+                                        }}
+                                      />
                                     ) : (
                                       <span className="material-symbols-outlined text-[18px] text-emerald-600 shrink-0">{getFileIcon(item.file_name)}</span>
                                     )}

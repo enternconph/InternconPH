@@ -87,7 +87,7 @@ export default function LoginPage() {
               {/* Logo & Title */}
               <div className="flex flex-col items-center text-center space-y-3 mb-10">
                 <div className="flex items-center gap-2 mb-2">
-                  <img src="/logo.png" alt="internconPH" className="h-10 w-auto object-contain" />
+                  <img src="/logo.png" alt="internconPH" className="h-10 w-auto object-contain" decoding="async" />
                   <span className="text-2xl font-bold text-on-surface tracking-tight">ínternconᵖʰ</span>
                 </div>
                 <h1 className="text-2xl font-bold text-on-surface">Welcome Back</h1>
@@ -184,11 +184,15 @@ export default function LoginPage() {
             <img 
               src="/login.jpg" 
               alt="Login" 
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105 dark:hidden"
             />
             <img 
               src="/login_dark.jpg" 
               alt="Login Dark Mode" 
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105 hidden dark:block"
             />
             {/* Overlay to ensure image blends elegantly */}

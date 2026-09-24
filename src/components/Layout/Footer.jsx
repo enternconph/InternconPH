@@ -7,7 +7,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
         <div className="space-y-4">
           <Link to="/" className="text-xl font-bold text-vibrant-orange flex items-center gap-2">
-            <img src="/logo.png" alt="internconPH Logo" className="h-8 w-auto object-contain" />
+            <img src="/logo.png" alt="internconPH Logo" className="h-8 w-auto object-contain" loading="lazy" decoding="async" />
             <span className="text-xl font-bold">íntєrncσnᵖʰ</span>
           </Link>
           <p className="text-on-surface-variant text-sm leading-relaxed">

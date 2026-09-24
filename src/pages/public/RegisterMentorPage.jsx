@@ -638,6 +638,8 @@ export default function RegisterMentorPage() {
             <img 
               src="/register_mentor.jpg" 
               alt="Mentor Registration" 
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-tr from-green-tint/40 to-transparent mix-blend-overlay"></div>

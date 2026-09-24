@@ -590,6 +590,8 @@ export default function UserSettingsPage() {
                           src={resolveFileUrl(avatarPreview)}
                           alt="Profile Preview"
                           className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = '/photo/default-avatar.svg';
@@ -654,7 +656,7 @@ export default function UserSettingsPage() {
                           avatarPreview === url ? 'border-vibrant-orange ring-2 ring-vibrant-orange/30' : 'border-outline-variant'
                         }`}
                       >
-                        <img src={url} alt={`Preset ${i + 1}`} className="w-full h-full object-cover" />
+                        <img src={url} alt={`Preset ${i + 1}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       </button>
                     ))}
                   </div>

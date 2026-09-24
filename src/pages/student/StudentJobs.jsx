@@ -378,7 +378,17 @@ export default function StudentJobs() {
                     <div className="w-10 h-10 rounded-full p-[2px] bg-gradient-to-tr from-vibrant-orange via-pink-500 to-indigo-500 shrink-0">
                       <div className="w-full h-full rounded-full bg-surface flex items-center justify-center font-bold text-on-surface text-sm overflow-hidden uppercase">
                         {job.organization_logo ? (
-                          <img src={job.organization_logo} alt={job.organization_name} className="w-full h-full object-cover" />
+                          <img
+                            src={resolveFileUrl(job.organization_logo)}
+                            alt={job.organization_name}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = '/photo/default-avatar.svg';
+                            }}
+                          />
                         ) : (
                           <span>{(job.organization_name || 'ORG').slice(0, 2)}</span>
                         )}
@@ -427,6 +437,8 @@ export default function StudentJobs() {
                       <img
                         src={resolveFileUrl(job.flyer_image_url)}
                         alt={`${job.title} Flyer`}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover group-hover/media:scale-105 transition-transform duration-500"
                         onError={(e) => {
                           e.target.style.display = 'none';
@@ -693,6 +705,8 @@ export default function StudentJobs() {
               <img
                 src={previewFlyer.url}
                 alt={previewFlyer.title}
+                loading="lazy"
+                decoding="async"
                 className="max-h-[70vh] w-auto object-contain rounded-xl shadow-lg"
               />
             </div>

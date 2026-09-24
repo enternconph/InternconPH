@@ -37,7 +37,7 @@ export default function Header() {
       <div className="flex justify-between items-center h-16 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto gap-2">
         {/* Logo */}
         <Link to="/" className="text-xl font-bold text-vibrant-orange flex items-center gap-2 shrink-0">
-          <img src="/logo.png" alt="internconPH Logo" className="h-9 sm:h-10 w-auto object-contain" />
+          <img src="/logo.png" alt="internconPH Logo" className="h-9 sm:h-10 w-auto object-contain" decoding="async" />
           <span className="text-xl sm:text-2xl font-bold tracking-tight">íntєrncσnᵖʰ</span>
         </Link>
 

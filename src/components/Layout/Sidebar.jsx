@@ -46,7 +46,7 @@ export default function Sidebar() {
       {/* Brand Header */}
       <div className="p-4 border-b border-outline-variant flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-3 overflow-hidden">
-          <img src="/logo.png" alt="internconPH Logo" className="h-9 w-auto object-contain shrink-0" />
+          <img src="/logo.png" alt="internconPH Logo" className="h-9 w-auto object-contain shrink-0" loading="lazy" decoding="async" />
           <div className="overflow-hidden">
             <span className="font-bold text-lg text-vibrant-orange tracking-tight block">íntєrncσnᵖʰ</span>
             <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider truncate block">
@@ -347,6 +347,8 @@ export default function Sidebar() {
                 src={resolveFileUrl(user.avatar_url)}
                 alt="Avatar"
                 className="w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = '/photo/default-avatar.svg';

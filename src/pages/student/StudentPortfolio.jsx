@@ -528,6 +528,11 @@ export default function StudentPortfolio() {
                                   src={resolveFileUrl(item.file_path)}
                                   alt={item.title}
                                   className="w-10 h-10 rounded-lg object-cover cursor-pointer"
+                                  loading="lazy"
+                                  decoding="async"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                  }}
                                   onClick={() => setPreviewItem(item)}
                                 />
                               ) : (
@@ -971,7 +976,7 @@ export default function StudentPortfolio() {
 
               <div className="rounded-xl overflow-hidden border border-outline-variant bg-surface-container-low">
                 {isImg && fp ? (
-                  <img src={fp} alt={previewItem.title} className="w-full max-h-[70vh] object-contain" />
+                  <img src={fp} alt={previewItem.title} loading="lazy" decoding="async" className="w-full max-h-[70vh] object-contain" />
                 ) : (isPdf || isCert) && fp ? (
                   <iframe
                     src={fp}
