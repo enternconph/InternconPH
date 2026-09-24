@@ -485,33 +485,44 @@ export default function StudentJobs() {
                       </div>
 
                       {/* ========================================================= */}
-                      {/* POST MEDIA / FLYER BANNER (Instagram Feed Hero)          */}
+                      {/* POST MEDIA / FLYER BANNER (Instagram / Facebook Feed)     */}
                       {/* ========================================================= */}
                       <div
-                        className="relative w-full aspect-[4/3] sm:aspect-[16/10] bg-slate-950 overflow-hidden flex items-center justify-center select-none"
+                        className="relative w-full bg-slate-950 overflow-hidden flex items-center justify-center select-none"
                         onDoubleClick={() => toggleLike(job.job_id)}
                       >
                         {job.flyer_image_url ? (
-                          <div className="w-full h-full relative group/media cursor-pointer" onClick={() => setPreviewFlyer({ url: resolveFileUrl(job.flyer_image_url), title: job.title, org: job.organization_name })}>
+                          <div
+                            className="w-full relative group/media cursor-pointer flex items-center justify-center overflow-hidden min-h-[300px] max-h-[640px] sm:max-h-[720px]"
+                            onClick={() => setPreviewFlyer({ url: resolveFileUrl(job.flyer_image_url), title: job.title, org: job.organization_name })}
+                          >
+                            {/* Ambient Blurred Backdrop (Standard on Instagram & Facebook feeds) */}
+                            <div
+                              className="absolute inset-0 bg-cover bg-center filter blur-2xl opacity-35 scale-125 pointer-events-none"
+                              style={{ backgroundImage: `url(${resolveFileUrl(job.flyer_image_url)})` }}
+                            />
+
+                            {/* Crisp, 100% Uncropped Main Poster Image */}
                             <img
                               src={resolveFileUrl(job.flyer_image_url)}
                               alt={`${job.title} Poster`}
                               loading="lazy"
                               decoding="async"
-                              className="w-full h-full object-cover group-hover/media:scale-102 transition-transform duration-500"
+                              className="relative z-10 w-full h-auto max-h-[640px] sm:max-h-[720px] object-contain transition-transform duration-300 group-hover/media:scale-[1.01]"
                               onError={(e) => {
                                 e.target.style.display = 'none';
                               }}
                             />
-                            {/* Hover expand hint */}
-                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/media:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white font-bold text-xs backdrop-blur-[2px]">
-                              <span className="material-symbols-outlined text-[20px]">fullscreen</span>
-                              <span>Click to Expand Poster</span>
+
+                            {/* Hover / Expand Hint Pill */}
+                            <div className="absolute top-3 right-3 z-20 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white font-bold text-xs opacity-0 group-hover/media:opacity-100 transition-opacity flex items-center gap-1.5 shadow-lg border border-white/10">
+                              <span className="material-symbols-outlined text-[16px]">fullscreen</span>
+                              <span>Expand</span>
                             </div>
                           </div>
                         ) : (
                           /* High-Impact Social Graphic Placeholder */
-                          <div className="w-full h-full bg-gradient-to-br from-slate-900 via-zinc-900 to-orange-950 p-6 sm:p-8 flex flex-col justify-between text-white relative">
+                          <div className="w-full aspect-[16/9] min-h-[280px] bg-gradient-to-br from-slate-900 via-zinc-900 to-orange-950 p-6 sm:p-8 flex flex-col justify-between text-white relative">
                             <div className="absolute -right-6 -bottom-6 opacity-10 pointer-events-none">
                               <span className="material-symbols-outlined text-[180px]">
                                 {isOnCall ? 'bolt' : isOjt ? 'school' : 'work'}
