@@ -13,8 +13,10 @@ async function findCertificate(identifier) {
             o.start_date, o.end_date, o.supervisor_name,
             s.first_name, s.last_name, s.student_number as student_no,
             u.email as student_email,
-            inst.institution_name, inst.address as inst_address,
-            ho.organization_name, ho.industry, ho.address as org_address
+            COALESCE(c.institution_name, inst.institution_name, 'Academic Institution') as institution_name,
+            inst.address as inst_address,
+            COALESCE(c.organization_name, ho.organization_name, 'Host Training Organization') as organization_name,
+            ho.industry, ho.address as org_address
      FROM ojt_certificates c
      LEFT JOIN ojt_records o ON c.ojt_id = o.ojt_id
      LEFT JOIN students s ON c.student_id = s.student_id
@@ -26,41 +28,62 @@ async function findCertificate(identifier) {
     [cleanCode, isNaN(cleanCode) ? -1 : parseInt(cleanCode, 10), `%${cleanCode}%`]
   );
 
-  if (rows.length > 0) {
-    return rows[0];
-  }
+  let cert = rows.length > 0 ? rows[0] : null;
 
   // Fallback: check if cleanCode matches an ojt_id or can be derived from portfolio_items
-  const [portRows] = await pool.query(
-    `SELECT pi.*, sp.student_id, o.ojt_id
-     FROM portfolio_items pi
-     JOIN student_portfolios sp ON pi.portfolio_id = sp.portfolio_id
-     LEFT JOIN ojt_records o ON sp.student_id = o.student_id
-     WHERE pi.file_path LIKE ? OR pi.title LIKE ?
-     ORDER BY pi.item_id DESC LIMIT 1`,
-    [`%${cleanCode}%`, `%${cleanCode}%`]
-  );
-
-  if (portRows.length > 0 && portRows[0].ojt_id) {
-    const [ojtCert] = await pool.query(
-      `SELECT c.*, o.start_date, o.end_date, o.supervisor_name,
-              s.first_name, s.last_name, s.student_number as student_no,
-              u.email as student_email,
-              inst.institution_name, inst.address as inst_address,
-              ho.organization_name, ho.industry, ho.address as org_address
-       FROM ojt_certificates c
-       LEFT JOIN ojt_records o ON c.ojt_id = o.ojt_id
-       LEFT JOIN students s ON c.student_id = s.student_id
-       LEFT JOIN users u ON s.user_id = u.user_id
-       LEFT JOIN institutions inst ON c.institution_id = inst.institution_id
-       LEFT JOIN hiring_organizations ho ON c.organization_id = ho.organization_id
-       WHERE c.ojt_id = ? LIMIT 1`,
-      [portRows[0].ojt_id]
+  if (!cert) {
+    const [portRows] = await pool.query(
+      `SELECT pi.*, sp.student_id, o.ojt_id
+       FROM portfolio_items pi
+       JOIN student_portfolios sp ON pi.portfolio_id = sp.portfolio_id
+       LEFT JOIN ojt_records o ON sp.student_id = o.student_id
+       WHERE pi.file_path LIKE ? OR pi.title LIKE ?
+       ORDER BY pi.item_id DESC LIMIT 1`,
+      [`%${cleanCode}%`, `%${cleanCode}%`]
     );
-    if (ojtCert.length > 0) return ojtCert[0];
+
+    if (portRows.length > 0 && portRows[0].ojt_id) {
+      const [ojtCert] = await pool.query(
+        `SELECT c.*, o.start_date, o.end_date, o.supervisor_name,
+                s.first_name, s.last_name, s.student_number as student_no,
+                u.email as student_email,
+                COALESCE(c.institution_name, inst.institution_name, 'Academic Institution') as institution_name,
+                inst.address as inst_address,
+                COALESCE(c.organization_name, ho.organization_name, 'Host Training Organization') as organization_name,
+                ho.industry, ho.address as org_address
+         FROM ojt_certificates c
+         LEFT JOIN ojt_records o ON c.ojt_id = o.ojt_id
+         LEFT JOIN students s ON c.student_id = s.student_id
+         LEFT JOIN users u ON s.user_id = u.user_id
+         LEFT JOIN institutions inst ON c.institution_id = inst.institution_id
+         LEFT JOIN hiring_organizations ho ON c.organization_id = ho.organization_id
+         WHERE c.ojt_id = ? LIMIT 1`,
+        [portRows[0].ojt_id]
+      );
+      if (ojtCert.length > 0) cert = ojtCert[0];
+    }
   }
 
-  return null;
+  if (cert) {
+    if (cert.certificate_data) {
+      try {
+        const parsed = typeof cert.certificate_data === 'string' ? JSON.parse(cert.certificate_data) : cert.certificate_data;
+        if (parsed && typeof parsed === 'object') {
+          cert.student_name = cert.student_name || parsed.student_name;
+          cert.institution_name = cert.institution_name || parsed.institution_name;
+          cert.organization_name = cert.organization_name || parsed.organization_name;
+          cert.program_name = cert.program_name || parsed.program_name;
+          cert.rendered_hours = cert.rendered_hours || parsed.rendered_hours;
+          cert.required_hours = cert.required_hours || parsed.required_hours;
+          cert.evaluation_rating = cert.evaluation_rating || parsed.evaluation_rating;
+          cert.completion_date = cert.completion_date || parsed.completion_date;
+        }
+      } catch (parseErr) {}
+    }
+    cert.student_name = cert.student_name || (cert.first_name && cert.last_name ? `${cert.first_name} ${cert.last_name}` : 'Student Trainee');
+  }
+
+  return cert;
 }
 
 // GET /api/certificates/:code - JSON certificate details
