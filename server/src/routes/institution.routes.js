@@ -59,7 +59,12 @@ const getInstId = async (userId) => {
 
 const formatFilePath = (fp) => {
   if (!fp) return '';
+  if (fp.startsWith('certificate://') || fp.startsWith('certificate:')) {
+    const code = fp.replace(/^certificate:\/\//, '').replace(/^certificate:/, '');
+    return `/api/certificates/render/${code}`;
+  }
   if (fp.startsWith('http://') || fp.startsWith('https://') || fp.startsWith('blob:') || fp.startsWith('data:')) return fp;
+  if (fp.startsWith('/api/')) return fp;
   if (fp.startsWith('/uploads/')) return fp;
   if (fp.startsWith('uploads/')) return '/' + fp;
   return `/uploads/portfolio/${fp.replace(/^\/+/, '')}`;
@@ -567,6 +572,62 @@ router.get('/dashboard', async (req, res) => {
   } catch (error) {
     console.error('Institution dashboard error:', error);
     return res.status(500).json({ success: false, message: 'Could not load institution dashboard.' });
+  }
+});
+
+// PUT /api/inst/students/:id/graduate — Registrar or Academic Director updates OJT-completed student to Graduated standing
+router.put('/students/:id/graduate', async (req, res) => {
+  try {
+    const inst = await getInstId(req.user.user_id);
+    if (!inst) return res.status(404).json({ success: false, message: 'Institution not found.' });
+
+    const studentId = req.params.id;
+
+    // Check staff permissions: must be main institution account or staff with registrar / director / admin / coordinator position
+    if (req.user.role === 'institution_staff') {
+      const [staffRows] = await pool.query(
+        'SELECT position, classification, department FROM institution_staff WHERE user_id = ? AND institution_id = ?',
+        [req.user.user_id, inst.institution_id]
+      );
+      if (staffRows.length === 0) {
+        return res.status(403).json({ success: false, message: 'Unauthorized staff member.' });
+      }
+      const pos = (staffRows[0].position || '').toLowerCase();
+      const cls = (staffRows[0].classification || '').toLowerCase();
+      const isRegistrarOrAdmin = pos.includes('registrar') || pos.includes('director') || pos.includes('dean') || pos.includes('admin') || pos.includes('coordinator') || cls.includes('registrar');
+      if (!isRegistrarOrAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: 'Permission denied. Only academic staff with Registrar, Director, or Coordinator authority can update student status to Graduated.'
+        });
+      }
+    }
+
+    const [stuRows] = await pool.query(
+      'SELECT student_id, first_name, last_name, ojt_status, status_id FROM students WHERE student_id = ? AND institution_id = ?',
+      [studentId, inst.institution_id]
+    );
+
+    if (stuRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Student not found in this institution.' });
+    }
+
+    const student = stuRows[0];
+
+    await pool.query(
+      "UPDATE students SET ojt_status = 'graduated', status_id = 5, updated_at = NOW() WHERE student_id = ?",
+      [studentId]
+    );
+
+    emitUpdate('student_updated', { student_id: studentId, institution_id: inst.institution_id, ojt_status: 'graduated' });
+
+    return res.json({
+      success: true,
+      message: `Student ${student.first_name} ${student.last_name} has been officially updated to Graduated Student standing. The student is now eligible to apply for Career Job openings!`
+    });
+  } catch (error) {
+    console.error('Graduate student error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update student graduation status.' });
   }
 });
 

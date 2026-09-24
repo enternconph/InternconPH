@@ -171,3 +171,20 @@ export async function saveUploadedFile(file, subfolder = 'portfolio') {
 
   return finalWebPath;
 }
+
+export function formatFilePath(fp) {
+  if (!fp) return '';
+  if (fp.startsWith('certificate://') || fp.startsWith('certificate:')) {
+    const code = fp.replace(/^certificate:\/\//, '').replace(/^certificate:/, '');
+    return `/api/certificates/render/${code}`;
+  }
+  if (fp.startsWith('http://') || fp.startsWith('https://') || fp.startsWith('blob:') || fp.startsWith('data:')) return fp;
+  if (fp.startsWith('/api/')) return fp;
+  if (fp.startsWith('/uploads/')) return fp;
+  if (fp.startsWith('uploads/')) return '/' + fp;
+  return `/uploads/portfolio/${fp.replace(/^\/+/, '')}`;
+}
+
+export const processUploadedFile = saveUploadedFile;
+
+

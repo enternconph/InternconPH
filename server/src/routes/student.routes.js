@@ -69,7 +69,12 @@ const reqUpload = multer({
 
 const formatFilePath = (fp) => {
   if (!fp) return '';
+  if (fp.startsWith('certificate://') || fp.startsWith('certificate:')) {
+    const code = fp.replace(/^certificate:\/\//, '').replace(/^certificate:/, '');
+    return `/api/certificates/render/${code}`;
+  }
   if (fp.startsWith('http://') || fp.startsWith('https://') || fp.startsWith('blob:') || fp.startsWith('data:')) return fp;
+  if (fp.startsWith('/api/')) return fp;
   if (fp.startsWith('/uploads/')) return fp;
   if (fp.startsWith('uploads/')) return '/' + fp;
   return `/uploads/portfolio/${fp.replace(/^\/+/, '')}`;
@@ -358,7 +363,10 @@ router.get('/jobs', async (req, res) => {
       let eligibilityNotice = null;
 
       if (isOjt) {
-        if (hasActiveOjt) {
+        if (isOjtCompleter || isGraduated) {
+          canApply = false;
+          eligibilityNotice = 'OJT Completed: You have already completed your OJT requirement. Applying for another OJT internship is disabled. Only On-Call and Career Job openings are available.';
+        } else if (hasActiveOjt) {
           canApply = false;
           eligibilityNotice = 'You currently have an accepted OJT placement with ongoing progress & DTR. Applications for new OJT openings are locked.';
         } else {
@@ -485,6 +493,13 @@ router.post('/jobs/:id/apply', async (req, res) => {
 
     // Rule enforcement:
     if (isOjt) {
+      if (isOjtCompleter || isGraduated) {
+        return res.status(400).json({
+          success: false,
+          message: 'You have already completed your OJT requirement. Applying for another OJT internship is disabled. You may apply for On-Call opportunities or Career Jobs.'
+        });
+      }
+
       const [ongoingOjtRows] = await pool.query(
         `SELECT ojt_id FROM ojt_records WHERE student_id = ? AND status = 'ongoing' LIMIT 1`,
         [studentId]
@@ -625,10 +640,18 @@ router.get('/applications', async (req, res) => {
 
     const [applications] = await pool.query(
       `SELECT ja.*, jp.title as job_title, jp.location, jp.posting_type, jp.job_type,
-              ho.organization_name, ho.industry, ho.contact_email, ho.contact_phone
+              ho.organization_name, ho.industry, ho.contact_email, ho.contact_phone,
+              i.interview_id, i.schedule_at as interview_schedule_at, i.mode as interview_mode,
+              i.location_or_link as interview_location_or_link, i.notes as interview_notes,
+              i.status as interview_status
        FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
        JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
+       LEFT JOIN (
+         SELECT * FROM interviews WHERE interview_id IN (
+           SELECT MAX(interview_id) FROM interviews GROUP BY application_id
+         )
+       ) i ON ja.application_id = i.application_id
        WHERE ja.student_id = ?
        ORDER BY ja.applied_at DESC`,
       [student.student_id]

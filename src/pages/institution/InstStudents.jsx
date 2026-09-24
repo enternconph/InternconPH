@@ -98,6 +98,22 @@ export default function InstStudents() {
   // Student Profile Review Modal
   const [selectedStudent, setSelectedStudent] = useState(null);
 
+  // Career Portfolio Modal State (Accessible by all staff)
+  const [portfolioModal, setPortfolioModal] = useState({
+    isOpen: false,
+    student: null,
+    loading: false,
+    data: null
+  });
+
+  // Registrar Student Graduation Modal State
+  const [graduateModal, setGraduateModal] = useState({
+    isOpen: false,
+    studentId: null,
+    studentName: '',
+    notes: ''
+  });
+
   // Reject Modal State
   const [rejectModal, setRejectModal] = useState({
     isOpen: false,
@@ -107,6 +123,70 @@ export default function InstStudents() {
     email: '',
     reason: ''
   });
+
+  // Detect Registrar / Director role for authorization
+  const isRegistrarOrAdmin = useMemo(() => {
+    const pos = (user?.details?.position || user?.position || '').toLowerCase();
+    const role = (user?.role || '').toLowerCase();
+    return pos.includes('registrar') || pos.includes('director') || pos.includes('dean') || role.includes('admin');
+  }, [user]);
+
+  const handleOpenPortfolio = async (student) => {
+    const studentId = student.student_id;
+    if (!studentId) {
+      showToast('Career portfolio is available once student registration is verified.', true);
+      return;
+    }
+    setPortfolioModal({
+      isOpen: true,
+      student,
+      loading: true,
+      data: null
+    });
+    try {
+      const res = await api.get(`/inst/students/${studentId}/profile`);
+      if (res.success && res.data) {
+        setPortfolioModal({
+          isOpen: true,
+          student,
+          loading: false,
+          data: res.data
+        });
+      } else {
+        showToast(res.message || 'Failed to fetch student portfolio', true);
+        setPortfolioModal((prev) => ({ ...prev, loading: false }));
+      }
+    } catch (err) {
+      console.error('Failed to load student portfolio:', err);
+      showToast(err.response?.data?.message || 'Error loading career portfolio', true);
+      setPortfolioModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleConfirmGraduate = async () => {
+    if (!graduateModal.studentId) return;
+    setActionLoading(true);
+    try {
+      const res = await api.put(`/inst/students/${graduateModal.studentId}/graduate`, {
+        graduation_notes: graduateModal.notes
+      });
+      if (res.success) {
+        showToast(res.message || `${graduateModal.studentName} has been marked as Graduated!`);
+        setGraduateModal({ isOpen: false, studentId: null, studentName: '', notes: '' });
+        fetchStudents(page, searchTerm, selectedProgram);
+        if (portfolioModal.isOpen && portfolioModal.student?.student_id === graduateModal.studentId) {
+          handleOpenPortfolio(portfolioModal.student);
+        }
+      } else {
+        showToast(res.message || 'Failed to graduate student', true);
+      }
+    } catch (err) {
+      console.error('Failed to graduate student:', err);
+      showToast(err.response?.data?.message || 'Error marking student as graduated', true);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const fetchStudents = useCallback(async (targetPage = 1, targetSearch = '', targetProg = 'all') => {
     try {
@@ -365,14 +445,17 @@ export default function InstStudents() {
 
   const getOjtStatusBadge = (status) => {
     switch (status) {
-      case 'completed_ojt':
-        return { label: 'OJT Completer', color: 'bg-green-tint text-pinoy-green' };
-      case 'ongoing_ojt':
-        return { label: 'Ongoing OJT', color: 'bg-orange-tint text-vibrant-orange' };
       case 'graduated':
-        return { label: 'Graduated / Alumni', color: 'bg-yellow-500/10 text-yellow-600' };
+        return { label: 'Graduated Student 🎓', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-black border border-emerald-500/30' };
+      case 'completed':
+      case 'completed_ojt':
+        return { label: 'OJT Accomplish', color: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 font-bold border border-blue-500/30' };
+      case 'ongoing':
+      case 'ongoing_ojt':
+      case 'assigned':
+        return { label: 'Ongoing OJT', color: 'bg-orange-tint text-vibrant-orange font-bold' };
       default:
-        return { label: 'Starting / Pre-OJT', color: 'bg-blue-500/10 text-blue-600' };
+        return { label: 'Pre-OJT Student', color: 'bg-surface-container-high text-on-surface-variant font-bold' };
     }
   };
 
@@ -604,7 +687,7 @@ export default function InstStudents() {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
                           <button
                             onClick={() => setSelectedStudent(s)}
                             className="px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-colors border bg-surface-container-high text-on-surface hover:bg-surface-container-highest border-outline-variant"
@@ -612,6 +695,36 @@ export default function InstStudents() {
                             <span className="material-symbols-outlined text-[16px]">visibility</span>
                             <span>Review Profile</span>
                           </button>
+
+                          {/* Career Portfolio Button (Available to ALL institution staff for verified students) */}
+                          {s.student_id && (
+                            <button
+                              onClick={() => handleOpenPortfolio(s)}
+                              className="px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors border bg-orange-500/10 text-vibrant-orange hover:bg-orange-500/20 border-vibrant-orange/30 shadow-xs"
+                              title="View Student Career Portfolio & All Uploaded Supporting Documents"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">folder_shared</span>
+                              <span>Career Portfolio</span>
+                            </button>
+                          )}
+
+                          {/* Registrar Graduation Action (For Registrar / Director role when student completed OJT) */}
+                          {isRegistrarOrAdmin && s.student_id && (s.ojt_status === 'completed' || s.ojt_status === 'completed_ojt' || s.status_id === 4) && s.ojt_status !== 'graduated' && s.status_id !== 5 && (
+                            <button
+                              disabled={actionLoading}
+                              onClick={() => setGraduateModal({
+                                isOpen: true,
+                                studentId: s.student_id,
+                                studentName: `${s.first_name} ${s.last_name}`,
+                                notes: ''
+                              })}
+                              className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-90 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                              title="Registrar Action: Update Student Status from Completed OJT to Graduated"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">school</span>
+                              <span>Graduate Student</span>
+                            </button>
+                          )}
 
                           {activeTab === 'pending' && (
                             <>
@@ -1445,6 +1558,442 @@ export default function InstStudents() {
           </div>
         );
       })()}
+
+      {/* MODAL 4: STUDENT CAREER PORTFOLIO & SUPPORTING DOCUMENTS VIEWER */}
+      {portfolioModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-surface max-w-4xl w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden flex flex-col max-h-[92vh]">
+            {/* Header */}
+            <div className="p-5 sm:p-6 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-orange-tint text-vibrant-orange flex items-center justify-center font-bold text-lg shrink-0">
+                  <span className="material-symbols-outlined text-[28px]">folder_shared</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-on-surface flex items-center gap-2 flex-wrap">
+                    <span>
+                      {portfolioModal.student?.first_name} {portfolioModal.student?.last_name}
+                    </span>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono font-bold">
+                      {portfolioModal.student?.student_number}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-on-surface-variant">
+                    Verified Student Career Portfolio, Supporting Documents & OJT Milestone Record
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPortfolioModal({ isOpen: false, student: null, loading: false, data: null })}
+                className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6 text-xs flex-1">
+              {portfolioModal.loading ? (
+                <div className="py-16 flex flex-col items-center justify-center gap-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-4 border-vibrant-orange border-t-transparent"></div>
+                  <p className="text-xs font-bold text-on-surface-variant">Loading career portfolio & verified documents...</p>
+                </div>
+              ) : !portfolioModal.data ? (
+                <div className="text-center py-12 text-on-surface-variant space-y-2">
+                  <span className="material-symbols-outlined text-4xl text-on-surface-variant/40">error_outline</span>
+                  <p className="font-bold text-sm text-on-surface">No Portfolio Record Available</p>
+                  <p>Student has not initialized portfolio documents yet.</p>
+                </div>
+              ) : (() => {
+                const stu = portfolioModal.data.student || {};
+                const port = portfolioModal.data.portfolio || {};
+                const creds = port.credentials || [];
+                const records = port.academic_records || [];
+                const capstones = port.academic_portfolio || [];
+                const resumes = port.resumes || [];
+                const ojtRecs = portfolioModal.data.ojt_records || [];
+                const evals = portfolioModal.data.evaluations || [];
+                const isGrad = stu.ojt_status === 'graduated' || stu.status_id === 5;
+                const isCompletedOjt = stu.ojt_status === 'completed' || stu.ojt_status === 'completed_ojt' || stu.status_id === 4;
+
+                return (
+                  <div className="space-y-6">
+                    {/* Top Identity & Status Summary Card */}
+                    <div className="p-4 bg-surface-container rounded-xl border border-outline-variant flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-base text-on-surface">
+                            {stu.first_name} {stu.middle_name} {stu.last_name}
+                          </span>
+                          {isGrad ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[14px]">school</span>
+                              <span>Graduated Student</span>
+                            </span>
+                          ) : isCompletedOjt ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[14px]">verified</span>
+                              <span>OJT Accomplish</span>
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-orange-tint text-vibrant-orange flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[14px]">badge</span>
+                              <span>Ongoing / Active OJT</span>
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-on-surface-variant text-xs">
+                          {stu.email} • ID: <strong className="font-mono text-on-surface">{stu.student_number}</strong> • Program:{' '}
+                          <strong className="text-on-surface">{stu.program_name || 'Academic Degree Program'} ({stu.program_code || '—'})</strong>
+                        </p>
+                      </div>
+
+                      {/* Registrar Graduate Action in Portfolio */}
+                      {isRegistrarOrAdmin && isCompletedOjt && !isGrad && (
+                        <button
+                          disabled={actionLoading}
+                          onClick={() => setGraduateModal({
+                            isOpen: true,
+                            studentId: stu.student_id,
+                            studentName: `${stu.first_name} ${stu.last_name}`,
+                            notes: ''
+                          })}
+                          className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-90 rounded-xl font-bold text-xs flex items-center gap-2 shadow-md transition-all shrink-0"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">school</span>
+                          <span>Mark as Graduated Student</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Section 1: Academic Records & Transcripts (TOR / COR / Grades) */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-xs uppercase tracking-wider text-vibrant-orange flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[18px]">description</span>
+                          <span>Academic Records & Transcripts (TOR / COR / Clearances) ({records.length})</span>
+                        </h4>
+                      </div>
+
+                      {records.length === 0 ? (
+                        <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant text-center text-on-surface-variant">
+                          No official academic records or transcripts uploaded yet.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {records.map((item) => (
+                            <div key={item.item_id} className="p-3.5 bg-surface-container rounded-xl border border-outline-variant space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="space-y-0.5">
+                                  <span className="font-bold text-xs text-on-surface block line-clamp-1">{item.title}</span>
+                                  <span className="text-[10px] text-on-surface-variant block uppercase font-semibold">
+                                    {item.item_type?.replace(/_/g, ' ') || 'Document'} • {item.issuer_or_institution || 'University'}
+                                  </span>
+                                </div>
+                                <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 shrink-0">
+                                  Academic Record
+                                </span>
+                              </div>
+                              {item.description && (
+                                <p className="text-[11px] text-on-surface-variant line-clamp-2">{item.description}</p>
+                              )}
+                              {item.file_path && (
+                                <div className="pt-2 border-t border-outline-variant flex items-center justify-between">
+                                  <span className="text-[10px] text-on-surface-variant">
+                                    Uploaded: {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'}
+                                  </span>
+                                  <a
+                                    href={item.file_path}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-2.5 py-1 bg-surface-container-high text-on-surface hover:bg-vibrant-orange hover:text-white rounded text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px]">download</span>
+                                    <span>View / Download</span>
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Section 2: Certifications, Honors & Credentials */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-xs uppercase tracking-wider text-vibrant-orange flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[18px]">workspace_premium</span>
+                          <span>Professional Certifications, Honors & Credentials ({creds.length})</span>
+                        </h4>
+                      </div>
+
+                      {creds.length === 0 ? (
+                        <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant text-center text-on-surface-variant">
+                          No certifications or credentials uploaded yet.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {creds.map((item) => (
+                            <div key={item.item_id} className="p-3.5 bg-surface-container rounded-xl border border-outline-variant space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="space-y-0.5">
+                                  <span className="font-bold text-xs text-on-surface block line-clamp-1">{item.title}</span>
+                                  <span className="text-[10px] text-on-surface-variant block font-semibold">
+                                    Issuer: {item.issuer_or_institution || 'Accredited Authority'}
+                                  </span>
+                                </div>
+                                <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 shrink-0">
+                                  Credential
+                                </span>
+                              </div>
+                              {item.description && (
+                                <p className="text-[11px] text-on-surface-variant line-clamp-2">{item.description}</p>
+                              )}
+                              {item.file_path && (
+                                <div className="pt-2 border-t border-outline-variant flex items-center justify-between">
+                                  <span className="text-[10px] text-on-surface-variant">
+                                    Issued: {item.issue_date ? new Date(item.issue_date).toLocaleDateString() : 'Verified'}
+                                  </span>
+                                  <a
+                                    href={item.file_path}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-2.5 py-1 bg-surface-container-high text-on-surface hover:bg-vibrant-orange hover:text-white rounded text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                                    <span>Inspect Certificate</span>
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Section 3: Capstone Projects & Academic Portfolio */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-xs uppercase tracking-wider text-vibrant-orange flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[18px]">lightbulb</span>
+                          <span>Capstones, Thesis & Project Samples ({capstones.length})</span>
+                        </h4>
+                      </div>
+
+                      {capstones.length === 0 ? (
+                        <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant text-center text-on-surface-variant">
+                          No project samples or capstones registered yet.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {capstones.map((item) => (
+                            <div key={item.item_id} className="p-3.5 bg-surface-container rounded-xl border border-outline-variant space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="font-bold text-xs text-on-surface block line-clamp-1">{item.title}</span>
+                                <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-green-500/10 text-emerald-600 shrink-0">
+                                  Project
+                                </span>
+                              </div>
+                              {item.description && (
+                                <p className="text-[11px] text-on-surface-variant line-clamp-2">{item.description}</p>
+                              )}
+                              {(item.file_path || item.link_url) && (
+                                <div className="pt-2 border-t border-outline-variant flex items-center justify-between">
+                                  <span className="text-[10px] text-on-surface-variant">
+                                    {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Uploaded'}
+                                  </span>
+                                  <a
+                                    href={item.file_path || item.link_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-2.5 py-1 bg-surface-container-high text-on-surface hover:bg-vibrant-orange hover:text-white rounded text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                    <span>View Artifact</span>
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Section 4: Student Resumes */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-xs uppercase tracking-wider text-vibrant-orange flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[18px]">badge</span>
+                          <span>Uploaded Resumes & CVs ({resumes.length})</span>
+                        </h4>
+                      </div>
+
+                      {resumes.length === 0 ? (
+                        <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant text-center text-on-surface-variant">
+                          No student resume uploaded yet.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {resumes.map((r) => (
+                            <div key={r.resume_id} className="p-3 bg-surface-container rounded-xl border border-outline-variant flex items-center justify-between gap-3">
+                              <div className="space-y-0.5">
+                                <span className="font-bold text-xs text-on-surface block truncate">{r.title || 'Student Resume'}</span>
+                                <span className="text-[10px] text-on-surface-variant block">
+                                  Version {r.version || 1} • {r.is_active ? 'Active' : 'Archived'}
+                                </span>
+                              </div>
+                              {r.file_path && (
+                                <a
+                                  href={r.file_path}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-3 py-1 bg-vibrant-orange text-white rounded text-xs font-bold hover:bg-deep-orange transition-colors inline-flex items-center gap-1"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">download</span>
+                                  <span>Download</span>
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Section 5: OJT Placement & Performance Evaluations */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-xs uppercase tracking-wider text-vibrant-orange flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[18px]">fact_check</span>
+                          <span>OJT Placements & Mentor Evaluations ({ojtRecs.length} placements, {evals.length} evaluations)</span>
+                        </h4>
+                      </div>
+
+                      {ojtRecs.length === 0 ? (
+                        <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant text-center text-on-surface-variant">
+                          No host company OJT placements on file.
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {ojtRecs.map((ojt) => (
+                            <div key={ojt.ojt_id} className="p-4 bg-surface-container rounded-xl border border-outline-variant space-y-2">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div>
+                                  <span className="font-bold text-xs text-on-surface">{ojt.organization_name}</span>
+                                  <p className="text-[11px] text-on-surface-variant">
+                                    {ojt.org_address || 'Philippines'} • Industry: {ojt.industry || 'General'}
+                                  </p>
+                                </div>
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold capitalize self-start sm:self-auto ${
+                                  ojt.status === 'completed'
+                                    ? 'bg-green-tint text-pinoy-green'
+                                    : 'bg-orange-tint text-vibrant-orange'
+                                }`}>
+                                  Status: {ojt.status}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-outline-variant text-[11px] text-on-surface-variant">
+                                <div>
+                                  <span className="font-bold block text-on-surface">Target Hours:</span>
+                                  <span>{ojt.required_hours || 0} hrs</span>
+                                </div>
+                                <div>
+                                  <span className="font-bold block text-on-surface">Credited Hours:</span>
+                                  <span className="font-bold text-pinoy-green">{ojt.completed_hours || 0} hrs</span>
+                                </div>
+                                <div>
+                                  <span className="font-bold block text-on-surface">Workplace Mentor:</span>
+                                  <span>{ojt.mentor_first_name ? `${ojt.mentor_first_name} ${ojt.mentor_last_name}` : 'Assigned Mentor'}</span>
+                                </div>
+                                <div>
+                                  <span className="font-bold block text-on-surface">Placement Date:</span>
+                                  <span>{ojt.start_date ? new Date(ojt.start_date).toLocaleDateString() : '—'}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-outline-variant bg-surface-container-low flex justify-end">
+              <button
+                onClick={() => setPortfolioModal({ isOpen: false, student: null, loading: false, data: null })}
+                className="px-5 py-2 bg-surface-container text-on-surface rounded-lg font-bold text-xs hover:bg-surface-container-high transition-colors"
+              >
+                Close Portfolio
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: REGISTRAR GRADUATE STUDENT CONFIRMATION */}
+      {graduateModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-surface max-w-md w-full rounded-2xl shadow-2xl border border-outline-variant p-6 space-y-4 text-xs">
+            <div className="flex items-center gap-3 text-emerald-600">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[24px]">school</span>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-on-surface">Mark Student as Graduated</h3>
+                <p className="text-xs text-on-surface-variant">Registrar Clearance & Status Update</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-on-surface leading-relaxed space-y-1">
+              <p className="font-bold text-emerald-800 dark:text-emerald-300">
+                Update status for {graduateModal.studentName}
+              </p>
+              <p className="text-[11px] text-on-surface-variant">
+                Marking this student as <strong>Graduated</strong> will clear them from OJT internships and unlock full eligibility to apply for <strong>Career Job Openings</strong> and on-call assignments across hiring organizations.
+              </p>
+            </div>
+
+            <div>
+              <label className="block font-bold text-on-surface-variant uppercase mb-1">
+                Graduation / Clearance Notes (Optional)
+              </label>
+              <textarea
+                rows="3"
+                placeholder="e.g. Cleared all degree requirements, Commencement Batch 2026..."
+                value={graduateModal.notes}
+                onChange={(e) => setGraduateModal({ ...graduateModal, notes: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface outline-none focus:ring-2 focus:ring-emerald-500 text-xs"
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                onClick={() => setGraduateModal({ isOpen: false, studentId: null, studentName: '', notes: '' })}
+                className="px-4 py-2 bg-surface-container text-on-surface rounded-lg font-bold hover:bg-surface-container-high transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={actionLoading}
+                onClick={handleConfirmGraduate}
+                className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg font-bold hover:opacity-90 shadow-sm transition-opacity flex items-center gap-1.5"
+              >
+                {actionLoading ? (
+                  <span>Updating Status...</span>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">verified</span>
+                    <span>Confirm Graduation</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL 3: REJECT CONFIRMATION */}
       {rejectModal.isOpen && (

@@ -71,6 +71,18 @@ app.use(cookieParser());
 
 import pool from './config/db.js';
 
+import certificateRoutes from './routes/certificate.routes.js';
+
+// Dynamic Certificate Route Handler for direct uploads/portfolio/certificate links
+app.get(['/uploads/portfolio/certificate*', '/uploads/certificate*', '/uploads/*CERT-OJT*'], (req, res) => {
+  const fullPath = decodeURIComponent(req.originalUrl || req.path);
+  const match = fullPath.match(/CERT-OJT-[A-Za-z0-9-]+/i);
+  if (match && match[0]) {
+    return res.redirect(`/api/certificates/render/${match[0]}`);
+  }
+  return res.status(404).send('Certificate serial not recognized.');
+});
+
 // Serve static uploaded documents with 7-day browser caching
 app.use('/uploads', express.static(UPLOADS_DIR, {
   maxAge: '7d',
@@ -84,6 +96,14 @@ app.get(['/uploads/:subfolder/:filename', '/uploads/:filename'], async (req, res
 
   if (!filename) {
     return res.status(404).send('File not found');
+  }
+
+  // Intercept any certificate serial in filename
+  if (filename.includes('CERT-OJT-') || filename.startsWith('certificate')) {
+    const match = filename.match(/CERT-OJT-[A-Za-z0-9-]+/i);
+    if (match && match[0]) {
+      return res.redirect(`/api/certificates/render/${match[0]}`);
+    }
   }
 
   const filePathRel = subfolder ? `/uploads/${subfolder}/${filename}` : `/uploads/${filename}`;
@@ -271,6 +291,7 @@ app.use('/api/org', orgRoutes);
 app.use('/api/inst', instRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/certificates', certificateRoutes);
 
 // Serve frontend dist with SPA routing fallback & asset caching
 const DIST_DIR = path.resolve(__dirname, '../../dist');

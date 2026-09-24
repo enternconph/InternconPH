@@ -5,10 +5,17 @@ import { emitUpdate } from '../config/socket.js';
 import { sendNotification } from '../utils/notification.helper.js';
 import { checkAndGenerateCertificate } from '../services/certificate.service.js';
 import { isValidEmail, normalizeEmail } from '../utils/email.js';
+import multer from 'multer';
+import { getUploadStorage, processUploadedFile, formatFilePath } from '../utils/upload.helper.js';
 
 const router = express.Router();
 router.use(verifyToken);
 router.use(requireRole(['hiring_organization', 'workplace_mentor', 'mentor', 'hr_staff', 'system_admin']));
+
+const flyerUpload = multer({
+  storage: getUploadStorage('job_flyers'),
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
 
 // HR-Exclusive operations restriction: Workplace Mentors cannot manage jobs, offers, or HR access codes
 const requireHROrAdmin = (req, res, next) => {
@@ -81,13 +88,46 @@ const getMentorStaffId = async (userId, orgId) => {
   return null;
 };
 
-const formatFilePath = (fp) => {
-  if (!fp) return '';
-  if (fp.startsWith('http://') || fp.startsWith('https://') || fp.startsWith('blob:') || fp.startsWith('data:')) return fp;
-  if (fp.startsWith('/uploads/')) return fp;
-  if (fp.startsWith('uploads/')) return '/' + fp;
-  return `/uploads/portfolio/${fp.replace(/^\/+/, '')}`;
+// Helper to get Philippine Standard Time (UTC+8)
+const getPHTNow = () => {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(now);
+  const getPart = (type) => parts.find(p => p.type === type)?.value;
+  const year = getPart('year');
+  const month = getPart('month');
+  const day = getPart('day');
+  let hour = getPart('hour');
+  if (hour === '24') hour = '00';
+  const minute = getPart('minute');
+  const second = getPart('second');
+  return {
+    dateStr: `${year}-${month}-${day}`,
+    timeStr: `${hour}:${minute}:${second}`,
+    hour: parseInt(hour, 10),
+    minute: parseInt(minute, 10),
+    second: parseInt(second, 10)
+  };
 };
+
+const parseTimeToMinutes = (timeStr, defaultTime = '08:00') => {
+  if (!timeStr) timeStr = defaultTime;
+  const parts = String(timeStr).split(':').map(Number);
+  const h = isNaN(parts[0]) ? 8 : parts[0];
+  const m = isNaN(parts[1]) ? 0 : parts[1];
+  return h * 60 + m;
+};
+
+
 
 // GET /api/org/dashboard
 router.get('/dashboard', async (req, res) => {
@@ -445,6 +485,7 @@ router.post('/jobs', requireHROrAdmin, async (req, res) => {
     work_setup,
     slots_available,
     mentor_id,
+    start_time,
     finish_time,
     on_call_days,
     salary_rate,
@@ -452,6 +493,7 @@ router.post('/jobs', requireHROrAdmin, async (req, res) => {
     target_audience,
     requirements,
     deliverables,
+    flyer_image_url,
     institution_ids,
     program_ids
   } = req.body;
@@ -506,9 +548,9 @@ router.post('/jobs', requireHROrAdmin, async (req, res) => {
     const [jobRes] = await connection.query(
       `INSERT INTO job_postings (
         organization_id, mentor_id, title, description, requirements, deliverables,
-        posting_type, job_type, location, workplace_area, finish_time, on_call_days, salary_rate, salary_rate_type,
+        posting_type, job_type, location, workplace_area, flyer_image_url, start_time, finish_time, on_call_days, salary_rate, salary_rate_type,
         target_audience, work_setup, slots_available, status, posted_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW(), NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW(), NOW())`,
       [
         org.organization_id,
         mentor_id || null,
@@ -520,7 +562,9 @@ router.post('/jobs', requireHROrAdmin, async (req, res) => {
         job_type || (pType === 'ojt' ? 'internship' : pType === 'on_call' ? 'on_call' : 'full_time'),
         location || 'On-site / Hybrid',
         workplace_area ? workplace_area.trim() : null,
-        finish_time || null,
+        flyer_image_url || null,
+        pType === 'ojt' ? (start_time || '08:00') : null,
+        pType === 'ojt' ? (finish_time || '17:00') : (finish_time || null),
         on_call_days ? parseInt(on_call_days) : null,
         pType === 'ojt' ? null : (salary_rate ? parseFloat(salary_rate) : null),
         pType === 'ojt' ? null : (salary_rate_type || 'daily'),
@@ -583,6 +627,26 @@ router.post('/jobs', requireHROrAdmin, async (req, res) => {
   }
 });
 
+// POST /api/org/jobs/upload-flyer - Upload Digital Opportunity Poster / Flyer
+router.post('/jobs/upload-flyer', requireHROrAdmin, (req, res) => {
+  flyerUpload.single('flyer')(req, res, async (err) => {
+    if (err) {
+      console.error('[Flyer Upload Error]', err);
+      return res.status(400).json({ success: false, message: err.message || 'File upload error.' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No image file uploaded.' });
+    }
+    try {
+      const url = await processUploadedFile(req.file, 'job_flyers');
+      return res.json({ success: true, url: formatFilePath(url), message: 'Flyer image uploaded successfully!' });
+    } catch (processErr) {
+      console.error('[Flyer Process Error]', processErr);
+      return res.status(500).json({ success: false, message: 'Failed to process flyer image.' });
+    }
+  });
+});
+
 // PUT /api/org/jobs/:id
 router.put('/jobs/:id', requireHROrAdmin, async (req, res) => {
   const jobId = req.params.id;
@@ -593,9 +657,11 @@ router.put('/jobs/:id', requireHROrAdmin, async (req, res) => {
     job_type,
     location,
     workplace_area,
+    flyer_image_url,
     work_setup,
     slots_available,
     mentor_id,
+    start_time,
     finish_time,
     on_call_days,
     salary_rate,
@@ -625,6 +691,8 @@ router.put('/jobs/:id', requireHROrAdmin, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Org not found' });
     }
 
+    const pType = posting_type || 'ojt';
+
     await connection.query(
       `UPDATE job_postings SET
         title = COALESCE(?, title),
@@ -635,9 +703,11 @@ router.put('/jobs/:id', requireHROrAdmin, async (req, res) => {
         job_type = COALESCE(?, job_type),
         location = COALESCE(?, location),
         workplace_area = ?,
+        flyer_image_url = ?,
         work_setup = COALESCE(?, work_setup),
         slots_available = COALESCE(?, slots_available),
         mentor_id = ?,
+        start_time = ?,
         finish_time = ?,
         on_call_days = ?,
         salary_rate = ?,
@@ -655,13 +725,15 @@ router.put('/jobs/:id', requireHROrAdmin, async (req, res) => {
         job_type,
         location,
         workplace_area !== undefined ? (workplace_area ? workplace_area.trim() : null) : null,
+        flyer_image_url !== undefined ? (flyer_image_url ? flyer_image_url.trim() : null) : null,
         work_setup,
         slots_available ? parseInt(slots_available) : null,
         mentor_id || null,
-        finish_time || null,
+        pType === 'ojt' ? (start_time || '08:00') : null,
+        pType === 'ojt' ? (finish_time || '17:00') : (finish_time || null),
         on_call_days ? parseInt(on_call_days) : null,
-        posting_type === 'ojt' ? null : (salary_rate ? parseFloat(salary_rate) : null),
-        posting_type === 'ojt' ? null : salary_rate_type,
+        pType === 'ojt' ? null : (salary_rate ? parseFloat(salary_rate) : null),
+        pType === 'ojt' ? null : salary_rate_type,
         target_audience,
         status,
         jobId,
@@ -778,6 +850,8 @@ router.get('/applicants', async (req, res) => {
     const [applicants] = await pool.query(
       `SELECT ja.*, s.first_name, s.last_name, s.student_number, s.contact_number, s.ojt_status, s.classification,
               s.completed_ojt_hours, s.required_ojt_hours,
+              (s.ojt_status = 'graduated' OR s.status_id = 5) as is_graduated,
+              (s.ojt_status IN ('completed', 'completed_ojt') OR s.status_id = 4 OR (s.completed_ojt_hours >= s.required_ojt_hours AND s.required_ojt_hours > 0)) as is_ojt_completer,
               p.program_name, p.program_code, i.institution_name,
               jp.title as job_title, jp.job_id, jp.posting_type, jp.salary_rate, jp.salary_rate_type, jp.on_call_days, jp.finish_time
        FROM job_applications ja
@@ -813,7 +887,9 @@ router.get('/applicants/:id/profile', async (req, res) => {
     const [appRows] = await pool.query(
       `SELECT ja.*, jp.title as job_title, jp.posting_type, jp.salary_rate, jp.salary_rate_type, jp.on_call_days, jp.finish_time, jp.deliverables,
               s.student_id, s.user_id as student_user_id, s.first_name, s.last_name, s.student_number, s.contact_number,
-              s.ojt_status, s.classification, s.completed_ojt_hours, s.required_ojt_hours,
+              s.ojt_status, s.classification, s.completed_ojt_hours, s.required_ojt_hours, s.status_id,
+              (s.ojt_status = 'graduated' OR s.status_id = 5) as is_graduated,
+              (s.ojt_status IN ('completed', 'completed_ojt') OR s.status_id = 4 OR (s.completed_ojt_hours >= s.required_ojt_hours AND s.required_ojt_hours > 0)) as is_ojt_completer,
               p.program_name, p.program_code, p.department,
               i.institution_name, i.city as institution_city,
               u.email as student_email
@@ -833,8 +909,10 @@ router.get('/applicants/:id/profile', async (req, res) => {
 
     const applicant = appRows[0];
     const studentId = applicant.student_id;
-    const isGraduated = applicant.ojt_status === 'graduated' || applicant.status_id === 5;
-    const isOjtCompleter = applicant.ojt_status === 'completed' || applicant.ojt_status === 'completed_ojt' || applicant.status_id === 4 || (applicant.completed_ojt_hours && applicant.required_ojt_hours && applicant.completed_ojt_hours >= applicant.required_ojt_hours);
+    const isGraduated = Boolean(applicant.is_graduated);
+    const isOjtCompleter = Boolean(applicant.is_ojt_completer);
+    applicant.is_graduated = isGraduated;
+    applicant.is_ojt_completer = isOjtCompleter;
 
     const [resumes] = await pool.query(
       'SELECT * FROM student_resumes WHERE student_id = ? ORDER BY is_active DESC, version DESC, created_at DESC',
@@ -1136,10 +1214,34 @@ router.get('/interns', async (req, res) => {
               mentor_os.job_title as mentor_title,
               today_att.attendance_id as today_attendance_id,
               today_att.time_in as today_time_in,
+              today_att.time_in_status as today_time_in_status,
               today_att.time_out as today_time_out,
+              today_att.time_out_status as today_time_out_status,
               today_att.hours_rendered as today_hours,
               today_att.status as today_status,
-              today_att.tasks_accomplished as today_tasks
+              today_att.tasks_accomplished as today_tasks,
+              COALESCE(
+                (
+                  SELECT jp.start_time
+                  FROM job_applications ja
+                  JOIN job_postings jp ON ja.job_id = jp.job_id
+                  WHERE ja.student_id = o.student_id AND jp.organization_id = o.organization_id
+                  ORDER BY (CASE WHEN ja.status = 'accepted' THEN 0 WHEN ja.status = 'hired' THEN 1 ELSE 2 END), ja.updated_at DESC
+                  LIMIT 1
+                ),
+                '08:00'
+              ) as scheduled_start_time,
+              COALESCE(
+                (
+                  SELECT jp.finish_time
+                  FROM job_applications ja
+                  JOIN job_postings jp ON ja.job_id = jp.job_id
+                  WHERE ja.student_id = o.student_id AND jp.organization_id = o.organization_id
+                  ORDER BY (CASE WHEN ja.status = 'accepted' THEN 0 WHEN ja.status = 'hired' THEN 1 ELSE 2 END), ja.updated_at DESC
+                  LIMIT 1
+                ),
+                '17:00'
+              ) as scheduled_finish_time
        FROM ojt_records o
        JOIN students s ON o.student_id = s.student_id
        LEFT JOIN programs p ON s.program_id = p.program_id
@@ -1602,10 +1704,9 @@ router.post('/attendance/:id/verify', async (req, res) => {
   }
 });
 
-// POST /api/org/interns/:ojtId/time-in - Workplace Mentor clocks in a student intern
+// POST /api/org/interns/:ojtId/time-in - Workplace Mentor / HR clocks in a student intern
 router.post('/interns/:ojtId/time-in', async (req, res) => {
   const ojtId = req.params.ojtId;
-  const { time_in } = req.body;
 
   try {
     const org = await getOrgId(req.user.user_id);
@@ -1615,7 +1716,29 @@ router.post('/interns/:ojtId/time-in', async (req, res) => {
     const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
 
     const [ojts] = await pool.query(
-      `SELECT o.*, s.student_id, s.first_name, s.last_name, s.user_id as student_user_id
+      `SELECT o.*, s.student_id, s.first_name, s.last_name, s.user_id as student_user_id,
+              COALESCE(
+                (
+                  SELECT jp.start_time
+                  FROM job_applications ja
+                  JOIN job_postings jp ON ja.job_id = jp.job_id
+                  WHERE ja.student_id = o.student_id AND jp.organization_id = o.organization_id
+                  ORDER BY (CASE WHEN ja.status = 'accepted' THEN 0 WHEN ja.status = 'hired' THEN 1 ELSE 2 END), ja.updated_at DESC
+                  LIMIT 1
+                ),
+                '08:00'
+              ) as scheduled_start_time,
+              COALESCE(
+                (
+                  SELECT jp.finish_time
+                  FROM job_applications ja
+                  JOIN job_postings jp ON ja.job_id = jp.job_id
+                  WHERE ja.student_id = o.student_id AND jp.organization_id = o.organization_id
+                  ORDER BY (CASE WHEN ja.status = 'accepted' THEN 0 WHEN ja.status = 'hired' THEN 1 ELSE 2 END), ja.updated_at DESC
+                  LIMIT 1
+                ),
+                '17:00'
+              ) as scheduled_finish_time
        FROM ojt_records o
        JOIN students s ON o.student_id = s.student_id
        WHERE o.ojt_id = ? AND o.organization_id = ?`,
@@ -1663,16 +1786,21 @@ router.post('/interns/:ojtId/time-in', async (req, res) => {
       );
     }
 
+    // Get current Philippine Standard Time (PST - UTC+8)
+    const pht = getPHTNow();
+    const currentDate = pht.dateStr;
+    const timeInToRecord = pht.timeStr;
+
     // Check if already timed in today
     const [existing] = await pool.query(
-      'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND log_date = CURRENT_DATE()',
-      [ojtId]
+      'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND log_date = ?',
+      [ojtId, currentDate]
     );
 
-    // Format current time HH:MM:SS
-    const now = new Date();
-    const formattedNow = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-    const timeInToRecord = time_in || formattedNow;
+    // Compute On-Time vs Late based on standard scheduled start time
+    const schedStartMins = parseTimeToMinutes(ojt.scheduled_start_time, '08:00');
+    const actualInMins = pht.hour * 60 + pht.minute;
+    const timeInStatus = actualInMins <= schedStartMins ? 'on_time' : 'late';
 
     const assignedMentorStaffId = mentor ? mentor.org_staff_id : (ojt.mentor_id || null);
 
@@ -1685,32 +1813,33 @@ router.post('/interns/:ojtId/time-in', async (req, res) => {
       }
       await pool.query(
         `UPDATE ojt_attendance_logs 
-         SET time_in = ?, mentor_id = COALESCE(mentor_id, ?), verified_by = ?, verified_at = NOW(), updated_at = NOW()
+         SET time_in = ?, time_in_status = ?, mentor_id = COALESCE(mentor_id, ?), verified_by = ?, verified_at = NOW(), updated_at = NOW()
          WHERE attendance_id = ?`,
-        [timeInToRecord, assignedMentorStaffId, req.user.user_id, existing[0].attendance_id]
+        [timeInToRecord, timeInStatus, assignedMentorStaffId, req.user.user_id, existing[0].attendance_id]
       );
     } else {
       await pool.query(
-        `INSERT INTO ojt_attendance_logs (ojt_id, student_id, mentor_id, log_date, time_in, status, verified_by, verified_at, created_at, updated_at)
-         VALUES (?, ?, ?, CURRENT_DATE(), ?, 'verified', ?, NOW(), NOW(), NOW())`,
-        [ojtId, ojt.student_id, assignedMentorStaffId, timeInToRecord, req.user.user_id]
+        `INSERT INTO ojt_attendance_logs (ojt_id, student_id, mentor_id, log_date, time_in, time_in_status, status, verified_by, verified_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'verified', ?, NOW(), NOW(), NOW())`,
+        [ojtId, ojt.student_id, assignedMentorStaffId, currentDate, timeInToRecord, timeInStatus, req.user.user_id]
       );
     }
 
     emitUpdate('attendance_logged', { ojt_id: ojt.ojt_id, student_id: ojt.student_id, organization_id: org.organization_id });
 
+    const statusLabel = timeInStatus === 'on_time' ? 'On-Time' : 'Late';
     if (ojt.student_user_id) {
       await sendNotification({
         userId: ojt.student_user_id,
-        title: 'Mentor Recorded Time-In',
-        message: `Your workplace mentor timed you in today at ${timeInToRecord}. Have a productive training shift!`,
+        title: `Mentor Recorded Time-In (${statusLabel})`,
+        message: `Your workplace mentor timed you in today at ${timeInToRecord} (${statusLabel}, Philippine Time). Have a productive training shift!`,
         type: 'ojt'
       });
     }
 
     return res.json({
       success: true,
-      message: `Time-In officially recorded for ${ojt.first_name} ${ojt.last_name} at ${timeInToRecord}.`
+      message: `Time-In officially recorded for ${ojt.first_name} ${ojt.last_name} at ${timeInToRecord} (${statusLabel}).`
     });
   } catch (err) {
     console.error('Mentor time in error:', err);
@@ -1718,10 +1847,10 @@ router.post('/interns/:ojtId/time-in', async (req, res) => {
   }
 });
 
-// POST /api/org/interns/:ojtId/time-out - Workplace Mentor clocks out a student intern and credits hours
+// POST /api/org/interns/:ojtId/time-out - Workplace Mentor clocks out a student intern and credits hours based strictly on Philippine Time
 router.post('/interns/:ojtId/time-out', async (req, res) => {
   const ojtId = req.params.ojtId;
-  const { time_out, hours_rendered, tasks_accomplished } = req.body;
+  const { tasks_accomplished } = req.body;
 
   const connection = await pool.getConnection();
   let released = false;
@@ -1744,7 +1873,29 @@ router.post('/interns/:ojtId/time-out', async (req, res) => {
     const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
 
     const [ojts] = await connection.query(
-      `SELECT o.*, s.student_id, s.first_name, s.last_name, s.user_id as student_user_id
+      `SELECT o.*, s.student_id, s.first_name, s.last_name, s.user_id as student_user_id,
+              COALESCE(
+                (
+                  SELECT jp.start_time
+                  FROM job_applications ja
+                  JOIN job_postings jp ON ja.job_id = jp.job_id
+                  WHERE ja.student_id = o.student_id AND jp.organization_id = o.organization_id
+                  ORDER BY (CASE WHEN ja.status = 'accepted' THEN 0 WHEN ja.status = 'hired' THEN 1 ELSE 2 END), ja.updated_at DESC
+                  LIMIT 1
+                ),
+                '08:00'
+              ) as scheduled_start_time,
+              COALESCE(
+                (
+                  SELECT jp.finish_time
+                  FROM job_applications ja
+                  JOIN job_postings jp ON ja.job_id = jp.job_id
+                  WHERE ja.student_id = o.student_id AND jp.organization_id = o.organization_id
+                  ORDER BY (CASE WHEN ja.status = 'accepted' THEN 0 WHEN ja.status = 'hired' THEN 1 ELSE 2 END), ja.updated_at DESC
+                  LIMIT 1
+                ),
+                '17:00'
+              ) as scheduled_finish_time
        FROM ojt_records o
        JOIN students s ON o.student_id = s.student_id
        WHERE o.ojt_id = ? AND o.organization_id = ?`,
@@ -1772,34 +1923,52 @@ router.post('/interns/:ojtId/time-out', async (req, res) => {
       }
     }
 
+    // Get current Philippine Standard Time (PST - UTC+8)
+    const pht = getPHTNow();
+    const currentDate = pht.dateStr;
+    const timeOutToRecord = pht.timeStr;
+
     const [existing] = await connection.query(
-      'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND log_date = CURRENT_DATE()',
-      [ojtId]
+      'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND log_date = ?',
+      [ojtId, currentDate]
     );
 
-    const now = new Date();
-    const formattedNow = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-    const timeOutToRecord = time_out || formattedNow;
+    const actualInStr = existing.length > 0 && existing[0].time_in ? existing[0].time_in : '08:00:00';
+    const schedStartMins = parseTimeToMinutes(ojt.scheduled_start_time, '08:00');
+    const schedFinishMins = parseTimeToMinutes(ojt.scheduled_finish_time, '17:00');
+    const actualInMins = parseTimeToMinutes(actualInStr, '08:00');
+    const actualOutMins = pht.hour * 60 + pht.minute;
 
-    let computedHours = 8.0;
-    if (hours_rendered !== undefined && hours_rendered !== null && hours_rendered !== '') {
-      computedHours = parseFloat(hours_rendered);
-    } else if (existing.length > 0 && existing[0].time_in) {
-      try {
-        const [inH, inM] = existing[0].time_in.split(':').map(Number);
-        const [outH, outM] = timeOutToRecord.split(':').map(Number);
-        let diffHours = (outH + outM / 60) - (inH + inM / 60);
-        if (diffHours < 0) diffHours += 24;
-        computedHours = Math.round(Math.max(0.5, diffHours) * 10) / 10;
-      } catch (e) {
-        computedHours = 8.0;
-      }
+    // Time-out status: early (< finish_time), on_time (== finish_time), overtime (> finish_time)
+    let timeOutStatus = 'on_time';
+    if (actualOutMins < schedFinishMins) {
+      timeOutStatus = 'early';
+    } else if (actualOutMins > schedFinishMins) {
+      timeOutStatus = 'overtime';
+    } else {
+      timeOutStatus = 'on_time';
     }
 
-    if (isNaN(computedHours) || computedHours < 0 || computedHours > 24) {
-      await connection.rollback();
-      return res.status(400).json({ success: false, message: 'Invalid training hours rendered (must be between 0 and 24 hours).' });
+    // Time-in status:
+    const timeInStatus = existing.length > 0 && existing[0].time_in_status
+      ? existing[0].time_in_status
+      : (actualInMins <= schedStartMins ? 'on_time' : 'late');
+
+    // Rule: If student time-out record is overtime, the additional overtime is NOT recorded/credited.
+    // The credited end time is strictly capped at scheduled finish time.
+    const effectiveStartMins = Math.max(schedStartMins, actualInMins);
+    const effectiveEndMins = Math.min(schedFinishMins, actualOutMins);
+
+    let netWorkMins = Math.max(0, effectiveEndMins - effectiveStartMins);
+    // Deduct 1-hour lunch break if total shift duration >= 5 hours
+    const totalShiftSpan = schedFinishMins - schedStartMins;
+    if (totalShiftSpan >= 300 && netWorkMins >= 300) {
+      netWorkMins = Math.max(0, netWorkMins - 60);
     }
+
+    const maxShiftHours = Math.max(0, (totalShiftSpan >= 300 ? totalShiftSpan - 60 : totalShiftSpan) / 60);
+    let computedHours = Math.min(maxShiftHours, Math.round((netWorkMins / 60) * 10) / 10);
+    if (isNaN(computedHours) || computedHours < 0) computedHours = 0;
 
     const assignedMentorStaffId = mentor ? mentor.org_staff_id : (ojt.mentor_id || null);
     let attendanceId;
@@ -1810,16 +1979,16 @@ router.post('/interns/:ojtId/time-out', async (req, res) => {
       prevHours = parseFloat(existing[0].hours_rendered) || 0;
       await connection.query(
         `UPDATE ojt_attendance_logs 
-         SET time_out = ?, hours_rendered = ?, tasks_accomplished = ?, status = 'verified',
+         SET time_out = ?, time_in_status = ?, time_out_status = ?, hours_rendered = ?, tasks_accomplished = ?, status = 'verified',
              mentor_id = COALESCE(mentor_id, ?), verified_by = ?, verified_at = NOW(), updated_at = NOW()
          WHERE attendance_id = ?`,
-        [timeOutToRecord, computedHours, tasks_accomplished || 'Workplace training shift tasks completed.', assignedMentorStaffId, req.user.user_id, attendanceId]
+        [timeOutToRecord, timeInStatus, timeOutStatus, computedHours, tasks_accomplished || 'Workplace training shift tasks completed.', assignedMentorStaffId, req.user.user_id, attendanceId]
       );
     } else {
       const [insRes] = await connection.query(
-        `INSERT INTO ojt_attendance_logs (ojt_id, student_id, mentor_id, log_date, time_in, time_out, hours_rendered, tasks_accomplished, status, verified_by, verified_at, created_at, updated_at)
-         VALUES (?, ?, ?, CURRENT_DATE(), '08:00:00', ?, ?, ?, 'verified', ?, NOW(), NOW(), NOW())`,
-        [ojtId, ojt.student_id, assignedMentorStaffId, timeOutToRecord, computedHours, tasks_accomplished || 'Workplace training shift tasks completed.', req.user.user_id]
+        `INSERT INTO ojt_attendance_logs (ojt_id, student_id, mentor_id, log_date, time_in, time_in_status, time_out, time_out_status, hours_rendered, tasks_accomplished, status, verified_by, verified_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'verified', ?, NOW(), NOW(), NOW())`,
+        [ojtId, ojt.student_id, assignedMentorStaffId, currentDate, actualInStr, timeInStatus, timeOutToRecord, timeOutStatus, computedHours, tasks_accomplished || 'Workplace training shift tasks completed.', req.user.user_id]
       );
       attendanceId = insRes.insertId;
     }
@@ -1847,18 +2016,25 @@ router.post('/interns/:ojtId/time-out', async (req, res) => {
 
     emitUpdate('attendance_verified', { ojt_id: ojt.ojt_id, student_id: ojt.student_id, organization_id: org.organization_id });
 
+    const statusMap = {
+      on_time: 'On-Time',
+      early: 'Early Departure',
+      overtime: 'Overtime (Capped at scheduled finish time)'
+    };
+    const statusNote = statusMap[timeOutStatus] || timeOutStatus;
+
     if (ojt.student_user_id) {
       await sendNotification({
         userId: ojt.student_user_id,
-        title: 'Mentor Recorded Time-Out & Hours Credited',
-        message: `Your mentor timed you out at ${timeOutToRecord}. ${computedHours} training hours have been officially credited to your DTR!`,
+        title: `Mentor Recorded Time-Out (${statusNote})`,
+        message: `Your mentor timed you out at ${timeOutToRecord} (${statusNote}, Philippine Time). ${computedHours} training hours officially credited to your DTR!`,
         type: 'ojt'
       });
     }
 
     return res.json({
       success: true,
-      message: `Time-Out recorded and ${computedHours} training hours credited for ${ojt.first_name} ${ojt.last_name}!`
+      message: `Time-Out recorded (${statusNote}) and ${computedHours} training hours credited for ${ojt.first_name} ${ojt.last_name}!`
     });
   } catch (err) {
     try { await connection.rollback(); } catch (_) {}
@@ -1869,225 +2045,20 @@ router.post('/interns/:ojtId/time-out', async (req, res) => {
   }
 });
 
-// POST /api/org/interns/:ojtId/attendance - Mentor creates a custom / backdated attendance log
+// POST /api/org/interns/:ojtId/attendance - Deprecated / Disabled to prevent manipulation
 router.post('/interns/:ojtId/attendance', async (req, res) => {
-  const ojtId = req.params.ojtId;
-  const { log_date, time_in, time_out, hours_rendered, tasks_accomplished } = req.body;
-
-  if (!log_date) {
-    return res.status(400).json({ success: false, message: 'Date is required.' });
-  }
-
-  const connection = await pool.getConnection();
-  let released = false;
-  const safeRelease = () => {
-    if (!released) {
-      released = true;
-      try { connection.release(); } catch (_) {}
-    }
-  };
-  try {
-    await connection.beginTransaction();
-
-    const org = await getOrgId(req.user.user_id);
-    if (!org) {
-      await connection.rollback();
-      return res.status(404).json({ success: false, message: 'Organization not found.' });
-    }
-
-    const isMentor = isMentorUser(req, org);
-    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
-
-    const [ojts] = await connection.query(
-      `SELECT o.*, s.student_id, s.first_name, s.last_name, s.user_id as student_user_id
-       FROM ojt_records o
-       JOIN students s ON o.student_id = s.student_id
-       WHERE o.ojt_id = ? AND o.organization_id = ?`,
-      [ojtId, org.organization_id]
-    );
-
-    if (ojts.length === 0) {
-      await connection.rollback();
-      return res.status(404).json({ success: false, message: 'Active intern record not found.' });
-    }
-
-    const ojt = ojts[0];
-
-    // Enforce workplace mentor isolation
-    if (isMentor && mentor) {
-      const isAssigned = (ojt.mentor_id && ojt.mentor_id === mentor.org_staff_id) ||
-                         (ojt.supervisor_name === `${mentor.first_name} ${mentor.last_name}`) ||
-                         (ojt.supervisor_name === mentor.first_name);
-      if (!isAssigned) {
-        await connection.rollback();
-        return res.status(403).json({
-          success: false,
-          message: 'Unauthorized: You can only record attendance logs for interns assigned to you.'
-        });
-      }
-    }
-
-    const hours = parseFloat(hours_rendered) || 8.0;
-
-    if (isNaN(hours) || hours <= 0 || hours > 24) {
-      await connection.rollback();
-      return res.status(400).json({ success: false, message: 'Invalid training hours rendered (must be between 0.1 and 24 hours).' });
-    }
-
-    const assignedMentorStaffId = mentor ? mentor.org_staff_id : (ojt.mentor_id || null);
-
-    await connection.query(
-      `INSERT INTO ojt_attendance_logs (ojt_id, student_id, mentor_id, log_date, time_in, time_out, hours_rendered, tasks_accomplished, status, verified_by, verified_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'verified', ?, NOW(), NOW(), NOW())`,
-      [ojtId, ojt.student_id, assignedMentorStaffId, log_date, time_in || '08:00:00', time_out || '17:00:00', hours, tasks_accomplished || 'Shift completed.', req.user.user_id]
-    );
-
-    await connection.query(
-      'UPDATE ojt_records SET rendered_hours = GREATEST(0, rendered_hours + ?), updated_at = NOW() WHERE ojt_id = ?',
-      [hours, ojtId]
-    );
-    await connection.query(
-      'UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?',
-      [hours, ojt.student_id]
-    );
-    // Auto-update OJT status when hours requirement is met
-    await connection.query(
-      `UPDATE students SET ojt_status = 'completed_ojt', status_id = 4, updated_at = NOW()
-       WHERE student_id = ? AND ojt_status NOT IN ('graduated', 'completed_ojt', 'completed')
-         AND required_ojt_hours > 0 AND completed_ojt_hours >= required_ojt_hours`,
-      [ojt.student_id]
-    );
-
-    await connection.commit();
-
-    emitUpdate('attendance_verified', { ojt_id: ojt.ojt_id, student_id: ojt.student_id, organization_id: org.organization_id });
-
-    return res.json({
-      success: true,
-      message: `Attendance log for ${log_date} (${hours} hrs) recorded and credited for ${ojt.first_name} ${ojt.last_name}.`
-    });
-  } catch (err) {
-    try { await connection.rollback(); } catch (_) {}
-    console.error('Custom attendance error:', err);
-    return res.status(500).json({ success: false, message: 'Failed to record custom attendance log.' });
-  } finally {
-    safeRelease();
-  }
+  return res.status(403).json({
+    success: false,
+    message: 'Manual DTR entry is disabled. Time-In and Time-Out are strictly automated and based on Philippine Standard Time (UTC+8).'
+  });
 });
 
-// PUT /api/org/attendance/:id - Mentor edits an existing attendance log
+// PUT /api/org/attendance/:id - Deprecated / Disabled to prevent manipulation
 router.put('/attendance/:id', async (req, res) => {
-  const attendanceId = req.params.id;
-  const { time_in, time_out, hours_rendered, tasks_accomplished } = req.body;
-
-  const connection = await pool.getConnection();
-  let released = false;
-  const safeRelease = () => {
-    if (!released) {
-      released = true;
-      try { connection.release(); } catch (_) {}
-    }
-  };
-  try {
-    await connection.beginTransaction();
-
-    const org = await getOrgId(req.user.user_id);
-    if (!org) {
-      await connection.rollback();
-      return res.status(404).json({ success: false, message: 'Organization not found.' });
-    }
-
-    const isMentor = isMentorUser(req, org);
-    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
-
-    const [attRows] = await connection.query(
-      `SELECT att.*, o.ojt_id, o.mentor_id as ojt_mentor_id, o.supervisor_name, s.student_id
-       FROM ojt_attendance_logs att
-       JOIN ojt_records o ON att.ojt_id = o.ojt_id
-       JOIN students s ON att.student_id = s.student_id
-       WHERE att.attendance_id = ? AND o.organization_id = ?`,
-      [attendanceId, org.organization_id]
-    );
-
-    if (attRows.length === 0) {
-      await connection.rollback();
-      return res.status(404).json({ success: false, message: 'Attendance record not found.' });
-    }
-
-    const att = attRows[0];
-
-    // Enforce workplace mentor isolation
-    if (isMentor && mentor) {
-      const isAssigned = (att.mentor_id && att.mentor_id === mentor.org_staff_id) ||
-                         (att.ojt_mentor_id && att.ojt_mentor_id === mentor.org_staff_id) ||
-                         (att.supervisor_name === `${mentor.first_name} ${mentor.last_name}`) ||
-                         (att.supervisor_name === mentor.first_name);
-      if (!isAssigned) {
-        await connection.rollback();
-        return res.status(403).json({
-          success: false,
-          message: 'Unauthorized: You can only edit attendance logs for interns assigned to you.'
-        });
-      }
-    }
-
-    const prevHours = parseFloat(att.hours_rendered) || 0;
-    const newHours = hours_rendered !== undefined ? parseFloat(hours_rendered) : prevHours;
-
-    if (isNaN(newHours) || newHours < 0 || newHours > 24) {
-      await connection.rollback();
-      return res.status(400).json({ success: false, message: 'Invalid training hours rendered (must be between 0 and 24 hours).' });
-    }
-
-    await connection.query(
-      `UPDATE ojt_attendance_logs
-       SET time_in = COALESCE(?, time_in),
-           time_out = COALESCE(?, time_out),
-           hours_rendered = ?,
-           tasks_accomplished = COALESCE(?, tasks_accomplished),
-           status = 'verified',
-           mentor_id = COALESCE(mentor_id, ?),
-           verified_by = ?,
-           verified_at = NOW(),
-           updated_at = NOW()
-       WHERE attendance_id = ?`,
-      [time_in, time_out, newHours, tasks_accomplished, mentor ? mentor.org_staff_id : att.mentor_id, req.user.user_id, attendanceId]
-    );
-
-    const diff = att.status === 'verified' ? (newHours - prevHours) : newHours;
-    if (diff !== 0) {
-      await connection.query(
-        'UPDATE ojt_records SET rendered_hours = GREATEST(0, rendered_hours + ?), updated_at = NOW() WHERE ojt_id = ?',
-        [diff, att.ojt_id]
-      );
-      await connection.query(
-        'UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?',
-        [diff, att.student_id]
-      );
-      // Auto-update OJT status when hours requirement is met
-      await connection.query(
-        `UPDATE students SET ojt_status = 'completed_ojt', status_id = 4, updated_at = NOW()
-         WHERE student_id = ? AND ojt_status NOT IN ('graduated', 'completed_ojt', 'completed')
-           AND required_ojt_hours > 0 AND completed_ojt_hours >= required_ojt_hours`,
-        [att.student_id]
-      );
-    }
-
-    await connection.commit();
-
-    emitUpdate('attendance_verified', { ojt_id: att.ojt_id, student_id: att.student_id, organization_id: org.organization_id });
-
-    return res.json({
-      success: true,
-      message: `Attendance log updated successfully (${newHours} hrs credited).`
-    });
-  } catch (err) {
-    try { await connection.rollback(); } catch (_) {}
-    console.error('Update attendance error:', err);
-    return res.status(500).json({ success: false, message: 'Failed to update attendance log.' });
-  } finally {
-    safeRelease();
-  }
+  return res.status(403).json({
+    success: false,
+    message: 'Editing attendance logs is disabled. Attendance records are permanent and automatically certified upon Clock-Out.'
+  });
 });
 
 // GET /api/org/evaluations

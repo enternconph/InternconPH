@@ -933,15 +933,16 @@ export default function StudentPortfolio() {
         </div>
       )}
 
-      {/* File Preview Modal — supports images, PDFs (embedded), and download fallback for other formats */}
+      {/* File Preview Modal — supports images, PDFs (embedded), certificates, and download fallback for other formats */}
       {previewItem && (() => {
         const fp = resolveFileUrl(previewItem.file_path || '');
         const fn = previewItem.file_name || previewItem.title || '';
         const isImg = isImageFile(fn, fp);
         const isPdf = isPdfFile(fn, fp);
+        const isCert = previewItem.item_type === 'certificate' || fp.includes('/api/certificates/') || fp.includes('certificate:');
         return (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setPreviewItem(null)}>
-            <div className="bg-white dark:bg-surface rounded-2xl max-w-3xl w-full p-4 sm:p-5 space-y-3 border border-outline-variant shadow-2xl max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white dark:bg-surface rounded-2xl max-w-4xl w-full p-4 sm:p-5 space-y-3 border border-outline-variant shadow-2xl max-h-[92dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-sm font-bold text-on-surface">{previewItem.title}</h3>
@@ -953,11 +954,13 @@ export default function StudentPortfolio() {
                   {fp && (
                     <a
                       href={fp}
-                      download={previewItem.file_name || true}
+                      target={isCert ? '_blank' : '_self'}
+                      rel="noreferrer"
+                      download={isCert ? undefined : (previewItem.file_name || true)}
                       className="px-3 py-1.5 bg-vibrant-orange text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-deep-orange transition-colors"
                     >
-                      <span className="material-symbols-outlined text-[14px]">download</span>
-                      Download
+                      <span className="material-symbols-outlined text-[14px]">{isCert ? 'open_in_new' : 'download'}</span>
+                      {isCert ? 'Open Full Certificate' : 'Download'}
                     </a>
                   )}
                   <button onClick={() => setPreviewItem(null)} className="p-1.5 text-on-surface-variant hover:text-error transition-colors rounded-lg hover:bg-red-50">
@@ -969,11 +972,11 @@ export default function StudentPortfolio() {
               <div className="rounded-xl overflow-hidden border border-outline-variant bg-surface-container-low">
                 {isImg && fp ? (
                   <img src={fp} alt={previewItem.title} className="w-full max-h-[70vh] object-contain" />
-                ) : isPdf && fp ? (
+                ) : (isPdf || isCert) && fp ? (
                   <iframe
                     src={fp}
                     title={previewItem.title}
-                    className="w-full h-[70vh] border-0"
+                    className="w-full h-[72vh] border-0"
                   />
                 ) : fp ? (
                   <div className="p-8 text-center space-y-3">

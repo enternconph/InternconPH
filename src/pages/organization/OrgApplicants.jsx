@@ -376,22 +376,31 @@ export default function OrgApplicants() {
                         {/* Student Standing */}
                         <td className="py-3 px-4">
                           <div className="space-y-1">
-                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-bold ${
                               app.is_graduated || app.ojt_status === 'graduated'
-                                ? 'bg-purple-100 text-purple-700'
-                                : app.is_ojt_completer || app.ojt_status === 'completed'
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-blue-100 text-blue-700'
+                                ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                : app.is_ojt_completer || app.ojt_status === 'completed' || app.ojt_status === 'completed_ojt'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : 'bg-blue-100 text-blue-800 border border-blue-200'
                             }`}>
-                              {app.is_graduated || app.ojt_status === 'graduated'
-                                ? 'Graduated / Alumni'
-                                : app.is_ojt_completer || app.ojt_status === 'completed'
-                                ? 'OJT Completer'
-                                : 'Undergraduate Intern'}
+                              <span className="material-symbols-outlined text-[13px]">
+                                {app.is_graduated || app.ojt_status === 'graduated'
+                                  ? 'school'
+                                  : app.is_ojt_completer || app.ojt_status === 'completed' || app.ojt_status === 'completed_ojt'
+                                  ? 'workspace_premium'
+                                  : 'person'}
+                              </span>
+                              <span>
+                                {app.is_graduated || app.ojt_status === 'graduated'
+                                  ? 'Graduated student'
+                                  : app.is_ojt_completer || app.ojt_status === 'completed' || app.ojt_status === 'completed_ojt'
+                                  ? 'OJT Accomplish'
+                                  : 'OJT Student'}
+                              </span>
                             </span>
-                            {app.rendered_hours > 0 && (
+                            {(app.completed_ojt_hours > 0 || app.rendered_hours > 0) && (
                               <p className="text-[10px] text-on-surface-variant font-mono">
-                                {app.rendered_hours} hrs completed
+                                {app.completed_ojt_hours || app.rendered_hours} hrs completed
                               </p>
                             )}
                           </div>
@@ -866,54 +875,73 @@ export default function OrgApplicants() {
                 )}
 
                 {/* Modal Action Bar */}
-                <div className="pt-3 border-t border-outline-variant flex justify-between items-center flex-wrap gap-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-on-surface-variant font-bold">Update Status:</span>
-                    <button
-                      disabled={actionLoading}
-                      onClick={() => handleStatusChange(inspectData.applicant.application_id, 'shortlisted')}
-                      className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high rounded-lg font-bold text-on-surface transition-colors"
-                    >
-                      Shortlist
-                    </button>
-                    <button
-                      disabled={actionLoading}
-                      onClick={() => handleStatusChange(inspectData.applicant.application_id, 'interview')}
-                      className="px-3 py-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg font-bold transition-colors"
-                    >
-                      Request Interview
-                    </button>
-                    <button
-                      disabled={actionLoading}
-                      onClick={() => handleStatusChange(inspectData.applicant.application_id, 'rejected')}
-                      className="px-3 py-1.5 bg-error-container text-error hover:bg-red-200 rounded-lg font-bold transition-colors"
-                    >
-                      Reject
-                    </button>
+                {inspectData.applicant.status === 'accepted' ? (
+                  <div className="pt-3 border-t border-outline-variant">
+                    <div className="p-3.5 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-pinoy-green flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[22px] text-pinoy-green">verified</span>
+                        <div>
+                          <p className="font-bold text-sm text-pinoy-green">Application Accepted & Finalized</p>
+                          <p className="text-[11px] text-green-700 font-normal">
+                            This candidate was officially accepted into the organization. Status updating is disabled because the placement has already been secured.
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-3 py-1 bg-green-100 text-pinoy-green border border-green-300 rounded-full text-[11px] font-bold uppercase tracking-wider">
+                        Status Locked (Accepted)
+                      </span>
+                    </div>
                   </div>
+                ) : (
+                  <div className="pt-3 border-t border-outline-variant flex justify-between items-center flex-wrap gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-on-surface-variant font-bold">Update Status:</span>
+                      <button
+                        disabled={actionLoading}
+                        onClick={() => handleStatusChange(inspectData.applicant.application_id, 'shortlisted')}
+                        className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high rounded-lg font-bold text-on-surface transition-colors"
+                      >
+                        Shortlist
+                      </button>
+                      <button
+                        disabled={actionLoading}
+                        onClick={() => handleStatusChange(inspectData.applicant.application_id, 'interview')}
+                        className="px-3 py-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg font-bold transition-colors"
+                      >
+                        Request Interview
+                      </button>
+                      <button
+                        disabled={actionLoading}
+                        onClick={() => handleStatusChange(inspectData.applicant.application_id, 'rejected')}
+                        className="px-3 py-1.5 bg-error-container text-error hover:bg-red-200 rounded-lg font-bold transition-colors"
+                      >
+                        Reject
+                      </button>
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    {inspectData.applicant.posting_type === 'on_call' ? (
-                      <button
-                        disabled={actionLoading}
-                        onClick={() => handleAcceptOnCall(inspectData.applicant.application_id)}
-                        className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg font-bold transition-colors flex items-center gap-1.5 shadow-sm"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">verified</span>
-                        <span>Accept On-Call (Auto-Credit Portfolio)</span>
-                      </button>
-                    ) : (
-                      <button
-                        disabled={actionLoading}
-                        onClick={() => handleStatusChange(inspectData.applicant.application_id, 'offered')}
-                        className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg font-bold transition-colors flex items-center gap-1.5 shadow-sm"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">assignment_turned_in</span>
-                        <span>Issue Official Offer</span>
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {inspectData.applicant.posting_type === 'on_call' ? (
+                        <button
+                          disabled={actionLoading}
+                          onClick={() => handleAcceptOnCall(inspectData.applicant.application_id)}
+                          className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">verified</span>
+                          <span>Accept On-Call (Auto-Credit Portfolio)</span>
+                        </button>
+                      ) : (
+                        <button
+                          disabled={actionLoading}
+                          onClick={() => handleStatusChange(inspectData.applicant.application_id, 'offered')}
+                          className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">assignment_turned_in</span>
+                          <span>Issue Official Offer</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
           </div>

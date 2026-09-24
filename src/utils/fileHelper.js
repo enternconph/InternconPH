@@ -4,6 +4,13 @@
 
 export function resolveFileUrl(filePath) {
   if (!filePath) return '';
+  const apiBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/+$/, '') : '';
+
+  if (filePath.startsWith('certificate://') || filePath.startsWith('certificate:')) {
+    const code = filePath.replace(/^certificate:\/\//, '').replace(/^certificate:/, '');
+    return `${apiBase}/api/certificates/render/${code}`;
+  }
+
   if (
     filePath.startsWith('http://') ||
     filePath.startsWith('https://') ||
@@ -12,10 +19,15 @@ export function resolveFileUrl(filePath) {
   ) {
     return filePath;
   }
+
+  if (filePath.startsWith('/api/')) {
+    return `${apiBase}${filePath}`;
+  }
+
   if (filePath.startsWith('/photo/') || filePath.startsWith('photo/')) {
     return filePath.startsWith('/') ? filePath : `/${filePath}`;
   }
-  const apiBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/+$/, '') : '';
+
   let cleanPath = filePath;
   if (cleanPath.startsWith('/uploads/')) {
     cleanPath = filePath;

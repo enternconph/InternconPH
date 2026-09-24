@@ -370,28 +370,52 @@ export default function StudentOJT() {
               </div>
 
               <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
-                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
-                  Time-In (Mentor Recorded)
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
+                    Time-In (PST UTC+8)
+                  </span>
+                  {todayLog?.time_in && (
+                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                      todayLog.time_in_status === 'late'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {todayLog.time_in_status === 'late' ? 'Late' : 'On-Time'}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-emerald-600 text-[18px]">login</span>
                   <span className="text-sm font-bold font-mono text-emerald-700">
-                    {todayLog?.time_in || '—'}
+                    {todayLog?.time_in ? todayLog.time_in.slice(0, 5) : '—'}
                   </span>
                 </div>
                 <p className="text-[11px] text-on-surface-variant">
-                  {todayLog?.time_in ? 'Officially logged by mentor' : 'Pending arrival confirmation'}
+                  {todayLog?.time_in ? `Logged at ${todayLog.time_in.slice(0, 5)}` : 'Pending arrival confirmation'}
                 </p>
               </div>
 
               <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
-                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
-                  Time-Out (Mentor Recorded)
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
+                    Time-Out (PST UTC+8)
+                  </span>
+                  {todayLog?.time_out && (
+                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                      todayLog.time_out_status === 'early'
+                        ? 'bg-amber-100 text-amber-800'
+                        : todayLog.time_out_status === 'overtime'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {todayLog.time_out_status === 'early' ? 'Early Departure' : todayLog.time_out_status === 'overtime' ? 'Overtime (Capped)' : 'On-Time'}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-vibrant-orange text-[18px]">logout</span>
                   <span className="text-sm font-bold font-mono text-vibrant-orange">
-                    {todayLog?.time_out || (isClockedInToday ? 'In Progress' : '—')}
+                    {todayLog?.time_out ? todayLog.time_out.slice(0, 5) : (isClockedInToday ? 'In Progress' : '—')}
                   </span>
                 </div>
                 <p className="text-[11px] text-on-surface-variant">
@@ -400,13 +424,13 @@ export default function StudentOJT() {
               </div>
             </div>
 
-            {/* Supervision Protocol Notice */}
+            {/* Supervision Protocol & Overtime Notice */}
             <div className="p-3.5 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60 rounded-xl flex items-start gap-2.5 text-xs text-blue-950 dark:text-blue-100">
               <span className="material-symbols-outlined text-[18px] text-blue-600 dark:text-blue-400 shrink-0 mt-0.5">verified_user</span>
               <div className="space-y-0.5">
-                <p className="font-bold text-blue-950 dark:text-blue-100">Workplace Mentor Supervision Protocol</p>
+                <p className="font-bold text-blue-950 dark:text-blue-100">Workplace Mentor Supervision & Overtime Policy</p>
                 <p className="text-[11px] text-blue-800 dark:text-blue-200 leading-relaxed">
-                  Daily Time Records (Time-In and Time-Out) are exclusively recorded and certified by your assigned Workplace Mentor in compliance with institutional OJT agreements. Please report directly to your supervisor upon shift arrival and conclusion.
+                  Daily Time Records (Time-In and Time-Out) are recorded and certified by your assigned Workplace Mentor using Philippine Standard Time (PST UTC+8). In accordance with institutional OJT agreements, any overtime clocked beyond the daily scheduled finish time is capped and not credited toward required training hours.
                 </p>
               </div>
             </div>
@@ -432,11 +456,11 @@ export default function StudentOJT() {
                     <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
                       <th className="py-3 px-4">Date</th>
                       <th className="py-3 px-4">Host Company</th>
-                      <th className="py-3 px-4">Time In</th>
-                      <th className="py-3 px-4">Time Out</th>
-                      <th className="py-3 px-4">Hours Rendered</th>
+                      <th className="py-3 px-4">Time In (PST)</th>
+                      <th className="py-3 px-4">Time Out (PST)</th>
+                      <th className="py-3 px-4">Hours Credited</th>
                       <th className="py-3 px-4">Tasks Accomplished</th>
-                      <th className="py-3 px-4">Mentor Verification</th>
+                      <th className="py-3 px-4">Mentor Certification</th>
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -447,13 +471,43 @@ export default function StudentOJT() {
                           {new Date(log.log_date).toLocaleDateString()}
                         </td>
                         <td className="py-3 px-4 text-xs text-on-surface-variant">{log.organization_name}</td>
-                        <td className="py-3 px-4 font-mono text-xs text-on-surface">{log.time_in || '—'}</td>
-                        <td className="py-3 px-4 font-mono text-xs text-on-surface">{log.time_out || 'Active'}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-xs text-on-surface">{log.time_in ? log.time_in.slice(0, 5) : '—'}</span>
+                            {log.time_in && (
+                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                                log.time_in_status === 'late'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}>
+                                {log.time_in_status === 'late' ? 'Late' : 'On-Time'}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-xs text-on-surface">
+                              {log.time_out ? log.time_out.slice(0, 5) : (log.time_in ? 'In Progress' : '—')}
+                            </span>
+                            {log.time_out && (
+                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                                log.time_out_status === 'early'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : log.time_out_status === 'overtime'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}>
+                                {log.time_out_status === 'early' ? 'Early' : log.time_out_status === 'overtime' ? 'Overtime (Capped)' : 'On-Time'}
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3 px-4 font-bold text-xs text-on-surface">
                           {log.hours_rendered ? `${log.hours_rendered} hrs` : '—'}
                         </td>
-                        <td className="py-3 px-4 text-xs text-on-surface-variant max-w-xs truncate">
-                          {log.tasks_accomplished || 'Daily internship tasks.'}
+                        <td className="py-3 px-4 text-xs text-on-surface-variant max-w-xs truncate" title={log.tasks_accomplished || ''}>
+                          {log.tasks_accomplished || 'Daily internship tasks completed.'}
                         </td>
                         <td className="py-3 px-4">
                           <span
@@ -465,7 +519,7 @@ export default function StudentOJT() {
                                 : 'bg-amber-500/10 text-amber-600'
                             }`}
                           >
-                            {log.status}
+                            {log.status === 'verified' ? 'Certified' : log.status}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right">

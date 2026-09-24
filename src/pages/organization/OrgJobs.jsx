@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
+import PhAddressSelector from '../../components/ui/PhAddressSelector';
+import { resolveFileUrl } from '../../utils/fileHelper';
 
 export default function OrgJobs() {
   const navigate = useNavigate();
@@ -20,6 +22,18 @@ export default function OrgJobs() {
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [programSearch, setProgramSearch] = useState('');
+  const [flyerUploading, setFlyerUploading] = useState(false);
+
+  const initialAddress = {
+    region: '', regionCode: '',
+    province: '', provinceCode: '',
+    city: '', cityCode: '',
+    barangay: '', barangayCode: '',
+    postalCode: '',
+    street: ''
+  };
+
+  const [address, setAddress] = useState(initialAddress);
 
   const initialForm = {
     title: '',
@@ -29,10 +43,12 @@ export default function OrgJobs() {
     posting_type: 'ojt', // 'ojt', 'career_job', 'on_call'
     location: '',
     workplace_area: '',
+    flyer_image_url: '',
     work_setup: 'hybrid',
     slots_available: 1,
     mentor_id: '',
-    finish_time: '',
+    start_time: '08:00',
+    finish_time: '17:00',
     on_call_days: 3,
     salary_rate: '',
     salary_rate_type: 'daily',
@@ -118,6 +134,7 @@ export default function OrgJobs() {
       return;
     }
     setEditingJob(null);
+    setAddress(initialAddress);
     setFormData({
       ...initialForm,
       mentor_id: mentors.length > 0 ? mentors[0].org_staff_id : '',
@@ -138,10 +155,12 @@ export default function OrgJobs() {
       posting_type: job.posting_type || 'ojt',
       location: job.location || '',
       workplace_area: job.workplace_area || '',
+      flyer_image_url: job.flyer_image_url || '',
       work_setup: job.work_setup || 'hybrid',
       slots_available: job.slots_available || 1,
       mentor_id: job.mentor_id || (mentors.length > 0 ? mentors[0].org_staff_id : ''),
-      finish_time: job.finish_time || '',
+      start_time: job.start_time || '08:00',
+      finish_time: job.finish_time || '17:00',
       on_call_days: job.on_call_days || 3,
       salary_rate: job.salary_rate || '',
       salary_rate_type: job.salary_rate_type || 'daily',
@@ -149,8 +168,42 @@ export default function OrgJobs() {
       institution_ids: (job.institution_approvals || []).map(a => a.institution_id),
       program_ids: (job.target_programs || []).map(tp => tp.program_id)
     });
+    setAddress(initialAddress);
     setErrorMsg('');
     setShowModal(true);
+  };
+
+  const handleFlyerUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrorMsg('Please upload a valid image file (PNG, JPG, JPEG, WEBP) for the opportunity flyer.');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMsg('Flyer image must not exceed 10MB.');
+      return;
+    }
+
+    setFlyerUploading(true);
+    setErrorMsg('');
+    try {
+      const uploadData = new FormData();
+      uploadData.append('flyer', file);
+      const res = await api.post('/org/jobs/upload-flyer', uploadData);
+      if (res.success && res.url) {
+        setFormData(prev => ({ ...prev, flyer_image_url: res.url }));
+        setMessage('Flyer poster uploaded successfully!');
+      } else {
+        setErrorMsg(res.message || 'Failed to upload flyer poster.');
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Error uploading flyer poster.');
+    } finally {
+      setFlyerUploading(false);
+    }
   };
 
   const handleFormSubmit = async (e) => {
@@ -170,8 +223,21 @@ export default function OrgJobs() {
 
     setSubmitting(true);
 
+    // Compute Philippine address if address selector was utilized
+    const formattedPhAddress = [
+      address.street,
+      address.barangay,
+      address.city,
+      address.province && address.province !== 'NCR' ? address.province : '',
+      address.region,
+      address.postalCode ? `Postal Code ${address.postalCode}` : ''
+    ].filter(Boolean).join(', ');
+
+    const finalLocation = formattedPhAddress || formData.location || 'Metro Manila, Philippines';
+
     const submitData = {
       ...formData,
+      location: finalLocation,
       ...(formData.posting_type === 'ojt' ? { salary_rate: '', salary_rate_type: '' } : {})
     };
 
@@ -469,25 +535,36 @@ export default function OrgJobs() {
                     <tr key={job.job_id} className="hover:bg-surface-container-low transition-colors">
                       {/* Title & Setup */}
                       <td className="py-3 px-4">
-                        <p className="font-bold text-on-surface">{job.title}</p>
-                        <div className="text-xs text-on-surface-variant flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <span className="flex items-center gap-0.5">
-                            <span className="material-symbols-outlined text-[14px]">location_on</span>
-                            <span>{job.location || 'On-site / Hybrid'}</span>
-                          </span>
-                          {job.workplace_area && (
-                            <>
-                              <span>•</span>
-                              <span className="inline-flex items-center gap-1 font-semibold text-on-surface px-1.5 py-0.5 rounded bg-orange-tint/40 text-vibrant-orange border border-vibrant-orange/20 text-[11px]">
-                                <span className="material-symbols-outlined text-[12px]">meeting_room</span>
-                                <span>Area: {job.workplace_area}</span>
-                              </span>
-                            </>
+                        <div className="flex items-start gap-3">
+                          {job.flyer_image_url && (
+                            <img
+                              src={resolveFileUrl(job.flyer_image_url)}
+                              alt="Flyer thumbnail"
+                              className="w-12 h-12 object-cover rounded-lg border border-outline-variant shrink-0"
+                            />
                           )}
-                          <span>•</span>
-                          <span className="capitalize">{job.work_setup}</span>
-                          <span>•</span>
-                          <span>{job.slots_available || 1} slots</span>
+                          <div>
+                            <p className="font-bold text-on-surface">{job.title}</p>
+                            <div className="text-xs text-on-surface-variant flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              <span className="flex items-center gap-0.5">
+                                <span className="material-symbols-outlined text-[14px]">location_on</span>
+                                <span>{job.location || 'On-site / Hybrid'}</span>
+                              </span>
+                              {job.workplace_area && (
+                                <>
+                                  <span>•</span>
+                                  <span className="inline-flex items-center gap-1 font-semibold text-on-surface px-1.5 py-0.5 rounded bg-orange-tint/40 text-vibrant-orange border border-vibrant-orange/20 text-[11px]">
+                                    <span className="material-symbols-outlined text-[12px]">meeting_room</span>
+                                    <span>Area: {job.workplace_area}</span>
+                                  </span>
+                                </>
+                              )}
+                              <span>•</span>
+                              <span className="capitalize">{job.work_setup}</span>
+                              <span>•</span>
+                              <span>{job.slots_available || 1} slots</span>
+                            </div>
+                          </div>
                         </div>
                       </td>
 
@@ -524,12 +601,22 @@ export default function OrgJobs() {
                                 {job.mentor_first_name} {job.mentor_last_name}
                               </p>
                               <p className="text-[11px] text-on-surface-variant">{job.mentor_department || 'Supervisor'}</p>
+                              <p className="text-[10px] text-on-surface-variant flex items-center gap-1 mt-1 font-medium bg-slate-100 px-1.5 py-0.5 rounded w-fit">
+                                <span className="material-symbols-outlined text-[12px] text-vibrant-orange">schedule</span>
+                                <span>{job.start_time || '08:00'} - {job.finish_time || '17:00'} (PST)</span>
+                              </p>
                             </div>
                           ) : (
-                            <span className="text-[11px] text-error font-medium flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[14px]">warning</span>
-                              No Mentor Assigned
-                            </span>
+                            <div>
+                              <span className="text-[11px] text-error font-medium flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[14px]">warning</span>
+                                No Mentor Assigned
+                              </span>
+                              <p className="text-[10px] text-on-surface-variant flex items-center gap-1 mt-1 font-medium bg-slate-100 px-1.5 py-0.5 rounded w-fit">
+                                <span className="material-symbols-outlined text-[12px] text-vibrant-orange">schedule</span>
+                                <span>{job.start_time || '08:00'} - {job.finish_time || '17:00'} (PST)</span>
+                              </p>
+                            </div>
                           )
                         ) : pType === 'on_call' ? (
                           <div className="space-y-0.5">
@@ -847,79 +934,202 @@ export default function OrgJobs() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-on-surface block mb-1">Office Address / City Location</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Makati City, Metro Manila"
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-white text-on-surface outline-none focus:border-vibrant-orange"
-                  />
-                  <p className="text-[10px] text-on-surface-variant mt-0.5">Primary office or workplace branch location</p>
+              {/* PHILIPPINE GEOGRAPHIC ADDRESS SELECTOR */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-outline-variant space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-on-surface flex items-center gap-1.5 text-xs">
+                    <span className="material-symbols-outlined text-[16px] text-vibrant-orange">location_on</span>
+                    <span>Office Address / City Location (Philippines Standard) *</span>
+                  </label>
+                  {formData.location && (
+                    <span className="text-[10px] text-on-surface-variant font-mono truncate max-w-[280px]" title={formData.location}>
+                      Current: {formData.location}
+                    </span>
+                  )}
+                </div>
+                <PhAddressSelector
+                  value={address}
+                  onChange={(field, val) => setAddress(prev => ({ ...prev, [field]: val }))}
+                />
+              </div>
+
+              {/* Workplace Assignment Area / Station */}
+              <div>
+                <label className="font-bold text-on-surface block mb-1">
+                  Workplace Assignment Area / Station
+                </label>
+                <input
+                  type="text"
+                  list="workplace-area-options"
+                  placeholder="e.g. Office, Kitchen, Front Desk, Accounting, IT Lab"
+                  value={formData.workplace_area}
+                  onChange={(e) => setFormData({ ...formData, workplace_area: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-white text-on-surface outline-none focus:border-vibrant-orange"
+                />
+                <datalist id="workplace-area-options">
+                  <option value="Office" />
+                  <option value="Kitchen" />
+                  <option value="Front Desk" />
+                  <option value="Customer Service" />
+                  <option value="Accounting & Finance" />
+                  <option value="IT Room / Tech Lab" />
+                  <option value="Operations / Warehouse" />
+                  <option value="Food & Beverage / Dining Area" />
+                  <option value="Housekeeping / Facilities" />
+                  <option value="Sales & Marketing" />
+                </datalist>
+                <div className="flex items-center gap-1 flex-wrap mt-1">
+                  <span className="text-[10px] text-on-surface-variant font-medium">Quick suggestions:</span>
+                  {['Office', 'Kitchen', 'Front Desk', 'IT Lab', 'Operations'].map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, workplace_area: tag })}
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-medium border transition-colors ${
+                        formData.workplace_area === tag
+                          ? 'bg-orange-tint text-vibrant-orange border-vibrant-orange font-bold'
+                          : 'bg-slate-100 text-on-surface-variant border-slate-200 hover:bg-slate-200'
+                      }`}
+                    >
+                      + {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* DIGITAL OPPORTUNITY FLYER / PROMOTIONAL POSTER */}
+              {/* Digital Opportunity Flyer / Promotional Poster */}
+              <div className="p-3.5 bg-gradient-to-br from-orange-50/50 to-slate-50 rounded-xl border border-orange-200/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="font-bold text-on-surface flex items-center gap-1.5 text-xs">
+                      <span className="material-symbols-outlined text-[16px] text-vibrant-orange">image</span>
+                      <span>Digital Opportunity Flyer / Promotional Poster</span>
+                    </label>
+                    <p className="text-[10px] text-on-surface-variant">
+                      Upload an official promotional flyer or poster (PNG, JPG, WEBP - Max 10MB) for students browsing this opportunity.
+                    </p>
+                  </div>
+                  {formData.flyer_image_url && (
+                    <span className="text-[10px] bg-green-tint text-pinoy-green font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                      Flyer Uploaded
+                    </span>
+                  )}
                 </div>
 
-                <div>
-                  <label className="font-bold text-on-surface block mb-1">
-                    Workplace Assignment Area / Station
-                  </label>
-                  <input
-                    type="text"
-                    list="workplace-area-options"
-                    placeholder="e.g. Office, Kitchen, Front Desk, Accounting, IT Lab"
-                    value={formData.workplace_area}
-                    onChange={(e) => setFormData({ ...formData, workplace_area: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-white text-on-surface outline-none focus:border-vibrant-orange"
-                  />
-                  <datalist id="workplace-area-options">
-                    <option value="Office" />
-                    <option value="Kitchen" />
-                    <option value="Front Desk" />
-                    <option value="Customer Service" />
-                    <option value="Accounting & Finance" />
-                    <option value="IT Room / Tech Lab" />
-                    <option value="Operations / Warehouse" />
-                    <option value="Food & Beverage / Dining Area" />
-                    <option value="Housekeeping / Facilities" />
-                    <option value="Sales & Marketing" />
-                  </datalist>
-                  <div className="flex items-center gap-1 flex-wrap mt-1">
-                    <span className="text-[10px] text-on-surface-variant font-medium">Quick suggestions:</span>
-                    {['Office', 'Kitchen', 'Front Desk', 'IT Lab', 'Operations'].map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, workplace_area: tag })}
-                        className={`text-[10px] px-1.5 py-0.5 rounded font-medium border transition-colors ${
-                          formData.workplace_area === tag
-                            ? 'bg-orange-tint text-vibrant-orange border-vibrant-orange font-bold'
-                            : 'bg-slate-100 text-on-surface-variant border-slate-200 hover:bg-slate-200'
-                        }`}
-                      >
-                        + {tag}
-                      </button>
-                    ))}
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  {/* Preview Container */}
+                  <div className="w-full sm:w-40 h-40 rounded-xl border-2 border-dashed border-outline-variant bg-white flex items-center justify-center overflow-hidden shrink-0 relative group shadow-xs">
+                    {formData.flyer_image_url ? (
+                      <>
+                        <img
+                          src={resolveFileUrl(formData.flyer_image_url)}
+                          alt="Opportunity Flyer"
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, flyer_image_url: '' }))}
+                          className="absolute top-1.5 right-1.5 p-1 bg-black/70 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Remove flyer image"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">close</span>
+                        </button>
+                      </>
+                    ) : (
+                      <div className="text-center p-3 text-on-surface-variant">
+                        <span className="material-symbols-outlined text-[32px] text-slate-300">add_photo_alternate</span>
+                        <p className="text-[10px] text-slate-400 font-medium mt-1">No Flyer Selected</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Upload Controls */}
+                  <div className="flex-1 space-y-2.5 w-full">
+                    <label className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-vibrant-orange/40 bg-orange-50/40 hover:bg-orange-50 cursor-pointer font-bold text-xs text-vibrant-orange transition-all w-full sm:w-auto shadow-xs ${
+                      flyerUploading ? 'opacity-50 pointer-events-none' : ''
+                    }`}>
+                      <span className="material-symbols-outlined text-[20px] text-vibrant-orange">
+                        {flyerUploading ? 'sync' : 'cloud_upload'}
+                      </span>
+                      <span className={flyerUploading ? 'animate-pulse' : ''}>
+                        {flyerUploading ? 'Uploading Image...' : formData.flyer_image_url ? 'Replace Flyer Image' : 'Select & Upload Image File'}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg, image/webp"
+                        onChange={handleFlyerUpload}
+                        disabled={flyerUploading}
+                        className="hidden"
+                      />
+                    </label>
+
+                    <div className="text-[11px] text-on-surface-variant space-y-0.5">
+                      <p className="font-medium text-slate-600 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[13px] text-pinoy-green">verified</span>
+                        Accepted Formats: PNG, JPG, JPEG, WEBP
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        Recommended size: 1200x630 or square 1080x1080. Max file size: 10MB.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Dynamic Schedule Inputs based on Posting Type */}
               {formData.posting_type === 'ojt' && (
-                <div className="p-3 bg-slate-50 rounded-xl border border-outline-variant space-y-2">
-                  <span className="text-xs font-bold text-vibrant-orange flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[16px]">schedule</span>
-                    <span>OJT Work Schedule Configuration</span>
-                  </span>
-                  <div className="max-w-xs">
-                    <label className="text-[11px] text-on-surface-variant block mb-1">Standard Daily Finish / Out Time</label>
-                    <input
-                      type="time"
-                      value={formData.finish_time}
-                      onChange={(e) => setFormData({ ...formData, finish_time: e.target.value })}
-                      className="w-full px-3 py-1.5 rounded-lg border border-outline-variant bg-white text-on-surface outline-none"
-                    />
-                    <p className="text-[10px] text-on-surface-variant mt-0.5">Expected daily completion/out time for student DTR tracking</p>
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-outline-variant space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-vibrant-orange flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px]">schedule</span>
+                      <span>Standard Daily Work Schedule (Philippine Time - UTC+8)</span>
+                    </span>
+                    <span className="text-[10px] bg-orange-tint text-vibrant-orange font-semibold px-2 py-0.5 rounded-full">
+                      PST Clock Target
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-medium text-on-surface-variant block mb-1">
+                        Standard Daily Time-In / Start Time <span className="text-error">*</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={formData.start_time || '08:00'}
+                        onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded-lg border border-outline-variant bg-white text-on-surface outline-none focus:border-vibrant-orange font-mono text-xs"
+                        required
+                      />
+                      <p className="text-[10px] text-on-surface-variant mt-0.5">
+                        Students clocking in after this will be marked <span className="font-semibold text-amber-700">Late</span>.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-medium text-on-surface-variant block mb-1">
+                        Standard Daily Time-Out / Finish Time <span className="text-error">*</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={formData.finish_time || '17:00'}
+                        onChange={(e) => setFormData({ ...formData, finish_time: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded-lg border border-outline-variant bg-white text-on-surface outline-none focus:border-vibrant-orange font-mono text-xs"
+                        required
+                      />
+                      <p className="text-[10px] text-on-surface-variant mt-0.5">
+                        Clock-out before is <span className="font-semibold text-amber-700">Early</span>. Overtime is capped & not credited.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="p-2 bg-blue-50/70 border border-blue-200/60 rounded-lg flex items-start gap-2 text-[11px] text-blue-900">
+                    <span className="material-symbols-outlined text-[16px] text-blue-600 mt-0.5 shrink-0">info</span>
+                    <span>
+                      <strong>Automated Attendance Policy:</strong> Intern clock-ins/outs are strictly timed via Philippine Standard Time (PST). If an intern works overtime beyond the standard finish time, the additional overtime will not be credited to OJT required hours.
+                    </span>
                   </div>
                 </div>
               )}

@@ -1017,8 +1017,67 @@ export async function runMigrations() {
       console.warn('[Migration Warning] Mentor assignment migration error:', mentorErr.message);
     }
 
+    // 29. Add start_time to job_postings and time_in_status, time_out_status to ojt_attendance_logs
+    try {
+      const [jpCols] = await pool.query('DESCRIBE job_postings');
+      const jpColNames = jpCols.map(c => c.Field);
+      if (!jpColNames.includes('start_time')) {
+        await pool.query("ALTER TABLE job_postings ADD COLUMN start_time VARCHAR(100) DEFAULT '08:00' AFTER workplace_area");
+        console.log('[Migration] Added start_time to job_postings');
+      }
+      await pool.query("UPDATE job_postings SET start_time = '08:00' WHERE start_time IS NULL OR start_time = ''");
+      await pool.query("UPDATE job_postings SET finish_time = '17:00' WHERE finish_time IS NULL OR finish_time = ''");
+
+      const [attCols] = await pool.query('DESCRIBE ojt_attendance_logs');
+      const attColNames = attCols.map(c => c.Field);
+      if (!attColNames.includes('time_in_status')) {
+        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN time_in_status VARCHAR(50) DEFAULT 'on_time' AFTER time_in");
+        console.log('[Migration] Added time_in_status to ojt_attendance_logs');
+      }
+      if (!attColNames.includes('time_out_status')) {
+        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN time_out_status VARCHAR(50) NULL AFTER time_out");
+        console.log('[Migration] Added time_out_status to ojt_attendance_logs');
+      }
+
+      // Backfill time_in_status and time_out_status for existing logs
+      await pool.query(`
+        UPDATE ojt_attendance_logs 
+        SET time_in_status = CASE 
+          WHEN time_in > '08:00:00' THEN 'late' 
+          ELSE 'on_time' 
+        END
+        WHERE time_in_status IS NULL OR time_in_status = ''
+      `);
+      await pool.query(`
+        UPDATE ojt_attendance_logs 
+        SET time_out_status = CASE 
+          WHEN time_out IS NULL THEN NULL
+          WHEN time_out < '17:00:00' THEN 'early'
+          WHEN time_out > '17:00:00' THEN 'overtime'
+          ELSE 'on_time'
+        END
+        WHERE time_out IS NOT NULL AND (time_out_status IS NULL OR time_out_status = '')
+      `);
+      console.log('[Migration] Supervised intern attendance status columns aligned.');
+    } catch (schedErr) {
+      console.warn('[Migration Warning] Schedule & status migration error:', schedErr.message);
+    }
+
+    // 30. Add flyer_image_url to job_postings
+    try {
+      const [jpCols] = await pool.query('DESCRIBE job_postings');
+      const jpColNames = jpCols.map(c => c.Field);
+      if (!jpColNames.includes('flyer_image_url')) {
+        await pool.query("ALTER TABLE job_postings ADD COLUMN flyer_image_url TEXT NULL AFTER workplace_area");
+        console.log('[Migration] Added flyer_image_url to job_postings');
+      }
+    } catch (flyerErr) {
+      console.warn('[Migration Warning] Flyer image column migration error:', flyerErr.message);
+    }
+
     console.log('[Migration] All schema alignments completed successfully!');
   } catch (error) {
     console.error('[Migration Error]', error);
   }
 }
+
