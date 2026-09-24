@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
+import { resolveFileUrl } from '../../utils/fileHelper';
 
 export default function InstOJTOffers() {
   const [offers, setOffers] = useState([]);
@@ -8,6 +9,7 @@ export default function InstOJTOffers() {
   const [message, setMessage] = useState('');
   const [filter, setFilter] = useState('all');
   const [selectedOffer, setSelectedOffer] = useState(null); // Full opportunity inspect modal
+  const [flyerLightbox, setFlyerLightbox] = useState(null);
 
   const fetchOffers = useCallback(async () => {
     try {
@@ -65,7 +67,7 @@ export default function InstOJTOffers() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold capitalize transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold capitalize transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 filter === f
                   ? 'bg-vibrant-orange text-white shadow-sm'
                   : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
@@ -153,6 +155,20 @@ export default function InstOJTOffers() {
                       </p>
                     </div>
 
+                    {/* Flyer banner thumbnail if present */}
+                    {offer.flyer_image_url && (
+                      <div className="w-full h-32 rounded-lg overflow-hidden bg-surface-container border border-outline-variant relative group">
+                        <img
+                          src={resolveFileUrl(offer.flyer_image_url)}
+                          alt={`${offer.title} flyer`}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+
                     {/* On-Call or Mentor Specifics */}
                     {isOnCall && (
                       <div className="p-2.5 bg-amber-500/10 rounded-lg border border-amber-500/20 text-xs text-amber-900 space-y-0.5">
@@ -216,24 +232,24 @@ export default function InstOJTOffers() {
                   <div className="pt-3 border-t border-outline-variant flex items-center justify-between gap-2">
                     <button
                       onClick={() => setSelectedOffer(offer)}
-                      className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high rounded-lg text-xs font-bold text-on-surface transition-colors flex items-center gap-1"
+                      className="px-3.5 py-1.5 bg-surface-container hover:bg-surface-container-high rounded-lg text-xs font-bold text-on-surface transition-colors flex items-center gap-1.5 cursor-pointer border border-outline-variant"
                     >
                       <span className="material-symbols-outlined text-[15px]">visibility</span>
-                      <span>Inspect</span>
+                      <span>Inspect Details</span>
                     </button>
 
                     {offer.approval_status === 'pending' && (
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleAction(offer.approval_id, 'approved')}
-                          className="px-3.5 py-1.5 bg-pinoy-green hover:opacity-90 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                          className="px-3.5 py-1.5 bg-pinoy-green hover:opacity-90 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm cursor-pointer"
                         >
                           <span className="material-symbols-outlined text-[15px]">check</span>
                           <span>Approve</span>
                         </button>
                         <button
                           onClick={() => handleAction(offer.approval_id, 'rejected')}
-                          className="px-3 py-1.5 bg-error-container text-error rounded-lg text-xs font-bold hover:bg-red-200 transition-colors"
+                          className="px-3 py-1.5 bg-error-container text-error rounded-lg text-xs font-bold hover:bg-red-200 transition-colors cursor-pointer"
                         >
                           Reject
                         </button>
@@ -261,83 +277,277 @@ export default function InstOJTOffers() {
         )}
       </div>
 
-      {/* FULL OPPORTUNITY INSPECT MODAL */}
+      {/* FULL COMPREHENSIVE OPPORTUNITY INSPECT MODAL */}
       {selectedOffer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl border border-outline-variant shadow-2xl w-full max-w-xl space-y-4 max-h-[90vh] overflow-y-auto p-6">
-            <div className="flex justify-between items-start border-b border-outline-variant pb-3">
-              <div>
-                <span className="text-[10px] font-bold uppercase text-vibrant-orange tracking-wider block mb-0.5">
-                  Opportunity Review & Inspection
-                </span>
-                <h2 className="text-xl font-bold text-on-surface">{selectedOffer.title}</h2>
-                <p className="text-xs text-on-surface-variant font-bold">{selectedOffer.organization_name}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl border border-outline-variant shadow-2xl w-full max-w-3xl space-y-5 max-h-[92vh] overflow-y-auto p-5 sm:p-7 animate-scale-in">
+            {/* Modal Header */}
+            <div className="flex justify-between items-start border-b border-outline-variant pb-4 gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-tint text-vibrant-orange border border-vibrant-orange/20">
+                    Opportunity Review & Full Inspection
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                    selectedOffer.approval_status === 'approved'
+                      ? 'bg-green-tint text-pinoy-green'
+                      : selectedOffer.approval_status === 'rejected'
+                      ? 'bg-error-container text-error'
+                      : 'bg-orange-tint text-vibrant-orange'
+                  }`}>
+                    Status: {selectedOffer.approval_status || 'Pending Review'}
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-bold text-on-surface">{selectedOffer.title}</h2>
+                <div className="flex items-center gap-2 text-xs font-bold text-on-surface-variant flex-wrap">
+                  <span className="text-vibrant-orange">{selectedOffer.organization_name}</span>
+                  {selectedOffer.industry && <span>• {selectedOffer.industry}</span>}
+                  {selectedOffer.business_structure && <span>• ({selectedOffer.business_structure})</span>}
+                </div>
               </div>
 
               <button
                 onClick={() => setSelectedOffer(null)}
-                className="p-1 rounded-lg text-on-surface-variant hover:bg-surface-container"
+                className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"
+                title="Close Modal"
               >
-                <span className="material-symbols-outlined">close</span>
+                <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
-                <span className="font-bold text-on-surface uppercase text-[10px]">Description</span>
-                <p className="text-on-surface-variant whitespace-pre-line">{selectedOffer.description}</p>
+            {/* Flyer / Promotional Media Banner (if available) */}
+            {selectedOffer.flyer_image_url && (
+              <div className="rounded-xl overflow-hidden border border-outline-variant bg-surface-container relative group">
+                <img
+                  src={resolveFileUrl(selectedOffer.flyer_image_url)}
+                  alt="Opportunity Flyer"
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full max-h-64 object-contain mx-auto bg-black/5"
+                />
+                <button
+                  type="button"
+                  onClick={() => setFlyerLightbox(resolveFileUrl(selectedOffer.flyer_image_url))}
+                  className="absolute bottom-3 right-3 px-3 py-1.5 bg-black/75 hover:bg-black text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-md cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[15px]">fullscreen</span>
+                  <span>View Full Flyer</span>
+                </button>
+              </div>
+            )}
+
+            {/* Core Specifications Bento Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-0.5">
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">Posting Type</span>
+                <p className="font-bold text-on-surface capitalize">
+                  {selectedOffer.posting_type === 'ojt' ? 'OJT Internship' : selectedOffer.posting_type === 'on_call' ? 'On-Call Opportunity' : 'Career Job Opening'}
+                </p>
               </div>
 
-              {selectedOffer.requirements && (
-                <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
-                  <span className="font-bold text-on-surface uppercase text-[10px]">Qualifications & Prerequisites</span>
-                  <p className="text-on-surface-variant whitespace-pre-line">{selectedOffer.requirements}</p>
-                </div>
-              )}
+              <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-0.5">
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">Work Setup</span>
+                <p className="font-bold text-on-surface capitalize">{selectedOffer.work_setup || 'Hybrid'}</p>
+              </div>
 
-              {selectedOffer.deliverables && (
-                <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 space-y-1">
-                  <span className="font-bold text-amber-900 uppercase text-[10px]">Scope of Deliverables & Portfolio Crediting</span>
-                  <p className="text-amber-800 whitespace-pre-line">{selectedOffer.deliverables}</p>
-                </div>
-              )}
+              <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-0.5">
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">Available Slots</span>
+                <p className="font-bold text-on-surface">{selectedOffer.slots_available || 1} Intern / Candidate(s)</p>
+              </div>
 
-              {selectedOffer.mentor_first_name && (
-                <div className="p-3 bg-orange-tint/20 rounded-xl border border-vibrant-orange/30 space-y-1">
-                  <span className="font-bold text-vibrant-orange uppercase text-[10px]">Assigned Workplace Mentor</span>
-                  <p className="text-on-surface font-bold">{selectedOffer.mentor_first_name} {selectedOffer.mentor_last_name} ({selectedOffer.mentor_job_title || 'Mentor'})</p>
-                  <p className="text-on-surface-variant">Department: {selectedOffer.mentor_department || 'N/A'} • Contact: {selectedOffer.mentor_contact || 'N/A'}</p>
+              <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-0.5">
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">Target Audience</span>
+                <p className="font-bold text-on-surface capitalize">{selectedOffer.target_audience?.replace('_', ' ') || 'All Students'}</p>
+              </div>
+
+              <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-0.5 col-span-2">
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">Office Location</span>
+                <p className="font-bold text-on-surface truncate">{selectedOffer.location || 'Philippine Office'}</p>
+                {selectedOffer.workplace_area && (
+                  <p className="text-[11px] text-vibrant-orange font-medium">Work Area / Station: {selectedOffer.workplace_area}</p>
+                )}
+              </div>
+
+              <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-0.5 col-span-2">
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">Compensation / Allowance</span>
+                <p className="font-bold text-on-surface">
+                  {selectedOffer.salary_rate ? `₱${parseFloat(selectedOffer.salary_rate).toLocaleString()} (${selectedOffer.salary_rate_type || 'monthly'})` : 'Allowance / Competitive Standard'}
+                </p>
+                {(selectedOffer.start_time || selectedOffer.finish_time) && (
+                  <p className="text-[11px] text-on-surface-variant">Working Hours: {selectedOffer.start_time || '08:00'} - {selectedOffer.finish_time || '17:00'}</p>
+                )}
+              </div>
+            </div>
+
+            {/* On-Call Specific Highlights (if applicable) */}
+            {selectedOffer.posting_type === 'on_call' && (
+              <div className="p-3.5 bg-amber-500/10 rounded-xl border border-amber-500/20 text-xs text-amber-900 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <span className="material-symbols-outlined text-[16px] text-amber-600">bolt</span>
+                  <span>On-Call Gig Terms & Compensation</span>
                 </div>
+                <p className="text-[11px] leading-relaxed">
+                  Required Working Days: <strong>{selectedOffer.on_call_days || 1} Day(s)</strong> • Expected Turnaround/Deadline: <strong>{selectedOffer.finish_time || 'Immediate'}</strong> • Compensation Rate: <strong>₱{parseFloat(selectedOffer.salary_rate || 0).toLocaleString()} ({selectedOffer.salary_rate_type || 'daily'})</strong>.
+                </p>
+              </div>
+            )}
+
+            {/* Full Job Description */}
+            <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant space-y-1.5 text-xs">
+              <span className="font-bold text-on-surface uppercase text-[10px] tracking-wider block">
+                Full Role Description & Responsibilities
+              </span>
+              <p className="text-on-surface-variant whitespace-pre-line leading-relaxed">
+                {selectedOffer.description || 'No detailed description provided.'}
+              </p>
+            </div>
+
+            {/* Requirements & Prerequisites */}
+            {selectedOffer.requirements && (
+              <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant space-y-1.5 text-xs">
+                <span className="font-bold text-on-surface uppercase text-[10px] tracking-wider block">
+                  Qualifications & Prerequisites
+                </span>
+                <p className="text-on-surface-variant whitespace-pre-line leading-relaxed">
+                  {selectedOffer.requirements}
+                </p>
+              </div>
+            )}
+
+            {/* Deliverables & Portfolio Crediting */}
+            {selectedOffer.deliverables && (
+              <div className="p-4 bg-amber-500/10 rounded-xl border border-amber-500/20 space-y-1.5 text-xs">
+                <span className="font-bold text-amber-900 uppercase text-[10px] tracking-wider block">
+                  Scope of Deliverables & Portfolio Crediting
+                </span>
+                <p className="text-amber-800 whitespace-pre-line leading-relaxed">
+                  {selectedOffer.deliverables}
+                </p>
+              </div>
+            )}
+
+            {/* Eligible Academic Programs */}
+            <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant space-y-2 text-xs">
+              <span className="font-bold text-on-surface uppercase text-[10px] tracking-wider block">
+                Target Degree Programs / Curriculums
+              </span>
+              {selectedOffer.target_programs?.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedOffer.target_programs.map(tp => (
+                    <span key={tp.program_id} className="px-2.5 py-1 bg-surface-container rounded-lg font-bold text-on-surface border border-outline-variant">
+                      {tp.program_code ? `[${tp.program_code}] ` : ''}{tp.program_name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-on-surface-variant italic">Open to all accredited academic programs.</p>
               )}
             </div>
 
-            <div className="pt-3 border-t border-outline-variant flex justify-between items-center">
+            {/* Assigned Workplace Mentor Details */}
+            {selectedOffer.mentor_first_name && (
+              <div className="p-4 bg-orange-tint/20 rounded-xl border border-vibrant-orange/30 space-y-2 text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-vibrant-orange">
+                  <span className="material-symbols-outlined text-[16px]">supervisor_account</span>
+                  <span className="uppercase text-[10px]">Assigned Workplace Mentor</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-on-surface">
+                  <div>
+                    <p className="font-bold text-sm">{selectedOffer.mentor_first_name} {selectedOffer.mentor_last_name}</p>
+                    <p className="text-on-surface-variant">{selectedOffer.mentor_job_title || 'Workplace Mentor'} • {selectedOffer.mentor_department || 'General'}</p>
+                  </div>
+                  <div className="space-y-0.5 text-on-surface-variant">
+                    <p>Staff ID: <strong>{selectedOffer.mentor_staff_number || 'Recorded'}</strong></p>
+                    <p>Direct Contact: <strong>{selectedOffer.mentor_contact || 'Via Organization'}</strong></p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Hiring Organization Profile & Regulatory Details */}
+            <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant space-y-2 text-xs">
+              <span className="font-bold text-on-surface uppercase text-[10px] tracking-wider block">
+                Employer Corporate Profile & Regulatory Registrations
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-on-surface-variant">
+                <div>
+                  <p><strong className="text-on-surface">Registered Business:</strong> {selectedOffer.organization_name}</p>
+                  <p><strong className="text-on-surface">Industry:</strong> {selectedOffer.industry || 'General Commerce'}</p>
+                  <p><strong className="text-on-surface">Corporate Structure:</strong> {selectedOffer.business_structure || 'Corporation'}</p>
+                  <p><strong className="text-on-surface">Office Address:</strong> {selectedOffer.org_address || selectedOffer.location || 'Philippines'}</p>
+                </div>
+                <div>
+                  <p><strong className="text-on-surface">SEC / DTI Reg #:</strong> {selectedOffer.sec_dti_number || 'Verified Partner'}</p>
+                  <p><strong className="text-on-surface">BIR TIN:</strong> {selectedOffer.bir_tin || 'Verified'}</p>
+                  <p><strong className="text-on-surface">Official Email:</strong> {selectedOffer.contact_email || 'N/A'}</p>
+                  <p><strong className="text-on-surface">Official Phone:</strong> {selectedOffer.contact_phone || 'N/A'}</p>
+                  {selectedOffer.website && (
+                    <p>
+                      <strong className="text-on-surface">Website:</strong>{' '}
+                      <a href={selectedOffer.website.startsWith('http') ? selectedOffer.website : `https://${selectedOffer.website}`} target="_blank" rel="noreferrer" className="text-vibrant-orange hover:underline font-bold">
+                        {selectedOffer.website}
+                      </a>
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Bottom Actions */}
+            <div className="pt-3 border-t border-outline-variant flex justify-between items-center flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setSelectedOffer(null)}
-                className="px-4 py-2 bg-surface-container text-on-surface font-bold text-xs rounded-lg hover:bg-surface-container-high"
+                className="px-4 py-2 bg-surface-container text-on-surface font-bold text-xs rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer"
               >
-                Close
+                Close Inspection
               </button>
 
               {selectedOffer.approval_status === 'pending' && (
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleAction(selectedOffer.approval_id, 'rejected')}
-                    className="px-4 py-2 bg-error-container text-error rounded-lg text-xs font-bold hover:bg-red-200 transition-colors"
+                    className="px-4 py-2 bg-error-container text-error rounded-lg text-xs font-bold hover:bg-red-200 transition-colors cursor-pointer"
                   >
-                    Reject Offer
+                    Reject Opportunity
                   </button>
                   <button
                     onClick={() => handleAction(selectedOffer.approval_id, 'approved')}
-                    className="px-5 py-2 bg-pinoy-green text-white rounded-lg text-xs font-bold hover:opacity-90 transition-colors shadow-sm flex items-center gap-1.5"
+                    className="px-5 py-2 bg-pinoy-green text-white rounded-lg text-xs font-bold hover:opacity-90 transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[16px]">verified</span>
-                    <span>Approve & Distribute to Students</span>
+                    <span>Approve & Publish to Students</span>
                   </button>
                 </div>
               )}
+
+              {selectedOffer.approval_status === 'approved' && (
+                <span className="text-xs text-pinoy-green font-bold flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[16px]">verified</span>
+                  <span>Approved & Currently Visible to Department Students</span>
+                </span>
+              )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FLYER LIGHTBOX MODAL */}
+      {flyerLightbox && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/90 p-4" onClick={() => setFlyerLightbox(null)}>
+          <div className="relative max-w-4xl max-h-[90vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={flyerLightbox}
+              alt="High-Res Flyer"
+              className="max-h-[85vh] w-auto object-contain rounded-xl shadow-2xl"
+            />
+            <button
+              onClick={() => setFlyerLightbox(null)}
+              className="absolute top-2 right-2 p-2 bg-black/70 hover:bg-black text-white rounded-full transition-colors cursor-pointer"
+              title="Close Full View"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
           </div>
         </div>
       )}

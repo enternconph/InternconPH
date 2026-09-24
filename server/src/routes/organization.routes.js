@@ -2271,11 +2271,12 @@ router.get('/interviews', async (req, res) => {
     );
 
     const [candidates] = await pool.query(
-      `SELECT ja.application_id, ja.student_id, s.first_name, s.last_name, jp.title as job_title
+      `SELECT ja.application_id, ja.student_id, s.first_name, s.last_name, jp.title as job_title, ja.status as app_status
        FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
        JOIN students s ON ja.student_id = s.student_id
-       WHERE jp.organization_id = ? AND (ja.status = 'shortlisted' OR ja.status = 'under_review' OR ja.status = 'submitted' OR ja.status = 'interview')`,
+       WHERE jp.organization_id = ? AND (ja.status IN ('submitted', 'under_review', 'shortlisted', 'applied', 'pending', 'interview'))
+       ORDER BY ja.created_at DESC`,
       [org.organization_id]
     );
 

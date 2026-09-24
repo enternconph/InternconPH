@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, isPdfFile } from '../../utils/fileHelper';
 import Pagination from '../../components/ui/Pagination';
 
 export default function OrgApplicants() {
+  const navigate = useNavigate();
   const [data, setData] = useState({ applicants: [], jobs: [] });
   const [selectedJob, setSelectedJob] = useState('');
   const [activeTab, setActiveTab] = useState('all');
@@ -19,6 +21,18 @@ export default function OrgApplicants() {
   const [inspectLoading, setInspectLoading] = useState(false);
   const [inspectTab, setInspectTab] = useState('profile'); // 'profile', 'resume', 'portfolio', 'evaluations'
   const [actionLoading, setActionLoading] = useState(false);
+
+  const handleRequestInterview = (applicant) => {
+    if (!applicant) return;
+    setInspectAppId(null);
+    navigate('/dashboard/organization/interviews', {
+      state: {
+        candidateId: applicant.application_id,
+        candidateName: `${applicant.first_name || ''} ${applicant.last_name || ''}`.trim(),
+        jobTitle: applicant.job_title || 'Opportunity Applicant'
+      }
+    });
+  };
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -420,7 +434,7 @@ export default function OrgApplicants() {
 
                         {/* Actions */}
                         <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-2 flex-wrap">
                             <button
                               onClick={() => handleInspectCandidate(app.application_id)}
                               className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high rounded-lg text-xs font-bold transition-colors border border-outline-variant flex items-center gap-1"
@@ -429,10 +443,21 @@ export default function OrgApplicants() {
                               <span>Inspect</span>
                             </button>
 
+                            {app.status !== 'accepted' && app.status !== 'rejected' && (
+                              <button
+                                onClick={() => handleRequestInterview(app)}
+                                className="px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors border border-blue-200 flex items-center gap-1 shrink-0 cursor-pointer"
+                                title="Go to Interviews module to schedule and send invitation"
+                              >
+                                <span className="material-symbols-outlined text-[14px]">event_available</span>
+                                <span>{app.status === 'interview' ? 'Reschedule' : 'Request Interview'}</span>
+                              </button>
+                            )}
+
                             {isOnCall && app.status !== 'accepted' && (
                               <button
                                 onClick={() => handleAcceptOnCall(app.application_id)}
-                                className="px-3 py-1.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                                className="px-3 py-1.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm cursor-pointer"
                               >
                                 <span className="material-symbols-outlined text-[15px]">verified</span>
                                 <span>Accept On-Call</span>
@@ -945,10 +970,12 @@ export default function OrgApplicants() {
                       </button>
                       <button
                         disabled={actionLoading}
-                        onClick={() => handleStatusChange(inspectData.applicant.application_id, 'interview')}
-                        className="px-3 py-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg font-bold transition-colors"
+                        onClick={() => handleRequestInterview(inspectData.applicant)}
+                        className="px-3 py-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Go to Interviews module to schedule and send an invitation"
                       >
-                        Request Interview
+                        <span className="material-symbols-outlined text-[14px]">event_available</span>
+                        <span>Request Interview</span>
                       </button>
                       <button
                         disabled={actionLoading}

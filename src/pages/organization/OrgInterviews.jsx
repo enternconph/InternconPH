@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import api from '../../api/client';
 
 export default function OrgInterviews() {
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [data, setData] = useState({ interviews: [], candidates: [] });
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -17,7 +20,27 @@ export default function OrgInterviews() {
     setLoading(true);
     const res = await api.get('/org/interviews');
     if (res.success && res.data) {
-      setData(res.data);
+      let candidatesList = res.data.candidates || [];
+
+      // If a candidate was passed via navigation state or query param, ensure they are in the selectable options
+      const targetId = location.state?.candidateId || location.state?.applicationId || searchParams.get('candidateId');
+      if (targetId && location.state?.candidateName) {
+        const exists = candidatesList.some(c => String(c.application_id) === String(targetId));
+        if (!exists) {
+          const names = location.state.candidateName.split(' ');
+          candidatesList = [
+            {
+              application_id: Number(targetId),
+              first_name: names[0] || 'Candidate',
+              last_name: names.slice(1).join(' ') || '',
+              job_title: location.state.jobTitle || 'Applicant'
+            },
+            ...candidatesList
+          ];
+        }
+      }
+
+      setData({ ...res.data, candidates: candidatesList });
     }
     setLoading(false);
   };
@@ -25,6 +48,22 @@ export default function OrgInterviews() {
   useEffect(() => {
     fetchInterviews();
   }, []);
+
+  useEffect(() => {
+    const targetId = location.state?.candidateId || location.state?.applicationId || searchParams.get('candidateId');
+    if (targetId) {
+      setAppId(String(targetId));
+      if (location.state?.candidateName) {
+        setMessage(`Scheduling interview invitation for ${location.state.candidateName} (${location.state.jobTitle || 'Applicant'}). Fill out the interview details below and send the invitation.`);
+      }
+      // Set default interview time to tomorrow 10:00 AM
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(10, 0, 0, 0);
+      const isoLocal = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      setScheduleAt(isoLocal);
+    }
+  }, [location.state, searchParams]);
 
   const handleSchedule = async (e) => {
     e.preventDefault();
@@ -38,7 +77,7 @@ export default function OrgInterviews() {
       notes
     });
     if (res.success) {
-      setMessage('Interview invitation sent to candidate successfully!');
+      setMessage('Interview invitation sent to candidate successfully! Candidate status is now updated to Interview.');
       setAppId('');
       setScheduleAt('');
       setNotes('');
@@ -141,7 +180,7 @@ export default function OrgInterviews() {
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-vibrant-orange text-white font-bold rounded-lg hover:bg-deep-orange transition-colors shadow-sm"
+              className="w-full py-2.5 bg-vibrant-orange text-white font-bold rounded-lg hover:bg-deep-orange transition-colors shadow-sm cursor-pointer"
             >
               Send Interview Invitation
             </button>

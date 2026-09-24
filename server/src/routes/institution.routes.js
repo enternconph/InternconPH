@@ -3084,9 +3084,12 @@ router.get('/ojt-offers', async (req, res) => {
     const [offers] = await pool.query(
       `SELECT ija.*, 
               jp.title, jp.description, jp.requirements, jp.deliverables, jp.location, jp.workplace_area,
-              jp.slots_available, jp.posting_type, jp.job_type, jp.work_setup,
-              jp.finish_time, jp.on_call_days, jp.salary_rate, jp.salary_rate_type, jp.target_audience,
-              ho.organization_name, ho.industry, ho.contact_email, ho.website,
+              jp.flyer_image_url, jp.slots_available, jp.posting_type, jp.job_type, jp.work_setup,
+              jp.start_time, jp.finish_time, jp.on_call_days, jp.salary_rate, jp.salary_rate_type, jp.target_audience,
+              jp.created_at as job_created_at, jp.posted_at, jp.expires_at,
+              ho.organization_name, ho.business_structure, ho.industry, ho.contact_email, ho.contact_phone, ho.website,
+              ho.address as org_address, ho.city as org_city, ho.province as org_province, ho.sec_dti_number, ho.bir_tin,
+              ho.google_map_link,
               os.first_name as mentor_first_name, os.last_name as mentor_last_name,
               os.job_title as mentor_job_title, os.department as mentor_department,
               os.contact_number as mentor_contact, os.staff_number as mentor_staff_number
