@@ -34,3 +34,4 @@ server/uploads/vendor/
 .env 
 ui-audit/
 email-cleanup.sql
+scratch/

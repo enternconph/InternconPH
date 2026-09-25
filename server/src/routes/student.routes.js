@@ -717,7 +717,7 @@ router.get('/applications', async (req, res) => {
               i.interview_id, i.schedule_at as interview_schedule_at, i.mode as interview_mode,
               i.location_or_link as interview_location_or_link,
               COALESCE(i.meeting_link, i.location_or_link) as interview_meeting_link,
-              i.meeting_link, i.meeting_code,
+              i.meeting_link, i.meeting_code, i.meeting_code as interview_meeting_code,
               i.notes as interview_notes,
               i.status as interview_status
        FROM job_applications ja
@@ -750,7 +750,7 @@ router.get('/applications', async (req, res) => {
                 odo.offer_id, odo.status as offer_status, odo.offered_at, odo.responded_at,
                 NULL as interview_id, NULL as interview_schedule_at, NULL as interview_mode,
                 NULL as interview_location_or_link, NULL as interview_meeting_link,
-                NULL as meeting_link, NULL as meeting_code,
+                NULL as meeting_link, NULL as meeting_code, NULL as interview_meeting_code,
                 NULL as interview_notes, NULL as interview_status
          FROM ojt_deployment_offers odo
          JOIN job_postings jp ON odo.job_id = jp.job_id
