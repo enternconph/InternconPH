@@ -107,7 +107,27 @@ export default function RegisterStaffPage() {
     }
   };
 
+  useEffect(() => {
+    // Reset any accidental browser credential autofill on initial mount
+    const timer = setTimeout(() => {
+      setFormData((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        if (next.employee_id && typeof next.employee_id === 'string' && next.employee_id.includes('@')) {
+          next.employee_id = '';
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleFieldChange = (key, value) => {
+    // If browser autofill mistakenly drops an email into Employee ID, ignore it
+    if (key === 'employee_id' && typeof value === 'string' && value.includes('@')) {
+      return;
+    }
     setFormData((prev) => ({ ...prev, [key]: value }));
     clearFieldError(key);
   };
@@ -235,7 +255,12 @@ export default function RegisterStaffPage() {
 
               <MissingFieldsBanner missingList={missingList} onClear={() => { setMissingList([]); setFieldErrors({}); }} />
 
-              <form onSubmit={handleSubmit} noValidate className="space-y-6">
+              <form onSubmit={handleSubmit} noValidate autoComplete="off" className="space-y-6">
+                {/* Hidden anti-autofill dummy traps to absorb browser credential autofill */}
+                <div style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }} aria-hidden="true">
+                  <input type="text" name="fake_username_prevent_autofill" tabIndex={-1} autoComplete="off" />
+                  <input type="password" name="fake_password_prevent_autofill" tabIndex={-1} autoComplete="new-password" />
+                </div>
                 
                 {/* PASSCODE */}
                 <div className="space-y-4">
@@ -413,6 +438,12 @@ export default function RegisterStaffPage() {
                       <input
                         type="text"
                         required
+                        name="faculty_employee_id"
+                        id="faculty_employee_id"
+                        autoComplete="off"
+                        data-lpignore="true"
+                        data-form-type="other"
+                        spellCheck={false}
                         data-field="employee_id"
                         placeholder="FAC-2026-089"
                         value={formData.employee_id}
@@ -448,7 +479,7 @@ export default function RegisterStaffPage() {
                   <PhAddressSelector 
                     value={address} 
                     onChange={(field, val) => setAddress(prev => ({ ...prev, [field]: val }))} 
-                  />
+                    />
                 </div>
 
                 {/* LOGIN CREDENTIALS */}
@@ -459,6 +490,9 @@ export default function RegisterStaffPage() {
                     <EmailInput
                       label="Institutional Email"
                       required
+                      name="staff_institutional_email"
+                      autoComplete="off"
+                      dataLpignore="true"
                       placeholder="j.delacruz@university.edu.ph"
                       value={formData.email}
                       onChange={(e) => handleFieldChange('email', e.target.value)}
@@ -479,6 +513,10 @@ export default function RegisterStaffPage() {
                         <input
                           type={showPassword ? 'text' : 'password'}
                           required
+                          name="staff_new_password"
+                          id="staff_new_password"
+                          autoComplete="new-password"
+                          data-lpignore="true"
                           data-field="password"
                           placeholder="••••••••"
                           value={formData.password}
@@ -512,6 +550,10 @@ export default function RegisterStaffPage() {
                         <input
                           type={showConfirmPassword ? 'text' : 'password'}
                           required
+                          name="staff_confirm_password"
+                          id="staff_confirm_password"
+                          autoComplete="new-password"
+                          data-lpignore="true"
                           data-field="confirm_password"
                           placeholder="••••••••"
                           value={formData.confirm_password}

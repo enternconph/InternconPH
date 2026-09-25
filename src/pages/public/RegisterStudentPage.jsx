@@ -60,7 +60,26 @@ export default function RegisterStudentPage() {
     }
   };
 
+  useEffect(() => {
+    // Reset any accidental browser credential autofill on initial mount
+    const timer = setTimeout(() => {
+      setFormData((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        if (next.student_number && typeof next.student_number === 'string' && next.student_number.includes('@')) {
+          next.student_number = '';
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleFieldChange = (key, value) => {
+    if (key === 'student_number' && typeof value === 'string' && value.includes('@')) {
+      return;
+    }
     setFormData((prev) => ({ ...prev, [key]: value }));
     clearFieldError(key);
   };
@@ -215,7 +234,12 @@ export default function RegisterStudentPage() {
               {/* Incomplete Required Fields Top Banner with Quick-Jump Links */}
               <MissingFieldsBanner missingList={missingList} onClear={() => setMissingList([])} />
 
-              <form noValidate onSubmit={handleSubmit} className="space-y-5">
+              <form noValidate onSubmit={handleSubmit} autoComplete="off" className="space-y-5">
+                {/* Hidden anti-autofill dummy traps to absorb browser credential autofill */}
+                <div style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }} aria-hidden="true">
+                  <input type="text" name="fake_username_prevent_autofill" tabIndex={-1} autoComplete="off" />
+                  <input type="password" name="fake_password_prevent_autofill" tabIndex={-1} autoComplete="new-password" />
+                </div>
                 
                 {/* Access Code */}
                 <div 
@@ -295,6 +319,12 @@ export default function RegisterStudentPage() {
                     <label className="block text-xs font-bold text-on-surface-variant uppercase mb-1.5">Student ID *</label>
                     <input
                       type="text"
+                      name="student_id_number"
+                      id="student_id_number"
+                      autoComplete="off"
+                      data-lpignore="true"
+                      data-form-type="other"
+                      spellCheck={false}
                       data-field="student_number"
                       placeholder="e.g. 2023-00123"
                       value={formData.student_number}
@@ -410,6 +440,9 @@ export default function RegisterStudentPage() {
                     required
                     showIcon
                     icon="mail"
+                    name="student_registration_email"
+                    autoComplete="off"
+                    dataLpignore="true"
                     value={formData.email}
                     onChange={(e) => handleFieldChange('email', e.target.value)}
                     error={fieldErrors.email}
@@ -431,6 +464,10 @@ export default function RegisterStudentPage() {
                       <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">lock</span>
                       <input
                         type={showPassword ? 'text' : 'password'}
+                        name="student_new_password"
+                        id="student_new_password"
+                        autoComplete="new-password"
+                        data-lpignore="true"
                         data-field="password"
                         placeholder="••••••••"
                         value={formData.password}
@@ -466,6 +503,10 @@ export default function RegisterStudentPage() {
                       <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">lock</span>
                       <input
                         type={showConfirmPassword ? 'text' : 'password'}
+                        name="student_confirm_password"
+                        id="student_confirm_password"
+                        autoComplete="new-password"
+                        data-lpignore="true"
                         data-field="confirm_password"
                         placeholder="••••••••"
                         value={formData.confirm_password}

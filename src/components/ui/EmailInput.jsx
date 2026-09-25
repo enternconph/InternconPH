@@ -28,7 +28,9 @@ const EmailInput = forwardRef(function EmailInput(
     showIcon = false,
     icon = 'mail',
     ringColor = 'vibrant-orange',
-    helpText
+    helpText,
+    autoComplete = 'off',
+    dataLpignore = 'true'
   },
   ref
 ) {
@@ -156,7 +158,8 @@ const EmailInput = forwardRef(function EmailInput(
           data-field={dataField}
           type="text"
           inputMode="email"
-          autoComplete="email"
+          autoComplete={autoComplete}
+          data-lpignore={dataLpignore}
           placeholder={placeholder}
           value={value}
           disabled={disabled}

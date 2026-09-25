@@ -109,7 +109,27 @@ export default function RegisterMentorPage() {
     }
   };
 
+  useEffect(() => {
+    // Reset any accidental browser credential autofill on initial mount
+    const timer = setTimeout(() => {
+      setFormData((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        if (next.company_employee_id && typeof next.company_employee_id === 'string' && next.company_employee_id.includes('@')) {
+          next.company_employee_id = '';
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleFieldChange = (key, value) => {
+    // If browser autofill mistakenly drops an email into Employee ID, ignore it
+    if (key === 'company_employee_id' && typeof value === 'string' && value.includes('@')) {
+      return;
+    }
     setFormData((prev) => ({ ...prev, [key]: value }));
     clearFieldError(key);
   };
@@ -237,7 +257,12 @@ export default function RegisterMentorPage() {
 
               <MissingFieldsBanner missingList={missingList} onClear={() => { setMissingList([]); setFieldErrors({}); }} />
 
-              <form onSubmit={handleSubmit} noValidate className="space-y-6">
+              <form onSubmit={handleSubmit} noValidate autoComplete="off" className="space-y-6">
+                {/* Hidden anti-autofill dummy traps to absorb browser credential autofill */}
+                <div style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }} aria-hidden="true">
+                  <input type="text" name="fake_username_prevent_autofill" tabIndex={-1} autoComplete="off" />
+                  <input type="password" name="fake_password_prevent_autofill" tabIndex={-1} autoComplete="new-password" />
+                </div>
                 
                 {/* PASSCODE */}
                 <div className="space-y-4">
@@ -468,6 +493,12 @@ export default function RegisterMentorPage() {
                       <input
                         type="text"
                         required
+                        name="mentor_company_employee_id"
+                        id="mentor_company_employee_id"
+                        autoComplete="off"
+                        data-lpignore="true"
+                        data-form-type="other"
+                        spellCheck={false}
                         data-field="company_employee_id"
                         placeholder="EMP-2026-9041"
                         value={formData.company_employee_id}
@@ -507,6 +538,9 @@ export default function RegisterMentorPage() {
                       <EmailInput
                         label="Work Email"
                         required
+                        name="mentor_work_email"
+                        autoComplete="off"
+                        dataLpignore="true"
                         placeholder="roberto@company.ph"
                         value={formData.email}
                         onChange={(e) => handleFieldChange('email', e.target.value)}
@@ -538,6 +572,10 @@ export default function RegisterMentorPage() {
                         <input
                           type={showPassword ? 'text' : 'password'}
                           required
+                          name="mentor_new_password"
+                          id="mentor_new_password"
+                          autoComplete="new-password"
+                          data-lpignore="true"
                           data-field="password"
                           placeholder="••••••••"
                           value={formData.password}
@@ -571,6 +609,10 @@ export default function RegisterMentorPage() {
                         <input
                           type={showConfirmPassword ? 'text' : 'password'}
                           required
+                          name="mentor_confirm_password"
+                          id="mentor_confirm_password"
+                          autoComplete="new-password"
+                          data-lpignore="true"
                           data-field="confirm_password"
                           placeholder="••••••••"
                           value={formData.confirm_password}

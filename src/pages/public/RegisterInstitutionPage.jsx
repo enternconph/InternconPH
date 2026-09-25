@@ -213,7 +213,12 @@ export default function RegisterInstitutionPage() {
 
               <MissingFieldsBanner missingList={missingList} onClear={() => { setMissingList([]); setFieldErrors({}); }} />
 
-              <form onSubmit={handleSubmit} noValidate className="space-y-6">
+              <form onSubmit={handleSubmit} noValidate autoComplete="off" className="space-y-6">
+                {/* Hidden anti-autofill dummy traps to absorb browser credential autofill */}
+                <div style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }} aria-hidden="true">
+                  <input type="text" name="fake_username_prevent_autofill" tabIndex={-1} autoComplete="off" />
+                  <input type="password" name="fake_password_prevent_autofill" tabIndex={-1} autoComplete="new-password" />
+                </div>
                 
                 {/* INSTITUTION INFO */}
                 <div className="space-y-4">
@@ -372,6 +377,9 @@ export default function RegisterInstitutionPage() {
                       <EmailInput
                         label="Director Email"
                         required
+                        name="inst_director_email"
+                        autoComplete="off"
+                        dataLpignore="true"
                         placeholder="director@university.edu.ph"
                         value={formData.email}
                         onChange={(e) => handleFieldChange('email', e.target.value)}
@@ -402,6 +410,10 @@ export default function RegisterInstitutionPage() {
                         <input
                           type={showPassword ? 'text' : 'password'}
                           required
+                          name="inst_new_password"
+                          id="inst_new_password"
+                          autoComplete="new-password"
+                          data-lpignore="true"
                           data-field="password"
                           placeholder="••••••••"
                           value={formData.password}
@@ -435,6 +447,10 @@ export default function RegisterInstitutionPage() {
                         <input
                           type={showConfirmPassword ? 'text' : 'password'}
                           required
+                          name="inst_confirm_password"
+                          id="inst_confirm_password"
+                          autoComplete="new-password"
+                          data-lpignore="true"
                           data-field="confirm_password"
                           placeholder="••••••••"
                           value={formData.confirm_password}
