@@ -236,15 +236,49 @@ export default function StudentJobs() {
     }
   };
 
+  const parseDateSafe = (dateStr) => {
+    if (!dateStr) return null;
+    if (dateStr instanceof Date) return isNaN(dateStr) ? null : dateStr;
+    if (typeof dateStr === 'number') return new Date(dateStr);
+
+    const s = String(dateStr).trim();
+    if (s.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(s)) {
+      const parsed = new Date(s);
+      if (!isNaN(parsed)) return parsed;
+    }
+
+    const isoString = s.replace(' ', 'T');
+    const utcDate = new Date(isoString.endsWith('Z') ? isoString : `${isoString}Z`);
+    const localDate = new Date(isoString);
+    const now = Date.now();
+
+    if (!isNaN(utcDate) && !isNaN(localDate)) {
+      const diffUtc = Math.abs(now - utcDate.getTime());
+      const diffLocal = Math.abs(now - localDate.getTime());
+      if (diffLocal < diffUtc && diffLocal < 1000 * 60 * 60 * 2) {
+        return localDate;
+      }
+      return utcDate;
+    }
+
+    return !isNaN(utcDate) ? utcDate : (!isNaN(localDate) ? localDate : new Date(s));
+  };
+
   const formatTimeAgo = (dateStr) => {
     if (!dateStr) return 'Recently';
-    const diffMs = new Date() - new Date(dateStr);
+    const d = parseDateSafe(dateStr);
+    if (!d) return 'Recently';
+    const diffMs = Date.now() - d.getTime();
+    if (diffMs < 60000) return 'Just now';
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    if (diffHours < 1) return 'Just now';
+    if (diffHours < 1) {
+      const diffMins = Math.floor(diffMs / 60000);
+      return `${diffMins}m ago`;
+    }
     if (diffHours < 24) return `${diffHours}h ago`;
     const diffDays = Math.floor(diffHours / 24);
     if (diffDays < 7) return `${diffDays}d ago`;
-    return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
   // Filter jobs if "saved" tab is active

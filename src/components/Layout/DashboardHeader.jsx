@@ -117,6 +117,16 @@ export default function DashboardHeader() {
     }
   };
 
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+  // Real-time minute tick to ensure timestamps like "Just now", "2m ago" stay fresh continuously
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
   const getNotificationIcon = (type, title = '') => {
     const lower = `${type || ''} ${title || ''}`.toLowerCase();
     if (lower.includes('staff') || lower.includes('faculty') || lower.includes('coordinator')) return 'badge';
@@ -124,21 +134,53 @@ export default function DashboardHeader() {
     if (lower.includes('grievance') || lower.includes('complaint')) return 'gavel';
     if (lower.includes('warning') || lower.includes('sanction') || lower.includes('suspend')) return 'warning';
     if (lower.includes('accident') || lower.includes('incident')) return 'emergency';
-    if (lower.includes('offer') || lower.includes('job') || lower.includes('hire')) return 'verified';
+    if (lower.includes('offer') || lower.includes('job') || lower.includes('hire') || lower.includes('requirement')) return 'verified';
     if (lower.includes('dtr') || lower.includes('time') || lower.includes('clock')) return 'schedule';
     return 'notifications';
   };
 
+  const parseDateSafe = (dateStr) => {
+    if (!dateStr) return null;
+    if (dateStr instanceof Date) return isNaN(dateStr) ? null : dateStr;
+    if (typeof dateStr === 'number') return new Date(dateStr);
+
+    const s = String(dateStr).trim();
+    if (s.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(s)) {
+      const parsed = new Date(s);
+      if (!isNaN(parsed)) return parsed;
+    }
+
+    const isoString = s.replace(' ', 'T');
+    const utcDate = new Date(isoString.endsWith('Z') ? isoString : `${isoString}Z`);
+    const localDate = new Date(isoString);
+    const now = Date.now();
+
+    if (!isNaN(utcDate) && !isNaN(localDate)) {
+      const diffUtc = Math.abs(now - utcDate.getTime());
+      const diffLocal = Math.abs(now - localDate.getTime());
+      // If local date is closer to current time than UTC date, use local
+      if (diffLocal < diffUtc && diffLocal < 1000 * 60 * 60 * 2) {
+        return localDate;
+      }
+      return utcDate;
+    }
+
+    return !isNaN(utcDate) ? utcDate : (!isNaN(localDate) ? localDate : new Date(s));
+  };
+
   const formatTimestamp = (dateStr) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now - d;
+    const d = parseDateSafe(dateStr);
+    if (!d) return '';
+    const now = currentTime;
+    const diffMs = now - d.getTime();
+
+    // Catch future clock drift or instant arrival
+    if (diffMs < 60000) return 'Just now';
+
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays === 1) return 'Yesterday';
