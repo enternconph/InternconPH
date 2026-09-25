@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket, useRealtimeRefresh } from '../../contexts/SocketContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { useTimeFormat } from '../../contexts/TimeContext';
 import { useSidebar } from './DashboardLayout';
 import { playNotificationChime } from '../../utils/audio';
 import api from '../../api/client';
@@ -13,7 +12,6 @@ export default function DashboardHeader() {
   const { toggleSidebar, sidebarCollapsed, toggleSidebarCollapse } = useSidebar();
   const { socket } = useSocket() || {};
   const { isDark, toggleTheme } = useTheme();
-  const { formatTime, is24Hour, currentTime } = useTimeFormat();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -228,19 +226,6 @@ export default function DashboardHeader() {
 
         {/* Right: Actions & Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 relative shrink-0" ref={panelRef}>
-          {/* Live System 24-Hour Military Clock */}
-          <div
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container border border-outline-variant/60 text-on-surface text-xs font-mono font-bold tracking-tight shadow-sm select-none cursor-pointer hover:border-vibrant-orange hover:bg-surface-container-high transition-all"
-            title={`System Time: ${is24Hour ? '24-Hour Military Clock (00:00 - 23:59)' : '12-Hour Clock'}. Click to configure in Settings.`}
-            onClick={() => navigate('/dashboard/settings')}
-          >
-            <span className="material-symbols-outlined text-[16px] text-vibrant-orange">schedule</span>
-            <span>{formatTime(currentTime, { showSeconds: true })}</span>
-            <span className="text-[9px] font-sans px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant uppercase font-extrabold tracking-wider border border-outline-variant/40">
-              {is24Hour ? '24H' : '12H'}
-            </span>
-          </div>
-
           {/* Notification Bell Button */}
           <button
             type="button"

@@ -4,8 +4,83 @@ import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { useTimeFormat } from '../../contexts/TimeContext';
 import Pagination from '../../components/ui/Pagination';
 
+export const DEFAULT_STUDENT_VIOLATION_CATEGORIES = [
+  {
+    category_id: 1,
+    category_name: 'Workplace Harassment & Sexual Harassment',
+    description: 'Unwelcome conduct, sexual harassment, inappropriate sexualized remarks, or hostile advances in the workplace.',
+    group: 'Workplace Safety & Conduct'
+  },
+  {
+    category_id: 2,
+    category_name: 'Safety & Substandard Working Conditions',
+    description: 'Substandard occupational health and safety, lack of mandatory PPE, hazardous exposure, or unsanitary environment.',
+    group: 'Workplace Safety & Conduct'
+  },
+  {
+    category_id: 6,
+    category_name: 'Verbal Abuse, Bullying & Intimidation',
+    description: 'Hostile work environment, insults, public humiliation, or psychological intimidation by mentors or colleagues.',
+    group: 'Workplace Safety & Conduct'
+  },
+  {
+    category_id: 3,
+    category_name: 'Excessive Hours & Schedule Exploitation',
+    description: 'Hours exceeding CHED (maximum 8 hrs/day, 40 hrs/week) or DOLE labor guidelines, or forced graveyard shifts.',
+    group: 'Labor Standards & Scheduling'
+  },
+  {
+    category_id: 4,
+    category_name: 'Allowance / Stipend Non-Payment & Delays',
+    description: 'Delayed, reduced, or completely unpaid agreed student allowance, meal or transportation stipend.',
+    group: 'Compensation & Allowances'
+  },
+  {
+    category_id: 5,
+    category_name: 'Task Misalignment / Training Plan Violation',
+    description: 'Assigned duties outside the agreed MOA Training Plan or menial tasks irrelevant to the academic curriculum.',
+    group: 'Academic & Training Alignment'
+  },
+  {
+    category_id: 7,
+    category_name: 'Breach of MOA / Internship Agreement',
+    description: 'Failure to provide designated workplace mentor, required equipment, or non-compliance with institutional MOA.',
+    group: 'Academic & Training Alignment'
+  },
+  {
+    category_id: 8,
+    category_name: 'Discrimination & Unfair Workplace Treatment',
+    description: 'Bias, discrimination, or exclusion based on gender, SOGIE, religion, ethnicity, socio-economic status, or disability.',
+    group: 'Fairness & Civil Rights'
+  },
+  {
+    category_id: 9,
+    category_name: 'Unfair Evaluation / Retaliatory Grading',
+    description: 'Retaliatory, punitive, or biased performance evaluation due to personal disagreements or reporting grievances.',
+    group: 'Academic & Training Alignment'
+  },
+  {
+    category_id: 10,
+    category_name: 'Unethical Demands / Coercion',
+    description: 'Pressure to perform personal errands, illegal tasks, unauthorized signature forging, or falsifying documents.',
+    group: 'Ethics & Compliance'
+  },
+  {
+    category_id: 11,
+    category_name: 'Other Workplace Grievance',
+    description: 'General workplace grievances, administrative conflicts, or concerns not listed above.',
+    group: 'General Grievances'
+  }
+];
+
 export default function StudentComplaints() {
-  const [data, setData] = useState({ complaints: [], categories: [], orgs: [], assigned_organization: null, can_file: true });
+  const [data, setData] = useState({
+    complaints: [],
+    categories: DEFAULT_STUDENT_VIOLATION_CATEGORIES,
+    orgs: [],
+    assigned_organization: null,
+    can_file: true
+  });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
@@ -26,7 +101,14 @@ export default function StudentComplaints() {
     try {
       const res = await api.get('/student/complaints');
       if (res.success && res.data) {
-        setData(res.data);
+        const incomingCategories = (res.data.categories && res.data.categories.length > 0)
+          ? res.data.categories
+          : DEFAULT_STUDENT_VIOLATION_CATEGORIES;
+
+        setData({
+          ...res.data,
+          categories: incomingCategories
+        });
         if (res.data.default_student_status) {
           setStudentStatus((prev) => prev || res.data.default_student_status);
         }
@@ -313,20 +395,59 @@ export default function StudentComplaints() {
 
             {/* Violation Category */}
             <div>
-              <label className="block font-bold text-on-surface-variant uppercase mb-1">Violation Category *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-bold text-on-surface-variant uppercase text-xs">Violation Category *</label>
+                <span className="text-[11px] text-vibrant-orange font-semibold">Select specific infraction</span>
+              </div>
               <select
                 required
                 value={catId}
                 onChange={(e) => setCatId(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface font-medium outline-none focus:ring-2 focus:ring-vibrant-orange"
+                className="w-full px-3 py-2.5 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface font-medium outline-none focus:ring-2 focus:ring-vibrant-orange text-sm"
               >
-                <option value="">Select violation type...</option>
-                {data.categories?.map((c) => (
-                  <option key={c.category_id} value={c.category_id}>
-                    {c.category_name}
-                  </option>
-                ))}
+                <option value="">Select violation category...</option>
+                {(() => {
+                  const cats = (data.categories && data.categories.length > 0)
+                    ? data.categories
+                    : DEFAULT_STUDENT_VIOLATION_CATEGORIES;
+
+                  // Group categories
+                  const groups = {};
+                  cats.forEach((c) => {
+                    const grp = c.group || 'Workplace & Training Infractions';
+                    if (!groups[grp]) groups[grp] = [];
+                    groups[grp].push(c);
+                  });
+
+                  return Object.entries(groups).map(([groupName, items]) => (
+                    <optgroup key={groupName} label={groupName} className="font-bold text-on-surface bg-surface">
+                      {items.map((c) => (
+                        <option key={c.category_id} value={c.category_id} className="font-normal py-1">
+                          {c.category_name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ));
+                })()}
               </select>
+
+              {/* Dynamic Violation Category Definition Callout */}
+              {(() => {
+                const cats = (data.categories && data.categories.length > 0)
+                  ? data.categories
+                  : DEFAULT_STUDENT_VIOLATION_CATEGORIES;
+                const activeCat = cats.find((c) => String(c.category_id) === String(catId));
+                if (!activeCat || !activeCat.description) return null;
+                return (
+                  <div className="mt-2 p-2.5 rounded-lg bg-orange-tint/40 dark:bg-orange-950/20 border border-vibrant-orange/30 flex items-start gap-2.5 text-xs text-on-surface">
+                    <span className="material-symbols-outlined text-[18px] text-vibrant-orange shrink-0 mt-0.5">verified_user</span>
+                    <div>
+                      <span className="font-bold text-vibrant-orange block">{activeCat.category_name}</span>
+                      <p className="text-[11px] text-on-surface-variant leading-relaxed mt-0.5">{activeCat.description}</p>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Routing Notice Banner */}

@@ -530,12 +530,27 @@ export async function runMigrations() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
     const complaintCats = [
+      // Student Workplace Grievance & Rights Categories
+      ['Workplace Harassment & Sexual Harassment', 'Unwelcome conduct, sexual harassment, inappropriate comments, or hostile advances in the workplace'],
+      ['Safety & Substandard Working Conditions', 'Substandard health and occupational safety, lack of PPE, hazard exposure, or unsanitary environment'],
+      ['Excessive Hours & Schedule Exploitation', 'Hours exceeding CHED (max 8 hrs/day, 40 hrs/week) or DOLE labor guidelines, or forced graveyard shifts'],
+      ['Allowance / Stipend Non-Payment & Delays', 'Delayed, reduced, or completely unpaid agreed student allowance or transport stipend'],
+      ['Task Misalignment / Training Plan Violation', 'Assigned duties outside the MOA Training Plan or menial tasks irrelevant to academic program'],
+      ['Verbal Abuse, Bullying & Intimidation', 'Hostile work environment, insults, humiliation, or psychological intimidation by mentors/colleagues'],
+      ['Breach of MOA / Internship Agreement', 'Failure to provide required mentorship, lack of equipment, or violation of institutional agreement'],
+      ['Discrimination & Unfair Workplace Treatment', 'Bias, discrimination, or exclusion based on gender, SOGIE, religion, ethnicity, or disability'],
+      ['Unfair Evaluation / Retaliatory Grading', 'Retaliatory, punitive, or biased performance evaluation due to personal disagreements'],
+      ['Unethical Demands / Coercion', 'Pressure to perform personal errands, illegal tasks, or falsification of company records'],
+      ['Other Workplace Grievance', 'General workplace grievances, administrative conflicts, or concerns not listed above'],
+
+      // General Categories (for backwards compatibility)
       ['Workplace Harassment', 'Unsafe or inappropriate workplace conduct'],
       ['Safety & Working Conditions', 'Substandard health and occupational safety'],
       ['Excessive Hours / Exploitation', 'Hours exceeding CHED or MOA guidelines'],
       ['Allowance / Stipend Issues', 'Delayed or unpaid agreed allowance'],
       ['Other', 'General complaints and grievances'],
-      // Conduct Categories
+
+      // Conduct Categories (Organization / Mentor reports)
       ['General Misconduct / Unprofessional Behavior', 'Unprofessional conduct, behavioral infractions, or workplace disruption'],
       ['Chronic Absenteeism / Unauthorized Tardiness', 'Unexcused absences, chronic lateness, or schedule abandonment'],
       ['Safety Protocol Violation', 'Disregard of safety equipment, PPE, or operational health standards'],
@@ -543,6 +558,7 @@ export async function runMigrations() {
       ['Breach of NDA / Data Confidentiality', 'Unauthorized disclosure of proprietary data, intellectual property, or confidential client records'],
       ['Interpersonal Conflict / Harassment', 'Verbal hostility, bullying, or conflict with colleagues or supervisors'],
       ['Other Workplace Concern', 'General behavioral or workplace conduct matters'],
+
       // Accident & Injury Categories
       ['Workplace Accident & Physical Injury', 'Physical trauma, injury, or acute medical incident during work shift'],
       ['Slip, Trip or Fall Incident', 'Slips, trips, or falls within facility premises'],

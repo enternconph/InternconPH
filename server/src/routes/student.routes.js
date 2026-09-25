@@ -3392,7 +3392,26 @@ router.get('/complaints', async (req, res) => {
       [student.student_id]
     );
 
-    const [categories] = await pool.query('SELECT * FROM complaint_categories ORDER BY category_name ASC');
+    let [categories] = await pool.query('SELECT category_id, category_name, description FROM complaint_categories ORDER BY category_name ASC');
+    if (!categories || categories.length === 0) {
+      const defaultCats = [
+        ['Workplace Harassment & Sexual Harassment', 'Unwelcome conduct, sexual harassment, inappropriate comments, or hostile advances in the workplace'],
+        ['Safety & Substandard Working Conditions', 'Substandard health and occupational safety, lack of PPE, hazard exposure, or unsanitary environment'],
+        ['Excessive Hours & Schedule Exploitation', 'Hours exceeding CHED (max 8 hrs/day, 40 hrs/week) or DOLE labor guidelines, or forced graveyard shifts'],
+        ['Allowance / Stipend Non-Payment & Delays', 'Delayed, reduced, or completely unpaid agreed student allowance or transport stipend'],
+        ['Task Misalignment / Training Plan Violation', 'Assigned duties outside the MOA Training Plan or menial tasks irrelevant to academic program'],
+        ['Verbal Abuse, Bullying & Intimidation', 'Hostile work environment, insults, humiliation, or psychological intimidation by mentors/colleagues'],
+        ['Breach of MOA / Internship Agreement', 'Failure to provide required mentorship, lack of equipment, or violation of institutional agreement'],
+        ['Discrimination & Unfair Workplace Treatment', 'Bias, discrimination, or exclusion based on gender, SOGIE, religion, ethnicity, or disability'],
+        ['Unfair Evaluation / Retaliatory Grading', 'Retaliatory, punitive, or biased performance evaluation due to personal disagreements'],
+        ['Unethical Demands / Coercion', 'Pressure to perform personal errands, illegal tasks, or falsification of company records'],
+        ['Other Workplace Grievance', 'General workplace grievances, administrative conflicts, or concerns not listed above']
+      ];
+      for (const [cName, cDesc] of defaultCats) {
+        await pool.query('INSERT INTO complaint_categories (category_name, description) VALUES (?, ?) ON DUPLICATE KEY UPDATE description = VALUES(description)', [cName, cDesc]);
+      }
+      [categories] = await pool.query('SELECT category_id, category_name, description FROM complaint_categories ORDER BY category_name ASC');
+    }
 
     // 1. Resolve Active OJT Placement & Host Organization
     const [ojtRows] = await pool.query(
@@ -3596,10 +3615,22 @@ router.post('/complaints', async (req, res) => {
     const [orgDetail] = await pool.query('SELECT organization_name FROM hiring_organizations WHERE organization_id = ?', [targetOrgId]);
     const targetOrgName = orgDetail.length > 0 ? orgDetail[0].organization_name : 'Host Organization';
 
+    // Resolve category_id safely (supports ID or category name string)
+    let resolvedCatId = parseInt(category_id, 10);
+    if (isNaN(resolvedCatId) || resolvedCatId <= 0) {
+      const [foundCat] = await pool.query('SELECT category_id FROM complaint_categories WHERE category_name = ? LIMIT 1', [category_id]);
+      if (foundCat.length > 0) {
+        resolvedCatId = foundCat[0].category_id;
+      } else {
+        const [ins] = await pool.query('INSERT INTO complaint_categories (category_name, description) VALUES (?, ?)', [category_id, 'User reported category']);
+        resolvedCatId = ins.insertId;
+      }
+    }
+
     const [result] = await pool.query(
       `INSERT INTO complaints (student_id, student_status, organization_id, category_id, job_id, subject, description, complainant_type, status, filed_at, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'student', 'submitted', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [student.student_id, resolvedStatus, targetOrgId, job_id || null, subject, description]
+      [student.student_id, resolvedStatus, targetOrgId, resolvedCatId, job_id || null, subject, description]
     );
 
     // Audit log

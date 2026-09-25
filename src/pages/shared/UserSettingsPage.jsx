@@ -396,8 +396,8 @@ export default function UserSettingsPage() {
               : 'border-transparent text-on-surface-variant hover:text-on-surface'
           }`}
         >
-          <span className="material-symbols-outlined text-[18px]">palette</span>
-          <span>Appearance & Theme</span>
+          <span className="material-symbols-outlined text-[18px]">schedule</span>
+          <span>Appearance & System Clock</span>
         </button>
       </div>
 
@@ -997,11 +997,11 @@ export default function UserSettingsPage() {
             </div>
           )}
 
-          {/* TAB 4: APPEARANCE & THEME */}
+          {/* TAB 4: APPEARANCE & SYSTEM CLOCK */}
           {activeTab === 'appearance' && (
             <div className="space-y-6">
-              {/* System Clock & Time Display Format (24-Hour / Military Time) */}
-              <div className="bento-card space-y-4">
+              {/* System Clock & Time Display Format Card */}
+              <div className="bento-card space-y-5">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <h3 className="text-base font-bold text-on-surface flex items-center gap-2">
@@ -1009,103 +1009,116 @@ export default function UserSettingsPage() {
                       <span>System Clock & Time Display Format</span>
                     </h3>
                     <p className="text-xs text-on-surface-variant mt-0.5">
-                      Configure your system-wide time standard. Defaults to <strong>24-Hour Clock / Military Time</strong> for precise operational logs, DTR tracking, and scheduling.
+                      Configure your preferred platform time display standard. Sets whether timestamps, Daily Time Records (DTR), and activity logs render in <strong>24-Hour Military Time</strong> or <strong>12-Hour AM/PM</strong>.
                     </p>
                   </div>
 
-                  {/* Live Clock Badge */}
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-container border border-outline-variant text-on-surface text-xs font-mono font-bold tracking-tight shadow-sm shrink-0 w-fit">
-                    <span className="material-symbols-outlined text-[16px] text-vibrant-orange">pace</span>
-                    <span>{formatTime(currentTime, { showSeconds: true })}</span>
-                    <span className="text-[9px] font-sans px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant uppercase font-extrabold tracking-wider border border-outline-variant/40">
-                      {preferences.time_format === '12h' ? '12-Hour' : '24-Hour Military'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 24-Hour vs 12-Hour Option Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                  {/* Option 1: 24-Hour Clock (Military Time) */}
-                  <div
-                    onClick={() => handleTimeFormatChange('24h')}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all duration-200 relative flex flex-col justify-between space-y-3 ${
-                      preferences.time_format !== '12h'
-                        ? 'border-vibrant-orange bg-orange-tint/20 ring-2 ring-vibrant-orange/30 shadow-md'
-                        : 'border-outline-variant bg-surface-container-low hover:bg-surface-container'
+                  {/* Active Standard Badge */}
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shrink-0 w-fit ${
+                      preferences.time_format === '24h'
+                        ? 'bg-orange-tint text-vibrant-orange border-orange-200 ring-1 ring-vibrant-orange/30'
+                        : 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200'
                     }`}
                   >
-                    <div className="space-y-2">
+                    <span className="material-symbols-outlined text-[14px]">
+                      {preferences.time_format === '24h' ? 'military_tech' : 'schedule'}
+                    </span>
+                    <span>{preferences.time_format === '24h' ? '24-Hour / Military Active' : '12-Hour AM/PM Active'}</span>
+                  </span>
+                </div>
+
+                {/* Interactive Time Format Options */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Option 1: 24-Hour Clock / Military Time (Default) */}
+                  <div
+                    onClick={() => handleTimeFormatChange('24h')}
+                    className={`p-4 rounded-2xl border cursor-pointer transition-all duration-200 relative flex flex-col justify-between ${
+                      preferences.time_format === '24h'
+                        ? 'bg-orange-tint/20 dark:bg-orange-950/30 border-vibrant-orange ring-2 ring-vibrant-orange/30 shadow-sm'
+                        : 'bg-surface-container border-outline-variant hover:border-outline-variant/80'
+                    }`}
+                  >
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm ${
-                            preferences.time_format !== '12h' ? 'bg-vibrant-orange text-white' : 'bg-surface-container text-on-surface-variant'
-                          }`}>
-                            <span className="material-symbols-outlined text-[20px]">timer_10</span>
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-sm text-on-surface">24-Hour Clock (Military Time)</h4>
-                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">
-                              System Standard & Recommended
-                            </span>
-                          </div>
+                          <span className="material-symbols-outlined text-vibrant-orange text-[20px]">military_tech</span>
+                          <h4 className="font-bold text-sm text-on-surface">24-Hour Clock (Military Time)</h4>
                         </div>
-
-                        {preferences.time_format !== '12h' && (
-                          <span className="material-symbols-outlined text-vibrant-orange text-[20px]">check_circle</span>
-                        )}
+                        <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-vibrant-orange text-white">
+                          System Default
+                        </span>
                       </div>
 
                       <p className="text-xs text-on-surface-variant leading-relaxed">
-                        Displays hours in military notation from <code className="text-vibrant-orange font-mono">00:00:00</code> to <code className="text-vibrant-orange font-mono">23:59:59</code> across all monitoring logs, timestamps, attendance records, and grievances.
+                        Standard 24-hour military format (<code className="text-vibrant-orange font-bold font-mono">00:00:00 - 23:59:59</code>). Prevents ambiguity across shift logs, attendance timestamps, and administrative audit trails.
                       </p>
+
+                      {/* Live Ticking Preview */}
+                      <div className="p-3 bg-surface rounded-xl border border-outline-variant/60 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-on-surface-variant">Live Clock Preview:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-bold text-vibrant-orange">
+                            {formatTime(currentTime, { format: '24h', showSeconds: true })}
+                          </span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant uppercase font-bold border border-outline-variant">
+                            24H / MIL
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Live Sample Preview */}
-                    <div className="p-2.5 rounded-xl bg-surface-container-high border border-outline-variant/60 flex items-center justify-between font-mono text-xs">
-                      <span className="text-[11px] text-on-surface-variant font-sans font-semibold">Live Military Output:</span>
-                      <span className="font-bold text-vibrant-orange">{formatTime(currentTime, { format: '24h', showSeconds: true })}</span>
+                    <div className="pt-3 mt-3 border-t border-outline-variant flex items-center justify-between text-xs">
+                      <span className="font-bold text-on-surface-variant">Recommended Standard</span>
+                      <span className={`font-bold ${preferences.time_format === '24h' ? 'text-vibrant-orange' : 'text-on-surface-variant'}`}>
+                        {preferences.time_format === '24h' ? '✓ Selected Standard' : 'Click to Set'}
+                      </span>
                     </div>
                   </div>
 
                   {/* Option 2: 12-Hour Clock (Standard AM/PM) */}
                   <div
                     onClick={() => handleTimeFormatChange('12h')}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all duration-200 relative flex flex-col justify-between space-y-3 ${
+                    className={`p-4 rounded-2xl border cursor-pointer transition-all duration-200 relative flex flex-col justify-between ${
                       preferences.time_format === '12h'
-                        ? 'border-vibrant-orange bg-orange-tint/20 ring-2 ring-vibrant-orange/30 shadow-md'
-                        : 'border-outline-variant bg-surface-container-low hover:bg-surface-container'
+                        ? 'bg-blue-50/50 dark:bg-blue-950/30 border-blue-500 ring-2 ring-blue-500/30 shadow-sm'
+                        : 'bg-surface-container border-outline-variant hover:border-outline-variant/80'
                     }`}
                   >
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm ${
-                            preferences.time_format === '12h' ? 'bg-vibrant-orange text-white' : 'bg-surface-container text-on-surface-variant'
-                          }`}>
-                            <span className="material-symbols-outlined text-[20px]">schedule</span>
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-sm text-on-surface">12-Hour Clock (AM / PM)</h4>
-                            <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">
-                              Traditional Meridian Format
-                            </span>
-                          </div>
+                          <span className="material-symbols-outlined text-blue-500 text-[20px]">schedule</span>
+                          <h4 className="font-bold text-sm text-on-surface">12-Hour Clock (Standard AM/PM)</h4>
                         </div>
-
-                        {preferences.time_format === '12h' && (
-                          <span className="material-symbols-outlined text-vibrant-orange text-[20px]">check_circle</span>
-                        )}
+                        <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant border border-outline-variant">
+                          Conventional
+                        </span>
                       </div>
 
                       <p className="text-xs text-on-surface-variant leading-relaxed">
-                        Displays hours in 12-hour intervals with daylight and evening meridian indicators (e.g. <code className="text-on-surface font-mono">03:45:00 PM</code>).
+                        Traditional 12-hour clock standard with AM/PM daylight markers (<code className="text-blue-500 font-bold font-mono">12:00:00 AM - 11:59:59 PM</code>).
                       </p>
+
+                      {/* Live Ticking Preview */}
+                      <div className="p-3 bg-surface rounded-xl border border-outline-variant/60 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-on-surface-variant">Live Clock Preview:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-bold text-blue-500">
+                            {formatTime(currentTime, { format: '12h', showSeconds: true })}
+                          </span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant uppercase font-bold border border-outline-variant">
+                            12H
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Live Sample Preview */}
-                    <div className="p-2.5 rounded-xl bg-surface-container-high border border-outline-variant/60 flex items-center justify-between font-mono text-xs">
-                      <span className="text-[11px] text-on-surface-variant font-sans font-semibold">Live 12-Hour Output:</span>
-                      <span className="font-bold text-on-surface">{formatTime(currentTime, { format: '12h', showSeconds: true })}</span>
+                    <div className="pt-3 mt-3 border-t border-outline-variant flex items-center justify-between text-xs">
+                      <span className="font-bold text-on-surface-variant">12-Hour Conventional</span>
+                      <span className={`font-bold ${preferences.time_format === '12h' ? 'text-blue-500' : 'text-on-surface-variant'}`}>
+                        {preferences.time_format === '12h' ? '✓ Selected' : 'Click to Set'}
+                      </span>
                     </div>
                   </div>
                 </div>
