@@ -630,7 +630,7 @@ router.delete('/applications/:id', async (req, res) => {
   }
 });
 
-// GET /api/student/applications
+// GET /api/student/applications - Return all applications (OJT, On-Call, Career Jobs) with full details & feedback
 router.get('/applications', async (req, res) => {
   try {
     const student = await getStudentId(req.user.user_id);
@@ -639,14 +639,20 @@ router.get('/applications', async (req, res) => {
     }
 
     const [applications] = await pool.query(
-      `SELECT ja.*, jp.title as job_title, jp.location, jp.posting_type, jp.job_type,
-              ho.organization_name, ho.industry, ho.contact_email, ho.contact_phone,
+      `SELECT ja.*, 
+              jp.title as job_title, jp.description as job_description, jp.requirements as job_requirements,
+              jp.deliverables as job_deliverables, jp.location, jp.posting_type, jp.job_type,
+              jp.work_setup, jp.salary_min, jp.salary_max, jp.allowance, jp.department, jp.employment_type, jp.slots,
+              ho.organization_id, ho.organization_name, ho.industry, ho.contact_email, ho.contact_phone,
+              ho.logo_url, ho.address as org_address, ho.website,
+              jo.offer_id, jo.status as offer_status, jo.offered_at, jo.responded_at,
               i.interview_id, i.schedule_at as interview_schedule_at, i.mode as interview_mode,
               i.location_or_link as interview_location_or_link, i.notes as interview_notes,
               i.status as interview_status
        FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
        JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
+       LEFT JOIN job_offers jo ON ja.application_id = jo.application_id
        LEFT JOIN (
          SELECT * FROM interviews WHERE interview_id IN (
            SELECT MAX(interview_id) FROM interviews GROUP BY application_id
@@ -657,7 +663,33 @@ router.get('/applications', async (req, res) => {
       [student.student_id]
     );
 
-    return res.json({ success: true, data: applications });
+    // Also fetch any direct deployment offers if present and not already in job_applications
+    const [directOffers] = await pool.query(
+      `SELECT odo.offer_id as application_id, odo.job_id, odo.student_id, odo.status,
+              odo.offered_at as applied_at, odo.created_at, odo.updated_at,
+              jp.title as job_title, jp.description as job_description, jp.requirements as job_requirements,
+              jp.deliverables as job_deliverables, jp.location, COALESCE(jp.posting_type, 'ojt') as posting_type,
+              COALESCE(jp.job_type, 'ojt') as job_type, jp.work_setup, jp.salary_min, jp.salary_max,
+              jp.allowance, jp.department, jp.employment_type, jp.slots,
+              ho.organization_id, ho.organization_name, ho.industry, ho.contact_email, ho.contact_phone,
+              ho.logo_url, ho.address as org_address, ho.website,
+              odo.offer_id, odo.status as offer_status, odo.offered_at, NULL as responded_at,
+              NULL as interview_id, NULL as interview_schedule_at, NULL as interview_mode,
+              NULL as interview_location_or_link, NULL as interview_notes, NULL as interview_status
+       FROM ojt_deployment_offers odo
+       JOIN job_postings jp ON odo.job_id = jp.job_id
+       JOIN hiring_organizations ho ON odo.organization_id = ho.organization_id
+       WHERE odo.student_id = ? AND odo.job_id NOT IN (
+         SELECT job_id FROM job_applications WHERE student_id = ?
+       )`,
+      [student.student_id, student.student_id]
+    );
+
+    const allApps = [...applications, ...(directOffers || [])].sort(
+      (a, b) => new Date(b.applied_at || b.created_at) - new Date(a.applied_at || a.created_at)
+    );
+
+    return res.json({ success: true, data: allApps });
   } catch (error) {
     console.error('Fetch student applications error:', error);
     return res.status(500).json({ success: false, message: 'Could not fetch applications.' });
