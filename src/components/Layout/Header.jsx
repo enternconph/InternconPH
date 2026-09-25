@@ -47,7 +47,7 @@ export default function Header() {
   };
 
   return (
-    <header className="border-b border-outline-variant w-full top-0 sticky z-50 bg-surface-container-lowest/95 backdrop-blur-md transition-colors">
+    <header className="w-full top-0 sticky z-50 bg-surface-container-lowest/95 backdrop-blur-md transition-colors">
       <div className="flex items-center justify-between h-16 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto gap-4">
         {/* Left: Logo */}
         <div className="flex-1 flex items-center justify-start min-w-0">
@@ -80,7 +80,7 @@ export default function Header() {
             onClick={() => handleNavClick('#opportunities')}
             className="text-on-surface-variant font-semibold text-sm hover:text-vibrant-orange transition-colors py-1 cursor-pointer"
           >
-            Ecosystem Goal
+            Mission
           </button>
 
           {/* Combined Portals / Audience Dropdown */}
@@ -171,8 +171,8 @@ export default function Header() {
             </span>
           </button>
 
-          {/* If already logged in, show Dashboard shortcut */}
-          {user && (
+          {/* If already logged in, show Dashboard shortcut; otherwise show Sign In & Get Started */}
+          {user ? (
             <Link
               to={getDashboardUrl(user.role_name || user.role)}
               className="hidden sm:inline-flex items-center gap-1.5 bg-vibrant-orange text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-deep-orange transition-colors shadow-xs"
@@ -180,6 +180,24 @@ export default function Header() {
               <span className="material-symbols-outlined text-[16px]">dashboard</span>
               <span>Dashboard</span>
             </Link>
+          ) : (
+            <div className="hidden sm:flex items-center gap-2">
+              <Link
+                to="/login"
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-on-surface hover:text-vibrant-orange hover:bg-surface-container transition-colors"
+              >
+                Sign In
+              </Link>
+              <Link
+                to="/get-started"
+                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-500 via-vibrant-orange to-deep-orange text-white px-3.5 py-1.5 rounded-xl text-xs font-bold hover:brightness-110 transition-all shadow-sm active:scale-95 group"
+              >
+                <span>Get Started</span>
+                <span className="material-symbols-outlined text-[15px] transition-transform duration-200 group-hover:translate-x-0.5">
+                  arrow_forward
+                </span>
+              </Link>
+            </div>
           )}
 
           {/* Mobile Menu Toggle Button */}
@@ -220,7 +238,7 @@ export default function Header() {
               onClick={() => handleNavClick('#opportunities')}
               className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors cursor-pointer"
             >
-              Ecosystem Goal
+              Mission
             </button>
             <div className="py-2 px-3 border-l-2 border-vibrant-orange ml-2 space-y-1 my-1">
               <button
@@ -252,6 +270,25 @@ export default function Header() {
             >
               Policies & Compliance
             </button>
+
+            {!user && (
+              <div className="pt-3 border-t border-outline-variant/60 flex flex-col gap-2">
+                <Link
+                  to="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full text-center py-2.5 rounded-xl border border-outline-variant text-xs font-bold text-on-surface hover:bg-surface-container"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/get-started"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full text-center py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-vibrant-orange text-white text-xs font-bold shadow-sm"
+                >
+                  Get Started →
+                </Link>
+              </div>
+            )}
           </nav>
         </div>
       )}
