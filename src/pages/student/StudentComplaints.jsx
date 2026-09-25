@@ -147,10 +147,34 @@ export default function StudentComplaints() {
 
   const fetchComplaints = useCallback(async () => {
     try {
-      const [res, ojtRes] = await Promise.all([
-        api.get('/student/complaints'),
-        api.get('/student/ojt').catch(() => ({ success: false }))
+      const [res, ojtRes, dashRes] = await Promise.all([
+        api.get('/student/complaints').catch(() => ({ success: false })),
+        api.get('/student/ojt').catch(() => ({ success: false })),
+        api.get('/student/dashboard').catch(() => ({ success: false }))
       ]);
+
+      let complaintsList = (res.success && res.data?.complaints) ? [...res.data.complaints] : [];
+
+      // Guarantee any warning present in dashboard warnings is merged into complaints
+      if (dashRes?.success && Array.isArray(dashRes.data?.warnings)) {
+        for (const w of dashRes.data.warnings) {
+          const exists = complaintsList.some((c) => String(c.complaint_id) === String(w.complaint_id));
+          if (!exists) {
+            complaintsList.unshift({
+              complaint_id: w.complaint_id,
+              subject: w.subject || 'Incident Notice',
+              description: w.description || w.warning_note_to_student,
+              warning_note_to_student: w.warning_note_to_student,
+              warning_sent_at: w.warning_sent_at,
+              organization_name: w.organization_name || 'Host Training Organization',
+              category_name: 'Official Institutional Warning',
+              status: w.complaint_status || 'submitted',
+              complainant_type: 'organization',
+              filed_at: w.warning_sent_at || new Date().toISOString()
+            });
+          }
+        }
+      }
 
       if (res.success && res.data) {
         const incomingCategories = (res.data.categories && res.data.categories.length > 0)
@@ -198,6 +222,7 @@ export default function StudentComplaints() {
 
         setData({
           ...res.data,
+          complaints: complaintsList,
           categories: incomingCategories,
           orgs: updatedOrgs,
           active_ojt_placement: resolvedOjtPlacement,
@@ -216,6 +241,11 @@ export default function StudentComplaints() {
           const myOrg = updatedOrgs.find((o) => o.is_my_employer) || updatedOrgs[0];
           setSelectedOrgId(String(myOrg.organization_id));
         }
+      } else if (complaintsList.length > 0) {
+        setData((prev) => ({
+          ...prev,
+          complaints: complaintsList
+        }));
       }
     } catch (err) {
       console.error('Fetch complaints error:', err);

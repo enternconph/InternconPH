@@ -3700,7 +3700,7 @@ router.get('/complaints', async (req, res) => {
 
     // 1. Resolve Active OJT Placement & Host Organization (Synchronized directly with OJT Progress & DTR)
     const [ojtRows] = await pool.query(
-      `SELECT o.*, ho.organization_name, ho.industry, ho.logo_url, ho.contact_email, 'ojt' as placement_type
+      `SELECT o.*, ho.organization_name, ho.industry, NULL as logo_url, ho.contact_email, 'ojt' as placement_type
        FROM ojt_records o
        JOIN students s ON o.student_id = s.student_id
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
@@ -3715,7 +3715,7 @@ router.get('/complaints', async (req, res) => {
       // Check accepted deployment offers
       const [offerRows] = await pool.query(
         `SELECT dof.offer_id, dof.organization_id, 'ongoing' as status,
-                ho.organization_name, ho.industry, ho.logo_url, 'ojt' as placement_type
+                ho.organization_name, ho.industry, NULL as logo_url, 'ojt' as placement_type
          FROM ojt_deployment_offers dof
          JOIN hiring_organizations ho ON dof.organization_id = ho.organization_id
          WHERE dof.student_id = ? AND dof.status IN ('accepted', 'deployed', 'active')
@@ -3733,7 +3733,7 @@ router.get('/complaints', async (req, res) => {
       const [ojtAppRows] = await pool.query(
         `SELECT ja.application_id, ja.job_id, ja.status as app_status,
                 jp.posting_type, jp.title as job_title,
-                ho.organization_id, ho.organization_name, ho.industry, ho.logo_url,
+                ho.organization_id, ho.organization_name, ho.industry, NULL as logo_url,
                 'ojt' as placement_type
          FROM job_applications ja
          JOIN job_postings jp ON ja.job_id = jp.job_id
@@ -3752,7 +3752,7 @@ router.get('/complaints', async (req, res) => {
     const [careerAppRows] = await pool.query(
       `SELECT ja.application_id, ja.job_id, ja.status as app_status,
               jp.posting_type, jp.title as job_title,
-              ho.organization_id, ho.organization_name, ho.industry, ho.logo_url
+              ho.organization_id, ho.organization_name, ho.industry, NULL as logo_url
        FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
        JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
@@ -3771,7 +3771,7 @@ router.get('/complaints', async (req, res) => {
          ho.industry,
          ho.city,
          ho.province,
-         ho.logo_url,
+         NULL as logo_url,
          CASE 
            WHEN EXISTS (
              SELECT 1 FROM ojt_records o 
