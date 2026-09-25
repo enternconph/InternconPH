@@ -3641,26 +3641,101 @@ router.post('/complaints', async (req, res) => {
       }
     }
 
-    if (!targetOrgId) {
+    // Resolve target organization safely against hiring_organizations (FK protection)
+    let resolvedOrgId = null;
+    const orgIdNum = parseInt(targetOrgId, 10);
+    if (!isNaN(orgIdNum) && orgIdNum > 0) {
+      const [foundOrg] = await pool.query('SELECT organization_id, organization_name FROM hiring_organizations WHERE organization_id = ?', [orgIdNum]);
+      if (foundOrg.length > 0) {
+        resolvedOrgId = foundOrg[0].organization_id;
+      }
+    }
+
+    if (!resolvedOrgId && targetOrgId && typeof targetOrgId === 'string' && isNaN(Number(targetOrgId))) {
+      // If a string key or name was provided (e.g. from mock presets), match by organization_name
+      const [foundByName] = await pool.query('SELECT organization_id FROM hiring_organizations WHERE organization_name LIKE ? LIMIT 1', [`%${targetOrgId.replace(/_/g, ' ')}%`]);
+      if (foundByName.length > 0) {
+        resolvedOrgId = foundByName[0].organization_id;
+      }
+    }
+
+    if (!resolvedOrgId) {
+      if (activeOjt && activeOjt.organization_id) {
+        resolvedOrgId = activeOjt.organization_id;
+      } else {
+        const [anyOrg] = await pool.query('SELECT organization_id FROM hiring_organizations ORDER BY organization_id ASC LIMIT 1');
+        if (anyOrg.length > 0) {
+          resolvedOrgId = anyOrg[0].organization_id;
+        }
+      }
+    }
+
+    if (!resolvedOrgId) {
       return res.status(400).json({
         success: false,
-        message: 'Please select the target hiring organization you are filing against.'
+        message: 'Please select a valid target hiring organization.'
       });
     }
 
     // Get organization name for notification messages
-    const [orgDetail] = await pool.query('SELECT organization_name FROM hiring_organizations WHERE organization_id = ?', [targetOrgId]);
+    const [orgDetail] = await pool.query('SELECT organization_name FROM hiring_organizations WHERE organization_id = ?', [resolvedOrgId]);
     const targetOrgName = orgDetail.length > 0 ? orgDetail[0].organization_name : 'Host Organization';
 
-    // Resolve category_id safely (supports ID or category name string)
-    let resolvedCatId = parseInt(category_id, 10);
-    if (isNaN(resolvedCatId) || resolvedCatId <= 0) {
-      const [foundCat] = await pool.query('SELECT category_id FROM complaint_categories WHERE category_name = ? LIMIT 1', [category_id]);
-      if (foundCat.length > 0) {
-        resolvedCatId = foundCat[0].category_id;
+    // 1. Resolve category_id safely against complaint_categories (FK protection)
+    let resolvedCatId = null;
+    const catIdNum = parseInt(category_id, 10);
+    if (!isNaN(catIdNum) && catIdNum > 0) {
+      const [foundById] = await pool.query('SELECT category_id FROM complaint_categories WHERE category_id = ?', [catIdNum]);
+      if (foundById.length > 0) {
+        resolvedCatId = foundById[0].category_id;
+      }
+    }
+
+    // 2. If not found by numeric ID, resolve by category name
+    if (!resolvedCatId) {
+      const candidateName = (typeof req.body.category_name === 'string' && req.body.category_name.trim())
+        ? req.body.category_name.trim()
+        : (typeof category_id === 'string' && isNaN(Number(category_id)))
+          ? category_id.trim()
+          : '';
+
+      if (candidateName) {
+        const [foundByName] = await pool.query('SELECT category_id FROM complaint_categories WHERE category_name = ? LIMIT 1', [candidateName]);
+        if (foundByName.length > 0) {
+          resolvedCatId = foundByName[0].category_id;
+        } else {
+          // Check substring match
+          const [foundLike] = await pool.query('SELECT category_id FROM complaint_categories WHERE category_name LIKE ? LIMIT 1', [`%${candidateName.slice(0, 15)}%`]);
+          if (foundLike.length > 0) {
+            resolvedCatId = foundLike[0].category_id;
+          } else {
+            const [ins] = await pool.query('INSERT INTO complaint_categories (category_name, description) VALUES (?, ?)', [candidateName, 'Student reported category']);
+            resolvedCatId = ins.insertId;
+          }
+        }
+      }
+    }
+
+    // 3. Fallback to any valid complaint category in table, or seed default
+    if (!resolvedCatId) {
+      const [anyCat] = await pool.query('SELECT category_id FROM complaint_categories ORDER BY category_id ASC LIMIT 1');
+      if (anyCat.length > 0) {
+        resolvedCatId = anyCat[0].category_id;
       } else {
-        const [ins] = await pool.query('INSERT INTO complaint_categories (category_name, description) VALUES (?, ?)', [category_id, 'User reported category']);
-        resolvedCatId = ins.insertId;
+        const [insDef] = await pool.query("INSERT INTO complaint_categories (category_name, description) VALUES ('Other Workplace Grievance', 'General workplace grievances')");
+        resolvedCatId = insDef.insertId;
+      }
+    }
+
+    // Validate job_id against job_postings (FK protection)
+    let resolvedJobId = null;
+    if (job_id) {
+      const jobIdNum = parseInt(job_id, 10);
+      if (!isNaN(jobIdNum) && jobIdNum > 0) {
+        const [foundJob] = await pool.query('SELECT job_id FROM job_postings WHERE job_id = ?', [jobIdNum]);
+        if (foundJob.length > 0) {
+          resolvedJobId = foundJob[0].job_id;
+        }
       }
     }
 
@@ -3671,7 +3746,7 @@ router.post('/complaints', async (req, res) => {
       const [res] = await pool.query(
         `INSERT INTO complaints (student_id, student_status, organization_id, category_id, job_id, subject, description, complainant_type, status, filed_at, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'student', 'submitted', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [student.student_id, resolvedStatus, targetOrgId, resolvedCatId, job_id || null, subject, description]
+        [student.student_id, resolvedStatus, resolvedOrgId, resolvedCatId, resolvedJobId, subject, description]
       );
       result = res;
     } catch (insertErr) {
@@ -3683,7 +3758,7 @@ router.post('/complaints', async (req, res) => {
         const [res] = await pool.query(
           `INSERT INTO complaints (student_id, student_status, organization_id, category_id, job_id, subject, description, complainant_type, status, filed_at, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, 'student', 'submitted', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-          [student.student_id, legacyStatus, targetOrgId, resolvedCatId, job_id || null, subject, description]
+          [student.student_id, legacyStatus, resolvedOrgId, resolvedCatId, resolvedJobId, subject, description]
         );
         result = res;
       } else {

@@ -3172,7 +3172,17 @@ router.post('/complaints', async (req, res) => {
       targetCategoryName = CONDUCT_CATEGORY_MAP[category] || ACCIDENT_CATEGORY_MAP[category] || category || 'General Misconduct / Unprofessional Behavior';
     }
 
-    let catId = category_id;
+    let catId = null;
+    if (category_id) {
+      const parsedCatId = parseInt(category_id, 10);
+      if (!isNaN(parsedCatId) && parsedCatId > 0) {
+        const [existingCat] = await connection.query('SELECT category_id FROM complaint_categories WHERE category_id = ?', [parsedCatId]);
+        if (existingCat.length > 0) {
+          catId = existingCat[0].category_id;
+        }
+      }
+    }
+
     if (!catId) {
       const [matchedCats] = await connection.query(
         'SELECT category_id FROM complaint_categories WHERE category_name = ? LIMIT 1',

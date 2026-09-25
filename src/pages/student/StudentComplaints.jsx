@@ -269,11 +269,17 @@ export default function StudentComplaints() {
       return;
     }
 
+    const allCats = (data.categories && data.categories.length > 0)
+      ? data.categories
+      : DEFAULT_STUDENT_VIOLATION_CATEGORIES;
+    const activeCat = allCats.find((c) => String(c.category_id) === String(catId));
+
     setSubmitting(true);
     setMessage('');
     try {
       const res = await api.post('/student/complaints', {
         category_id: catId,
+        category_name: activeCat?.category_name || '',
         student_status: studentStatus,
         organization_id: targetOrgId,
         subject,
