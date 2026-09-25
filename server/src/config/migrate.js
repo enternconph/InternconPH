@@ -577,16 +577,20 @@ export async function runMigrations() {
       );
     }
 
-    // Align complaints table columns for conduct & accident reporting
+    // Align complaints table columns for conduct & accident reporting and flexible student_status
     try {
       const [compCols] = await pool.query('DESCRIBE complaints');
       const compColNames = compCols.map(c => c.Field);
+      if (compColNames.includes('student_status')) {
+        await pool.query("ALTER TABLE complaints MODIFY COLUMN student_status VARCHAR(50) DEFAULT 'ojt'");
+        console.log('[Migration] Modified complaints.student_status to VARCHAR(50)');
+      }
       if (!compColNames.includes('incident_category')) {
         await pool.query('ALTER TABLE complaints ADD COLUMN incident_category VARCHAR(150) NULL AFTER category_id');
         console.log('[Migration] Added incident_category to complaints');
       }
       if (!compColNames.includes('evidence_url')) {
-        await pool.query('ALTER TABLE complaints ADD COLUMN evidence_url VARCHAR(500) NULL AFTER resolution_notes');
+        await pool.query('ALTER TABLE complaints ADD COLUMN evidence_url VARCHAR(500) NULL AFTER description');
         console.log('[Migration] Added evidence_url to complaints');
       }
     } catch (err) {

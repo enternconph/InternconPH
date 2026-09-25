@@ -3664,11 +3664,32 @@ router.post('/complaints', async (req, res) => {
       }
     }
 
-    const [result] = await pool.query(
-      `INSERT INTO complaints (student_id, student_status, organization_id, category_id, job_id, subject, description, complainant_type, status, filed_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'student', 'submitted', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [student.student_id, resolvedStatus, targetOrgId, resolvedCatId, job_id || null, subject, description]
-    );
+    // Prepare safe status value for both VARCHAR and legacy ENUM schemas
+    const legacyStatus = isOjt ? 'ojt' : 'graduated';
+    let result;
+    try {
+      const [res] = await pool.query(
+        `INSERT INTO complaints (student_id, student_status, organization_id, category_id, job_id, subject, description, complainant_type, status, filed_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'student', 'submitted', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [student.student_id, resolvedStatus, targetOrgId, resolvedCatId, job_id || null, subject, description]
+      );
+      result = res;
+    } catch (insertErr) {
+      if (insertErr.code === 'WARN_DATA_TRUNCATED' || insertErr.message?.includes('student_status')) {
+        // Attempt modifying column on the fly and retry
+        try {
+          await pool.query("ALTER TABLE complaints MODIFY COLUMN student_status VARCHAR(50) DEFAULT 'ojt'");
+        } catch (_) {}
+        const [res] = await pool.query(
+          `INSERT INTO complaints (student_id, student_status, organization_id, category_id, job_id, subject, description, complainant_type, status, filed_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'student', 'submitted', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [student.student_id, legacyStatus, targetOrgId, resolvedCatId, job_id || null, subject, description]
+        );
+        result = res;
+      } else {
+        throw insertErr;
+      }
+    }
 
     // Audit log
     await pool.query(
