@@ -107,6 +107,7 @@ export default function StudentComplaints() {
   const [catId, setCatId] = useState('');
   const [studentStatus, setStudentStatus] = useState('ongoing_ojt');
   const [selectedOrgId, setSelectedOrgId] = useState('');
+  const [showManualSelect, setShowManualSelect] = useState(false);
   const [subject, setSubject] = useState('');
   const [desc, setDesc] = useState('');
 
@@ -457,102 +458,110 @@ export default function StudentComplaints() {
                 {activeOjtOrg?.organization_id && (studentStatus === 'ongoing_ojt' || studentStatus === 'ojt') && (
                   <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Default: Current OJT Host
+                    Auto-Selected Host
                   </span>
                 )}
               </div>
 
-              {/* If Current OJT Host exists, show quick-select badge card */}
-              {activeOjtOrg?.organization_id && (
-                <div
-                  onClick={() => setSelectedOrgId(String(activeOjtOrg.organization_id))}
-                  className={`mb-2 p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between gap-3 ${
-                    selectedOrgId === String(activeOjtOrg.organization_id)
-                      ? 'bg-orange-tint/40 border-vibrant-orange ring-1 ring-vibrant-orange/50 shadow-xs'
-                      : 'bg-surface-container-low border-outline-variant hover:bg-surface-container'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-vibrant-orange/10 text-vibrant-orange flex items-center justify-center font-bold text-xs shrink-0">
-                      <span className="material-symbols-outlined text-[18px]">apartment</span>
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-bold text-xs text-on-surface truncate">{activeOjtOrg.organization_name}</p>
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-vibrant-orange text-white">
-                          Current OJT Host
-                        </span>
+              {/* 1. If Current OJT Host exists & studentStatus is ongoing_ojt -> Auto-Selected Active Card */}
+              {activeOjtOrg?.organization_id && (studentStatus === 'ongoing_ojt' || studentStatus === 'ojt') ? (
+                <div className="p-3.5 rounded-xl border border-vibrant-orange/60 bg-gradient-to-r from-orange-tint/50 via-surface-container-low to-surface-container-low shadow-xs space-y-2.5 mb-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-vibrant-orange text-white flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
+                        <span className="material-symbols-outlined text-[22px]">apartment</span>
                       </div>
-                      <p className="text-[10px] text-on-surface-variant truncate">
-                        {activeOjtOrg.industry || 'Host Employer'} • Active Training Placement
-                      </p>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-sm text-on-surface truncate">{activeOjtOrg.organization_name}</p>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-vibrant-orange text-white shrink-0">
+                            Current OJT Host
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-on-surface-variant truncate mt-0.5">
+                          {activeOjtOrg.industry || 'Host Employer'} • Active Training Placement
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold text-xs shrink-0">
+                      <span className="material-symbols-outlined text-[20px]">verified</span>
+                      <span className="hidden sm:inline">Linked</span>
                     </div>
                   </div>
-                  <div className="shrink-0">
-                    {selectedOrgId === String(activeOjtOrg.organization_id) ? (
-                      <span className="material-symbols-outlined text-vibrant-orange text-[20px]">check_circle</span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-on-surface-variant px-2 py-0.5 bg-surface-container rounded-md">
-                        Use Host
-                      </span>
-                    )}
+
+                  <div className="pt-2 border-t border-outline-variant/60 flex items-center justify-between text-[11px] text-on-surface-variant">
+                    <span className="flex items-center gap-1 text-on-surface-variant">
+                      <span className="material-symbols-outlined text-[15px] text-vibrant-orange">lock</span>
+                      Automatically selected base to your OJT Progress & Placement.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowManualSelect(!showManualSelect)}
+                      className="text-vibrant-orange font-bold hover:underline shrink-0 text-[10px]"
+                    >
+                      {showManualSelect ? 'Hide Company List' : 'Change Employer'}
+                    </button>
                   </div>
+                </div>
+              ) : null}
+
+              {/* 2. Dropdown (shown when manually expanded or when filing for non-OJT status or if no active OJT org) */}
+              {(!activeOjtOrg?.organization_id || (studentStatus !== 'ongoing_ojt' && studentStatus !== 'ojt') || showManualSelect) && (
+                <div className={activeOjtOrg?.organization_id && (studentStatus === 'ongoing_ojt' || studentStatus === 'ojt') ? 'mt-2' : ''}>
+                  <select
+                    required
+                    value={selectedOrgId || (activeOjtOrg?.organization_id ? String(activeOjtOrg.organization_id) : '')}
+                    onChange={(e) => setSelectedOrgId(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-medium outline-none focus:ring-2 focus:ring-vibrant-orange text-xs"
+                  >
+                    {!selectedOrgId && !activeOjtOrg?.organization_id && (
+                      <option value="">Select target employer / host organization...</option>
+                    )}
+                    {(() => {
+                      const rawList = data.orgs && data.orgs.length > 0 ? data.orgs : DEFAULT_ORGANIZATIONS;
+                      const orgList = [...rawList];
+
+                      if (activeOjtOrg?.organization_id && !orgList.some(o => String(o.organization_id) === String(activeOjtOrg.organization_id))) {
+                        orgList.unshift({
+                          organization_id: activeOjtOrg.organization_id,
+                          organization_name: activeOjtOrg.organization_name,
+                          industry: activeOjtOrg.industry,
+                          is_my_employer: 1
+                        });
+                      }
+
+                      const myEmps = orgList.filter((o) => o.is_my_employer || String(o.organization_id) === String(activeOjtOrg?.organization_id));
+                      const otherOrgs = orgList.filter((o) => !o.is_my_employer && String(o.organization_id) !== String(activeOjtOrg?.organization_id));
+
+                      return (
+                        <>
+                          {myEmps.length > 0 && (
+                            <optgroup label="⭐ My Current OJT Placement & Associated Employers" className="font-bold text-on-surface bg-surface">
+                              {myEmps.map((org) => (
+                                <option key={org.organization_id} value={org.organization_id} className="font-normal py-1">
+                                  {org.organization_name} {String(org.organization_id) === String(activeOjtOrg?.organization_id) ? '(Active OJT Host Organization)' : '(Associated Employer)'} {org.industry ? `— ${org.industry}` : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {otherOrgs.length > 0 && (
+                            <optgroup label="🏢 All Accredited Hiring Organizations & Companies" className="font-bold text-on-surface bg-surface">
+                              {otherOrgs.map((org) => (
+                                <option key={org.organization_id} value={org.organization_id} className="font-normal py-1">
+                                  {org.organization_name} {org.industry ? `— ${org.industry}` : ''} {org.city ? `(${org.city})` : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </select>
                 </div>
               )}
 
-              {/* Complete Organization Dropdown */}
-              <select
-                required
-                value={selectedOrgId || (activeOjtOrg?.organization_id ? String(activeOjtOrg.organization_id) : '')}
-                onChange={(e) => setSelectedOrgId(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-medium outline-none focus:ring-2 focus:ring-vibrant-orange text-xs"
-              >
-                {!selectedOrgId && !activeOjtOrg?.organization_id && (
-                  <option value="">Select target employer / host organization...</option>
-                )}
-                {(() => {
-                  const rawList = data.orgs && data.orgs.length > 0 ? data.orgs : DEFAULT_ORGANIZATIONS;
-                  const orgList = [...rawList];
-
-                  if (activeOjtOrg?.organization_id && !orgList.some(o => String(o.organization_id) === String(activeOjtOrg.organization_id))) {
-                    orgList.unshift({
-                      organization_id: activeOjtOrg.organization_id,
-                      organization_name: activeOjtOrg.organization_name,
-                      industry: activeOjtOrg.industry,
-                      is_my_employer: 1
-                    });
-                  }
-
-                  const myEmps = orgList.filter((o) => o.is_my_employer || String(o.organization_id) === String(activeOjtOrg?.organization_id));
-                  const otherOrgs = orgList.filter((o) => !o.is_my_employer && String(o.organization_id) !== String(activeOjtOrg?.organization_id));
-
-                  return (
-                    <>
-                      {myEmps.length > 0 && (
-                        <optgroup label="⭐ My Current OJT Placement & Associated Employers" className="font-bold text-on-surface bg-surface">
-                          {myEmps.map((org) => (
-                            <option key={org.organization_id} value={org.organization_id} className="font-normal py-1">
-                              {org.organization_name} {String(org.organization_id) === String(activeOjtOrg?.organization_id) ? '(Active OJT Host Organization)' : '(Associated Employer)'} {org.industry ? `— ${org.industry}` : ''}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                      {otherOrgs.length > 0 && (
-                        <optgroup label="🏢 All Accredited Hiring Organizations & Companies" className="font-bold text-on-surface bg-surface">
-                          {otherOrgs.map((org) => (
-                            <option key={org.organization_id} value={org.organization_id} className="font-normal py-1">
-                              {org.organization_name} {org.industry ? `— ${org.industry}` : ''} {org.city ? `(${org.city})` : ''}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                    </>
-                  );
-                })()}
-              </select>
-
               <p className="text-[10px] text-on-surface-variant mt-1.5">
-                Select the specific company or employer where the infraction occurred.
+                Target employer where the reported incident or grievance occurred.
               </p>
             </div>
 
