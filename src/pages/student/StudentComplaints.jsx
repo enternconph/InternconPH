@@ -773,10 +773,23 @@ export default function StudentComplaints() {
         {/* Complaints History List */}
         <div className="lg:col-span-2 bento-card space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-outline-variant">
-            <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
-              <span className="material-symbols-outlined text-vibrant-orange text-[20px]">history</span>
-              <span>My Submitted Grievances ({data.complaints?.length || 0})</span>
-            </h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
+                <span className="material-symbols-outlined text-vibrant-orange text-[20px]">history</span>
+                <span>My Submitted Grievances ({data.complaints?.length || 0})</span>
+              </h2>
+              {counts.warnings > 0 ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-white shadow-xs animate-pulse">
+                  <span className="material-symbols-outlined text-[14px]">warning</span>
+                  <span>Official Institutional Warning Issued ({counts.warnings})</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-container text-on-surface-variant border border-outline-variant">
+                  <span className="material-symbols-outlined text-[13px] text-emerald-600">verified</span>
+                  <span>No Warnings</span>
+                </span>
+              )}
+            </div>
 
             {/* Search Input */}
             <div className="relative w-full sm:w-64">
@@ -801,6 +814,26 @@ export default function StudentComplaints() {
               )}
             </div>
           </div>
+
+          {/* Prominent Warning Banner if Institution Warnings Exist */}
+          {counts.warnings > 0 && (
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2.5">
+                <span className="material-symbols-outlined text-amber-600 text-[22px]">warning</span>
+                <div className="text-xs">
+                  <span className="font-bold">Official Institutional Warning Issued: </span>
+                  <span className="text-on-surface-variant">Your institution coordinator has issued {counts.warnings} warning note(s) regarding your placement / conduct.</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStatusFilter(statusFilter === 'warnings' ? 'all' : 'warnings')}
+                className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors shadow-xs"
+              >
+                {statusFilter === 'warnings' ? 'Show All Grievances' : 'View Issued Warnings'}
+              </button>
+            </div>
+          )}
 
           {/* Filter Tabs */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
@@ -848,55 +881,36 @@ export default function StudentComplaints() {
             >
               Resolved ({counts.resolved})
             </button>
-            {counts.warnings > 0 && (
-              <button
-                type="button"
-                onClick={() => setStatusFilter('warnings')}
-                className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap flex items-center gap-1.5 transition-all ${
-                  statusFilter === 'warnings'
-                    ? 'bg-amber-600 text-white font-bold shadow-sm'
-                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 border border-amber-500/30'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[16px]">warning</span>
-                <span>Institution Warnings ({counts.warnings})</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setStatusFilter('warnings')}
+              className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap flex items-center gap-1.5 transition-all ${
+                statusFilter === 'warnings'
+                  ? 'bg-amber-600 text-white font-bold shadow-sm ring-2 ring-amber-400'
+                  : counts.warnings > 0
+                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 border border-amber-500/30 font-bold'
+                  : 'bg-surface-container-low text-on-surface hover:bg-surface-container border border-outline-variant'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px] text-amber-600">warning</span>
+              <span>Official Institutional Warning Issued ({counts.warnings})</span>
+            </button>
           </div>
-
-          {/* Prominent Warning Banner if Institution Warnings Exist */}
-          {counts.warnings > 0 && statusFilter !== 'warnings' && (
-            <div className="p-3.5 rounded-xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-amber-600 text-[22px]">warning</span>
-                <div className="text-xs">
-                  <span className="font-bold">Official Warning Note on Record: </span>
-                  <span className="text-on-surface-variant">Your institution coordinator has issued {counts.warnings} warning note(s).</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('warnings')}
-                className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors shadow-xs"
-              >
-                View Warnings
-              </button>
-            </div>
-          )}
 
           {loading ? (
             <div className="p-8 flex justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-4 border-vibrant-orange border-t-transparent"></div>
             </div>
           ) : data.complaints?.length === 0 ? (
-            <div className="text-center py-8 text-on-surface-variant text-xs">
+            <div className="text-center py-8 text-on-surface-variant text-xs space-y-2">
               <span className="material-symbols-outlined text-[36px] mb-2 text-pinoy-green">verified</span>
-              <p>No complaints on record. All your interactions are in good standing.</p>
+              <p className="font-bold text-sm text-on-surface">No Grievances or Official Warnings on Record</p>
+              <p>All your interactions and workplace records are in good standing with zero disciplinary warnings.</p>
             </div>
           ) : filteredComplaints.length === 0 ? (
             <div className="text-center py-8 text-on-surface-variant text-xs space-y-2">
               <span className="material-symbols-outlined text-[36px] text-on-surface-variant opacity-60">search_off</span>
-              <p>No grievances match your search or filter criteria.</p>
+              <p>{statusFilter === 'warnings' ? 'No official institutional warnings on file.' : 'No grievances match your search or filter criteria.'}</p>
               <button
                 type="button"
                 onClick={() => {
@@ -912,12 +926,28 @@ export default function StudentComplaints() {
             <>
               <div className="space-y-3">
                 {paginatedComplaints.map((c) => (
-                  <div key={c.complaint_id} className="p-4 bg-surface-container-low rounded-xl border border-outline-variant space-y-2">
-                    <div className="flex justify-between items-start">
+                  <div key={c.complaint_id} className={`p-4 rounded-xl border space-y-2 transition-all ${
+                    c.warning_note_to_student 
+                      ? 'bg-amber-500/5 border-amber-500/40 shadow-xs ring-1 ring-amber-500/20' 
+                      : 'bg-surface-container-low border-outline-variant'
+                  }`}>
+                    <div className="flex justify-between items-start gap-2">
                       <div>
-                        <h3 className="font-bold text-xs text-on-surface">{c.subject}</h3>
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h3 className="font-bold text-xs text-on-surface">{c.subject}</h3>
+                          {c.warning_note_to_student && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                              <span className="material-symbols-outlined text-[13px]">warning</span>
+                              Official Institutional Warning Issued
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[11px] text-on-surface-variant">
-                          Against: <span className="font-bold text-on-surface">{c.organization_name}</span> • Category: <span className="font-bold">{c.category_name}</span>
+                          {c.complainant_type === 'organization' ? (
+                            <span className="text-amber-700 dark:text-amber-400 font-semibold">Reported by Partner Organization: <strong className="text-on-surface">{c.organization_name}</strong></span>
+                          ) : (
+                            <>Against: <span className="font-bold text-on-surface">{c.organization_name}</span></>
+                          )} • Category: <span className="font-bold">{c.category_name}</span>
                           {c.student_status && (
                             <> • Status: <span className={`font-bold ${
                               c.student_status === 'ongoing_ojt' || c.student_status === 'ojt'
