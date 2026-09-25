@@ -26,9 +26,12 @@ export default function StudentApplications() {
       const res = await api.get('/student/applications');
       if (res.success && res.data) {
         setApplications(res.data);
+      } else if (!res.success && res.message) {
+        setError(res.message);
       }
     } catch (err) {
       console.error('Fetch student applications error:', err);
+      setError(err?.message || 'Failed to load applications.');
     } finally {
       setLoading(false);
     }

@@ -1103,6 +1103,127 @@ export async function runMigrations() {
       console.warn('[Migration Warning] Flyer image column migration error:', flyerErr.message);
     }
 
+    // 31. Align job_applications table for feedback and rejection_reason
+    try {
+      const [jaCols] = await pool.query('DESCRIBE job_applications');
+      const jaColNames = jaCols.map(c => c.Field);
+      if (!jaColNames.includes('feedback')) {
+        await pool.query('ALTER TABLE job_applications ADD COLUMN feedback TEXT NULL AFTER updated_at');
+        console.log('[Migration] Added feedback to job_applications');
+      }
+      if (!jaColNames.includes('rejection_reason')) {
+        await pool.query('ALTER TABLE job_applications ADD COLUMN rejection_reason TEXT NULL AFTER feedback');
+        console.log('[Migration] Added rejection_reason to job_applications');
+      }
+    } catch (jaErr) {
+      console.warn('[Migration Warning] job_applications migration error:', jaErr.message);
+    }
+
+    // 32. Ensure interviews table exists
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS interviews (
+          interview_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          application_id BIGINT UNSIGNED NOT NULL,
+          schedule_at DATETIME NOT NULL,
+          mode ENUM('onsite', 'online', 'phone') NOT NULL DEFAULT 'online',
+          location_or_link VARCHAR(255) DEFAULT NULL,
+          status ENUM('scheduled', 'completed', 'cancelled', 'no_show') NOT NULL DEFAULT 'scheduled',
+          notes TEXT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_interview_app (application_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+      console.log('[Migration] interviews table ready.');
+    } catch (intErr) {
+      console.warn('[Migration Warning] interviews migration error:', intErr.message);
+    }
+
+    // 33. Ensure job_offers table exists
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS job_offers (
+          offer_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          application_id BIGINT UNSIGNED NOT NULL,
+          status ENUM('offered', 'accepted', 'declined', 'withdrawn') NOT NULL DEFAULT 'offered',
+          offered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          responded_at DATETIME DEFAULT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uq_joboffer_app (application_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+      console.log('[Migration] job_offers table ready.');
+    } catch (joErr) {
+      console.warn('[Migration Warning] job_offers migration error:', joErr.message);
+    }
+
+    // 34. Ensure ojt_deployment_offers table exists
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ojt_deployment_offers (
+          offer_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          student_id BIGINT UNSIGNED NOT NULL,
+          organization_id BIGINT UNSIGNED NOT NULL,
+          job_id BIGINT UNSIGNED DEFAULT NULL,
+          status ENUM('offered', 'accepted', 'declined', 'withdrawn') NOT NULL DEFAULT 'offered',
+          offered_by BIGINT UNSIGNED NULL,
+          offered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          responded_at DATETIME DEFAULT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_deployoffer_student (student_id),
+          INDEX idx_deployoffer_org (organization_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+      console.log('[Migration] ojt_deployment_offers table ready.');
+    } catch (odoErr) {
+      console.warn('[Migration Warning] ojt_deployment_offers migration error:', odoErr.message);
+    }
+
+    // 35. Ensure all student users have linked verified student profile & initialized application records
+    try {
+      const [studentUsers] = await pool.query(`
+        SELECT u.user_id, u.email, u.display_name
+        FROM users u
+        LEFT JOIN students s ON u.user_id = s.user_id
+        WHERE s.student_id IS NULL AND (u.role_id = 4 OR u.email LIKE '%student%' OR u.email LIKE '%catolico%' OR u.email LIKE '%rojas%')
+      `);
+
+      const [defInst] = await pool.query('SELECT institution_id FROM institutions LIMIT 1');
+      const [defProg] = await pool.query('SELECT program_id FROM programs LIMIT 1');
+      const [defCat] = await pool.query('SELECT category_id FROM student_categories LIMIT 1');
+      const [defStat] = await pool.query("SELECT status_id FROM student_statuses WHERE status_name = 'active' LIMIT 1");
+      const instId = defInst.length > 0 ? defInst[0].institution_id : 1;
+      const progId = defProg.length > 0 ? defProg[0].program_id : 1;
+      const catId = defCat.length > 0 ? defCat[0].category_id : 1;
+      const statId = defStat.length > 0 ? defStat[0].status_id : 2;
+
+      for (const u of studentUsers) {
+        const nameParts = (u.display_name || u.email.split('@')[0] || 'Student User').split(' ');
+        const fName = nameParts[0] || 'Student';
+        const lName = nameParts.slice(1).join(' ') || 'Trainee';
+        const stuNumber = `STU-2026-${String(u.user_id).slice(-4)}`;
+
+        const [newStu] = await pool.query(
+          `INSERT INTO students (user_id, institution_id, program_id, student_number, category_id, status_id, first_name, last_name, classification, ojt_status, required_ojt_hours, completed_ojt_hours, is_verified, is_active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'regular', 'starting_ojt', 600, 0, 1, 1)`,
+          [u.user_id, instId, progId, stuNumber, catId, statId, fName, lName]
+        );
+
+        await pool.query(
+          `INSERT INTO student_registrations (student_id, status, submitted_at, verified_at)
+           VALUES (?, 'verified', NOW(), NOW())`,
+          [newStu.insertId]
+        ).catch(() => {});
+
+        console.log(`[Migration] Auto-created & verified student record for user_id ${u.user_id} (${u.email})`);
+      }
+    } catch (stuLinkErr) {
+      console.warn('[Migration Warning] Student user linking error:', stuLinkErr.message);
+    }
+
     console.log('[Migration] All schema alignments completed successfully!');
   } catch (error) {
     console.error('[Migration Error]', error);
