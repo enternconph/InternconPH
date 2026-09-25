@@ -356,14 +356,25 @@ export default function StudentApplications() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-vibrant-orange/10 text-vibrant-orange border border-vibrant-orange/30 inline-block mb-1.5">
-                      {getPostingCategory(app) === 'ojt' ? '🎓 OJT Placement Offer' : '💼 Job Offer'}
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-vibrant-orange/10 text-vibrant-orange border border-vibrant-orange/30 inline-flex items-center gap-1 mb-1.5">
+                      <span className="material-symbols-outlined text-[13px]">
+                        {getPostingCategory(app) === 'ojt' ? 'school' : 'work'}
+                      </span>
+                      <span>{getPostingCategory(app) === 'ojt' ? 'OJT Placement Offer' : 'Job Offer'}</span>
                     </span>
-                    <h3 className="text-sm font-bold text-on-surface">{app.job_title}</h3>
-                    <p className="text-xs font-semibold text-vibrant-orange">{app.organization_name}</p>
-                    <p className="text-[11px] text-on-surface-variant mt-0.5">
-                      📍 {app.location || 'Flexible Setup'} • {formatCompensation(app)}
+                    <h3 className="text-base font-bold text-on-surface capitalize">{app.job_title}</h3>
+                    <p className="text-xs font-semibold text-vibrant-orange flex items-center gap-1 mt-0.5">
+                      <span className="material-symbols-outlined text-[15px]">apartment</span>
+                      <span>{app.organization_name}</span>
                     </p>
+                    <div className="flex items-center gap-2 text-[11px] text-on-surface-variant mt-1 flex-wrap">
+                      <span className="flex items-center gap-0.5">
+                        <span className="material-symbols-outlined text-[13px]">location_on</span>
+                        <span>{app.location || 'Flexible Setup'}</span>
+                      </span>
+                      <span>•</span>
+                      <span className="font-medium text-pinoy-green">{formatCompensation(app)}</span>
+                    </div>
                   </div>
                   <span className="material-symbols-outlined text-[28px] text-vibrant-orange shrink-0">
                     military_tech
@@ -439,17 +450,30 @@ export default function StudentApplications() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-bold text-on-surface">{app.job_title}</h3>
-                    <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">{app.organization_name}</p>
-                    <p className="text-[11px] text-on-surface-variant mt-0.5">
-                      📍 {app.location || 'Philippines'} • {app.work_setup || 'Flexible Setup'}
+                    <h3 className="text-base font-bold text-on-surface capitalize">{app.job_title}</h3>
+                    <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 flex items-center gap-1 mt-0.5">
+                      <span className="material-symbols-outlined text-[15px]">apartment</span>
+                      <span>{app.organization_name}</span>
                     </p>
+                    <div className="flex items-center gap-2 text-[11px] text-on-surface-variant mt-1 flex-wrap">
+                      <span className="flex items-center gap-0.5">
+                        <span className="material-symbols-outlined text-[13px]">location_on</span>
+                        <span>{app.location || 'Philippines'}</span>
+                      </span>
+                      <span>•</span>
+                      <span className="capitalize">{app.work_setup || 'Flexible Setup'}</span>
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
-                      {app.interview_mode === 'in_person' || app.interview_mode === 'onsite'
-                        ? '🏢 On-Site Interview'
-                        : '💻 Online Meeting'}
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[13px]">
+                        {app.interview_mode === 'in_person' || app.interview_mode === 'onsite' ? 'apartment' : 'videocam'}
+                      </span>
+                      <span>
+                        {app.interview_mode === 'in_person' || app.interview_mode === 'onsite'
+                          ? 'On-Site Interview'
+                          : 'Online Meeting'}
+                      </span>
                     </span>
                     {(app.interview_status === 'completed' || app.status === 'interviewed') && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-pinoy-green border border-pinoy-green/30">
@@ -558,56 +582,68 @@ export default function StudentApplications() {
         <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-outline-variant">
           <button
             onClick={() => setTypeFilter('all')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
               typeFilter === 'all'
                 ? 'bg-vibrant-orange text-white shadow-xs'
-                : 'bg-surface-container text-on-surface-variant hover:text-on-surface'
+                : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border border-outline-variant/60'
             }`}
           >
+            <span className="material-symbols-outlined text-[16px]">layers</span>
             <span>All Applications</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 text-white">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              typeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-surface-container-high text-on-surface-variant'
+            }`}>
               {stats.total}
             </span>
           </button>
 
           <button
             onClick={() => setTypeFilter('ojt')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
               typeFilter === 'ojt'
                 ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-surface-container text-on-surface-variant hover:text-on-surface'
+                : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border border-outline-variant/60'
             }`}
           >
-            <span>🎓 OJT / Practicum</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 text-white">
+            <span className="material-symbols-outlined text-[16px]">school</span>
+            <span>OJT / Practicum</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              typeFilter === 'ojt' ? 'bg-white/20 text-white' : 'bg-surface-container-high text-on-surface-variant'
+            }`}>
               {stats.ojtCount}
             </span>
           </button>
 
           <button
             onClick={() => setTypeFilter('on_call')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
               typeFilter === 'on_call'
                 ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-surface-container text-on-surface-variant hover:text-on-surface'
+                : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border border-outline-variant/60'
             }`}
           >
-            <span>⚡ On-Call & Part-Time</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 text-white">
+            <span className="material-symbols-outlined text-[16px]">bolt</span>
+            <span>On-Call & Part-Time</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              typeFilter === 'on_call' ? 'bg-white/20 text-white' : 'bg-surface-container-high text-on-surface-variant'
+            }`}>
               {stats.onCallCount}
             </span>
           </button>
 
           <button
             onClick={() => setTypeFilter('career_job')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
               typeFilter === 'career_job'
                 ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-surface-container text-on-surface-variant hover:text-on-surface'
+                : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border border-outline-variant/60'
             }`}
           >
-            <span>💼 Career Jobs</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 text-white">
+            <span className="material-symbols-outlined text-[16px]">work</span>
+            <span>Career Jobs</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              typeFilter === 'career_job' ? 'bg-white/20 text-white' : 'bg-surface-container-high text-on-surface-variant'
+            }`}>
               {stats.careerCount}
             </span>
           </button>
@@ -658,294 +694,340 @@ export default function StudentApplications() {
       </div>
 
       {/* Main Applications Content */}
-      <div className="bento-card">
-        {loading ? (
-          <div className="p-16 flex flex-col items-center justify-center space-y-3">
-            <div className="animate-spin rounded-full h-9 w-9 border-4 border-vibrant-orange border-t-transparent"></div>
-            <p className="text-xs text-on-surface-variant font-medium">Loading applications database...</p>
+      {loading ? (
+        <div className="bento-card p-16 flex flex-col items-center justify-center space-y-3">
+          <div className="animate-spin rounded-full h-9 w-9 border-4 border-vibrant-orange border-t-transparent"></div>
+          <p className="text-xs text-on-surface-variant font-medium">Loading applications database...</p>
+        </div>
+      ) : filteredApplications.length === 0 ? (
+        <div className="bento-card p-12 text-center text-on-surface-variant space-y-4">
+          <div className="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center mx-auto text-on-surface-variant/40">
+            <span className="material-symbols-outlined text-[36px]">folder_open</span>
           </div>
-        ) : filteredApplications.length === 0 ? (
-          <div className="p-12 text-center text-on-surface-variant space-y-4">
-            <div className="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center mx-auto text-on-surface-variant/40">
-              <span className="material-symbols-outlined text-[36px]">folder_open</span>
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-base font-bold text-on-surface">No Applications Found</h3>
-              <p className="text-xs text-on-surface-variant max-w-md mx-auto">
-                {applications.length === 0
-                  ? 'You have not submitted any applications yet. Explore available jobs and OJT opportunities to get started.'
-                  : 'No applications match your selected filters. Try clearing your search or status filter.'}
-              </p>
-            </div>
-            {applications.length === 0 ? (
-              <Link
-                to="/dashboard/student/jobs"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-              >
-                <span className="material-symbols-outlined text-[18px]">search</span>
-                <span>Browse Opportunities</span>
-              </Link>
-            ) : (
-              <button
-                onClick={() => {
-                  setTypeFilter('all');
-                  setStatusFilter('all');
-                  setSearchTerm('');
-                }}
-                className="px-4 py-1.5 bg-surface-container text-on-surface rounded-lg text-xs font-bold hover:bg-surface-container-high transition-colors"
-              >
-                Clear All Filters
-              </button>
-            )}
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-on-surface">No Applications Found</h3>
+            <p className="text-xs text-on-surface-variant max-w-md mx-auto">
+              {applications.length === 0
+                ? 'You have not submitted any applications yet. Explore available jobs and OJT opportunities to get started.'
+                : 'No applications match your selected filters. Try clearing your search or status filter.'}
+            </p>
           </div>
-        ) : (
-          <div className="divide-y divide-surface-container">
-            {filteredApplications.map((app) => {
-              const badge = getStatusBadge(app);
-              const pCategory = getPostingCategory(app);
-              const isRejected = ['rejected', 'declined_by_org', 'not_selected'].includes(app.status);
-              const isOffered = app.status === 'offered';
-              const isInterview = app.status === 'interview' || app.status === 'interviewed' || Boolean(app.interview_schedule_at);
-              const isInterviewCompleted = app.interview_status === 'completed' || app.status === 'interviewed';
-              const isAccepted = ['accepted', 'approved', 'placed', 'completed'].includes(app.status);
-              const canWithdraw = ['submitted', 'pending', 'under_review', 'shortlisted'].includes(app.status);
+          {applications.length === 0 ? (
+            <Link
+              to="/dashboard/student/jobs"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+            >
+              <span className="material-symbols-outlined text-[18px]">search</span>
+              <span>Browse Opportunities</span>
+            </Link>
+          ) : (
+            <button
+              onClick={() => {
+                setTypeFilter('all');
+                setStatusFilter('all');
+                setSearchTerm('');
+              }}
+              className="px-4 py-1.5 bg-surface-container text-on-surface rounded-lg text-xs font-bold hover:bg-surface-container-high transition-colors"
+            >
+              Clear All Filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredApplications.map((app) => {
+            const badge = getStatusBadge(app);
+            const pCategory = getPostingCategory(app);
+            const isRejected = ['rejected', 'declined_by_org', 'not_selected'].includes(app.status);
+            const isOffered = app.status === 'offered';
+            const isInterview = app.status === 'interview' || app.status === 'interviewed' || Boolean(app.interview_schedule_at);
+            const isInterviewCompleted = app.interview_status === 'completed' || app.status === 'interviewed';
+            const isAccepted = ['accepted', 'approved', 'placed', 'completed'].includes(app.status);
+            const canWithdraw = ['submitted', 'pending', 'under_review', 'shortlisted'].includes(app.status);
 
-              return (
-                <div
-                  key={app.application_id || app.offer_id}
-                  className={`p-4 sm:p-5 transition-all hover:bg-surface-container-low/60 flex flex-col lg:flex-row lg:items-start justify-between gap-4 ${
-                    isOffered
-                      ? 'bg-orange-500/[0.04] border-l-4 border-l-vibrant-orange'
-                      : isInterviewCompleted
-                      ? 'bg-emerald-500/[0.03] border-l-4 border-l-pinoy-green'
-                      : isInterview
-                      ? 'bg-blue-500/[0.03] border-l-4 border-l-blue-600'
-                      : isRejected
-                      ? 'bg-red-500/[0.02] border-l-4 border-l-red-500'
-                      : isAccepted
-                      ? 'bg-emerald-500/[0.03] border-l-4 border-l-pinoy-green'
-                      : ''
-                  }`}
-                >
-                  {/* Left Column: Role & Organization Info */}
-                  <div className="space-y-2 flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm font-bold text-on-surface">{app.job_title}</h3>
-                      {pCategory === 'ojt' && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30">
-                          🎓 OJT / Practicum
-                        </span>
-                      )}
-                      {pCategory === 'on_call' && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
-                          ⚡ On-Call / Gig
-                        </span>
-                      )}
-                      {pCategory === 'career_job' && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 border border-indigo-500/30">
-                          💼 Career Job
-                        </span>
-                      )}
-                    </div>
+            return (
+              <div
+                key={app.application_id || app.offer_id}
+                className={`p-5 sm:p-6 rounded-2xl border transition-all duration-200 relative overflow-hidden flex flex-col lg:flex-row lg:items-start justify-between gap-5 shadow-2xs hover:shadow-md ${
+                  isOffered
+                    ? 'bg-surface border-vibrant-orange/40 ring-1 ring-vibrant-orange/20'
+                    : isAccepted || isInterviewCompleted
+                    ? 'bg-surface border-emerald-500/35 ring-1 ring-emerald-500/15'
+                    : isInterview
+                    ? 'bg-surface border-blue-500/35 ring-1 ring-blue-500/15'
+                    : isRejected
+                    ? 'bg-surface border-red-500/25 ring-1 ring-red-500/10'
+                    : 'bg-surface border-outline-variant hover:border-outline'
+                }`}
+              >
+                {/* Integrated Left Edge Status Accent */}
+                {isAccepted && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-pinoy-green" />}
+                {isOffered && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-vibrant-orange animate-pulse" />}
+                {isInterview && !isInterviewCompleted && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-blue-600" />}
+                {isInterviewCompleted && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-pinoy-green" />}
+                {isRejected && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500/70" />}
 
-                    <div className="flex items-center gap-3 text-xs text-on-surface-variant flex-wrap">
-                      <span className="font-semibold text-on-surface flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[15px] text-vibrant-orange">corporate_fare</span>
-                        <span>{app.organization_name}</span>
+                {/* Left Column: Role & Organization Info */}
+                <div className="space-y-2.5 flex-1 min-w-0">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <h3 className="text-base sm:text-lg font-bold text-on-surface capitalize tracking-tight">
+                      {app.job_title}
+                    </h3>
+                    {pCategory === 'ojt' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/25">
+                        <span className="material-symbols-outlined text-[13px]">school</span>
+                        <span>OJT / Practicum</span>
                       </span>
-                      <span>•</span>
-                      <span>📍 {app.location || 'Philippines'}</span>
-                      <span>•</span>
-                      <span className="capitalize">{app.work_setup || 'Flexible Setup'}</span>
-                      <span>•</span>
-                      <span className="font-medium text-pinoy-green">{formatCompensation(app)}</span>
-                    </div>
-
-                    <div className="text-[11px] text-on-surface-variant/80 flex items-center gap-3">
-                      <span>
-                        Applied: {app.applied_at || app.created_at ? new Date(app.applied_at || app.created_at).toLocaleDateString() : 'Recent'}
+                    )}
+                    {pCategory === 'on_call' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/25">
+                        <span className="material-symbols-outlined text-[13px]">bolt</span>
+                        <span>On-Call / Gig</span>
                       </span>
-                      {app.contact_email && <span>Email: {app.contact_email}</span>}
-                    </div>
-
-                    {/* REJECTION REASON & CONSTRUCTIVE FEEDBACK DISPLAY */}
-                    {isRejected && (
-                      <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl space-y-1.5 text-xs mt-2 shadow-xs">
-                        <div className="flex items-center gap-1.5 font-bold text-red-700 dark:text-red-400">
-                          <span className="material-symbols-outlined text-[16px]">cancel</span>
-                          <span>Application Rejected — Feedback & Decision Notes:</span>
-                        </div>
-                        {app.rejection_reason && (
-                          <p className="text-on-surface text-[11px] pl-5 leading-snug">
-                            <strong className="text-red-600 dark:text-red-400">Reason: </strong>
-                            {app.rejection_reason}
-                          </p>
-                        )}
-                        {app.feedback && (
-                          <p className="text-on-surface-variant text-[11px] pl-5 leading-relaxed">
-                            <strong>Constructive Remarks: </strong>
-                            {app.feedback}
-                          </p>
-                        )}
-                        {!app.rejection_reason && !app.feedback && (
-                          <p className="text-on-surface-variant leading-relaxed text-[11px] pl-5">
-                            The organization has reviewed your application and decided to proceed with other candidates for this cycle.
-                          </p>
-                        )}
-                      </div>
                     )}
-
-                    {/* INTERVIEW SCHEDULE DETAILS */}
-                    {isInterview && (
-                      <div className={`p-3 rounded-xl space-y-1.5 text-xs mt-2 shadow-xs ${
-                        isInterviewCompleted
-                          ? 'bg-emerald-500/10 border border-emerald-500/30'
-                          : 'bg-blue-500/10 border border-blue-500/30'
-                      }`}>
-                        <div className="flex items-center justify-between">
-                          <span className={`font-bold flex items-center gap-1.5 ${
-                            isInterviewCompleted
-                              ? 'text-emerald-800 dark:text-emerald-300'
-                              : 'text-blue-800 dark:text-blue-300'
-                          }`}>
-                            <span className="material-symbols-outlined text-[16px]">
-                              {isInterviewCompleted ? 'task_alt' : 'calendar_month'}
-                            </span>
-                            <span>{isInterviewCompleted ? 'Interview Completed / Over:' : 'Interview Scheduled by Organization:'}</span>
-                          </span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                            isInterviewCompleted
-                              ? 'bg-pinoy-green text-white'
-                              : 'bg-blue-600 text-white'
-                          }`}>
-                            {isInterviewCompleted ? 'Done' : (app.interview_mode === 'in_person' || app.interview_mode === 'onsite' ? 'On-Site' : 'Online')}
-                          </span>
-                        </div>
-                        <p className="text-on-surface font-semibold text-[11px] pl-5">
-                          📅 {app.interview_schedule_at
-                            ? new Date(app.interview_schedule_at).toLocaleString(undefined, {
-                                dateStyle: 'medium',
-                                timeStyle: 'short'
-                              })
-                            : 'Schedule set'}
-                        </p>
-                        {isInterviewCompleted && (
-                          <p className="text-pinoy-green font-bold text-[11px] pl-5 flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                            <span>Marked as Done by employer. Meeting room is now closed.</span>
-                          </p>
-                        )}
-                        {app.interview_notes && (
-                          <p className="text-on-surface-variant text-[11px] pl-5">
-                            <strong>Notes: </strong> {app.interview_notes}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* OFFICIAL OFFER DETAILS */}
-                    {isOffered && (
-                      <div className="p-3 bg-vibrant-orange/10 border border-vibrant-orange/30 rounded-xl space-y-1.5 text-xs mt-2 shadow-xs">
-                        <div className="flex items-center gap-1.5 font-bold text-vibrant-orange">
-                          <span className="material-symbols-outlined text-[18px]">assignment_turned_in</span>
-                          <span>Official Placement Offer Issued:</span>
-                        </div>
-                        <p className="text-on-surface text-[11px] pl-5">
-                          The organization has extended an official placement offer for this position. Please approve or decline below.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* PLACED / ACCEPTED CONFIRMATION */}
-                    {isAccepted && (
-                      <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-1 text-xs mt-2">
-                        <div className="flex items-center gap-1.5 font-bold text-pinoy-green">
-                          <span className="material-symbols-outlined text-[16px]">verified</span>
-                          <span>Placement Confirmed & Active</span>
-                        </div>
-                        <p className="text-on-surface-variant text-[11px] pl-5">
-                          {app.feedback || 'Training agreement approved. You can track your daily hours and DTR in the OJT module.'}
-                        </p>
-                      </div>
+                    {pCategory === 'career_job' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-500/25">
+                        <span className="material-symbols-outlined text-[13px]">work</span>
+                        <span>Career Job</span>
+                      </span>
                     )}
                   </div>
 
-                  {/* Right Column: Status Badge & Dynamic Actions */}
-                  <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end justify-between gap-3 shrink-0">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs ${badge.color}`}
-                      title={badge.description}
-                    >
-                      <span className="material-symbols-outlined text-[15px]">{badge.icon}</span>
-                      <span>{badge.label}</span>
+                  <div className="flex items-center gap-x-4 gap-y-1.5 text-xs text-on-surface-variant flex-wrap pt-0.5">
+                    <span className="font-bold text-on-surface flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px] text-vibrant-orange">apartment</span>
+                      <span>{app.organization_name}</span>
                     </span>
+                    <span className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[15px] text-on-surface-variant/80">location_on</span>
+                      <span>{app.location || 'Philippines'}</span>
+                    </span>
+                    <span className="flex items-center gap-1 capitalize px-2 py-0.5 rounded-md bg-surface-container text-on-surface-variant text-[11px] font-medium border border-outline-variant/50">
+                      <span className="material-symbols-outlined text-[13px]">business_center</span>
+                      <span>{app.work_setup || 'Flexible Setup'}</span>
+                    </span>
+                    <span className="flex items-center gap-1 font-semibold text-pinoy-green">
+                      <span className="material-symbols-outlined text-[15px]">payments</span>
+                      <span>{formatCompensation(app)}</span>
+                    </span>
+                  </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-2 flex-wrap pt-1">
-                      {/* If Offered: Quick Approve / Reject buttons */}
-                      {isOffered && (
-                        <>
-                          <button
-                            disabled={actionLoading}
-                            onClick={() => setOfferModalApp({ app, action: 'accepted' })}
-                            className="px-3 py-1.5 bg-pinoy-green hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1"
-                          >
-                            <span className="material-symbols-outlined text-[14px]">check</span>
-                            <span>Approve</span>
-                          </button>
-                          <button
-                            disabled={actionLoading}
-                            onClick={() => setOfferModalApp({ app, action: 'declined' })}
-                            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1"
-                          >
-                            <span className="material-symbols-outlined text-[14px]">close</span>
-                            <span>Reject</span>
-                          </button>
-                        </>
+                  <div className="text-[11px] text-on-surface-variant flex items-center gap-x-4 gap-y-1 flex-wrap pt-0.5">
+                    <span className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px] text-on-surface-variant/70">event</span>
+                      <span>
+                        Applied on {app.applied_at || app.created_at
+                          ? new Date(app.applied_at || app.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                          : 'Recent'}
+                      </span>
+                    </span>
+                    {app.contact_email && (
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px] text-on-surface-variant/70">mail</span>
+                        <span>{app.contact_email}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* REJECTION REASON & CONSTRUCTIVE FEEDBACK DISPLAY */}
+                  {isRejected && (
+                    <div className="p-3.5 bg-red-500/10 border border-red-500/25 rounded-xl space-y-1.5 text-xs mt-2 shadow-2xs">
+                      <div className="flex items-center gap-1.5 font-bold text-red-700 dark:text-red-400">
+                        <span className="material-symbols-outlined text-[16px]">cancel</span>
+                        <span>Application Decision & Feedback:</span>
+                      </div>
+                      {app.rejection_reason && (
+                        <p className="text-on-surface text-[11px] pl-5 leading-snug">
+                          <strong className="text-red-600 dark:text-red-400">Reason: </strong>
+                          {app.rejection_reason}
+                        </p>
                       )}
+                      {app.feedback && (
+                        <p className="text-on-surface-variant text-[11px] pl-5 leading-relaxed">
+                          <strong>Remarks: </strong>
+                          {app.feedback}
+                        </p>
+                      )}
+                      {!app.rejection_reason && !app.feedback && (
+                        <p className="text-on-surface-variant leading-relaxed text-[11px] pl-5">
+                          The organization has reviewed your profile and moved forward with other applicants for this position.
+                        </p>
+                      )}
+                    </div>
+                  )}
 
-                      {/* If Interview: Join meeting link or Disabled Done indicator */}
-                      {isInterview && (() => {
-                        const meetUrl = app.interview_meeting_link || app.meeting_link || app.interview_location_or_link;
-                        const isOnline = app.interview_mode === 'online';
-                        const isMeet = isOnline && (app.interview_meeting_link || meetUrl?.includes('meet.google.com'));
+                  {/* INTERVIEW SCHEDULE DETAILS */}
+                  {isInterview && (
+                    <div className={`p-3.5 rounded-xl space-y-1.5 text-xs mt-2 shadow-2xs ${
+                      isInterviewCompleted
+                        ? 'bg-emerald-500/10 border border-emerald-500/30'
+                        : 'bg-blue-500/10 border border-blue-500/30'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`font-bold flex items-center gap-1.5 ${
+                          isInterviewCompleted
+                            ? 'text-emerald-800 dark:text-emerald-300'
+                            : 'text-blue-800 dark:text-blue-300'
+                        }`}>
+                          <span className="material-symbols-outlined text-[16px]">
+                            {isInterviewCompleted ? 'task_alt' : 'calendar_month'}
+                          </span>
+                          <span>{isInterviewCompleted ? 'Interview Completed / Done:' : 'Interview Scheduled by Employer:'}</span>
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                          isInterviewCompleted
+                            ? 'bg-pinoy-green text-white'
+                            : 'bg-blue-600 text-white'
+                        }`}>
+                          {isInterviewCompleted ? 'Done' : (app.interview_mode === 'in_person' || app.interview_mode === 'onsite' ? 'On-Site' : 'Online')}
+                        </span>
+                      </div>
+                      <p className="text-on-surface font-semibold text-[11px] pl-5">
+                        📅 {app.interview_schedule_at
+                          ? new Date(app.interview_schedule_at).toLocaleString(undefined, {
+                              dateStyle: 'medium',
+                              timeStyle: 'short'
+                            })
+                          : 'Schedule set'}
+                      </p>
+                      {isInterviewCompleted && (
+                        <p className="text-pinoy-green font-bold text-[11px] pl-5 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                          <span>Marked as Done by employer. Meeting room is closed.</span>
+                        </p>
+                      )}
+                      {app.interview_notes && (
+                        <p className="text-on-surface-variant text-[11px] pl-5">
+                          <strong>Notes: </strong> {app.interview_notes}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
-                        if (isInterviewCompleted) {
-                          return (
-                            <button
-                              type="button"
-                              disabled
-                              className="px-3 py-1.5 bg-surface-container text-on-surface-variant rounded-lg text-xs font-bold border border-outline-variant flex items-center gap-1 opacity-70 cursor-not-allowed select-none"
-                              title="Interview has been completed."
-                            >
-                              <span className="material-symbols-outlined text-[14px] text-pinoy-green">check_circle</span>
-                              <span>Interview Done</span>
-                            </button>
-                          );
-                        }
+                  {/* OFFICIAL OFFER DETAILS */}
+                  {isOffered && (
+                    <div className="p-3.5 bg-vibrant-orange/10 border border-vibrant-orange/30 rounded-xl space-y-1.5 text-xs mt-2 shadow-2xs">
+                      <div className="flex items-center gap-1.5 font-bold text-vibrant-orange">
+                        <span className="material-symbols-outlined text-[18px]">assignment_turned_in</span>
+                        <span>Official Placement Offer Issued:</span>
+                      </div>
+                      <p className="text-on-surface text-[11px] pl-5">
+                        The organization has extended an official placement offer for this position. Please approve or decline below.
+                      </p>
+                    </div>
+                  )}
 
-                        if (!meetUrl?.startsWith('http')) return null;
-                        return (
-                          <a
-                            href={meetUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1"
-                          >
-                            <span className="material-symbols-outlined text-[14px]">videocam</span>
-                            <span>Join {isMeet ? 'Google Meet' : 'Meeting'}</span>
-                          </a>
-                        );
-                      })()}
+                  {/* PLACED / ACCEPTED CONFIRMATION */}
+                  {isAccepted && (
+                    <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/25 rounded-xl space-y-2 text-xs mt-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 font-bold text-pinoy-green text-xs sm:text-sm">
+                          <span className="material-symbols-outlined text-[18px]">verified</span>
+                          <span>Placement Confirmed & Active</span>
+                        </div>
+                        <Link
+                          to="/dashboard/student/ojt"
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-pinoy-green hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">schedule</span>
+                          <span>Open OJT Module</span>
+                          <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
+                        </Link>
+                      </div>
+                      <p className="text-on-surface-variant text-[11px] leading-relaxed pl-6">
+                        {app.feedback || 'Training agreement approved. You can track your daily hours and DTR in the OJT module.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
 
-                      {/* View Details */}
-                      <button
-                        onClick={() => setDetailModalApp(app)}
-                        className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface border border-outline-variant rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                {/* Right Column: Status Badge & Dynamic Actions */}
+                <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end justify-between gap-3 shrink-0">
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold shadow-2xs ${badge.color}`}
+                    title={badge.description}
+                  >
+                    <span className="material-symbols-outlined text-[15px]">{badge.icon}</span>
+                    <span>{badge.label}</span>
+                  </span>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 flex-wrap pt-1">
+                    {/* If Accepted: Direct link to OJT tracker */}
+                    {isAccepted && (
+                      <Link
+                        to="/dashboard/student/ojt"
+                        className="px-3.5 py-1.5 bg-pinoy-green hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
                       >
-                        <span className="material-symbols-outlined text-[14px]">info</span>
-                        <span>Details</span>
-                      </button>
+                        <span className="material-symbols-outlined text-[15px]">schedule</span>
+                        <span>Track Hours</span>
+                      </Link>
+                    )}
+
+                    {/* If Offered: Quick Approve / Reject buttons */}
+                    {isOffered && (
+                      <>
+                        <button
+                          disabled={actionLoading}
+                          onClick={() => setOfferModalApp({ app, action: 'accepted' })}
+                          className="px-3 py-1.5 bg-pinoy-green hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">check</span>
+                          <span>Approve</span>
+                        </button>
+                        <button
+                          disabled={actionLoading}
+                          onClick={() => setOfferModalApp({ app, action: 'declined' })}
+                          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">close</span>
+                          <span>Reject</span>
+                        </button>
+                      </>
+                    )}
+
+                    {/* If Interview: Join meeting link or Disabled Done indicator */}
+                    {isInterview && (() => {
+                      const meetUrl = app.interview_meeting_link || app.meeting_link || app.interview_location_or_link;
+                      const isOnline = app.interview_mode === 'online';
+                      const isMeet = isOnline && (app.interview_meeting_link || meetUrl?.includes('meet.google.com'));
+
+                      if (isInterviewCompleted) {
+                        return (
+                          <button
+                            type="button"
+                            disabled
+                            className="px-3 py-1.5 bg-surface-container text-on-surface-variant rounded-xl text-xs font-bold border border-outline-variant flex items-center gap-1 opacity-70 cursor-not-allowed select-none"
+                            title="Interview has been completed."
+                          >
+                            <span className="material-symbols-outlined text-[14px] text-pinoy-green">check_circle</span>
+                            <span>Interview Done</span>
+                          </button>
+                        );
+                      }
+
+                      if (!meetUrl?.startsWith('http')) return null;
+                      return (
+                        <a
+                          href={meetUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">videocam</span>
+                          <span>Join {isMeet ? 'Google Meet' : 'Meeting'}</span>
+                        </a>
+                      );
+                    })()}
+
+                    {/* View Details */}
+                    <button
+                      onClick={() => setDetailModalApp(app)}
+                      className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface border border-outline-variant rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">info</span>
+                      <span>Details</span>
+                    </button>
 
                       {/* Withdraw Option */}
                       {canWithdraw && (
@@ -965,7 +1047,6 @@ export default function StudentApplications() {
             })}
           </div>
         )}
-      </div>
 
       {/* MODAL 1: APPROVE OR REJECT OFFICIAL OFFER */}
       {offerModalApp && (
@@ -1035,9 +1116,15 @@ export default function StudentApplications() {
           <div className="bg-surface border border-outline-variant rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto animate-scale-up">
             <div className="flex items-start justify-between gap-3 border-b border-outline-variant pb-3">
               <div>
-                <h3 className="text-base font-bold text-on-surface">{detailModalApp.job_title}</h3>
-                <p className="text-xs font-semibold text-vibrant-orange">{detailModalApp.organization_name}</p>
-                <p className="text-[11px] text-on-surface-variant">📍 {detailModalApp.location || 'Philippines'}</p>
+                <h3 className="text-base font-bold text-on-surface capitalize">{detailModalApp.job_title}</h3>
+                <p className="text-xs font-semibold text-vibrant-orange flex items-center gap-1.5 mt-0.5">
+                  <span className="material-symbols-outlined text-[15px]">apartment</span>
+                  <span>{detailModalApp.organization_name}</span>
+                </p>
+                <p className="text-[11px] text-on-surface-variant flex items-center gap-1 mt-0.5">
+                  <span className="material-symbols-outlined text-[14px]">location_on</span>
+                  <span>{detailModalApp.location || 'Philippines'}</span>
+                </p>
               </div>
               <button
                 onClick={() => setDetailModalApp(null)}
@@ -1054,6 +1141,30 @@ export default function StudentApplications() {
                 {getStatusBadge(detailModalApp).label}
               </span>
             </div>
+
+            {/* Placed / Accepted Confirmation Block */}
+            {['accepted', 'approved', 'placed', 'completed'].includes(detailModalApp.status) && (
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-2 text-xs shadow-2xs">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="font-bold text-pinoy-green flex items-center gap-1.5 text-xs sm:text-sm">
+                    <span className="material-symbols-outlined text-[18px]">verified</span>
+                    <span>Placement Confirmed & Training Agreement Active</span>
+                  </span>
+                  <Link
+                    to="/dashboard/student/ojt"
+                    onClick={() => setDetailModalApp(null)}
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-pinoy-green hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">schedule</span>
+                    <span>Open OJT & DTR</span>
+                    <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
+                  </Link>
+                </div>
+                <p className="text-on-surface-variant text-[11px] leading-relaxed">
+                  Your internship / placement with <strong>{detailModalApp.organization_name}</strong> is officially active. Your hours, tasks, attendance logs, and coordinator evaluations are synced in the OJT & DTR tracker.
+                </p>
+              </div>
+            )}
 
             {/* Interview Block if present */}
             {(detailModalApp.status === 'interview' || detailModalApp.status === 'interviewed' || detailModalApp.interview_status === 'completed' || Boolean(detailModalApp.interview_schedule_at)) && (
