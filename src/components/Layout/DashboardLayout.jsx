@@ -8,13 +8,23 @@ import PageTransition from './PageTransition';
 export const SidebarContext = createContext({
   sidebarOpen: false,
   setSidebarOpen: () => {},
-  toggleSidebar: () => {}
+  toggleSidebar: () => {},
+  sidebarCollapsed: false,
+  setSidebarCollapsed: () => {},
+  toggleSidebarCollapse: () => {}
 });
 
 export const useSidebar = () => useContext(SidebarContext);
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('interncon_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const location = useLocation();
 
   // Auto-close sidebar on route changes on mobile viewports
@@ -23,9 +33,43 @@ export default function DashboardLayout() {
   }, [location.pathname]);
 
   const toggleSidebar = () => setSidebarOpen((prev) => !prev);
+  
+  const toggleSidebarCollapse = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('interncon_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  // Global shortcut Ctrl+B / Cmd+B to toggle sidebar collapse on desktop
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        const activeTag = document.activeElement?.tagName?.toLowerCase();
+        if (activeTag !== 'input' && activeTag !== 'textarea' && !document.activeElement?.isContentEditable) {
+          e.preventDefault();
+          toggleSidebarCollapse();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
-    <SidebarContext.Provider value={{ sidebarOpen, setSidebarOpen, toggleSidebar }}>
+    <SidebarContext.Provider
+      value={{
+        sidebarOpen,
+        setSidebarOpen,
+        toggleSidebar,
+        sidebarCollapsed,
+        setSidebarCollapsed,
+        toggleSidebarCollapse
+      }}
+    >
       <div className="flex h-screen h-[100dvh] w-full max-w-full bg-surface-container-low text-on-surface overflow-hidden">
         {/* Mobile Backdrop Overlay */}
         {sidebarOpen && (

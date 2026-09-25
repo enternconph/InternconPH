@@ -3,6 +3,7 @@ import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { useAuth } from '../../contexts/AuthContext';
 import Pagination from '../../components/ui/Pagination';
+import { resolveFileUrl, formatPortfolioTitle, formatFileSubtitle, formatCleanFileName, formatAddress } from '../../utils/fileHelper';
 
 export default function InstStudents() {
   const { user } = useAuth();
@@ -1681,40 +1682,44 @@ export default function InstStudents() {
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {records.map((item) => (
-                            <div key={item.item_id} className="p-3.5 bg-surface-container rounded-xl border border-outline-variant space-y-2">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="space-y-0.5">
-                                  <span className="font-bold text-xs text-on-surface block line-clamp-1">{item.title}</span>
-                                  <span className="text-[10px] text-on-surface-variant block uppercase font-semibold">
-                                    {item.item_type?.replace(/_/g, ' ') || 'Document'} • {item.issuer_or_institution || 'University'}
+                          {records.map((item, idx) => {
+                            const displayTitle = formatPortfolioTitle(item, 'Academic Record', idx);
+                            const fileUrl = resolveFileUrl(item.file_path);
+                            return (
+                              <div key={item.item_id || idx} className="p-3.5 bg-surface-container rounded-xl border border-outline-variant space-y-2">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="space-y-0.5 min-w-0">
+                                    <span className="font-bold text-xs text-on-surface block line-clamp-1">{displayTitle}</span>
+                                    <span className="text-[10px] text-on-surface-variant block uppercase font-semibold">
+                                      {item.item_type?.replace(/_/g, ' ') || 'Document'} • {item.issuer_or_institution || 'University'}
+                                    </span>
+                                  </div>
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
+                                    Academic Record
                                   </span>
                                 </div>
-                                <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 shrink-0">
-                                  Academic Record
-                                </span>
+                                {item.description && (
+                                  <p className="text-[11px] text-on-surface-variant line-clamp-2">{item.description}</p>
+                                )}
+                                {item.file_path && (
+                                  <div className="pt-2 border-t border-outline-variant flex items-center justify-between">
+                                    <span className="text-[10px] text-on-surface-variant">
+                                      {formatFileSubtitle(item) || `Uploaded: ${item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'}`}
+                                    </span>
+                                    <a
+                                      href={fileUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="px-2.5 py-1 bg-surface-container-high text-on-surface hover:bg-vibrant-orange hover:text-white rounded text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                      <span>View Document</span>
+                                    </a>
+                                  </div>
+                                )}
                               </div>
-                              {item.description && (
-                                <p className="text-[11px] text-on-surface-variant line-clamp-2">{item.description}</p>
-                              )}
-                              {item.file_path && (
-                                <div className="pt-2 border-t border-outline-variant flex items-center justify-between">
-                                  <span className="text-[10px] text-on-surface-variant">
-                                    Uploaded: {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'}
-                                  </span>
-                                  <a
-                                    href={item.file_path}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="px-2.5 py-1 bg-surface-container-high text-on-surface hover:bg-vibrant-orange hover:text-white rounded text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
-                                  >
-                                    <span className="material-symbols-outlined text-[14px]">download</span>
-                                    <span>View / Download</span>
-                                  </a>
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1734,40 +1739,44 @@ export default function InstStudents() {
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {creds.map((item) => (
-                            <div key={item.item_id} className="p-3.5 bg-surface-container rounded-xl border border-outline-variant space-y-2">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="space-y-0.5">
-                                  <span className="font-bold text-xs text-on-surface block line-clamp-1">{item.title}</span>
-                                  <span className="text-[10px] text-on-surface-variant block font-semibold">
-                                    Issuer: {item.issuer_or_institution || 'Accredited Authority'}
+                          {creds.map((item, idx) => {
+                            const displayTitle = formatPortfolioTitle(item, 'Certification / Honor', idx);
+                            const fileUrl = resolveFileUrl(item.file_path);
+                            return (
+                              <div key={item.item_id || idx} className="p-3.5 bg-surface-container rounded-xl border border-outline-variant space-y-2">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="space-y-0.5 min-w-0">
+                                    <span className="font-bold text-xs text-on-surface block line-clamp-1">{displayTitle}</span>
+                                    <span className="text-[10px] text-on-surface-variant block font-semibold">
+                                      Issuer: {item.issuer_or_institution || 'Accredited Authority'}
+                                    </span>
+                                  </div>
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                                    Credential
                                   </span>
                                 </div>
-                                <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 shrink-0">
-                                  Credential
-                                </span>
+                                {item.description && (
+                                  <p className="text-[11px] text-on-surface-variant line-clamp-2">{item.description}</p>
+                                )}
+                                {item.file_path && (
+                                  <div className="pt-2 border-t border-outline-variant flex items-center justify-between">
+                                    <span className="text-[10px] text-on-surface-variant">
+                                      {formatFileSubtitle(item) || `Issued: ${item.issue_date ? new Date(item.issue_date).toLocaleDateString() : 'Verified'}`}
+                                    </span>
+                                    <a
+                                      href={fileUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="px-2.5 py-1 bg-surface-container-high text-on-surface hover:bg-vibrant-orange hover:text-white rounded text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                                      <span>Inspect Certificate</span>
+                                    </a>
+                                  </div>
+                                )}
                               </div>
-                              {item.description && (
-                                <p className="text-[11px] text-on-surface-variant line-clamp-2">{item.description}</p>
-                              )}
-                              {item.file_path && (
-                                <div className="pt-2 border-t border-outline-variant flex items-center justify-between">
-                                  <span className="text-[10px] text-on-surface-variant">
-                                    Issued: {item.issue_date ? new Date(item.issue_date).toLocaleDateString() : 'Verified'}
-                                  </span>
-                                  <a
-                                    href={item.file_path}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="px-2.5 py-1 bg-surface-container-high text-on-surface hover:bg-vibrant-orange hover:text-white rounded text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
-                                  >
-                                    <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                                    <span>Inspect Certificate</span>
-                                  </a>
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1787,35 +1796,39 @@ export default function InstStudents() {
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {capstones.map((item) => (
-                            <div key={item.item_id} className="p-3.5 bg-surface-container rounded-xl border border-outline-variant space-y-2">
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="font-bold text-xs text-on-surface block line-clamp-1">{item.title}</span>
-                                <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-green-500/10 text-emerald-600 shrink-0">
-                                  Project
-                                </span>
-                              </div>
-                              {item.description && (
-                                <p className="text-[11px] text-on-surface-variant line-clamp-2">{item.description}</p>
-                              )}
-                              {(item.file_path || item.link_url) && (
-                                <div className="pt-2 border-t border-outline-variant flex items-center justify-between">
-                                  <span className="text-[10px] text-on-surface-variant">
-                                    {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Uploaded'}
+                          {capstones.map((item, idx) => {
+                            const displayTitle = formatPortfolioTitle(item, 'Project Sample', idx);
+                            const fileUrl = resolveFileUrl(item.file_path || item.link_url);
+                            return (
+                              <div key={item.item_id || idx} className="p-3.5 bg-surface-container rounded-xl border border-outline-variant space-y-2">
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="font-bold text-xs text-on-surface block line-clamp-1 min-w-0">{displayTitle}</span>
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-green-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
+                                    Project
                                   </span>
-                                  <a
-                                    href={item.file_path || item.link_url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="px-2.5 py-1 bg-surface-container-high text-on-surface hover:bg-vibrant-orange hover:text-white rounded text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
-                                  >
-                                    <span className="material-symbols-outlined text-[14px]">visibility</span>
-                                    <span>View Artifact</span>
-                                  </a>
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                                {item.description && (
+                                  <p className="text-[11px] text-on-surface-variant line-clamp-2">{item.description}</p>
+                                )}
+                                {(item.file_path || item.link_url) && (
+                                  <div className="pt-2 border-t border-outline-variant flex items-center justify-between">
+                                    <span className="text-[10px] text-on-surface-variant">
+                                      {formatFileSubtitle(item) || `Uploaded: ${item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'}`}
+                                    </span>
+                                    <a
+                                      href={fileUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="px-2.5 py-1 bg-surface-container-high text-on-surface hover:bg-vibrant-orange hover:text-white rounded text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                      <span>View Artifact</span>
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1835,27 +1848,31 @@ export default function InstStudents() {
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {resumes.map((r) => (
-                            <div key={r.resume_id} className="p-3 bg-surface-container rounded-xl border border-outline-variant flex items-center justify-between gap-3">
-                              <div className="space-y-0.5">
-                                <span className="font-bold text-xs text-on-surface block truncate">{r.title || 'Student Resume'}</span>
-                                <span className="text-[10px] text-on-surface-variant block">
-                                  Version {r.version || 1} • {r.is_active ? 'Active' : 'Archived'}
-                                </span>
+                          {resumes.map((r, idx) => {
+                            const displayTitle = r.title ? formatCleanFileName(r.title) || r.title : (r.file_name ? formatCleanFileName(r.file_name) || 'Curriculum Vitae' : 'Student Resume');
+                            const fileUrl = resolveFileUrl(r.file_path);
+                            return (
+                              <div key={r.resume_id || idx} className="p-3 bg-surface-container rounded-xl border border-outline-variant flex items-center justify-between gap-3">
+                                <div className="space-y-0.5 min-w-0">
+                                  <span className="font-bold text-xs text-on-surface block truncate">{displayTitle}</span>
+                                  <span className="text-[10px] text-on-surface-variant block">
+                                    Version {r.version || 1} • {r.is_active ? 'Active' : 'Archived'}
+                                  </span>
+                                </div>
+                                {r.file_path && (
+                                  <a
+                                    href={fileUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-3 py-1 bg-vibrant-orange text-white rounded text-xs font-bold hover:bg-deep-orange transition-colors inline-flex items-center gap-1 shrink-0"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px]">download</span>
+                                    <span>Download</span>
+                                  </a>
+                                )}
                               </div>
-                              {r.file_path && (
-                                <a
-                                  href={r.file_path}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="px-3 py-1 bg-vibrant-orange text-white rounded text-xs font-bold hover:bg-deep-orange transition-colors inline-flex items-center gap-1"
-                                >
-                                  <span className="material-symbols-outlined text-[14px]">download</span>
-                                  <span>Download</span>
-                                </a>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1881,7 +1898,7 @@ export default function InstStudents() {
                                 <div>
                                   <span className="font-bold text-xs text-on-surface">{ojt.organization_name}</span>
                                   <p className="text-[11px] text-on-surface-variant">
-                                    {ojt.org_address || 'Philippines'} • Industry: {ojt.industry || 'General'}
+                                    {formatAddress(ojt.org_address)} • Industry: {ojt.industry || 'General'}
                                   </p>
                                 </div>
                                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold capitalize self-start sm:self-auto ${

@@ -3,14 +3,14 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import api from '../../api/client';
-import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, isPdfFile } from '../../utils/fileHelper';
+import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, isPdfFile, formatPortfolioTitle, formatFileSubtitle, formatAddress } from '../../utils/fileHelper';
 import { DashboardSkeleton } from '../../components/ui/Skeleton';
 
 const OJT_STATUS_STYLES = {
-  ongoing:     'bg-green-100 text-green-700',
-  completed:   'bg-blue-100 text-blue-700',
-  graduated:   'bg-purple-100 text-purple-700',
-  pending:     'bg-amber-100 text-amber-700',
+  ongoing:     'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400',
+  completed:   'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400',
+  graduated:   'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400',
+  pending:     'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',
   not_started: 'bg-surface-container text-on-surface-variant',
   default:     'bg-surface-container text-on-surface-variant'
 };
@@ -47,44 +47,45 @@ function StudentDetailDrawer({ studentId, onClose }) {
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity" onClick={onClose} />
 
       {/* Drawer */}
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-xl bg-white shadow-2xl flex flex-col overflow-hidden">
+      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-xl bg-surface-container-lowest dark:bg-surface text-on-surface shadow-2xl flex flex-col overflow-hidden border-l border-outline-variant">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant bg-surface-container-low flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant bg-surface-container-low/80 backdrop-blur flex-shrink-0">
           <div>
             <h2 className="text-base font-bold text-on-surface">
               {stu ? `${stu.first_name} ${stu.last_name}` : 'Student Profile'}
             </h2>
             {stu && (
               <p className="text-xs text-on-surface-variant">
-                {stu.student_number} · {stu.program_name || 'N/A'}
+                ID: <span className="font-mono text-on-surface font-semibold">{stu.student_number}</span> · {stu.program_name || 'Academic Degree Program'}
               </p>
             )}
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant">
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-surface-container-high transition-colors text-on-surface-variant hover:text-on-surface">
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
           {loading ? (
-            <div className="flex justify-center pt-20">
+            <div className="flex flex-col items-center justify-center pt-24 gap-3">
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-vibrant-orange border-t-transparent" />
+              <p className="text-xs font-semibold text-on-surface-variant">Loading student profile & credentials...</p>
             </div>
           ) : !stu ? (
             <p className="text-sm text-center text-on-surface-variant pt-20">Could not load student profile.</p>
           ) : (
             <>
               {/* Personal Info */}
-              <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant space-y-3">
+              <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/60 space-y-3 shadow-xs">
                 <h3 className="font-bold text-sm text-on-surface flex items-center gap-2">
                   <span className="material-symbols-outlined text-vibrant-orange text-[18px]">person</span>
                   Personal Information
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-xs">
                   <div><p className="text-on-surface-variant font-bold uppercase text-[10px]">Email</p><p className="text-on-surface break-all">{stu.email}</p></div>
                   <div><p className="text-on-surface-variant font-bold uppercase text-[10px]">Contact</p><p className="text-on-surface">{stu.contact_number || '—'}</p></div>
                   <div><p className="text-on-surface-variant font-bold uppercase text-[10px]">Year Level</p><p className="text-on-surface">{stu.year_level || '—'}</p></div>
@@ -93,13 +94,13 @@ function StudentDetailDrawer({ studentId, onClose }) {
                   <div><p className="text-on-surface-variant font-bold uppercase text-[10px]">Verification</p>
                     {reg ? (
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
-                        reg.status === 'verified' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                        reg.status === 'verified' ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
                       }`}>{reg.status}</span>
                     ) : <span className="text-on-surface-variant">No record</span>}
                   </div>
                   <div className="col-span-1 sm:col-span-2">
                     <p className="text-on-surface-variant font-bold uppercase text-[10px]">OJT Hours</p>
-                    <p className="text-on-surface">
+                    <p className="text-on-surface font-semibold">
                       {stu.completed_ojt_hours || 0} / {stu.required_ojt_hours || stu.prog_required_hours || 600} hrs rendered
                     </p>
                   </div>
@@ -107,59 +108,83 @@ function StudentDetailDrawer({ studentId, onClose }) {
               </div>
 
               {/* Digital Career Portfolio */}
-              <div className="space-y-3">
-                <h3 className="font-bold text-sm text-on-surface flex items-center gap-2">
-                  <span className="material-symbols-outlined text-vibrant-orange text-[18px]">work_history</span>
-                  Digital Career Portfolio &amp; Credentials
-                </h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-sm text-on-surface flex items-center gap-2">
+                    <span className="material-symbols-outlined text-vibrant-orange text-[18px]">work_history</span>
+                    <span>Digital Career Portfolio &amp; Credentials</span>
+                  </h3>
+                </div>
 
                 {/* Academic Portfolio */}
                 {port?.academic_portfolio?.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-[11px] font-bold text-blue-600 uppercase">Academic Portfolio ({port.academic_portfolio.length})</p>
-                    <div className="space-y-1.5">
-                      {port.academic_portfolio.map(item => {
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">school</span>
+                        Academic Portfolio ({port.academic_portfolio.length})
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {port.academic_portfolio.map((item, idx) => {
                         const fileUrl = resolveFileUrl(item.file_path);
                         const isImg = isImageFile(item.file_name, item.file_path);
+                        const displayTitle = formatPortfolioTitle(item, 'Academic Portfolio Project', idx);
+                        const subInfo = formatFileSubtitle(item);
+
                         return (
-                          <div key={item.item_id} className="flex items-center justify-between p-2.5 bg-blue-50/60 rounded-xl border border-blue-100">
-                            <div className="flex items-center gap-2.5 min-w-0">
+                          <div key={item.item_id || idx} className="group flex items-center justify-between p-3 bg-surface-container-low dark:bg-surface-container/60 hover:bg-surface-container border border-outline-variant/60 hover:border-vibrant-orange/40 rounded-2xl transition-all duration-200 shadow-xs">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
                               {isImg && fileUrl ? (
                                 <img
                                   src={fileUrl}
-                                  alt={item.title}
-                                  className="w-8 h-8 rounded-lg object-cover border border-blue-200 shrink-0 cursor-pointer hover:opacity-80"
+                                  alt={displayTitle}
+                                  className="w-10 h-10 rounded-xl object-cover border border-outline-variant/60 shrink-0 cursor-pointer hover:scale-105 transition-transform shadow-xs"
                                   loading="lazy"
                                   decoding="async"
                                   onError={(e) => {
                                     e.target.style.display = 'none';
                                   }}
-                                  onClick={() => setPreviewItem(item)}
+                                  onClick={() => setPreviewItem({ ...item, title: displayTitle })}
                                 />
                               ) : (
-                                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                                  <span className="material-symbols-outlined text-[18px]">{getFileIcon(item.file_name)}</span>
+                                <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                                  <span className="material-symbols-outlined text-[20px]">{getFileIcon(item.file_name)}</span>
                                 </div>
                               )}
-                              <div className="min-w-0">
-                                <p className="font-bold text-xs text-on-surface line-clamp-1">{item.title}</p>
-                                {item.file_name && <p className="text-[10px] text-on-surface-variant">📎 {item.file_name}</p>}
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-xs text-on-surface line-clamp-1 group-hover:text-vibrant-orange transition-colors">
+                                  {displayTitle}
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  {subInfo ? (
+                                    <span className="text-[10px] text-on-surface-variant font-medium">{subInfo}</span>
+                                  ) : (
+                                    <span className="text-[10px] text-on-surface-variant/70">Academic Artifact</span>
+                                  )}
+                                  {item.description && (
+                                    <span className="text-[10px] text-on-surface-variant line-clamp-1">• {item.description}</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                             {item.file_path && (
-                              <div className="flex items-center gap-1 shrink-0 ml-2">
-                                <button onClick={() => setPreviewItem(item)}
-                                  className="px-2 py-1 bg-blue-100 text-blue-600 rounded-lg text-[11px] font-bold hover:bg-blue-200 transition-colors flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-[13px]">open_in_new</span> View
+                              <div className="flex items-center gap-1.5 shrink-0 ml-3">
+                                <button
+                                  onClick={() => setPreviewItem({ ...item, title: displayTitle })}
+                                  className="px-2.5 py-1.5 bg-vibrant-orange/10 hover:bg-vibrant-orange text-vibrant-orange hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                  <span>View</span>
                                 </button>
                                 <a
                                   href={fileUrl}
                                   download={item.file_name || true}
-                                  className="p-1 text-on-surface-variant hover:text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                                  className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-xl border border-outline-variant/40 transition-colors flex items-center justify-center"
                                   title="Download File"
                                   onClick={e => e.stopPropagation()}
                                 >
-                                  <span className="material-symbols-outlined text-[15px]">download</span>
+                                  <span className="material-symbols-outlined text-[16px]">download</span>
                                 </a>
                               </div>
                             )}
@@ -173,50 +198,70 @@ function StudentDetailDrawer({ studentId, onClose }) {
                 {/* Credentials */}
                 {port?.credentials?.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-[11px] font-bold text-amber-600 uppercase">Credentials &amp; Certificates ({port.credentials.length})</p>
-                    <div className="space-y-1.5">
-                      {port.credentials.map(item => {
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">workspace_premium</span>
+                        Credentials &amp; Certificates ({port.credentials.length})
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {port.credentials.map((item, idx) => {
                         const fileUrl = resolveFileUrl(item.file_path);
                         const isImg = isImageFile(item.file_name, item.file_path);
+                        const displayTitle = formatPortfolioTitle(item, 'Certification / Honor', idx);
+                        const subInfo = formatFileSubtitle(item);
+
                         return (
-                          <div key={item.item_id} className="flex items-center justify-between p-2.5 bg-amber-50/60 rounded-xl border border-amber-100">
-                            <div className="flex items-center gap-2.5 min-w-0">
+                          <div key={item.item_id || idx} className="group flex items-center justify-between p-3 bg-surface-container-low dark:bg-surface-container/60 hover:bg-surface-container border border-outline-variant/60 hover:border-vibrant-orange/40 rounded-2xl transition-all duration-200 shadow-xs">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
                               {isImg && fileUrl ? (
                                 <img
                                   src={fileUrl}
-                                  alt={item.title}
-                                  className="w-8 h-8 rounded-lg object-cover border border-amber-200 shrink-0 cursor-pointer hover:opacity-80"
+                                  alt={displayTitle}
+                                  className="w-10 h-10 rounded-xl object-cover border border-outline-variant/60 shrink-0 cursor-pointer hover:scale-105 transition-transform shadow-xs"
                                   loading="lazy"
                                   decoding="async"
                                   onError={(e) => {
                                     e.target.style.display = 'none';
                                   }}
-                                  onClick={() => setPreviewItem(item)}
+                                  onClick={() => setPreviewItem({ ...item, title: displayTitle })}
                                 />
                               ) : (
-                                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                                  <span className="material-symbols-outlined text-[18px]">{getFileIcon(item.file_name)}</span>
+                                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20">
+                                  <span className="material-symbols-outlined text-[20px]">{getFileIcon(item.file_name)}</span>
                                 </div>
                               )}
-                              <div className="min-w-0">
-                                <p className="font-bold text-xs text-on-surface line-clamp-1">{item.title}</p>
-                                {item.file_name && <p className="text-[10px] text-on-surface-variant">📎 {item.file_name}</p>}
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-xs text-on-surface line-clamp-1 group-hover:text-vibrant-orange transition-colors">
+                                  {displayTitle}
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  {item.issuer_or_institution && (
+                                    <span className="text-[10px] text-on-surface-variant font-semibold">{item.issuer_or_institution}</span>
+                                  )}
+                                  {subInfo && (
+                                    <span className="text-[10px] text-on-surface-variant">• {subInfo}</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                             {item.file_path && (
-                              <div className="flex items-center gap-1 shrink-0 ml-2">
-                                <button onClick={() => setPreviewItem(item)}
-                                  className="px-2 py-1 bg-amber-100 text-amber-600 rounded-lg text-[11px] font-bold hover:bg-amber-200 transition-colors flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-[13px]">open_in_new</span> View
+                              <div className="flex items-center gap-1.5 shrink-0 ml-3">
+                                <button
+                                  onClick={() => setPreviewItem({ ...item, title: displayTitle })}
+                                  className="px-2.5 py-1.5 bg-vibrant-orange/10 hover:bg-vibrant-orange text-vibrant-orange hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                  <span>View</span>
                                 </button>
                                 <a
                                   href={fileUrl}
                                   download={item.file_name || true}
-                                  className="p-1 text-on-surface-variant hover:text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
+                                  className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-xl border border-outline-variant/40 transition-colors flex items-center justify-center"
                                   title="Download File"
                                   onClick={e => e.stopPropagation()}
                                 >
-                                  <span className="material-symbols-outlined text-[15px]">download</span>
+                                  <span className="material-symbols-outlined text-[16px]">download</span>
                                 </a>
                               </div>
                             )}
@@ -230,50 +275,69 @@ function StudentDetailDrawer({ studentId, onClose }) {
                 {/* Academic Records */}
                 {port?.academic_records?.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-[11px] font-bold text-emerald-600 uppercase">Academic Records ({port.academic_records.length})</p>
-                    <div className="space-y-1.5">
-                      {port.academic_records.map(item => {
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">description</span>
+                        Academic Records ({port.academic_records.length})
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {port.academic_records.map((item, idx) => {
                         const fileUrl = resolveFileUrl(item.file_path);
                         const isImg = isImageFile(item.file_name, item.file_path);
+                        const displayTitle = formatPortfolioTitle(item, 'Academic Record', idx);
+                        const subInfo = formatFileSubtitle(item);
+
                         return (
-                          <div key={item.item_id} className="flex items-center justify-between p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
-                            <div className="flex items-center gap-2.5 min-w-0">
+                          <div key={item.item_id || idx} className="group flex items-center justify-between p-3 bg-surface-container-low dark:bg-surface-container/60 hover:bg-surface-container border border-outline-variant/60 hover:border-vibrant-orange/40 rounded-2xl transition-all duration-200 shadow-xs">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
                               {isImg && fileUrl ? (
                                 <img
                                   src={fileUrl}
-                                  alt={item.title}
-                                  className="w-8 h-8 rounded-lg object-cover border border-emerald-200 shrink-0 cursor-pointer hover:opacity-80"
+                                  alt={displayTitle}
+                                  className="w-10 h-10 rounded-xl object-cover border border-outline-variant/60 shrink-0 cursor-pointer hover:scale-105 transition-transform shadow-xs"
                                   loading="lazy"
                                   decoding="async"
                                   onError={(e) => {
                                     e.target.style.display = 'none';
                                   }}
-                                  onClick={() => setPreviewItem(item)}
+                                  onClick={() => setPreviewItem({ ...item, title: displayTitle })}
                                 />
                               ) : (
-                                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                                  <span className="material-symbols-outlined text-[18px]">{getFileIcon(item.file_name)}</span>
+                                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/20">
+                                  <span className="material-symbols-outlined text-[20px]">{getFileIcon(item.file_name)}</span>
                                 </div>
                               )}
-                              <div className="min-w-0">
-                                <p className="font-bold text-xs text-on-surface line-clamp-1">{item.title}</p>
-                                {item.file_name && <p className="text-[10px] text-on-surface-variant">📎 {item.file_name}</p>}
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-xs text-on-surface line-clamp-1 group-hover:text-vibrant-orange transition-colors">
+                                  {displayTitle}
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  {subInfo ? (
+                                    <span className="text-[10px] text-on-surface-variant font-medium">{subInfo}</span>
+                                  ) : (
+                                    <span className="text-[10px] text-on-surface-variant/70">Official Transcript / Record</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                             {item.file_path && (
-                              <div className="flex items-center gap-1 shrink-0 ml-2">
-                                <button onClick={() => setPreviewItem(item)}
-                                  className="px-2 py-1 bg-emerald-100 text-emerald-600 rounded-lg text-[11px] font-bold hover:bg-emerald-200 transition-colors flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-[13px]">open_in_new</span> View
+                              <div className="flex items-center gap-1.5 shrink-0 ml-3">
+                                <button
+                                  onClick={() => setPreviewItem({ ...item, title: displayTitle })}
+                                  className="px-2.5 py-1.5 bg-vibrant-orange/10 hover:bg-vibrant-orange text-vibrant-orange hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                  <span>View</span>
                                 </button>
                                 <a
                                   href={fileUrl}
                                   download={item.file_name || true}
-                                  className="p-1 text-on-surface-variant hover:text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors"
+                                  className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-xl border border-outline-variant/40 transition-colors flex items-center justify-center"
                                   title="Download File"
                                   onClick={e => e.stopPropagation()}
                                 >
-                                  <span className="material-symbols-outlined text-[15px]">download</span>
+                                  <span className="material-symbols-outlined text-[16px]">download</span>
                                 </a>
                               </div>
                             )}
@@ -287,23 +351,29 @@ function StudentDetailDrawer({ studentId, onClose }) {
                 {/* Resume */}
                 {port?.resumes?.length > 0 && port.resumes[0].file_path && (
                   <div className="space-y-2">
-                    <p className="text-[11px] font-bold text-purple-600 uppercase">Active Resume</p>
-                    <div className="flex items-center justify-between p-2.5 bg-purple-50/60 rounded-xl border border-purple-100">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-purple-500 text-[18px]">description</span>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">description</span>
+                      Active Resume
+                    </p>
+                    <div className="flex items-center justify-between p-3 bg-surface-container-low dark:bg-surface-container/60 hover:bg-surface-container border border-outline-variant/60 rounded-2xl shadow-xs">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-500/20">
+                          <span className="material-symbols-outlined text-[20px]">badge</span>
+                        </div>
                         <div>
-                          <p className="font-bold text-xs text-on-surface">{port.resumes[0].file_name || 'Resume'}</p>
+                          <p className="font-bold text-xs text-on-surface">{port.resumes[0].file_name ? formatCleanFileName(port.resumes[0].file_name) || 'Curriculum Vitae / Resume' : 'Curriculum Vitae / Resume'}</p>
                           <p className="text-[10px] text-on-surface-variant">Version {port.resumes[0].version}{port.resumes[0].file_size ? ` · ${formatFileSize(port.resumes[0].file_size)}` : ''}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                        <button onClick={() => setPreviewItem({ ...port.resumes[0], title: port.resumes[0].file_name || 'Resume' })}
-                          className="px-2 py-1 bg-purple-100 text-purple-600 rounded-lg text-[11px] font-bold hover:bg-purple-200 transition-colors flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[13px]">open_in_new</span> View
+                      <div className="flex items-center gap-1.5 shrink-0 ml-3">
+                        <button onClick={() => setPreviewItem({ ...port.resumes[0], title: 'Student Resume' })}
+                          className="px-2.5 py-1.5 bg-purple-500/10 hover:bg-purple-600 text-purple-600 hover:text-white dark:text-purple-400 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs">
+                          <span className="material-symbols-outlined text-[14px]">visibility</span> View
                         </button>
                         <a href={resolveFileUrl(port.resumes[0].file_path)} download={port.resumes[0].file_name || true}
-                          className="px-2 py-1 bg-purple-600 text-white rounded-lg text-[11px] font-bold hover:bg-purple-700 transition-colors flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[13px]">download</span>
+                          className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-xl border border-outline-variant/40 transition-colors flex items-center justify-center"
+                          title="Download Resume">
+                          <span className="material-symbols-outlined text-[16px]">download</span>
                         </a>
                       </div>
                     </div>
@@ -333,7 +403,7 @@ function StudentDetailDrawer({ studentId, onClose }) {
                           <p className="font-bold text-xs text-on-surface">{ojt.organization_name}</p>
                           {ojtBadge(ojt.status)}
                         </div>
-                        <p className="text-[11px] text-on-surface-variant">{ojt.industry}{ojt.org_address ? ` · ${ojt.org_address}` : ''}</p>
+                        <p className="text-[11px] text-on-surface-variant">{ojt.industry}{ojt.org_address ? ` · ${formatAddress(ojt.org_address)}` : ''}</p>
                         <p className="text-[11px] text-on-surface-variant">
                           {ojt.rendered_hours || 0} / {ojt.required_hours || 0} hrs
                           {ojt.mentor_first_name && ` · Mentor: ${ojt.mentor_first_name} ${ojt.mentor_last_name || ''}`}
@@ -380,24 +450,28 @@ function StudentDetailDrawer({ studentId, onClose }) {
         const isPdf = isPdfFile(fn, fp);
         const isCert = previewItem.item_type === 'certificate' || fp.includes('/api/certificates/') || fp.includes('certificate:');
         return (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[60]" onClick={() => setPreviewItem(null)}>
-            <div className="bg-white dark:bg-surface rounded-2xl max-w-4xl w-full p-4 space-y-3 border border-outline-variant shadow-2xl max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-sm font-bold text-on-surface">{previewItem.title || previewItem.file_name}</h3>
-                  {previewItem.file_name && <p className="text-[11px] text-on-surface-variant">📎 {previewItem.file_name}{previewItem.file_size ? ` · ${formatFileSize(previewItem.file_size)}` : ''}</p>}
+          <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 z-[60]" onClick={() => setPreviewItem(null)}>
+            <div className="bg-surface-container-lowest dark:bg-surface-container-low text-on-surface rounded-2xl max-w-4xl w-full p-5 space-y-4 border border-outline-variant shadow-2xl max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm sm:text-base font-bold text-on-surface line-clamp-1">{formatPortfolioTitle(previewItem)}</h3>
+                  {formatFileSubtitle(previewItem) ? (
+                    <p className="text-[11px] text-on-surface-variant font-medium mt-0.5">{formatFileSubtitle(previewItem)}</p>
+                  ) : previewItem.file_name ? (
+                    <p className="text-[11px] text-on-surface-variant line-clamp-1 mt-0.5">{formatCleanFileName(previewItem.file_name) || 'Document'}</p>
+                  ) : null}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   {fp && (
                     <a href={fp}
                       target={isCert ? "_blank" : undefined}
                       rel={isCert ? "noopener noreferrer" : undefined}
                       download={isCert ? undefined : (previewItem.file_name || true)}
-                      className="px-3 py-1.5 bg-vibrant-orange text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-deep-orange transition-colors">
-                      <span className="material-symbols-outlined text-[14px]">{isCert ? 'open_in_new' : 'download'}</span> {isCert ? 'Print / Fullscreen' : 'Download'}
+                      className="px-3 py-1.5 bg-vibrant-orange text-white rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-deep-orange transition-colors shadow-sm">
+                      <span className="material-symbols-outlined text-[15px]">{isCert ? 'open_in_new' : 'download'}</span> {isCert ? 'Print / Fullscreen' : 'Download'}
                     </a>
                   )}
-                  <button onClick={() => setPreviewItem(null)} className="p-1.5 text-on-surface-variant hover:text-error transition-colors rounded-lg hover:bg-red-50">
+                  <button onClick={() => setPreviewItem(null)} className="p-1.5 text-on-surface-variant hover:text-error transition-colors rounded-xl hover:bg-error/10">
                     <span className="material-symbols-outlined">close</span>
                   </button>
                 </div>

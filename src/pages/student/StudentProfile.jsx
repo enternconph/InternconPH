@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
-import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, isPdfFile } from '../../utils/fileHelper';
+import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, isPdfFile, formatAddress, formatPortfolioTitle, formatFileSubtitle } from '../../utils/fileHelper';
 import PhPhoneInput from '../../components/ui/PhPhoneInput';
 
 export default function StudentProfile() {
@@ -629,7 +629,7 @@ export default function StudentProfile() {
                           {ojt.status || 'Completed'}
                         </span>
                       </div>
-                      <p className="text-[11px] text-on-surface-variant">{ojt.industry} {ojt.org_address ? `• ${ojt.org_address}` : ''}</p>
+                      <p className="text-[11px] text-on-surface-variant">{ojt.industry} {ojt.org_address ? `• ${formatAddress(ojt.org_address)}` : ''}</p>
                       <div className="flex items-center gap-3 text-[10px] text-on-surface-variant pt-1">
                         <span>Hours: <strong>{ojt.rendered_hours || 0} / {ojt.required_hours || 0}</strong> hrs</span>
                         {ojt.mentor_first_name && (

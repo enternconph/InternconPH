@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
-import { resolveFileUrl, getFileIcon, isImageFile } from '../../utils/fileHelper';
+import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, formatPortfolioTitle, formatFileSubtitle, formatCleanFileName } from '../../utils/fileHelper';
 import Pagination from '../../components/ui/Pagination';
 
 export default function OrgOJT() {
@@ -799,21 +799,24 @@ export default function OrgOJT() {
                           Academic Portfolio ({inspectData.academic_portfolio.length})
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {inspectData.academic_portfolio.map((item) => {
+                          {inspectData.academic_portfolio.map((item, idx) => {
                             let fileUrl = resolveFileUrl(item.file_path);
                             if (fileUrl.includes('/api/certificates/render/')) {
                               fileUrl += (fileUrl.includes('?') ? '&' : '?') + 'viewOnly=true';
                             }
                             const isImg = isImageFile(item.file_name, item.file_path);
+                            const displayTitle = formatPortfolioTitle(item, 'Academic Portfolio Project', idx);
+                            const subInfo = formatFileSubtitle(item);
+
                             return (
-                              <div key={item.item_id} className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+                              <div key={item.item_id || idx} className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
                                 <div className="flex justify-between items-center gap-2">
                                   <div className="flex items-center gap-2 min-w-0">
                                     {isImg && fileUrl ? (
                                       <img
                                         src={fileUrl}
-                                        alt={item.title}
-                                        className="w-6 h-6 rounded object-cover border border-outline-variant shrink-0"
+                                        alt={displayTitle}
+                                        className="w-7 h-7 rounded-lg object-cover border border-outline-variant shrink-0"
                                         loading="lazy"
                                         decoding="async"
                                         onError={(e) => {
@@ -821,20 +824,20 @@ export default function OrgOJT() {
                                         }}
                                       />
                                     ) : (
-                                      <span className="material-symbols-outlined text-[16px] text-blue-600 shrink-0">{getFileIcon(item.file_name)}</span>
+                                      <span className="material-symbols-outlined text-[18px] text-blue-600 shrink-0">{getFileIcon(item.file_name)}</span>
                                     )}
-                                    <span className="font-bold text-on-surface line-clamp-1">{item.title}</span>
+                                    <span className="font-bold text-xs text-on-surface line-clamp-1">{displayTitle}</span>
                                   </div>
                                   {item.file_path && (
                                     <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                                       className="px-2 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 text-[10px] font-bold flex items-center gap-0.5 flex-shrink-0"
+                                       className="px-2.5 py-1 rounded-lg bg-vibrant-orange text-white hover:bg-deep-orange text-[11px] font-bold flex items-center gap-1 flex-shrink-0 shadow-xs"
                                        title="View File (Read-Only)">
-                                      <span className="material-symbols-outlined text-[12px]">visibility</span> View
+                                      <span className="material-symbols-outlined text-[13px]">visibility</span> View
                                     </a>
                                   )}
                                 </div>
-                                {item.description && <p className="text-on-surface-variant line-clamp-2">{item.description}</p>}
-                                {item.file_name && <p className="text-[10px] text-on-surface-variant">📎 {item.file_name}</p>}
+                                {item.description && <p className="text-on-surface-variant text-[11px] line-clamp-2">{item.description}</p>}
+                                {subInfo && <p className="text-[10px] text-on-surface-variant">{subInfo}</p>}
                               </div>
                             );
                           })}
@@ -850,21 +853,24 @@ export default function OrgOJT() {
                           Credentials ({inspectData.credentials.length})
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {inspectData.credentials.map((item) => {
+                          {inspectData.credentials.map((item, idx) => {
                             let fileUrl = resolveFileUrl(item.file_path);
                             if (fileUrl.includes('/api/certificates/render/')) {
                               fileUrl += (fileUrl.includes('?') ? '&' : '?') + 'viewOnly=true';
                             }
                             const isImg = isImageFile(item.file_name, item.file_path);
+                            const displayTitle = formatPortfolioTitle(item, 'Certification / Honor', idx);
+                            const subInfo = formatFileSubtitle(item);
+
                             return (
-                              <div key={item.item_id} className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+                              <div key={item.item_id || idx} className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
                                 <div className="flex justify-between items-center gap-2">
                                   <div className="flex items-center gap-2 min-w-0">
                                     {isImg && fileUrl ? (
                                       <img
                                         src={fileUrl}
-                                        alt={item.title}
-                                        className="w-6 h-6 rounded object-cover border border-outline-variant shrink-0"
+                                        alt={displayTitle}
+                                        className="w-7 h-7 rounded-lg object-cover border border-outline-variant shrink-0"
                                         loading="lazy"
                                         decoding="async"
                                         onError={(e) => {
@@ -872,20 +878,20 @@ export default function OrgOJT() {
                                         }}
                                       />
                                     ) : (
-                                      <span className="material-symbols-outlined text-[16px] text-amber-600 shrink-0">{getFileIcon(item.file_name)}</span>
+                                      <span className="material-symbols-outlined text-[18px] text-amber-600 shrink-0">{getFileIcon(item.file_name)}</span>
                                     )}
-                                    <span className="font-bold text-on-surface line-clamp-1">{item.title}</span>
+                                    <span className="font-bold text-xs text-on-surface line-clamp-1">{displayTitle}</span>
                                   </div>
                                   {item.file_path && (
                                     <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                                       className="px-2 py-0.5 rounded bg-amber-50 text-amber-600 hover:bg-amber-100 text-[10px] font-bold flex items-center gap-0.5 flex-shrink-0"
+                                       className="px-2.5 py-1 rounded-lg bg-vibrant-orange text-white hover:bg-deep-orange text-[11px] font-bold flex items-center gap-1 flex-shrink-0 shadow-xs"
                                        title="View Credential (Read-Only)">
-                                      <span className="material-symbols-outlined text-[12px]">visibility</span> View
+                                      <span className="material-symbols-outlined text-[13px]">visibility</span> View
                                     </a>
                                   )}
                                 </div>
-                                {item.description && <p className="text-on-surface-variant line-clamp-2">{item.description}</p>}
-                                {item.file_name && <p className="text-[10px] text-on-surface-variant">📎 {item.file_name}</p>}
+                                {item.description && <p className="text-on-surface-variant text-[11px] line-clamp-2">{item.description}</p>}
+                                {subInfo && <p className="text-[10px] text-on-surface-variant">{subInfo}</p>}
                               </div>
                             );
                           })}
@@ -901,21 +907,24 @@ export default function OrgOJT() {
                           Academic Records ({inspectData.academic_records.length})
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {inspectData.academic_records.map((item) => {
+                          {inspectData.academic_records.map((item, idx) => {
                             let fileUrl = resolveFileUrl(item.file_path);
                             if (fileUrl.includes('/api/certificates/render/')) {
                               fileUrl += (fileUrl.includes('?') ? '&' : '?') + 'viewOnly=true';
                             }
                             const isImg = isImageFile(item.file_name, item.file_path);
+                            const displayTitle = formatPortfolioTitle(item, 'Academic Record', idx);
+                            const subInfo = formatFileSubtitle(item);
+
                             return (
-                              <div key={item.item_id} className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+                              <div key={item.item_id || idx} className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
                                 <div className="flex justify-between items-center gap-2">
                                   <div className="flex items-center gap-2 min-w-0">
                                     {isImg && fileUrl ? (
                                       <img
                                         src={fileUrl}
-                                        alt={item.title}
-                                        className="w-6 h-6 rounded object-cover border border-outline-variant shrink-0"
+                                        alt={displayTitle}
+                                        className="w-7 h-7 rounded-lg object-cover border border-outline-variant shrink-0"
                                         loading="lazy"
                                         decoding="async"
                                         onError={(e) => {
@@ -923,20 +932,20 @@ export default function OrgOJT() {
                                         }}
                                       />
                                     ) : (
-                                      <span className="material-symbols-outlined text-[16px] text-emerald-600 shrink-0">{getFileIcon(item.file_name)}</span>
+                                      <span className="material-symbols-outlined text-[18px] text-emerald-600 shrink-0">{getFileIcon(item.file_name)}</span>
                                     )}
-                                    <span className="font-bold text-on-surface line-clamp-1">{item.title}</span>
+                                    <span className="font-bold text-xs text-on-surface line-clamp-1">{displayTitle}</span>
                                   </div>
                                   {item.file_path && (
                                     <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                                       className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 text-[10px] font-bold flex items-center gap-0.5 flex-shrink-0"
+                                       className="px-2.5 py-1 rounded-lg bg-vibrant-orange text-white hover:bg-deep-orange text-[11px] font-bold flex items-center gap-1 flex-shrink-0 shadow-xs"
                                        title="View Record (Read-Only)">
-                                      <span className="material-symbols-outlined text-[12px]">visibility</span> View
+                                      <span className="material-symbols-outlined text-[13px]">visibility</span> View
                                     </a>
                                   )}
                                 </div>
-                                {item.description && <p className="text-on-surface-variant line-clamp-2">{item.description}</p>}
-                                {item.file_name && <p className="text-[10px] text-on-surface-variant">📎 {item.file_name}</p>}
+                                {item.description && <p className="text-on-surface-variant text-[11px] line-clamp-2">{item.description}</p>}
+                                {subInfo && <p className="text-[10px] text-on-surface-variant">{subInfo}</p>}
                               </div>
                             );
                           })}

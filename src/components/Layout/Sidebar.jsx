@@ -1,14 +1,123 @@
-import React from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSidebar } from './DashboardLayout';
 import { resolveFileUrl } from '../../utils/fileHelper';
 
+// Reusable Navigation Item with Icon, Badge, Tooltip & Active State
+function SidebarNavItem({
+  to,
+  end = false,
+  icon,
+  label,
+  badge,
+  badgeColor,
+  isCollapsed,
+  onClick,
+  onHover,
+  onLeave
+}) {
+  const handleMouseEnter = (e) => {
+    if (!isCollapsed || !onHover) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    onHover({
+      label,
+      badge,
+      top: rect.top + rect.height / 2
+    });
+  };
+
+  return (
+    <div className="relative flex items-center justify-center w-full">
+      <NavLink
+        to={to}
+        end={end}
+        onClick={onClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={onLeave}
+        className={({ isActive }) =>
+          `relative flex items-center transition-all duration-200 ${
+            isCollapsed
+              ? `w-11 h-11 justify-center rounded-xl ${
+                  isActive
+                    ? 'bg-vibrant-orange text-white shadow-md shadow-vibrant-orange/30 ring-1 ring-vibrant-orange/50'
+                    : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                }`
+              : `w-full gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs sm:text-sm ${
+                  isActive
+                    ? 'bg-vibrant-orange text-white font-bold shadow-sm ring-1 ring-vibrant-orange/50'
+                    : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                }`
+          }`
+        }
+      >
+        {({ isActive }) => (
+          <>
+            {/* Icon */}
+            <span
+              className={`material-symbols-outlined shrink-0 transition-transform duration-150 ${
+                isCollapsed ? 'text-[22px]' : 'text-[20px]'
+              }`}
+            >
+              {icon}
+            </span>
+
+            {/* Label (expanded mode) */}
+            {!isCollapsed && (
+              <span className="truncate flex-1 min-w-0 text-left">
+                {label}
+              </span>
+            )}
+
+            {/* Full badge in expanded mode */}
+            {!isCollapsed && badge && (
+              <span
+                className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 capitalize ${
+                  badgeColor || 'bg-vibrant-orange/20 text-vibrant-orange dark:bg-vibrant-orange/30 dark:text-orange-300'
+                }`}
+              >
+                {badge}
+              </span>
+            )}
+
+            {/* Minimal dot badge indicator in collapsed mode */}
+            {isCollapsed && badge && (
+              <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-vibrant-orange opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-vibrant-orange ring-2 ring-surface-container-lowest"></span>
+              </span>
+            )}
+          </>
+        )}
+      </NavLink>
+    </div>
+  );
+}
+
+// Section Header / Divider
+function SidebarSectionTitle({ title, isCollapsed }) {
+  if (isCollapsed) {
+    return <div className="my-2 mx-auto w-6 h-[1px] bg-outline-variant/60" />;
+  }
+  return (
+    <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block transition-opacity duration-200">
+      {title}
+    </span>
+  );
+}
+
 export default function Sidebar() {
   const { user, logout } = useAuth();
-  const { sidebarOpen, setSidebarOpen } = useSidebar();
+  const {
+    sidebarOpen,
+    setSidebarOpen,
+    sidebarCollapsed,
+    toggleSidebarCollapse
+  } = useSidebar();
   const navigate = useNavigate();
-  const location = useLocation();
+
+  // Tooltip state for collapsed mode
+  const [hoveredItem, setHoveredItem] = useState(null);
 
   if (!user) return null;
 
@@ -21,13 +130,6 @@ export default function Sidebar() {
     navigate('/login', { replace: true });
   };
 
-  const navItemClass = ({ isActive }) =>
-    `flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-150 ${
-      isActive
-        ? 'bg-vibrant-orange text-white font-bold shadow-sm ring-1 ring-vibrant-orange/50'
-        : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
-    }`;
-
   const getPositionLabel = () => {
     if (position) {
       return position.replace(/_/g, ' ');
@@ -39,453 +141,366 @@ export default function Sidebar() {
     return (role || '').replace(/_/g, ' ');
   };
 
+  const navItemProps = {
+    isCollapsed: sidebarCollapsed,
+    onClick: () => setSidebarOpen(false),
+    onHover: setHoveredItem,
+    onLeave: () => setHoveredItem(null)
+  };
+
   return (
-    <aside
-      className={`fixed inset-y-0 left-0 z-50 w-[min(18rem,calc(100vw-3rem))] sm:w-64 bg-surface-container-lowest border-r border-outline-variant flex flex-col h-screen h-[100dvh] max-h-screen max-h-[100dvh] transition-transform duration-300 ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:w-64 lg:shrink-0 lg:h-full lg:shadow-none ${
-        sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
-      }`}
-    >
-      {/* Brand Header */}
-      <div className="p-4 border-b border-outline-variant flex items-center justify-between gap-3 shrink-0 bg-surface-container-lowest">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <img src="/logo.png" alt="internconPH Logo" className="h-9 w-auto object-contain shrink-0" loading="lazy" decoding="async" />
-          <div className="overflow-hidden">
-            <span className="font-black text-lg text-vibrant-orange tracking-tight block">íntєrncσnᵖʰ</span>
-            <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider truncate block">
-              {getPositionLabel()}
-            </span>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setSidebarOpen(false)}
-          className="lg:hidden p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors shrink-0"
-          aria-label="Close sidebar"
+    <>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 bg-surface-container-lowest border-r border-outline-variant flex flex-col h-screen h-[100dvh] max-h-screen max-h-[100dvh] transition-[width,transform] duration-300 ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:shrink-0 lg:h-full lg:shadow-none ${
+          sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+        } ${
+          sidebarCollapsed ? 'w-[min(18rem,calc(100vw-3rem))] sm:w-64 lg:w-[76px]' : 'w-[min(18rem,calc(100vw-3rem))] sm:w-64 lg:w-64'
+        }`}
+      >
+        {/* Brand Header */}
+        <div
+          className={`p-3.5 flex items-center shrink-0 bg-surface-container-lowest transition-all duration-300 ${
+            sidebarCollapsed ? 'lg:justify-center justify-between gap-3' : 'justify-between gap-3'
+          }`}
         >
-          <span className="material-symbols-outlined text-[20px] block">close</span>
-        </button>
-      </div>
-
-      {/* Navigation Links with Semantic Grouping */}
-      <nav className="flex-1 p-3.5 space-y-4 overflow-y-auto overscroll-contain min-h-0" onClick={() => setSidebarOpen(false)}>
-        
-        {/* ================================================================= */}
-        {/* STUDENT NAV                                                       */}
-        {/* ================================================================= */}
-        {role === 'student' && (
-          <>
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Main
+          {/* Logo & Text */}
+          <div className="flex items-center gap-3 overflow-hidden min-w-0">
+            <img
+              src="/logo.png"
+              alt="internconPH Logo"
+              className="h-8 sm:h-9 w-auto object-contain shrink-0"
+              loading="lazy"
+              decoding="async"
+            />
+            <div className={`overflow-hidden transition-opacity duration-200 ${sidebarCollapsed ? 'lg:hidden' : 'block'}`}>
+              <span className="font-black text-lg text-vibrant-orange tracking-tight block">íntєrncσnᵖʰ</span>
+              <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider truncate block">
+                {getPositionLabel()}
               </span>
-              <NavLink to="/dashboard/student" end className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">dashboard</span>
-                <span>Dashboard</span>
-              </NavLink>
             </div>
+          </div>
 
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Opportunities & OJT
-              </span>
-              <NavLink to="/dashboard/student/jobs" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">dynamic_feed</span>
-                <span>Browse Jobs & Feed</span>
-              </NavLink>
-              <NavLink to="/dashboard/student/applications" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">send</span>
-                <span>My Applications</span>
-              </NavLink>
-              <NavLink to="/dashboard/student/ojt" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">timelapse</span>
-                <span>OJT Progress & DTR</span>
-              </NavLink>
-            </div>
-
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Skills & Career
-              </span>
-              <NavLink to="/dashboard/student/skills" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">psychology</span>
-                <span>Skills & Matches</span>
-              </NavLink>
-              <NavLink to="/dashboard/student/portfolio" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">folder_special</span>
-                <span>Career Portfolio</span>
-              </NavLink>
-            </div>
-
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Account & Support
-              </span>
-              <NavLink to="/dashboard/student/complaints" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">gavel</span>
-                <span>Grievances & Reports</span>
-              </NavLink>
-              <NavLink to="/dashboard/student/profile" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">person</span>
-                <span>My Profile</span>
-              </NavLink>
-            </div>
-          </>
-        )}
-
-        {/* ================================================================= */}
-        {/* WORKPLACE MENTOR NAV                                              */}
-        {/* ================================================================= */}
-        {(role === 'workplace_mentor' || role === 'mentor') && (
-          <>
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Overview
-              </span>
-              <NavLink to="/dashboard/organization" end className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">dashboard</span>
-                <span>Mentor Dashboard</span>
-              </NavLink>
-            </div>
-
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Supervision
-              </span>
-              <NavLink to="/dashboard/organization/ojt" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">badge</span>
-                <span>Deployed Interns & DTR</span>
-              </NavLink>
-              <NavLink to="/dashboard/organization/evaluations" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">rate_review</span>
-                <span>Student Evaluations</span>
-              </NavLink>
-              <NavLink to="/dashboard/organization/grievances" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">report_problem</span>
-                <span>Grievance & Incident Reports</span>
-              </NavLink>
-            </div>
-          </>
-        )}
-
-        {/* ================================================================= */}
-        {/* HIRING ORGANIZATION (HR ADMIN) NAV                                */}
-        {/* ================================================================= */}
-        {(role === 'hiring_organization' || role === 'hr_staff') && (
-          <>
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Overview
-              </span>
-              <NavLink to="/dashboard/organization" end className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">dashboard</span>
-                <span>Employer Dashboard</span>
-              </NavLink>
-            </div>
-
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Recruitment Pipeline
-              </span>
-              <NavLink to="/dashboard/organization/jobs" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">post_add</span>
-                <span>Job Postings</span>
-              </NavLink>
-              <NavLink to="/dashboard/organization/applicants" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">group</span>
-                <span>Applicants & Talent</span>
-              </NavLink>
-              <NavLink to="/dashboard/organization/interviews" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">event_available</span>
-                <span>Interviews</span>
-              </NavLink>
-              <NavLink to="/dashboard/organization/offers" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">assignment_turned_in</span>
-                <span>Offers & Deployments</span>
-              </NavLink>
-            </div>
-
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Interns & Mentorship
-              </span>
-              <NavLink to="/dashboard/organization/ojt" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">badge</span>
-                <span>Deployed Interns & DTR</span>
-              </NavLink>
-              <NavLink to="/dashboard/organization/evaluations" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">rate_review</span>
-                <span>Evaluations</span>
-              </NavLink>
-              <NavLink to="/dashboard/organization/grievances" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">report_problem</span>
-                <span>Grievance & Incidents</span>
-              </NavLink>
-              <NavLink to="/dashboard/organization/mentors" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">supervisor_account</span>
-                <span>Workplace Mentors</span>
-              </NavLink>
-            </div>
-          </>
-        )}
-
-        {/* ================================================================= */}
-        {/* INSTITUTION DIRECTOR NAV                                          */}
-        {/* ================================================================= */}
-        {role === 'institution' && (
-          <>
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Overview
-              </span>
-              <NavLink to="/dashboard/institution" end className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">dashboard</span>
-                <span>Institution Overview</span>
-              </NavLink>
-            </div>
-
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Students & OJT
-              </span>
-              <NavLink to="/dashboard/institution/students" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">verified_user</span>
-                <span>Student Verification</span>
-              </NavLink>
-              <NavLink to="/dashboard/institution/monitoring" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">monitoring</span>
-                <span>OJT Monitoring & DTR</span>
-              </NavLink>
-              <NavLink to="/dashboard/institution/ojt-offers" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">work_outline</span>
-                <span>Dispatched OJT Offers</span>
-              </NavLink>
-            </div>
-
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Academic Operations
-              </span>
-              <NavLink to="/dashboard/institution/staff" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">badge</span>
-                <span>Faculty & Coordinators</span>
-              </NavLink>
-              <NavLink to="/dashboard/institution/programs" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">menu_book</span>
-                <span>Degree Programs</span>
-              </NavLink>
-              <NavLink to="/dashboard/institution/requirements" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">assignment_late</span>
-                <span>Clearance Requirements</span>
-              </NavLink>
-            </div>
-          </>
-        )}
-
-        {/* ================================================================= */}
-        {/* INSTITUTION STAFF NAV                                             */}
-        {/* ================================================================= */}
-        {role === 'institution_staff' && (
-          <>
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Overview
-              </span>
-              <NavLink to="/dashboard/institution" end className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">dashboard</span>
-                <span>Staff Overview</span>
-              </NavLink>
-            </div>
-
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Assigned Scope
-              </span>
-              {/* OJT Coordinator / Supervisor */}
-              {(position === 'ojt_supervisor' || position === 'ojt_coordinator' || !position) && (
-                <>
-                  <NavLink to="/dashboard/institution/students" className={navItemClass}>
-                    <span className="material-symbols-outlined text-[20px]">verified_user</span>
-                    <span>Student Verification</span>
-                  </NavLink>
-                  <NavLink to="/dashboard/institution/monitoring" className={navItemClass}>
-                    <span className="material-symbols-outlined text-[20px]">monitoring</span>
-                    <span>OJT Monitoring & Logs</span>
-                  </NavLink>
-                  <NavLink to="/dashboard/institution/ojt-offers" className={navItemClass}>
-                    <span className="material-symbols-outlined text-[20px]">work_outline</span>
-                    <span>OJT Offers</span>
-                  </NavLink>
-                </>
-              )}
-
-              {/* Registrar */}
-              {position === 'registrar' && (
-                <>
-                  <NavLink to="/dashboard/institution/students" className={navItemClass}>
-                    <span className="material-symbols-outlined text-[20px]">verified_user</span>
-                    <span>Student Verification</span>
-                  </NavLink>
-                  <NavLink to="/dashboard/institution/requirements" className={navItemClass}>
-                    <span className="material-symbols-outlined text-[20px]">assignment_late</span>
-                    <span>Clearance Requirements</span>
-                  </NavLink>
-                </>
-              )}
-
-              {/* Guidance Counselor */}
-              {position === 'guidance_counselor' && (
-                <NavLink to="/dashboard/institution/monitoring" className={navItemClass}>
-                  <span className="material-symbols-outlined text-[20px]">gavel</span>
-                  <span>Grievance Oversight</span>
-                </NavLink>
-              )}
-
-              {/* Dean */}
-              {position === 'dean' && (
-                <>
-                  <NavLink to="/dashboard/institution/students" className={navItemClass}>
-                    <span className="material-symbols-outlined text-[20px]">verified_user</span>
-                    <span>Department Students</span>
-                  </NavLink>
-                  <NavLink to="/dashboard/institution/staff" className={navItemClass}>
-                    <span className="material-symbols-outlined text-[20px]">badge</span>
-                    <span>Department Staff</span>
-                  </NavLink>
-                  <NavLink to="/dashboard/institution/programs" className={navItemClass}>
-                    <span className="material-symbols-outlined text-[20px]">menu_book</span>
-                    <span>Department Programs</span>
-                  </NavLink>
-                  <NavLink to="/dashboard/institution/monitoring" className={navItemClass}>
-                    <span className="material-symbols-outlined text-[20px]">monitoring</span>
-                    <span>OJT Monitoring</span>
-                  </NavLink>
-                  <NavLink to="/dashboard/institution/ojt-offers" className={navItemClass}>
-                    <span className="material-symbols-outlined text-[20px]">work_outline</span>
-                    <span>OJT & Job Offers</span>
-                  </NavLink>
-                </>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* ================================================================= */}
-        {/* SYSTEM ADMIN NAV                                                  */}
-        {/* ================================================================= */}
-        {role === 'system_admin' && (
-          <>
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                System
-              </span>
-              <NavLink to="/dashboard/admin" end className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">admin_panel_settings</span>
-                <span>System Overview</span>
-              </NavLink>
-            </div>
-
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Platform Entities
-              </span>
-              <NavLink to="/dashboard/admin/institutions" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">school</span>
-                <span>Institutions</span>
-              </NavLink>
-              <NavLink to="/dashboard/admin/organizations" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">business</span>
-                <span>Organizations</span>
-              </NavLink>
-              <NavLink to="/dashboard/admin/jobs" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">work</span>
-                <span>Job Moderation</span>
-              </NavLink>
-              <NavLink to="/dashboard/admin/users" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">manage_accounts</span>
-                <span>User Accounts</span>
-              </NavLink>
-            </div>
-
-            <div className="space-y-1">
-              <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block">
-                Governance & Intelligence
-              </span>
-              <NavLink to="/dashboard/admin/complaints" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">gavel</span>
-                <span>Grievance Oversight</span>
-              </NavLink>
-              <NavLink to="/dashboard/admin/analytics" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">trending_up</span>
-                <span>Skill Analytics</span>
-              </NavLink>
-              <NavLink to="/dashboard/admin/audit-logs" className={navItemClass}>
-                <span className="material-symbols-outlined text-[20px]">receipt_long</span>
-                <span>Audit Trail</span>
-              </NavLink>
-            </div>
-          </>
-        )}
-        
-        {/* Mobile Quick Sign Out item inside scrollable nav */}
-        <div className="pt-3 mt-3 border-t border-outline-variant/60 lg:hidden">
+          {/* Mobile Close Button */}
           <button
             type="button"
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-error hover:bg-error-container transition-colors cursor-pointer"
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors shrink-0"
+            aria-label="Close sidebar"
           >
-            <span className="material-symbols-outlined text-[20px]">logout</span>
-            <span>Sign Out</span>
+            <span className="material-symbols-outlined text-[20px] block">close</span>
           </button>
         </div>
-      </nav>
 
-      {/* User Footer / Logout */}
-      <div className="p-3.5 pb-[max(1.25rem,calc(env(safe-area-inset-bottom)+0.5rem))] border-t border-outline-variant bg-surface-container-low shrink-0 mt-auto">
-        <div
-          onClick={() => {
-            setSidebarOpen(false);
-            navigate('/dashboard/settings');
-          }}
-          className="flex items-center gap-3 mb-2.5 p-2 rounded-2xl hover:bg-surface-container transition-colors cursor-pointer group"
-          title="Manage Profile & Settings"
+        {/* Navigation Links */}
+        <nav
+          className={`flex-1 p-3 space-y-3 overflow-y-auto overscroll-contain min-h-0 ${
+            sidebarCollapsed ? 'lg:px-2.5' : 'lg:p-3.5'
+          }`}
         >
-          <div className="w-9 h-9 rounded-full overflow-hidden bg-vibrant-orange text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
-            {user.avatar_url ? (
-              <img
-                src={resolveFileUrl(user.avatar_url)}
-                alt="Avatar"
-                className="w-full h-full object-cover"
-                loading="lazy"
-                decoding="async"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = '/photo/default-avatar.svg';
-                }}
-              />
-            ) : (
-              user.full_name ? user.full_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()
-            )}
+          {/* ================================================================= */}
+          {/* STUDENT NAV                                                       */}
+          {/* ================================================================= */}
+          {role === 'student' && (
+            <>
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Main" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/student" end icon="dashboard" label="Dashboard" {...navItemProps} />
+              </div>
+
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Opportunities & OJT" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/student/jobs" icon="dynamic_feed" label="Browse Jobs & Feed" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/student/applications" icon="send" label="My Applications" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/student/ojt" icon="timelapse" label="OJT Progress & DTR" {...navItemProps} />
+              </div>
+
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Skills & Career" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/student/skills" icon="psychology" label="Skills & Matches" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/student/portfolio" icon="folder_special" label="Career Portfolio" {...navItemProps} />
+              </div>
+
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Account & Support" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/student/complaints" icon="gavel" label="Grievances & Reports" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/student/profile" icon="person" label="My Profile" {...navItemProps} />
+              </div>
+            </>
+          )}
+
+          {/* ================================================================= */}
+          {/* WORKPLACE MENTOR NAV                                              */}
+          {/* ================================================================= */}
+          {(role === 'workplace_mentor' || role === 'mentor') && (
+            <>
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Overview" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/organization" end icon="dashboard" label="Mentor Dashboard" {...navItemProps} />
+              </div>
+
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Supervision" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/organization/ojt" icon="badge" label="Deployed Interns & DTR" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/evaluations" icon="rate_review" label="Student Evaluations" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/grievances" icon="report_problem" label="Grievance & Incident Reports" {...navItemProps} />
+              </div>
+            </>
+          )}
+
+          {/* ================================================================= */}
+          {/* HIRING ORGANIZATION (HR ADMIN) NAV                                */}
+          {/* ================================================================= */}
+          {(role === 'hiring_organization' || role === 'hr_staff') && (
+            <>
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Overview" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/organization" end icon="dashboard" label="Employer Dashboard" {...navItemProps} />
+              </div>
+
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Recruitment Pipeline" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/organization/jobs" icon="post_add" label="Job Postings" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/applicants" icon="group" label="Applicants & Talent" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/interviews" icon="event_available" label="Interviews" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/offers" icon="assignment_turned_in" label="Offers & Deployments" {...navItemProps} />
+              </div>
+
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Interns & Mentorship" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/organization/ojt" icon="badge" label="Deployed Interns & DTR" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/evaluations" icon="rate_review" label="Evaluations" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/grievances" icon="report_problem" label="Grievance & Incidents" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/mentors" icon="supervisor_account" label="Workplace Mentors" {...navItemProps} />
+              </div>
+            </>
+          )}
+
+          {/* ================================================================= */}
+          {/* INSTITUTION DIRECTOR NAV                                          */}
+          {/* ================================================================= */}
+          {role === 'institution' && (
+            <>
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Overview" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/institution" end icon="dashboard" label="Institution Overview" {...navItemProps} />
+              </div>
+
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Students & OJT" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/institution/students" icon="verified_user" label="Student Verification" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/institution/monitoring" icon="monitoring" label="OJT Monitoring & DTR" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/institution/ojt-offers" icon="work_outline" label="Dispatched OJT Offers" {...navItemProps} />
+              </div>
+
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Academic Operations" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/institution/staff" icon="badge" label="Faculty & Coordinators" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/institution/programs" icon="menu_book" label="Degree Programs" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/institution/requirements" icon="assignment_late" label="Clearance Requirements" {...navItemProps} />
+              </div>
+            </>
+          )}
+
+          {/* ================================================================= */}
+          {/* INSTITUTION STAFF NAV                                             */}
+          {/* ================================================================= */}
+          {role === 'institution_staff' && (
+            <>
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Overview" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/institution" end icon="dashboard" label="Staff Overview" {...navItemProps} />
+              </div>
+
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Assigned Scope" isCollapsed={sidebarCollapsed} />
+                {(position === 'ojt_supervisor' || position === 'ojt_coordinator' || !position) && (
+                  <>
+                    <SidebarNavItem to="/dashboard/institution/students" icon="verified_user" label="Student Verification" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/monitoring" icon="monitoring" label="OJT Monitoring & Logs" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/ojt-offers" icon="work_outline" label="OJT Offers" {...navItemProps} />
+                  </>
+                )}
+
+                {position === 'registrar' && (
+                  <>
+                    <SidebarNavItem to="/dashboard/institution/students" icon="verified_user" label="Student Verification" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/requirements" icon="assignment_late" label="Clearance Requirements" {...navItemProps} />
+                  </>
+                )}
+
+                {position === 'guidance_counselor' && (
+                  <SidebarNavItem to="/dashboard/institution/monitoring" icon="gavel" label="Grievance Oversight" {...navItemProps} />
+                )}
+
+                {position === 'dean' && (
+                  <>
+                    <SidebarNavItem to="/dashboard/institution/students" icon="verified_user" label="Department Students" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/staff" icon="badge" label="Department Staff" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/programs" icon="menu_book" label="Department Programs" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/monitoring" icon="monitoring" label="OJT Monitoring" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/ojt-offers" icon="work_outline" label="OJT & Job Offers" {...navItemProps} />
+                  </>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ================================================================= */}
+          {/* SYSTEM ADMIN NAV                                                  */}
+          {/* ================================================================= */}
+          {role === 'system_admin' && (
+            <>
+              <div className="space-y-1">
+                <SidebarSectionTitle title="System" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/admin" end icon="admin_panel_settings" label="System Overview" {...navItemProps} />
+              </div>
+
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Platform Entities" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/admin/institutions" icon="school" label="Institutions" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin/organizations" icon="business" label="Organizations" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin/jobs" icon="work" label="Job Moderation" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin/users" icon="manage_accounts" label="User Accounts" {...navItemProps} />
+              </div>
+
+              <div className="space-y-1">
+                <SidebarSectionTitle title="Governance & Intelligence" isCollapsed={sidebarCollapsed} />
+                <SidebarNavItem to="/dashboard/admin/complaints" icon="gavel" label="Grievance Oversight" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin/analytics" icon="trending_up" label="Skill Analytics" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin/audit-logs" icon="receipt_long" label="Audit Trail" {...navItemProps} />
+              </div>
+            </>
+          )}
+
+          {/* Mobile Quick Sign Out */}
+          <div className="pt-3 mt-3 border-t border-outline-variant/60 lg:hidden">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-error hover:bg-error-container transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[20px]">logout</span>
+              <span>Sign Out</span>
+            </button>
           </div>
-          <div className="overflow-hidden flex-1 min-w-0">
-            <p className="font-bold text-xs text-on-surface truncate group-hover:text-vibrant-orange transition-colors">
-              {user.display_name || user.full_name || user.email}
-            </p>
-            <p className="text-[10px] text-on-surface-variant truncate">{user.email}</p>
+        </nav>
+
+        {/* User Profile Footer */}
+        <div className="p-3 pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))] border-t border-outline-variant bg-surface-container-low shrink-0 mt-auto">
+          {/* User Profile / Settings Row */}
+          <div
+            onClick={() => {
+              setSidebarOpen(false);
+              navigate('/dashboard/settings');
+            }}
+            onMouseEnter={(e) => {
+              if (sidebarCollapsed) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoveredItem({
+                  label: 'Settings & Profile',
+                  top: rect.top + rect.height / 2
+                });
+              }
+            }}
+            onMouseLeave={() => setHoveredItem(null)}
+            className={`flex items-center rounded-2xl hover:bg-surface-container transition-colors cursor-pointer group ${
+              sidebarCollapsed ? 'lg:justify-center lg:p-1.5 p-2 gap-3 mb-2' : 'gap-3 mb-2.5 p-2'
+            }`}
+            title="Manage Profile & Settings"
+          >
+            <div className="w-9 h-9 rounded-full overflow-hidden bg-vibrant-orange text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+              {user.avatar_url ? (
+                <img
+                  src={resolveFileUrl(user.avatar_url)}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = '/photo/default-avatar.svg';
+                  }}
+                />
+              ) : (
+                user.full_name ? user.full_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()
+              )}
+            </div>
+
+            {/* Profile Info (hidden on collapsed desktop) */}
+            <div className={`overflow-hidden flex-1 min-w-0 ${sidebarCollapsed ? 'lg:hidden' : 'block'}`}>
+              <p className="font-bold text-xs text-on-surface truncate group-hover:text-vibrant-orange transition-colors">
+                {user.display_name || user.full_name || user.email}
+              </p>
+              <p className="text-[10px] text-on-surface-variant truncate">{user.email}</p>
+            </div>
+
+            <span className={`material-symbols-outlined text-[18px] text-on-surface-variant group-hover:text-vibrant-orange group-hover:rotate-45 transition-all ${
+              sidebarCollapsed ? 'lg:hidden' : 'block'
+            }`}>
+              settings
+            </span>
           </div>
-          <span className="material-symbols-outlined text-[18px] text-on-surface-variant group-hover:text-vibrant-orange group-hover:rotate-45 transition-all">
-            settings
-          </span>
+
+          {/* Sign Out Button */}
+          {sidebarCollapsed ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoveredItem({
+                  label: 'Sign Out',
+                  top: rect.top + rect.height / 2
+                });
+              }}
+              onMouseLeave={() => setHoveredItem(null)}
+              className="hidden lg:flex w-10 h-10 mx-auto items-center justify-center bg-surface-container hover:bg-error-container hover:text-error rounded-xl text-on-surface-variant transition-colors cursor-pointer"
+              aria-label="Sign Out"
+            >
+              <span className="material-symbols-outlined text-[18px]">logout</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-surface-container hover:bg-error-container hover:text-error rounded-xl text-xs font-bold text-on-surface-variant transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">logout</span>
+              <span>Sign Out</span>
+            </button>
+          )}
+
+          {/* Mobile Full Sign Out Button (always visible on mobile drawer) */}
+          <div className="lg:hidden">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-surface-container hover:bg-error-container hover:text-error rounded-xl text-xs font-bold text-on-surface-variant transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">logout</span>
+              <span>Sign Out</span>
+            </button>
+          </div>
         </div>
+      </aside>
 
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-surface-container hover:bg-error-container hover:text-error rounded-xl text-xs font-bold text-on-surface-variant transition-colors cursor-pointer"
+      {/* Floating Hover Tooltip in Collapsed Desktop Mode */}
+      {sidebarCollapsed && hoveredItem && (
+        <div
+          role="tooltip"
+          className="hidden lg:flex fixed left-[86px] z-[9999] -translate-y-1/2 px-3 py-1.5 rounded-xl bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white text-xs font-semibold shadow-2xl border border-white/10 items-center gap-2 pointer-events-none transition-all duration-150 animate-in fade-in zoom-in-95 select-none"
+          style={{ top: `${hoveredItem.top}px` }}
         >
-          <span className="material-symbols-outlined text-[16px]">logout</span>
-          <span>Sign Out</span>
-        </button>
-      </div>
-    </aside>
+          {/* Tooltip Left Arrow Pointer */}
+          <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-0 h-0 border-y-4 border-y-transparent border-r-[6px] border-r-slate-900/95 dark:border-r-slate-800/95" />
+          <span className="relative z-10">{hoveredItem.label}</span>
+          {hoveredItem.badge && (
+            <span className="relative z-10 px-1.5 py-0.5 text-[10px] font-bold rounded-md bg-vibrant-orange text-white shadow-xs">
+              {hoveredItem.badge}
+            </span>
+          )}
+        </div>
+      )}
+    </>
   );
 }

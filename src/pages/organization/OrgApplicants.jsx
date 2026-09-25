@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
-import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, isPdfFile } from '../../utils/fileHelper';
+import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, isPdfFile, formatPortfolioTitle, formatFileSubtitle, formatCleanFileName, formatAddress } from '../../utils/fileHelper';
 import Pagination from '../../components/ui/Pagination';
 
 export default function OrgApplicants() {
@@ -600,21 +600,24 @@ export default function OrgApplicants() {
                           Academic Portfolio ({inspectData.academic_portfolio.length})
                         </h4>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {inspectData.academic_portfolio.map((item) => {
+                          {inspectData.academic_portfolio.map((item, idx) => {
                             let fileUrl = resolveFileUrl(item.file_path);
                             if (fileUrl.includes('/api/certificates/render/')) {
                               fileUrl += (fileUrl.includes('?') ? '&' : '?') + 'viewOnly=true';
                             }
                             const isImg = isImageFile(item.file_name, item.file_path);
+                            const displayTitle = formatPortfolioTitle(item, 'Academic Portfolio Project', idx);
+                            const subInfo = formatFileSubtitle(item);
+
                             return (
-                              <div key={item.item_id} className="p-3 bg-surface rounded-xl border border-outline-variant space-y-1">
+                              <div key={item.item_id || idx} className="p-3 bg-surface-container-low dark:bg-surface-container/60 rounded-xl border border-outline-variant space-y-1">
                                 <div className="flex justify-between items-center gap-2">
-                                  <div className="flex items-center gap-2 min-w-0">
+                                  <div className="flex items-center gap-2.5 min-w-0">
                                     {isImg && fileUrl ? (
                                       <img
                                         src={fileUrl}
-                                        alt={item.title}
-                                        className="w-7 h-7 rounded-lg object-cover border border-outline-variant shrink-0"
+                                        alt={displayTitle}
+                                        className="w-8 h-8 rounded-lg object-cover border border-outline-variant shrink-0"
                                         loading="lazy"
                                         decoding="async"
                                         onError={(e) => {
@@ -622,23 +625,23 @@ export default function OrgApplicants() {
                                         }}
                                       />
                                     ) : (
-                                      <span className="material-symbols-outlined text-[18px] text-blue-600 shrink-0">{getFileIcon(item.file_name)}</span>
+                                      <span className="material-symbols-outlined text-[20px] text-blue-600 shrink-0">{getFileIcon(item.file_name)}</span>
                                     )}
-                                    <span className="font-bold text-on-surface line-clamp-1">{item.title}</span>
+                                    <span className="font-bold text-xs text-on-surface line-clamp-1">{displayTitle}</span>
                                   </div>
                                   <div className="flex items-center gap-1.5 shrink-0">
                                     <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 text-[10px] font-bold capitalize">{item.item_type?.replace('_', ' ')}</span>
                                     {item.file_path && (
                                       <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                                         className="px-2 py-0.5 rounded bg-vibrant-orange text-white text-[10px] font-bold hover:bg-deep-orange transition-colors flex items-center gap-0.5"
+                                         className="px-2.5 py-1 rounded-lg bg-vibrant-orange text-white text-[11px] font-bold hover:bg-deep-orange transition-colors flex items-center gap-1 shadow-xs"
                                          title="View Item (Read-Only)">
-                                        <span className="material-symbols-outlined text-[12px]">visibility</span> View
+                                        <span className="material-symbols-outlined text-[13px]">visibility</span> View
                                       </a>
                                     )}
                                   </div>
                                 </div>
-                                {item.description && <p className="text-on-surface-variant">{item.description}</p>}
-                                {item.file_name && <p className="text-[10px] text-on-surface-variant">📎 {item.file_name}</p>}
+                                {item.description && <p className="text-on-surface-variant text-[11px] line-clamp-2">{item.description}</p>}
+                                {subInfo && <p className="text-[10px] text-on-surface-variant">{subInfo}</p>}
                                 {item.verified_by_org && (
                                   <p className="text-[10px] text-pinoy-green font-medium flex items-center gap-0.5">
                                     <span className="material-symbols-outlined text-[10px]">verified</span> Verified by: {item.verified_by_org}
@@ -659,21 +662,24 @@ export default function OrgApplicants() {
                           Credentials ({inspectData.credentials.length})
                         </h4>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {inspectData.credentials.map((item) => {
+                          {inspectData.credentials.map((item, idx) => {
                             let fileUrl = resolveFileUrl(item.file_path);
                             if (fileUrl.includes('/api/certificates/render/')) {
                               fileUrl += (fileUrl.includes('?') ? '&' : '?') + 'viewOnly=true';
                             }
                             const isImg = isImageFile(item.file_name, item.file_path);
+                            const displayTitle = formatPortfolioTitle(item, 'Certification / Honor', idx);
+                            const subInfo = formatFileSubtitle(item);
+
                             return (
-                              <div key={item.item_id} className="p-3 bg-surface rounded-xl border border-outline-variant space-y-1">
+                              <div key={item.item_id || idx} className="p-3 bg-surface-container-low dark:bg-surface-container/60 rounded-xl border border-outline-variant space-y-1">
                                 <div className="flex justify-between items-center gap-2">
-                                  <div className="flex items-center gap-2 min-w-0">
+                                  <div className="flex items-center gap-2.5 min-w-0">
                                     {isImg && fileUrl ? (
                                       <img
                                         src={fileUrl}
-                                        alt={item.title}
-                                        className="w-7 h-7 rounded-lg object-cover border border-outline-variant shrink-0"
+                                        alt={displayTitle}
+                                        className="w-8 h-8 rounded-lg object-cover border border-outline-variant shrink-0"
                                         loading="lazy"
                                         decoding="async"
                                         onError={(e) => {
@@ -681,23 +687,23 @@ export default function OrgApplicants() {
                                         }}
                                       />
                                     ) : (
-                                      <span className="material-symbols-outlined text-[18px] text-amber-600 shrink-0">{getFileIcon(item.file_name)}</span>
+                                      <span className="material-symbols-outlined text-[20px] text-amber-600 shrink-0">{getFileIcon(item.file_name)}</span>
                                     )}
-                                    <span className="font-bold text-on-surface line-clamp-1">{item.title}</span>
+                                    <span className="font-bold text-xs text-on-surface line-clamp-1">{displayTitle}</span>
                                   </div>
                                   <div className="flex items-center gap-1.5 shrink-0">
                                     <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 text-[10px] font-bold capitalize">{item.item_type?.replace('_', ' ')}</span>
                                     {item.file_path && (
                                       <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                                         className="px-2 py-0.5 rounded bg-vibrant-orange text-white text-[10px] font-bold hover:bg-deep-orange transition-colors flex items-center gap-0.5"
+                                         className="px-2.5 py-1 rounded-lg bg-vibrant-orange text-white text-[11px] font-bold hover:bg-deep-orange transition-colors flex items-center gap-1 shadow-xs"
                                          title="View Credential (Read-Only)">
-                                        <span className="material-symbols-outlined text-[12px]">visibility</span> View
+                                        <span className="material-symbols-outlined text-[13px]">visibility</span> View
                                       </a>
                                     )}
                                   </div>
                                 </div>
-                                {item.description && <p className="text-on-surface-variant">{item.description}</p>}
-                                {item.file_name && <p className="text-[10px] text-on-surface-variant">📎 {item.file_name}</p>}
+                                {item.description && <p className="text-on-surface-variant text-[11px] line-clamp-2">{item.description}</p>}
+                                {subInfo && <p className="text-[10px] text-on-surface-variant">{subInfo}</p>}
                               </div>
                             );
                           })}
@@ -713,21 +719,24 @@ export default function OrgApplicants() {
                           Academic Records ({inspectData.academic_records.length})
                         </h4>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {inspectData.academic_records.map((item) => {
+                          {inspectData.academic_records.map((item, idx) => {
                             let fileUrl = resolveFileUrl(item.file_path);
                             if (fileUrl.includes('/api/certificates/render/')) {
                               fileUrl += (fileUrl.includes('?') ? '&' : '?') + 'viewOnly=true';
                             }
                             const isImg = isImageFile(item.file_name, item.file_path);
+                            const displayTitle = formatPortfolioTitle(item, 'Academic Record', idx);
+                            const subInfo = formatFileSubtitle(item);
+
                             return (
-                              <div key={item.item_id} className="p-3 bg-surface rounded-xl border border-outline-variant space-y-1">
+                              <div key={item.item_id || idx} className="p-3 bg-surface-container-low dark:bg-surface-container/60 rounded-xl border border-outline-variant space-y-1">
                                 <div className="flex justify-between items-center gap-2">
-                                  <div className="flex items-center gap-2 min-w-0">
+                                  <div className="flex items-center gap-2.5 min-w-0">
                                     {isImg && fileUrl ? (
                                       <img
                                         src={fileUrl}
-                                        alt={item.title}
-                                        className="w-7 h-7 rounded-lg object-cover border border-outline-variant shrink-0"
+                                        alt={displayTitle}
+                                        className="w-8 h-8 rounded-lg object-cover border border-outline-variant shrink-0"
                                         loading="lazy"
                                         decoding="async"
                                         onError={(e) => {
@@ -735,23 +744,23 @@ export default function OrgApplicants() {
                                         }}
                                       />
                                     ) : (
-                                      <span className="material-symbols-outlined text-[18px] text-emerald-600 shrink-0">{getFileIcon(item.file_name)}</span>
+                                      <span className="material-symbols-outlined text-[20px] text-emerald-600 shrink-0">{getFileIcon(item.file_name)}</span>
                                     )}
-                                    <span className="font-bold text-on-surface line-clamp-1">{item.title}</span>
+                                    <span className="font-bold text-xs text-on-surface line-clamp-1">{displayTitle}</span>
                                   </div>
                                   <div className="flex items-center gap-1.5 shrink-0">
                                     <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 text-[10px] font-bold capitalize">{item.item_type?.replace('_', ' ')}</span>
                                     {item.file_path && (
                                       <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                                         className="px-2 py-0.5 rounded bg-vibrant-orange text-white text-[10px] font-bold hover:bg-deep-orange transition-colors flex items-center gap-0.5"
+                                         className="px-2.5 py-1 rounded-lg bg-vibrant-orange text-white text-[11px] font-bold hover:bg-deep-orange transition-colors flex items-center gap-1 shadow-xs"
                                          title="View Record (Read-Only)">
-                                        <span className="material-symbols-outlined text-[12px]">visibility</span> View
+                                        <span className="material-symbols-outlined text-[13px]">visibility</span> View
                                       </a>
                                     )}
                                   </div>
                                 </div>
-                                {item.description && <p className="text-on-surface-variant">{item.description}</p>}
-                                {item.file_name && <p className="text-[10px] text-on-surface-variant">📎 {item.file_name}</p>}
+                                {item.description && <p className="text-on-surface-variant text-[11px] line-clamp-2">{item.description}</p>}
+                                {subInfo && <p className="text-[10px] text-on-surface-variant">{subInfo}</p>}
                               </div>
                             );
                           })}
@@ -780,7 +789,7 @@ export default function OrgApplicants() {
                                   <div className="flex justify-between items-start gap-2">
                                     <div>
                                       <p className="font-bold text-on-surface text-xs">{ojt.organization_name}</p>
-                                      <p className="text-[11px] text-on-surface-variant">{ojt.industry} {ojt.org_address ? `• ${ojt.org_address}` : ''}</p>
+                                      <p className="text-[11px] text-on-surface-variant">{ojt.industry} {ojt.org_address ? `• ${formatAddress(ojt.org_address)}` : ''}</p>
                                     </div>
                                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-tint text-pinoy-green capitalize">
                                       {ojt.status || 'Completed'}

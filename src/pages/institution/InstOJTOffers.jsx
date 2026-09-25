@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
-import { resolveFileUrl } from '../../utils/fileHelper';
+import { resolveFileUrl, formatAddress } from '../../utils/fileHelper';
 
 export default function InstOJTOffers() {
   const [offers, setOffers] = useState([]);
@@ -280,7 +280,7 @@ export default function InstOJTOffers() {
       {/* FULL COMPREHENSIVE OPPORTUNITY INSPECT MODAL */}
       {selectedOffer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl border border-outline-variant shadow-2xl w-full max-w-3xl space-y-5 max-h-[92vh] overflow-y-auto p-5 sm:p-7 animate-scale-in">
+          <div className="bg-surface-container-lowest dark:bg-surface text-on-surface rounded-2xl border border-outline-variant shadow-2xl w-full max-w-3xl space-y-5 max-h-[92vh] overflow-y-auto p-5 sm:p-7 animate-scale-in">
             {/* Modal Header */}
             <div className="flex justify-between items-start border-b border-outline-variant pb-4 gap-3">
               <div className="space-y-1">
@@ -308,7 +308,7 @@ export default function InstOJTOffers() {
 
               <button
                 onClick={() => setSelectedOffer(null)}
-                className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors cursor-pointer"
                 title="Close Modal"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
@@ -362,9 +362,9 @@ export default function InstOJTOffers() {
 
               <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-0.5 col-span-2">
                 <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">Office Location</span>
-                <p className="font-bold text-on-surface truncate">{selectedOffer.location || 'Philippine Office'}</p>
+                <p className="font-bold text-on-surface leading-snug">{formatAddress(selectedOffer.location || selectedOffer.org_address)}</p>
                 {selectedOffer.workplace_area && (
-                  <p className="text-[11px] text-vibrant-orange font-medium">Work Area / Station: {selectedOffer.workplace_area}</p>
+                  <p className="text-[11px] text-vibrant-orange font-medium mt-1">Work Area / Station: {selectedOffer.workplace_area}</p>
                 )}
               </div>
 
@@ -381,7 +381,7 @@ export default function InstOJTOffers() {
 
             {/* On-Call Specific Highlights (if applicable) */}
             {selectedOffer.posting_type === 'on_call' && (
-              <div className="p-3.5 bg-amber-500/10 rounded-xl border border-amber-500/20 text-xs text-amber-900 space-y-1">
+              <div className="p-3.5 bg-amber-500/10 rounded-xl border border-amber-500/20 text-xs text-amber-900 dark:text-amber-300 space-y-1">
                 <div className="flex items-center gap-1.5 font-bold">
                   <span className="material-symbols-outlined text-[16px] text-amber-600">bolt</span>
                   <span>On-Call Gig Terms & Compensation</span>
@@ -417,10 +417,10 @@ export default function InstOJTOffers() {
             {/* Deliverables & Portfolio Crediting */}
             {selectedOffer.deliverables && (
               <div className="p-4 bg-amber-500/10 rounded-xl border border-amber-500/20 space-y-1.5 text-xs">
-                <span className="font-bold text-amber-900 uppercase text-[10px] tracking-wider block">
+                <span className="font-bold text-amber-900 dark:text-amber-300 uppercase text-[10px] tracking-wider block">
                   Scope of Deliverables & Portfolio Crediting
                 </span>
-                <p className="text-amber-800 whitespace-pre-line leading-relaxed">
+                <p className="text-amber-800 dark:text-amber-200 whitespace-pre-line leading-relaxed">
                   {selectedOffer.deliverables}
                 </p>
               </div>
@@ -465,27 +465,28 @@ export default function InstOJTOffers() {
             )}
 
             {/* Hiring Organization Profile & Regulatory Details */}
-            <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant space-y-2 text-xs">
-              <span className="font-bold text-on-surface uppercase text-[10px] tracking-wider block">
-                Employer Corporate Profile & Regulatory Registrations
+            <div className="p-4 sm:p-5 bg-surface-container-low rounded-2xl border border-outline-variant space-y-3 text-xs">
+              <span className="font-bold text-on-surface uppercase text-[11px] tracking-wider block">
+                Employer Corporate Profile &amp; Regulatory Registrations
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-on-surface-variant">
-                <div>
-                  <p><strong className="text-on-surface">Registered Business:</strong> {selectedOffer.organization_name}</p>
-                  <p><strong className="text-on-surface">Industry:</strong> {selectedOffer.industry || 'General Commerce'}</p>
-                  <p><strong className="text-on-surface">Corporate Structure:</strong> {selectedOffer.business_structure || 'Corporation'}</p>
-                  <p><strong className="text-on-surface">Office Address:</strong> {selectedOffer.org_address || selectedOffer.location || 'Philippines'}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-on-surface-variant">
+                <div className="space-y-2 min-w-0">
+                  <p><strong className="text-on-surface font-semibold">Registered Business:</strong> <span className="text-on-surface">{selectedOffer.organization_name}</span></p>
+                  <p><strong className="text-on-surface font-semibold">Industry:</strong> {selectedOffer.industry || 'General Commerce'}</p>
+                  <p><strong className="text-on-surface font-semibold">Corporate Structure:</strong> <span className="capitalize">{selectedOffer.business_structure || 'Corporation'}</span></p>
+                  <p className="leading-relaxed"><strong className="text-on-surface font-semibold">Office Address:</strong> {formatAddress(selectedOffer.org_address || selectedOffer.location)}</p>
                 </div>
-                <div>
-                  <p><strong className="text-on-surface">SEC / DTI Reg #:</strong> {selectedOffer.sec_dti_number || 'Verified Partner'}</p>
-                  <p><strong className="text-on-surface">BIR TIN:</strong> {selectedOffer.bir_tin || 'Verified'}</p>
-                  <p><strong className="text-on-surface">Official Email:</strong> {selectedOffer.contact_email || 'N/A'}</p>
-                  <p><strong className="text-on-surface">Official Phone:</strong> {selectedOffer.contact_phone || 'N/A'}</p>
+                <div className="space-y-2 min-w-0">
+                  <p><strong className="text-on-surface font-semibold">SEC / DTI Reg #:</strong> <span className="font-mono text-on-surface font-medium">{selectedOffer.sec_dti_number || 'Verified Partner'}</span></p>
+                  <p><strong className="text-on-surface font-semibold">BIR TIN:</strong> <span className="font-mono text-on-surface font-medium">{selectedOffer.bir_tin || 'Verified'}</span></p>
+                  <p className="break-all"><strong className="text-on-surface font-semibold">Official Email:</strong> {selectedOffer.contact_email || 'N/A'}</p>
+                  <p><strong className="text-on-surface font-semibold">Official Phone:</strong> {selectedOffer.contact_phone || 'N/A'}</p>
                   {selectedOffer.website && (
-                    <p>
-                      <strong className="text-on-surface">Website:</strong>{' '}
-                      <a href={selectedOffer.website.startsWith('http') ? selectedOffer.website : `https://${selectedOffer.website}`} target="_blank" rel="noreferrer" className="text-vibrant-orange hover:underline font-bold">
-                        {selectedOffer.website}
+                    <p className="break-all">
+                      <strong className="text-on-surface font-semibold">Website:</strong>{' '}
+                      <a href={selectedOffer.website.startsWith('http') ? selectedOffer.website : `https://${selectedOffer.website}`} target="_blank" rel="noreferrer" className="text-vibrant-orange hover:underline font-bold inline-flex items-center gap-0.5">
+                        <span className="break-all">{selectedOffer.website}</span>
+                        <span className="material-symbols-outlined text-[13px] shrink-0">open_in_new</span>
                       </a>
                     </p>
                   )}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
-import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, isPdfFile } from '../../utils/fileHelper';
+import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, isPdfFile, formatAddress, formatPortfolioTitle, formatFileSubtitle } from '../../utils/fileHelper';
 
 // Accept all file types so OS file pickers don't hide uploads with uppercase extensions (.PDF, .PNG, etc.)
 const FILE_ACCEPT = '*/*';
@@ -777,7 +777,7 @@ export default function StudentPortfolio() {
                         <div className="space-y-1">
                           <h3 className="font-bold text-sm text-on-surface">{ojt.organization_name}</h3>
                           <p className="text-xs text-on-surface-variant">{ojt.industry}</p>
-                          {ojt.org_address && <p className="text-[11px] text-on-surface-variant">{ojt.org_address}</p>}
+                          {ojt.org_address && <p className="text-[11px] text-on-surface-variant">{formatAddress(ojt.org_address)}</p>}
                         </div>
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ${
                           ojt.status === 'completed' ? 'bg-green-tint text-pinoy-green' :
