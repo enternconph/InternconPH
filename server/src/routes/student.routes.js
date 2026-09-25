@@ -3539,7 +3539,7 @@ router.get('/complaints', async (req, res) => {
            ELSE 0
          END as is_my_employer
        FROM hiring_organizations ho
-       WHERE ho.status IN ('active', 'approved', 'warned', 'pending')
+       WHERE ho.status NOT IN ('deleted', 'archived', 'rejected') OR ho.status IS NULL
        ORDER BY is_my_employer DESC, ho.organization_name ASC`,
       [student.student_id, student.student_id, student.student_id]
     );

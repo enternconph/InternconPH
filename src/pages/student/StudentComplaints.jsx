@@ -73,12 +73,31 @@ export const DEFAULT_STUDENT_VIOLATION_CATEGORIES = [
   }
 ];
 
+export const DEFAULT_ORGANIZATIONS = [
+  { organization_id: 167, organization_name: 'The Farm @ Carpenter Hill', industry: 'Hospitality & Tourism', city: 'City of Koronadal', is_my_employer: 1 },
+  { organization_id: 168, organization_name: 'TechCore Solutions Inc.', industry: 'Information Technology & Software', city: 'General Santos City' },
+  { organization_id: 'acc_ph', organization_name: 'Accenture Philippines', industry: 'Information Technology & Cloud Services', city: 'Metro Manila' },
+  { organization_id: 'ayala_land', organization_name: 'Ayala Land Inc.', industry: 'Real Estate & Civil Engineering', city: 'Makati City' },
+  { organization_id: 'globe_tel', organization_name: 'Globe Telecom Inc.', industry: 'Telecommunications & Network Engineering', city: 'Taguig City' },
+  { organization_id: 'bdo_bank', organization_name: 'BDO Unibank, Inc.', industry: 'Banking, Financial Services & Accountancy', city: 'Makati City' },
+  { organization_id: 'san_miguel', organization_name: 'San Miguel Corporation', industry: 'Food & Beverage Manufacturing / FMCG', city: 'Mandaluyong City' },
+  { organization_id: 'sm_prime', organization_name: 'SM Prime Holdings Inc.', industry: 'Retail, Property & Hospitality Management', city: 'Pasay City' },
+  { organization_id: 'unilab_ph', organization_name: 'United Laboratories, Inc. (Unilab)', industry: 'Pharmaceuticals & Health Sciences', city: 'Mandaluyong City' },
+  { organization_id: 'pldt_smart', organization_name: 'PLDT & Smart Communications', industry: 'Information Technology & Telecommunications', city: 'Makati City' },
+  { organization_id: 'jfc_ph', organization_name: 'Jollibee Foods Corporation (JFC)', industry: 'Hospitality, Quick Service & Supply Chain', city: 'Pasig City' },
+  { organization_id: 'concentrix_ph', organization_name: 'Concentrix Philippines', industry: 'BPO, Customer Experience & IT Support', city: 'Quezon City' },
+  { organization_id: 'aboitiz_pwr', organization_name: 'Aboitiz Power Corporation', industry: 'Electrical Engineering & Energy Utilities', city: 'Taguig City' },
+  { organization_id: 'metrobank_ph', organization_name: 'Metrobank (Metropolitan Bank & Trust Co.)', industry: 'Banking & Financial Services', city: 'Makati City' },
+  { organization_id: 'mindanao_med', organization_name: 'Mindanao Medical Center & Hospital', industry: 'Healthcare & Nursing', city: 'General Santos City' }
+];
+
 export default function StudentComplaints() {
   const [data, setData] = useState({
     complaints: [],
     categories: DEFAULT_STUDENT_VIOLATION_CATEGORIES,
-    orgs: [],
+    orgs: DEFAULT_ORGANIZATIONS,
     assigned_organization: null,
+    active_ojt_placement: null,
     can_file: true
   });
   const [loading, setLoading] = useState(true);
@@ -120,8 +139,10 @@ export default function StudentComplaints() {
           industry: ojtActiveRecord.industry
         } : null);
 
-        // Merge OJT host into organizations list if not already present
-        let updatedOrgs = res.data.orgs || [];
+        // Merge OJT host and server organizations list, with DEFAULT_ORGANIZATIONS fallback
+        let baseOrgs = (res.data.orgs && res.data.orgs.length > 0) ? res.data.orgs : DEFAULT_ORGANIZATIONS;
+        let updatedOrgs = [...baseOrgs];
+
         if (resolvedOjtPlacement?.organization_id) {
           const exists = updatedOrgs.some((o) => String(o.organization_id) === String(resolvedOjtPlacement.organization_id));
           if (!exists) {
@@ -134,6 +155,12 @@ export default function StudentComplaints() {
               },
               ...updatedOrgs
             ];
+          } else {
+            updatedOrgs = updatedOrgs.map((o) => 
+              String(o.organization_id) === String(resolvedOjtPlacement.organization_id)
+                ? { ...o, is_my_employer: 1 }
+                : o
+            );
           }
         }
 
@@ -480,27 +507,38 @@ export default function StudentComplaints() {
                 onChange={(e) => setSelectedOrgId(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-medium outline-none focus:ring-2 focus:ring-vibrant-orange text-xs"
               >
-                {!activeOjtOrg?.organization_id && !selectedOrgId && (
+                {!selectedOrgId && !activeOjtOrg?.organization_id && (
                   <option value="">Select target employer / host organization...</option>
                 )}
                 {(() => {
-                  const orgList = data.orgs || [];
+                  const rawList = data.orgs && data.orgs.length > 0 ? data.orgs : DEFAULT_ORGANIZATIONS;
+                  const orgList = [...rawList];
+
+                  if (activeOjtOrg?.organization_id && !orgList.some(o => String(o.organization_id) === String(activeOjtOrg.organization_id))) {
+                    orgList.unshift({
+                      organization_id: activeOjtOrg.organization_id,
+                      organization_name: activeOjtOrg.organization_name,
+                      industry: activeOjtOrg.industry,
+                      is_my_employer: 1
+                    });
+                  }
+
                   const myEmps = orgList.filter((o) => o.is_my_employer || String(o.organization_id) === String(activeOjtOrg?.organization_id));
                   const otherOrgs = orgList.filter((o) => !o.is_my_employer && String(o.organization_id) !== String(activeOjtOrg?.organization_id));
 
                   return (
                     <>
                       {myEmps.length > 0 && (
-                        <optgroup label="⭐ My Current & Associated Organizations" className="font-bold text-on-surface bg-surface">
+                        <optgroup label="⭐ My Current OJT Placement & Associated Employers" className="font-bold text-on-surface bg-surface">
                           {myEmps.map((org) => (
                             <option key={org.organization_id} value={org.organization_id} className="font-normal py-1">
-                              {org.organization_name} {String(org.organization_id) === String(activeOjtOrg?.organization_id) ? '(Active OJT Host)' : '(Associated Employer)'} {org.industry ? `— ${org.industry}` : ''}
+                              {org.organization_name} {String(org.organization_id) === String(activeOjtOrg?.organization_id) ? '(Active OJT Host Organization)' : '(Associated Employer)'} {org.industry ? `— ${org.industry}` : ''}
                             </option>
                           ))}
                         </optgroup>
                       )}
                       {otherOrgs.length > 0 && (
-                        <optgroup label="🏢 All Registered Hiring Organizations & Companies" className="font-bold text-on-surface bg-surface">
+                        <optgroup label="🏢 All Accredited Hiring Organizations & Companies" className="font-bold text-on-surface bg-surface">
                           {otherOrgs.map((org) => (
                             <option key={org.organization_id} value={org.organization_id} className="font-normal py-1">
                               {org.organization_name} {org.industry ? `— ${org.industry}` : ''} {org.city ? `(${org.city})` : ''}
