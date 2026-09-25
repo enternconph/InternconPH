@@ -3413,15 +3413,15 @@ router.get('/complaints', async (req, res) => {
       [categories] = await pool.query('SELECT category_id, category_name, description FROM complaint_categories ORDER BY category_name ASC');
     }
 
-    // 1. Resolve Active OJT Placement & Host Organization
+    // 1. Resolve Active OJT Placement & Host Organization (Synchronized directly with OJT Progress & DTR)
     const [ojtRows] = await pool.query(
       `SELECT o.ojt_id, o.organization_id, o.status as ojt_record_status,
               ho.organization_name, ho.industry, ho.logo_url,
               'ojt' as placement_type
        FROM ojt_records o
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
-       WHERE o.student_id = ? AND o.status IN ('ongoing', 'active', 'accepted')
-       ORDER BY FIELD(o.status, 'ongoing', 'active', 'accepted'), o.created_at DESC
+       WHERE o.student_id = ?
+       ORDER BY (CASE WHEN o.status IN ('ongoing', 'active', 'accepted', 'in_progress') THEN 1 WHEN o.status = 'completed' THEN 2 ELSE 3 END), o.created_at DESC
        LIMIT 1`,
       [student.student_id]
     );
@@ -3561,8 +3561,8 @@ router.post('/complaints', async (req, res) => {
       `SELECT o.ojt_id, o.organization_id, ho.organization_name
        FROM ojt_records o
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
-       WHERE o.student_id = ? AND o.status IN ('ongoing', 'active', 'accepted')
-       ORDER BY o.created_at DESC LIMIT 1`,
+       WHERE o.student_id = ?
+       ORDER BY (CASE WHEN o.status IN ('ongoing', 'active', 'accepted', 'in_progress') THEN 1 WHEN o.status = 'completed' THEN 2 ELSE 3 END), o.created_at DESC LIMIT 1`,
       [student.student_id]
     );
 

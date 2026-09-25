@@ -112,8 +112,9 @@ export default function StudentComplaints() {
         if (res.data.default_student_status) {
           setStudentStatus((prev) => prev || res.data.default_student_status);
         }
-        if (res.data.assigned_organization?.organization_id) {
-          setSelectedOrgId((prev) => prev || String(res.data.assigned_organization.organization_id));
+        const ojtPlacement = res.data.active_ojt_placement || res.data.assigned_organization;
+        if (ojtPlacement?.organization_id) {
+          setSelectedOrgId(String(ojtPlacement.organization_id));
         } else if (res.data.orgs?.length > 0) {
           setSelectedOrgId((prev) => prev || String(res.data.orgs[0].organization_id));
         }
@@ -183,11 +184,15 @@ export default function StudentComplaints() {
     setCurrentPage(1);
   }, [statusFilter, searchQuery]);
 
-  const isLockedToAssignedOjt =
-    studentStatus === 'ongoing_ojt' &&
-    (data.active_ojt_placement || (data.has_ongoing_ojt && data.assigned_organization));
-
   const activeOjtOrg = data.active_ojt_placement || data.assigned_organization;
+  const isLockedToAssignedOjt = (studentStatus === 'ongoing_ojt' || studentStatus === 'ojt') && !!activeOjtOrg?.organization_id;
+
+  // Auto-sync selected target org when student status changes to ongoing_ojt
+  useEffect(() => {
+    if (isLockedToAssignedOjt && activeOjtOrg?.organization_id) {
+      setSelectedOrgId(String(activeOjtOrg.organization_id));
+    }
+  }, [studentStatus, isLockedToAssignedOjt, activeOjtOrg]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -352,23 +357,34 @@ export default function StudentComplaints() {
 
             {/* Target Organization Field */}
             <div>
-              <label className="block font-bold text-on-surface-variant uppercase mb-1">Target Host / Hiring Organization *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-bold text-on-surface-variant uppercase text-xs">Target Host / Hiring Organization *</label>
+                {isLockedToAssignedOjt && (
+                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Synced from OJT Progress & DTR
+                  </span>
+                )}
+              </div>
               {isLockedToAssignedOjt ? (
-                <div className="p-3 bg-surface-container rounded-xl border border-outline-variant flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-orange-tint text-vibrant-orange flex items-center justify-center font-bold text-sm shrink-0">
-                      <span className="material-symbols-outlined text-[20px]">apartment</span>
+                <div className="p-3.5 bg-gradient-to-r from-orange-tint/40 via-surface-container to-surface-container rounded-2xl border border-vibrant-orange/30 flex items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-vibrant-orange text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm shadow-vibrant-orange/20">
+                      <span className="material-symbols-outlined text-[22px]">apartment</span>
                     </div>
                     <div className="min-w-0">
-                      <p className="font-bold text-xs text-on-surface truncate">{activeOjtOrg.organization_name}</p>
-                      <p className="text-[10px] text-on-surface-variant capitalize truncate">
-                        {activeOjtOrg.industry || 'Host Employer'} • Current OJT Placement & Host Organization
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-vibrant-orange block">
+                        Current OJT Placement & Host Organization
+                      </span>
+                      <p className="font-bold text-sm text-on-surface truncate">{activeOjtOrg.organization_name}</p>
+                      <p className="text-[11px] text-on-surface-variant capitalize truncate mt-0.5">
+                        {activeOjtOrg.industry || 'Host Employer'} • Active Training Placement
                       </p>
                     </div>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[13px]">lock</span>
-                    Current OJT Host
+                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shrink-0 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">lock</span>
+                    <span>Current OJT Host</span>
                   </span>
                 </div>
               ) : (
@@ -386,9 +402,9 @@ export default function StudentComplaints() {
                   ))}
                 </select>
               )}
-              <p className="text-[10px] text-on-surface-variant mt-1">
+              <p className="text-[10px] text-on-surface-variant mt-1.5">
                 {isLockedToAssignedOjt
-                  ? 'Automatically locked to your Current OJT Placement & Host Organization.'
+                  ? 'Automatically locked to your Current OJT Placement & Host Organization from OJT Progress & DTR.'
                   : 'Select the employer or organization you are filing a formal complaint against.'}
               </p>
             </div>
