@@ -4,11 +4,11 @@ import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import Pagination from '../../components/ui/Pagination';
 
 export default function StudentComplaints() {
-  const [data, setData] = useState({ complaints: [], categories: [], orgs: [] });
+  const [data, setData] = useState({ complaints: [], categories: [], orgs: [], assigned_organization: null, can_file: false });
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
 
-  const [orgId, setOrgId] = useState('');
   const [catId, setCatId] = useState('');
   const [studentStatus, setStudentStatus] = useState('');
   const [subject, setSubject] = useState('');
@@ -96,27 +96,33 @@ export default function StudentComplaints() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!studentStatus) {
-      alert('Please specify whether you are currently an OJT student or a Graduated student.');
+    if (!data.assigned_organization) {
+      alert('You must be assigned to an organization before filing a grievance.');
       return;
     }
+    const resolvedStatus = data.is_ojt ? (studentStatus || 'ojt') : data.student_status_type;
+    setSubmitting(true);
     setMessage('');
-    const res = await api.post('/student/complaints', {
-      organization_id: orgId,
-      category_id: catId,
-      student_status: studentStatus,
-      subject,
-      description: desc
-    });
-    if (res.success) {
-      setMessage('Grievance reported. Your Institution and System Administrators have been alerted for review.');
-      setSubject('');
-      setDesc('');
-      setOrgId('');
-      setCatId('');
-      fetchComplaints();
-    } else {
-      alert(res.message || 'Submission failed.');
+    try {
+      const res = await api.post('/student/complaints', {
+        category_id: catId,
+        student_status: resolvedStatus,
+        subject,
+        description: desc
+      });
+      if (res.success) {
+        setMessage(res.message || 'Grievance reported successfully.');
+        setSubject('');
+        setDesc('');
+        setCatId('');
+        fetchComplaints();
+      } else {
+        alert(res.message || 'Submission failed.');
+      }
+    } catch (err) {
+      alert('Failed to submit grievance: ' + err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -150,147 +156,160 @@ export default function StudentComplaints() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Form to submit complaint */}
-        <div className="bento-card space-y-4 lg:sticky lg:top-6 h-fit">
-          <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
-            <span className="material-symbols-outlined text-error text-[22px]">gavel</span>
-            <span>File a Formal Grievance</span>
-          </h2>
-
-          <form onSubmit={handleSubmit} className="space-y-3 text-xs">
-            <div>
-              <label className="block font-bold text-on-surface-variant uppercase mb-1">Target Organization *</label>
-              <select
-                required
-                value={orgId}
-                onChange={(e) => setOrgId(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface font-medium outline-none focus:ring-2 focus:ring-vibrant-orange"
-              >
-                <option value="">Select hiring organization...</option>
-                {data.orgs?.some((o) => o.is_inst_approved) ? (
-                  <>
-                    <optgroup label="Institution-Approved / Partner Organizations">
-                      {data.orgs
-                        .filter((o) => o.is_inst_approved)
-                        .map((o) => (
-                          <option key={o.organization_id} value={o.organization_id}>
-                            {o.organization_name} ★ (Institution Approved)
-                          </option>
-                        ))}
-                    </optgroup>
-                    {data.orgs.some((o) => !o.is_inst_approved) && (
-                      <optgroup label="Other Approved Hiring Organizations">
-                        {data.orgs
-                          .filter((o) => !o.is_inst_approved)
-                          .map((o) => (
-                            <option key={o.organization_id} value={o.organization_id}>
-                              {o.organization_name}
-                            </option>
-                          ))}
-                      </optgroup>
-                    )}
-                  </>
-                ) : (
-                  data.orgs?.map((o) => (
-                    <option key={o.organization_id} value={o.organization_id}>
-                      {o.organization_name}
-                    </option>
-                  ))
-                )}
-              </select>
-              <p className="text-[10px] text-on-surface-variant mt-0.5">
-                Choose any hiring organization approved by your institution or active on the platform.
+        {/* Form to submit complaint or Locked Notice */}
+        {!data.can_file || !data.assigned_organization ? (
+          <div className="bento-card space-y-4 lg:sticky lg:top-6 h-fit bg-amber-50/50 dark:bg-amber-950/20 border-amber-300/60 dark:border-amber-700/40">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 flex items-center justify-center">
+              <span className="material-symbols-outlined text-[28px]">lock</span>
+            </div>
+            <div className="space-y-1.5">
+              <h2 className="text-base font-bold text-on-surface">Grievance Filing Disabled</h2>
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                Grievance and complaint filing is only enabled when you are actively assigned or deployed to a host organization for OJT.
               </p>
             </div>
-
-            <div>
-              <label className="block font-bold text-on-surface-variant uppercase mb-1">Violation Category *</label>
-              <select
-                required
-                value={catId}
-                onChange={(e) => setCatId(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface font-medium outline-none focus:ring-2 focus:ring-vibrant-orange"
-              >
-                <option value="">Select violation type...</option>
-                {data.categories?.map((c) => (
-                  <option key={c.category_id} value={c.category_id}>
-                    {c.category_name}
-                  </option>
-                ))}
-              </select>
+            <div className="p-3 bg-white/70 dark:bg-surface rounded-xl border border-outline-variant text-[11px] text-on-surface-variant flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px] text-vibrant-orange shrink-0">info</span>
+              <span>Target organization will automatically lock to your assigned host employer once deployed.</span>
             </div>
+          </div>
+        ) : (
+          <div className="bento-card space-y-4 lg:sticky lg:top-6 h-fit">
+            <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
+              <span className="material-symbols-outlined text-error text-[22px]">gavel</span>
+              <span>File a Formal Grievance</span>
+            </h2>
 
-            <div>
-              <label className="block font-bold text-on-surface-variant uppercase mb-1">Student Status *</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStudentStatus('ojt')}
-                  className={`p-2.5 rounded-lg border text-left flex items-center gap-2 transition-all ${
-                    studentStatus === 'ojt'
-                      ? 'border-vibrant-orange bg-orange-tint text-vibrant-orange font-bold ring-1 ring-vibrant-orange'
-                      : 'border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[18px]">school</span>
-                  <div>
-                    <p className="text-xs font-bold">Current OJT</p>
-                    <p className="text-[10px] opacity-75">Active Practicum</p>
+            <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+              {/* Target Organization (Automatically locked to assigned OJT host) */}
+              <div>
+                <label className="block font-bold text-on-surface-variant uppercase mb-1">Target Host Organization *</label>
+                <div className="p-3 bg-surface-container rounded-xl border border-outline-variant flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-orange-tint text-vibrant-orange flex items-center justify-center font-bold text-sm shrink-0">
+                      <span className="material-symbols-outlined text-[20px]">apartment</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-xs text-on-surface truncate">{data.assigned_organization.organization_name}</p>
+                      <p className="text-[10px] text-on-surface-variant capitalize truncate">
+                        {data.assigned_organization.industry || 'Host Employer'} • Active Placement
+                      </p>
+                    </div>
                   </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStudentStatus('graduated')}
-                  className={`p-2.5 rounded-lg border text-left flex items-center gap-2 transition-all ${
-                    studentStatus === 'graduated'
-                      ? 'border-pinoy-green bg-green-tint text-pinoy-green font-bold ring-1 ring-pinoy-green'
-                      : 'border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[18px]">workspace_premium</span>
-                  <div>
-                    <p className="text-xs font-bold">Graduated</p>
-                    <p className="text-[10px] opacity-75">Alumni Student</p>
-                  </div>
-                </button>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[13px]">lock</span>
+                    Assigned
+                  </span>
+                </div>
+                <p className="text-[10px] text-on-surface-variant mt-1">
+                  Automatically set to your currently assigned OJT placement.
+                </p>
               </div>
-              <p className="text-[10px] text-on-surface-variant mt-1">
-                Identifies whether you are currently on OJT or graduated so the institution can properly categorize and handle your grievance.
-              </p>
-            </div>
 
-            <div>
-              <label className="block font-bold text-on-surface-variant uppercase mb-1">Subject / Incident Title</label>
-              <input
-                type="text"
-                required
-                placeholder="Brief summary of the issue..."
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low outline-none"
-              />
-            </div>
+              <div>
+                <label className="block font-bold text-on-surface-variant uppercase mb-1">Violation Category *</label>
+                <select
+                  required
+                  value={catId}
+                  onChange={(e) => setCatId(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface font-medium outline-none focus:ring-2 focus:ring-vibrant-orange"
+                >
+                  <option value="">Select violation type...</option>
+                  {data.categories?.map((c) => (
+                    <option key={c.category_id} value={c.category_id}>
+                      {c.category_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div>
-              <label className="block font-bold text-on-surface-variant uppercase mb-1">Detailed Description & Evidence Context</label>
-              <textarea
-                rows="4"
-                required
-                placeholder="Provide dates, personnel involved, and specific details..."
-                value={desc}
-                onChange={(e) => setDesc(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low outline-none"
-              ></textarea>
-            </div>
+              {/* Student Status Field (Only shown for OJT students) */}
+              {data.is_ojt ? (
+                <div>
+                  <label className="block font-bold text-on-surface-variant uppercase mb-1">Student Status *</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStudentStatus('ojt')}
+                      className={`p-2.5 rounded-lg border text-left flex items-center gap-2 transition-all ${
+                        studentStatus === 'ojt'
+                          ? 'border-vibrant-orange bg-orange-tint text-vibrant-orange font-bold ring-1 ring-vibrant-orange'
+                          : 'border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">school</span>
+                      <div>
+                        <p className="text-xs font-bold">Current OJT</p>
+                        <p className="text-[10px] opacity-75">Active Practicum</p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStudentStatus('graduated')}
+                      className={`p-2.5 rounded-lg border text-left flex items-center gap-2 transition-all ${
+                        studentStatus === 'graduated'
+                          ? 'border-pinoy-green bg-green-tint text-pinoy-green font-bold ring-1 ring-pinoy-green'
+                          : 'border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">workspace_premium</span>
+                      <div>
+                        <p className="text-xs font-bold">Graduated</p>
+                        <p className="text-[10px] opacity-75">Alumni Student</p>
+                      </div>
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-on-surface-variant mt-1">
+                    Identifies your academic status so your institution OJT coordinator can properly review your grievance.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3 bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/60 rounded-xl space-y-1 text-purple-950 dark:text-purple-100">
+                  <div className="flex items-center gap-1.5 font-bold text-xs">
+                    <span className="material-symbols-outlined text-[17px] text-purple-600 dark:text-purple-400">admin_panel_settings</span>
+                    <span>Direct System Administrator Escrow</span>
+                  </div>
+                  <p className="text-[11px] text-purple-900/85 dark:text-purple-200 leading-relaxed">
+                    As an {data.student_status_type === 'on_call' ? 'On-Call' : 'Career Job'} practitioner, your grievance will bypass institutional review and be forwarded directly to the System Administrator.
+                  </p>
+                </div>
+              )}
 
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-error text-white font-bold rounded-lg hover:opacity-90 shadow-sm"
-            >
-              Submit Report for Review
-            </button>
-          </form>
-        </div>
+              <div>
+                <label className="block font-bold text-on-surface-variant uppercase mb-1">Subject / Incident Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Brief summary of the issue..."
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low outline-none focus:ring-2 focus:ring-vibrant-orange text-on-surface"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-on-surface-variant uppercase mb-1">Detailed Description & Evidence Context *</label>
+                <textarea
+                  rows="4"
+                  required
+                  placeholder="Provide dates, personnel involved, and specific details..."
+                  value={desc}
+                  onChange={(e) => setDesc(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low outline-none focus:ring-2 focus:ring-vibrant-orange text-on-surface"
+                ></textarea>
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-2.5 bg-error text-white font-bold rounded-lg hover:opacity-90 shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[18px]">send</span>
+                <span>{submitting ? 'Submitting Report...' : 'Submit Report for Review'}</span>
+              </button>
+            </form>
+          </div>
+        )}
 
         {/* Complaints History List */}
         <div className="lg:col-span-2 bento-card space-y-4">

@@ -1,19 +1,30 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
-import { resolveFileUrl } from '../../utils/fileHelper';
+import { resolveFileUrl, formatFileSize, getFileIcon } from '../../utils/fileHelper';
 
 export default function StudentOJT() {
   const [searchParams] = useSearchParams();
   const urlTab = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(urlTab === 'requirements' ? 'requirements' : (urlTab || 'dtr'));
+  
+  // Support 'requirements', 'clearance', 'checklist', 'evaluations', 'dtr'
+  const initialTab = (urlTab === 'requirements' || urlTab === 'clearance' || urlTab === 'checklist')
+    ? 'requirements'
+    : (urlTab === 'evaluations' ? 'evaluations' : 'dtr');
+
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [ojtData, setOjtData] = useState(null);
   const [attendanceData, setAttendanceData] = useState(null);
   const [requirements, setRequirements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [downloadingFile, setDownloadingFile] = useState(false);
   const [toast, setToast] = useState({ message: '', isError: false });
+
+  // Filter and search states
+  const [dtrSearch, setDtrSearch] = useState('');
+  const [reqFilter, setReqFilter] = useState('all'); // 'all' | 'mandatory' | 'pending' | 'approved'
 
   // Requirement Submission State
   const [selectedReq, setSelectedReq] = useState(null);
@@ -25,8 +36,12 @@ export default function StudentOJT() {
   const [viewCert, setViewCert] = useState(null);
 
   useEffect(() => {
-    if (urlTab && ['dtr', 'requirements', 'evaluations'].includes(urlTab)) {
-      setActiveTab(urlTab);
+    if (urlTab) {
+      if (urlTab === 'requirements' || urlTab === 'clearance' || urlTab === 'checklist') {
+        setActiveTab('requirements');
+      } else if (urlTab === 'evaluations' || urlTab === 'dtr') {
+        setActiveTab(urlTab);
+      }
     }
   }, [urlTab]);
 
@@ -68,6 +83,44 @@ export default function StudentOJT() {
   const showToast = (message, isError = false) => {
     setToast({ message, isError });
     setTimeout(() => setToast({ message: '', isError: false }), 4500);
+  };
+
+  // Robust File Downloader for DOCX, PDF, and Documents
+  const handleDownloadTemplate = async (e, url, title) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!url) return;
+    try {
+      setDownloadingFile(true);
+      showToast('Downloading document...');
+      const fullUrl = resolveFileUrl(url);
+      const res = await fetch(fullUrl);
+      if (!res.ok) throw new Error('Download network response error');
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      
+      // Compute safe filename with original extension
+      const rawExt = url.split('.').pop()?.split('?')[0] || 'docx';
+      const cleanName = title
+        ? `${title.replace(/[^a-zA-Z0-9_-]/g, '_')}.${rawExt}`
+        : url.split('/').pop() || 'document.docx';
+      
+      link.setAttribute('download', cleanName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      showToast('File downloaded successfully!');
+    } catch (err) {
+      console.warn('Blob download fallback:', err);
+      window.open(resolveFileUrl(url), '_blank');
+    } finally {
+      setDownloadingFile(false);
+    }
   };
 
   const uploadRequirementFile = async () => {
@@ -148,21 +201,6 @@ export default function StudentOJT() {
     }
   };
 
-  const handleDeleteAttendance = async (attendanceId) => {
-    if (!window.confirm('Are you sure you want to delete this pending attendance log?')) return;
-    try {
-      const res = await api.delete(`/student/attendance/${attendanceId}`);
-      if (res.success) {
-        showToast('Pending attendance log deleted.');
-        fetchAllOjtData();
-      } else {
-        showToast(res.message || 'Failed to delete attendance log.', true);
-      }
-    } catch (err) {
-      showToast('Error deleting attendance log.', true);
-    }
-  };
-
   if (loading && !ojtData) {
     return (
       <div className="p-8 flex justify-center items-center min-h-[60vh]">
@@ -175,150 +213,224 @@ export default function StudentOJT() {
   const reqHours = activeRecord?.required_hours || ojtData?.requiredHours || 600;
   const doneHours = activeRecord ? activeRecord.rendered_hours || 0 : 0;
   const progressPct = reqHours > 0 ? Math.min(100, Math.round((doneHours / reqHours) * 100)) : 0;
+  const remainingHours = Math.max(0, reqHours - doneHours);
 
   const todayLog = attendanceData?.todayLog;
   const isClockedInToday = todayLog && todayLog.time_in;
   const isClockedOutToday = todayLog && todayLog.time_out;
 
+  // Filtered DTR logs
+  const filteredDtrLogs = (attendanceData?.logs || []).filter((log) => {
+    if (!dtrSearch.trim()) return true;
+    const q = dtrSearch.toLowerCase();
+    return (
+      log.organization_name?.toLowerCase().includes(q) ||
+      log.log_date?.toLowerCase().includes(q) ||
+      log.tasks_accomplished?.toLowerCase().includes(q) ||
+      log.status?.toLowerCase().includes(q)
+    );
+  });
+
+  // Filtered clearance requirements
+  const filteredReqs = requirements.filter((req) => {
+    if (reqFilter === 'mandatory') return !!req.is_mandatory;
+    if (reqFilter === 'pending') return !req.submission_status || req.submission_status === 'draft';
+    if (reqFilter === 'approved') return req.submission_status === 'approved';
+    return true;
+  });
+
+  const approvedReqsCount = requirements.filter((r) => r.submission_status === 'approved').length;
+  const totalReqsCount = requirements.length;
+  const reqsProgressPct = totalReqsCount > 0 ? Math.round((approvedReqsCount / totalReqsCount) * 100) : 0;
+
+  // Evaluations summary calculation
+  const evaluationsList = ojtData?.evaluations || [];
+  const avgRating = evaluationsList.length > 0
+    ? (evaluationsList.reduce((acc, curr) => acc + (parseFloat(curr.rating) || 0), 0) / evaluationsList.length).toFixed(1)
+    : null;
+
   return (
-    <div className="p-4 md:p-8 space-y-6">
-      {/* Header */}
+    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-on-surface">OJT Daily Time Record & Progress</h1>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-50 text-emerald-600 border border-emerald-200 shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              Live Sync
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold text-on-surface">OJT Progress & Daily Time Record</h1>
+            <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live Workplace Sync
             </span>
           </div>
           <p className="text-xs sm:text-sm text-on-surface-variant mt-1">
-            Clock in/out daily, track supervisor verified hours, upload institutional clearance requirements, and view performance evaluations.
+            Track daily mentor-certified hours, complete institutional clearance requirements, and view workplace evaluations.
           </p>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex bg-surface-container p-1 rounded-xl border border-outline-variant flex-wrap gap-1 max-w-full overflow-x-auto">
+        <div className="flex bg-surface-container p-1 rounded-2xl border border-outline-variant flex-wrap gap-1 max-w-full overflow-x-auto shadow-xs">
           <button
             onClick={() => setActiveTab('dtr')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 ${
-              activeTab === 'dtr' ? 'bg-surface text-vibrant-orange shadow-sm' : 'text-on-surface-variant hover:text-on-surface'
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'dtr'
+                ? 'bg-surface text-vibrant-orange shadow-sm ring-1 ring-outline-variant/60 font-black'
+                : 'text-on-surface-variant hover:text-on-surface'
             }`}
           >
             <span className="material-symbols-outlined text-[18px]">timelapse</span>
-            <span>Daily Time Record (DTR)</span>
+            <span>Daily Time Record</span>
           </button>
           <button
             onClick={() => setActiveTab('requirements')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 ${
-              activeTab === 'requirements' ? 'bg-surface text-vibrant-orange shadow-sm' : 'text-on-surface-variant hover:text-on-surface'
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'requirements'
+                ? 'bg-surface text-vibrant-orange shadow-sm ring-1 ring-outline-variant/60 font-black'
+                : 'text-on-surface-variant hover:text-on-surface'
             }`}
           >
             <span className="material-symbols-outlined text-[18px]">assignment_turned_in</span>
-            <span>Clearance Checklist ({requirements.length})</span>
+            <span>Clearance Checklist</span>
+            {totalReqsCount > 0 && (
+              <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
+                approvedReqsCount === totalReqsCount ? 'bg-emerald-100 text-emerald-800' : 'bg-orange-tint text-vibrant-orange'
+              }`}>
+                {approvedReqsCount}/{totalReqsCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('evaluations')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 ${
-              activeTab === 'evaluations' ? 'bg-surface text-vibrant-orange shadow-sm' : 'text-on-surface-variant hover:text-on-surface'
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'evaluations'
+                ? 'bg-surface text-vibrant-orange shadow-sm ring-1 ring-outline-variant/60 font-black'
+                : 'text-on-surface-variant hover:text-on-surface'
             }`}
           >
             <span className="material-symbols-outlined text-[18px]">rate_review</span>
-            <span>Evaluations ({ojtData?.evaluations?.length || 0})</span>
+            <span>Evaluations</span>
+            {evaluationsList.length > 0 && (
+              <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-surface-container-high text-on-surface">
+                {evaluationsList.length}
+              </span>
+            )}
           </button>
           {certificates.length > 0 && (
             <button
               type="button"
               onClick={() => setViewCert(certificates[0])}
-              className="px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+              className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
             >
               <span className="material-symbols-outlined text-[18px]">workspace_premium</span>
-              <span>OJT Certificate ({certificates.length})</span>
+              <span>OJT Certificate</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Toast */}
+      {/* Toast Alert */}
       {toast.message && (
         <div
-          className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 border ${
+          className={`p-3.5 rounded-2xl text-xs font-bold flex items-center gap-2.5 border shadow-sm animate-in fade-in slide-in-from-top-2 duration-200 ${
             toast.isError
               ? 'bg-error-container text-error border-error/20'
-              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
           }`}
         >
-          <span className="material-symbols-outlined text-[18px]">
+          <span className="material-symbols-outlined text-[20px] shrink-0">
             {toast.isError ? 'error' : 'check_circle'}
           </span>
-          <span>{toast.message}</span>
+          <span className="flex-1">{toast.message}</span>
         </div>
       )}
 
-      {/* Hours Overview Banner */}
-      <div className="bento-card bg-gradient-to-r from-orange-tint/40 to-surface border border-vibrant-orange/20 space-y-4">
+      {/* Hours Overview Hero Card */}
+      <div className="bento-card bg-gradient-to-r from-orange-tint/50 via-surface to-surface border border-vibrant-orange/20 space-y-4 shadow-sm">
         <div className="flex justify-between items-center flex-wrap gap-4">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-vibrant-orange block">
-              Current Internship Placement
-            </span>
-            <h2 className="text-xl font-bold text-on-surface">
-              {activeRecord?.organization_name || 'No Active Host Organization'}
-            </h2>
-            <p className="text-xs text-on-surface-variant">
-              {activeRecord?.industry || 'Industry Partner'} • {activeRecord?.status ? activeRecord.status.toUpperCase() : 'NO DEPLOYMENT'}
-            </p>
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-vibrant-orange text-white flex items-center justify-center shadow-md shadow-vibrant-orange/20 shrink-0">
+              <span className="material-symbols-outlined text-[26px]">apartment</span>
+            </div>
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-vibrant-orange block">
+                Current OJT Placement & Host Organization
+              </span>
+              <h2 className="text-lg sm:text-xl font-bold text-on-surface">
+                {activeRecord?.organization_name || 'No Active Host Organization Assigned'}
+              </h2>
+              <p className="text-xs text-on-surface-variant mt-0.5">
+                {activeRecord?.industry || 'Industry Partner'} • Status: <span className="uppercase font-bold text-on-surface">{activeRecord?.status || 'UNASSIGNED'}</span>
+              </p>
+            </div>
           </div>
-          <div className="text-right">
-            <span className="text-2xl font-bold text-vibrant-orange">{doneHours} / {reqHours} hrs</span>
-            <span className="text-xs text-on-surface-variant block">Verified Rendered Hours</span>
+
+          <div className="flex items-center gap-6">
+            <div className="text-right">
+              <span className="text-2xl sm:text-3xl font-black text-vibrant-orange font-mono">
+                {doneHours} <span className="text-base font-normal text-on-surface-variant">/ {reqHours} hrs</span>
+              </span>
+              <span className="text-xs font-bold text-on-surface-variant block">
+                {remainingHours > 0 ? `${remainingHours} hrs remaining` : 'OJT Hours Fulfilled'}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        {/* Progress Bar with Milestones */}
+        <div className="space-y-1.5 pt-1">
           <div className="flex justify-between text-xs font-bold text-on-surface-variant">
-            <span>Overall Completion Progress</span>
-            <span className="text-vibrant-orange">{progressPct}%</span>
+            <span>Overall Training Completion</span>
+            <span className="text-vibrant-orange font-mono font-black">{progressPct}%</span>
           </div>
-          <div className="w-full bg-surface-container h-3.5 rounded-full overflow-hidden">
+          <div className="w-full bg-surface-container-high h-4 rounded-full overflow-hidden p-0.5 border border-outline-variant/60">
             <div
-              className="bg-vibrant-orange h-full rounded-full transition-all duration-500"
+              className="bg-gradient-to-r from-vibrant-orange to-deep-orange h-full rounded-full transition-all duration-700 shadow-inner"
               style={{ width: `${progressPct}%` }}
             ></div>
           </div>
         </div>
       </div>
 
-      {/* TAB 1: DAILY TIME RECORD (DTR) & CLOCK IN/OUT */}
+      {/* ========================================================================= */}
+      {/* TAB 1: DAILY TIME RECORD (DTR) & MENTOR CERTIFICATIONS */}
+      {/* ========================================================================= */}
       {activeTab === 'dtr' && (
         <div className="space-y-6">
-          {/* Completed Hours Notice */}
+          {/* Completed Hours Celebration Banner */}
           {(doneHours >= reqHours || activeRecord?.status === 'completed') && (
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-3 text-emerald-900 shadow-sm">
-              <span className="material-symbols-outlined text-emerald-600 text-2xl shrink-0 mt-0.5">verified</span>
-              <div className="space-y-1">
-                <h4 className="font-bold text-sm text-emerald-950">
-                  Required OJT Hours Completed ({doneHours} / {reqHours} hrs)
+            <div className="p-5 bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-transparent border border-emerald-500/30 rounded-2xl flex items-start gap-4 text-emerald-950 dark:text-emerald-100 shadow-xs">
+              <span className="material-symbols-outlined text-emerald-600 text-3xl shrink-0 mt-0.5">verified</span>
+              <div className="space-y-1 flex-1">
+                <h4 className="font-bold text-sm sm:text-base text-emerald-950 dark:text-emerald-100">
+                  Required OJT Training Hours Satisfied ({doneHours} / {reqHours} hrs)
                 </h4>
-                <p className="text-xs text-emerald-800 leading-relaxed">
-                  Congratulations! You have satisfied your required training hours. Daily Time-In has been finalized and closed. Your records have been preserved and forwarded for host employer evaluation and certificate issuance.
+                <p className="text-xs text-emerald-800 dark:text-emerald-200 leading-relaxed">
+                  Congratulations! You have fulfilled your required training hours. Daily Time Record shifts have been finalized. Please ensure your Clearance Checklist documents are fully submitted and approved for final certificate release.
                 </p>
               </div>
+              {certificates.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setViewCert(certificates[0])}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shrink-0 transition-colors shadow-sm flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-[16px]">workspace_premium</span>
+                  <span>View Certificate</span>
+                </button>
+              )}
             </div>
           )}
 
-          {/* Mentor-Supervised Daily Time Record Card */}
+          {/* Today's Daily Time Record Widget */}
           <div className="bento-card space-y-4">
-            <div className="flex items-start justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-orange-tint text-vibrant-orange flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-[32px]">schedule</span>
+            <div className="flex items-start justify-between flex-wrap gap-4 pb-2 border-b border-outline-variant">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-orange-tint text-vibrant-orange flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[28px]">schedule</span>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-bold text-base text-on-surface">Today's Daily Time Record</h3>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-container text-on-surface-variant border border-outline-variant uppercase">
-                      Mentor Handled
+                      Mentor Supervised
                     </span>
                   </div>
                   <p className="text-xs text-on-surface-variant">
@@ -332,15 +444,15 @@ export default function StudentOJT() {
                 {isClockedOutToday ? (
                   <span className="px-3.5 py-1.5 bg-green-tint text-pinoy-green rounded-full text-xs font-bold flex items-center gap-1.5 border border-pinoy-green/20">
                     <span className="material-symbols-outlined text-[16px]">verified</span>
-                    <span>Shift Certified • {todayLog.hours_rendered || 0} hrs Credited</span>
+                    <span>Shift Completed • {todayLog.hours_rendered || 0} hrs Credited</span>
                   </span>
                 ) : isClockedInToday ? (
-                  <span className="px-3.5 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold flex items-center gap-1.5 border border-emerald-200">
+                  <span className="px-3.5 py-1.5 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-bold flex items-center gap-1.5 border border-emerald-500/20">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>On Duty • Timed In by Mentor</span>
+                    <span>On Duty • Timed-In by Mentor</span>
                   </span>
                 ) : (
-                  <span className="px-3.5 py-1.5 bg-amber-50 text-amber-700 rounded-full text-xs font-bold flex items-center gap-1.5 border border-amber-200">
+                  <span className="px-3.5 py-1.5 bg-amber-500/15 text-amber-700 dark:text-amber-300 rounded-full text-xs font-bold flex items-center gap-1.5 border border-amber-500/20">
                     <span className="material-symbols-outlined text-[16px]">hourglass_top</span>
                     <span>Awaiting Mentor Time-In</span>
                   </span>
@@ -348,15 +460,16 @@ export default function StudentOJT() {
               </div>
             </div>
 
-            {/* DTR Grid: Mentor & Shift Times */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-              <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+            {/* DTR Details Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+              {/* Mentor Box */}
+              <div className="p-3.5 bg-surface-container-low rounded-2xl border border-outline-variant space-y-1">
                 <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
                   Assigned Workplace Mentor
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-vibrant-orange text-[18px]">person</span>
-                  <span className="text-xs font-bold text-on-surface">
+                  <span className="text-xs font-bold text-on-surface truncate">
                     {(activeRecord?.mentor_first_name && activeRecord?.mentor_last_name)
                       ? `${activeRecord.mentor_first_name} ${activeRecord.mentor_last_name}`
                       : (todayLog?.mentor_first_name && todayLog?.mentor_last_name)
@@ -364,12 +477,13 @@ export default function StudentOJT() {
                       : activeRecord?.supervisor_name || 'Assigned Workplace Mentor'}
                   </span>
                 </div>
-                <p className="text-[11px] text-on-surface-variant">
+                <p className="text-[11px] text-on-surface-variant truncate">
                   {activeRecord?.mentor_title || activeRecord?.organization_name || 'Host Employer'}
                 </p>
               </div>
 
-              <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+              {/* Time In Box */}
+              <div className="p-3.5 bg-surface-container-low rounded-2xl border border-outline-variant space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
                     Time-In (PST UTC+8)
@@ -377,8 +491,8 @@ export default function StudentOJT() {
                   {todayLog?.time_in && (
                     <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
                       todayLog.time_in_status === 'late'
-                        ? 'bg-amber-100 text-amber-800'
-                        : 'bg-emerald-100 text-emerald-800'
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                        : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                     }`}>
                       {todayLog.time_in_status === 'late' ? 'Late' : 'On-Time'}
                     </span>
@@ -386,16 +500,17 @@ export default function StudentOJT() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-emerald-600 text-[18px]">login</span>
-                  <span className="text-sm font-bold font-mono text-emerald-700">
+                  <span className="text-base font-bold font-mono text-emerald-700 dark:text-emerald-400">
                     {todayLog?.time_in ? todayLog.time_in.slice(0, 5) : '—'}
                   </span>
                 </div>
                 <p className="text-[11px] text-on-surface-variant">
-                  {todayLog?.time_in ? `Logged at ${todayLog.time_in.slice(0, 5)}` : 'Pending arrival confirmation'}
+                  {todayLog?.time_in ? `Recorded at ${todayLog.time_in.slice(0, 5)}` : 'Pending arrival clock'}
                 </p>
               </div>
 
-              <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+              {/* Time Out Box */}
+              <div className="p-3.5 bg-surface-container-low rounded-2xl border border-outline-variant space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
                     Time-Out (PST UTC+8)
@@ -403,34 +518,50 @@ export default function StudentOJT() {
                   {todayLog?.time_out && (
                     <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
                       todayLog.time_out_status === 'early'
-                        ? 'bg-amber-100 text-amber-800'
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                         : todayLog.time_out_status === 'overtime'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-emerald-100 text-emerald-800'
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                        : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                     }`}>
-                      {todayLog.time_out_status === 'early' ? 'Early Departure' : todayLog.time_out_status === 'overtime' ? 'Overtime (Capped)' : 'On-Time'}
+                      {todayLog.time_out_status === 'early' ? 'Early' : todayLog.time_out_status === 'overtime' ? 'Overtime (Capped)' : 'On-Time'}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-vibrant-orange text-[18px]">logout</span>
-                  <span className="text-sm font-bold font-mono text-vibrant-orange">
+                  <span className="text-base font-bold font-mono text-vibrant-orange">
                     {todayLog?.time_out ? todayLog.time_out.slice(0, 5) : (isClockedInToday ? 'In Progress' : '—')}
                   </span>
                 </div>
                 <p className="text-[11px] text-on-surface-variant">
-                  {todayLog?.time_out ? `${todayLog.hours_rendered || 0} training hrs credited` : 'Pending departure confirmation'}
+                  {todayLog?.time_out ? `${todayLog.hours_rendered || 0} hrs credited` : 'Pending departure clock'}
+                </p>
+              </div>
+
+              {/* Hours Credited Box */}
+              <div className="p-3.5 bg-surface-container-low rounded-2xl border border-outline-variant space-y-1">
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
+                  Today's Rendered Hours
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-purple-600 text-[18px]">hourglass_bottom</span>
+                  <span className="text-base font-bold font-mono text-purple-700 dark:text-purple-400">
+                    {todayLog?.hours_rendered ? `${parseFloat(todayLog.hours_rendered).toFixed(2)} hrs` : '0.00 hrs'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-on-surface-variant">
+                  {isClockedOutToday ? 'Certified by supervisor' : 'Calculated upon time-out'}
                 </p>
               </div>
             </div>
 
-            {/* Supervision Protocol & Overtime Notice */}
-            <div className="p-3.5 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60 rounded-xl flex items-start gap-2.5 text-xs text-blue-950 dark:text-blue-100">
-              <span className="material-symbols-outlined text-[18px] text-blue-600 dark:text-blue-400 shrink-0 mt-0.5">verified_user</span>
+            {/* Overtime Policy & Supervision Notice */}
+            <div className="p-3.5 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60 rounded-2xl flex items-start gap-3 text-xs text-blue-950 dark:text-blue-100">
+              <span className="material-symbols-outlined text-[20px] text-blue-600 dark:text-blue-400 shrink-0 mt-0.5">verified_user</span>
               <div className="space-y-0.5">
-                <p className="font-bold text-blue-950 dark:text-blue-100">Workplace Mentor Supervision & Overtime Policy</p>
+                <p className="font-bold text-blue-950 dark:text-blue-100">PST Standardized Recording & Overtime Policy</p>
                 <p className="text-[11px] text-blue-800 dark:text-blue-200 leading-relaxed">
-                  Daily Time Records (Time-In and Time-Out) are recorded and certified by your assigned Workplace Mentor using Philippine Standard Time (PST UTC+8). In accordance with institutional OJT agreements, any overtime clocked beyond the daily scheduled finish time is capped and not credited toward required training hours.
+                  Daily attendance is managed in Philippine Standard Time (PST UTC+8). Any overtime rendered past daily schedule is capped and not credited toward required training hours in adherence with academic OJT guidelines.
                 </p>
               </div>
             </div>
@@ -438,33 +569,52 @@ export default function StudentOJT() {
 
           {/* Attendance History Table */}
           <div className="bento-card space-y-4">
-            <h3 className="font-bold text-base text-on-surface flex items-center gap-2">
-              <span className="material-symbols-outlined text-vibrant-orange">history</span>
-              Attendance Logs & Mentor Credited Hours ({attendanceData?.logs?.length || 0})
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-outline-variant">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-vibrant-orange text-[22px]">history</span>
+                <div>
+                  <h3 className="font-bold text-base text-on-surface">Daily Attendance Logs & Mentor Certifications</h3>
+                  <p className="text-xs text-on-surface-variant">Complete audit history of daily recorded shift hours</p>
+                </div>
+              </div>
 
-            {!attendanceData?.logs || attendanceData.logs.length === 0 ? (
-              <div className="text-center py-10 text-on-surface-variant">
-                <span className="material-symbols-outlined text-[44px] mb-2 text-outline">history_toggle_off</span>
-                <p className="text-sm font-bold">No daily attendance logs recorded yet.</p>
-                <p className="text-xs mt-1">Your assigned Workplace Mentor will record your daily time-in and time-out as you report for your training shifts.</p>
+              {/* Search / Filter */}
+              <div className="relative w-full sm:w-64">
+                <span className="material-symbols-outlined absolute left-3 top-2.5 text-[18px] text-on-surface-variant pointer-events-none">
+                  search
+                </span>
+                <input
+                  type="text"
+                  placeholder="Search logs by date, task..."
+                  value={dtrSearch}
+                  onChange={(e) => setDtrSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-surface-container rounded-xl border border-outline-variant text-xs text-on-surface outline-none focus:ring-2 focus:ring-vibrant-orange"
+                />
+              </div>
+            </div>
+
+            {filteredDtrLogs.length === 0 ? (
+              <div className="text-center py-12 text-on-surface-variant space-y-2">
+                <span className="material-symbols-outlined text-[48px] text-outline">history_toggle_off</span>
+                <p className="text-sm font-bold text-on-surface">No attendance logs recorded yet.</p>
+                <p className="text-xs max-w-sm mx-auto">Your Workplace Mentor will log and certify your daily time-in and time-out as you complete internship duties.</p>
               </div>
             ) : (
               <div className="overflow-x-auto rounded-2xl border border-outline-variant/70 shadow-xs">
                 <table className="w-full min-w-[780px] text-left text-sm border-collapse">
                   <thead>
-                    <tr className="bg-surface-container-low/90 text-on-surface-variant text-[11px] uppercase tracking-wider font-extrabold border-b border-outline-variant">
+                    <tr className="bg-surface-container-low text-on-surface-variant text-[11px] uppercase tracking-wider font-extrabold border-b border-outline-variant">
                       <th className="py-3.5 px-4 sm:px-5">Date</th>
                       <th className="py-3.5 px-4">Host Company</th>
                       <th className="py-3.5 px-4 whitespace-nowrap">Time In (PST)</th>
                       <th className="py-3.5 px-4 whitespace-nowrap">Time Out (PST)</th>
                       <th className="py-3.5 px-4 text-center whitespace-nowrap">Hours Credited</th>
                       <th className="py-3.5 px-4">Tasks Accomplished</th>
-                      <th className="py-3.5 px-4 text-center whitespace-nowrap">Mentor Certification</th>
+                      <th className="py-3.5 px-4 text-center whitespace-nowrap">Mentor Verification</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/40 bg-surface">
-                    {attendanceData.logs.map((log) => (
+                    {filteredDtrLogs.map((log) => (
                       <tr key={log.attendance_id} className="hover:bg-surface-container-low/60 transition-colors">
                         {/* Date */}
                         <td className="py-3.5 px-4 sm:px-5 font-bold text-xs text-on-surface whitespace-nowrap">
@@ -475,7 +625,7 @@ export default function StudentOJT() {
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-1.5 font-bold text-xs text-on-surface whitespace-nowrap">
                             <span className="material-symbols-outlined text-[16px] text-vibrant-orange shrink-0">apartment</span>
-                            <span className="truncate max-w-[200px]" title={log.organization_name}>{log.organization_name}</span>
+                            <span className="truncate max-w-[180px]" title={log.organization_name}>{log.organization_name}</span>
                           </div>
                         </td>
 
@@ -567,108 +717,208 @@ export default function StudentOJT() {
         </div>
       )}
 
-      {/* TAB 2: CLEARANCE REQUIREMENTS CHECKLIST */}
+      {/* ========================================================================= */}
+      {/* TAB 2: CLEARANCE CHECKLIST & DOCUMENT SUBMISSION */}
+      {/* ========================================================================= */}
       {activeTab === 'requirements' && (
-        <div className="bento-card space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-base text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-vibrant-orange">checklist</span>
-                OJT Institutional Clearance Checklist
-              </h3>
-              <p className="text-xs text-on-surface-variant mt-0.5">
-                Submit all required documents for review by your Institution OJT Coordinator & Registrar.
-              </p>
+        <div className="space-y-6">
+          {/* Progress Summary Card */}
+          <div className="bento-card bg-gradient-to-r from-blue-500/10 via-surface to-surface border border-blue-500/20 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-2xl">assignment_turned_in</span>
+                  <h3 className="font-bold text-base sm:text-lg text-on-surface">Institutional Clearance Checklist</h3>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  Download templates, complete documentation, and upload required clearance files for OJT Coordinator review.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <span className="text-2xl font-black text-blue-600 dark:text-blue-400 font-mono">
+                    {approvedReqsCount} / {totalReqsCount}
+                  </span>
+                  <span className="text-xs font-bold text-on-surface-variant block">Documents Approved</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 pt-1">
+              <div className="flex justify-between text-xs font-bold text-on-surface-variant">
+                <span>Clearance Verification Progress</span>
+                <span className="text-blue-600 dark:text-blue-400 font-mono">{reqsProgressPct}%</span>
+              </div>
+              <div className="w-full bg-surface-container-high h-3 rounded-full overflow-hidden border border-outline-variant/60">
+                <div
+                  className="bg-blue-600 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${reqsProgressPct}%` }}
+                ></div>
+              </div>
             </div>
           </div>
 
-          {requirements.length === 0 ? (
-            <p className="text-xs text-on-surface-variant text-center py-6">No clearance requirements configured yet.</p>
+          {/* Filter Bar */}
+          <div className="flex items-center justify-between gap-2 flex-wrap pb-1">
+            <div className="flex bg-surface-container p-1 rounded-xl border border-outline-variant gap-1 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setReqFilter('all')}
+                className={`px-3 py-1.5 rounded-lg transition-colors ${
+                  reqFilter === 'all' ? 'bg-surface text-on-surface shadow-xs' : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                All ({requirements.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setReqFilter('mandatory')}
+                className={`px-3 py-1.5 rounded-lg transition-colors ${
+                  reqFilter === 'mandatory' ? 'bg-surface text-rose-600 shadow-xs' : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                Mandatory ({requirements.filter((r) => r.is_mandatory).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setReqFilter('pending')}
+                className={`px-3 py-1.5 rounded-lg transition-colors ${
+                  reqFilter === 'pending' ? 'bg-surface text-amber-600 shadow-xs' : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                Pending Submission ({requirements.filter((r) => !r.submission_status || r.submission_status === 'draft').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setReqFilter('approved')}
+                className={`px-3 py-1.5 rounded-lg transition-colors ${
+                  reqFilter === 'approved' ? 'bg-surface text-emerald-600 shadow-xs' : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                Verified ({requirements.filter((r) => r.submission_status === 'approved').length})
+              </button>
+            </div>
+          </div>
+
+          {/* Requirements List */}
+          {filteredReqs.length === 0 ? (
+            <div className="bento-card text-center py-12 text-on-surface-variant space-y-2">
+              <span className="material-symbols-outlined text-[48px] text-outline">checklist</span>
+              <p className="text-sm font-bold text-on-surface">No clearance requirements found in this filter.</p>
+              <p className="text-xs">Your institution will publish clearance documents for your degree program.</p>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {requirements.map((req) => (
+            <div className="grid grid-cols-1 gap-4">
+              {filteredReqs.map((req) => (
                 <div
                   key={req.requirement_id}
-                  className="p-4 bg-surface-container-low rounded-xl border border-outline-variant flex items-start justify-between gap-4 flex-wrap"
+                  className="p-5 bg-surface-container-low rounded-2xl border border-outline-variant hover:border-vibrant-orange/40 transition-all space-y-4 shadow-xs"
                 >
-                  <div className="space-y-2 max-w-xl">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-bold text-sm text-on-surface">{req.title || req.requirement_name}</h4>
-                      {req.is_mandatory ? (
-                        <span className="px-2 py-0.5 bg-rose-50 text-rose-700 text-[10px] font-bold rounded-full border border-rose-200">
-                          Mandatory
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 bg-surface-container text-on-surface-variant text-[10px] font-bold rounded-full">
-                          Optional
-                        </span>
-                      )}
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          req.submission_status === 'approved'
-                            ? 'bg-green-tint text-pinoy-green border border-pinoy-green/20'
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Document Type Icon */}
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                          <span className="material-symbols-outlined text-[20px]">
+                            {req.document_template_url?.toLowerCase().includes('.doc') ? 'description' : 'article'}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-sm sm:text-base text-on-surface">
+                          {req.title || req.requirement_name}
+                        </h4>
+                        
+                        {req.is_mandatory ? (
+                          <span className="px-2.5 py-0.5 bg-rose-500/10 text-rose-700 dark:text-rose-300 text-[10px] font-extrabold rounded-full border border-rose-500/20 uppercase tracking-wider">
+                            Mandatory
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 bg-surface-container text-on-surface-variant text-[10px] font-bold rounded-full">
+                            Optional
+                          </span>
+                        )}
+
+                        <span
+                          className={`px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
+                            req.submission_status === 'approved'
+                              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                              : req.submission_status === 'submitted'
+                              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                              : req.submission_status === 'draft'
+                              ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30'
+                              : 'bg-surface-container text-on-surface-variant border-outline-variant'
+                          }`}
+                        >
+                          {req.submission_status === 'approved'
+                            ? 'Verified & Approved'
                             : req.submission_status === 'submitted'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            ? 'Under Review'
                             : req.submission_status === 'draft'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                            : 'bg-surface-container text-on-surface-variant'
-                        }`}
-                      >
-                        {req.submission_status === 'draft' ? 'Draft (Not Submitted)' : (req.submission_status || 'Pending Submission')}
-                      </span>
+                            ? 'Saved Draft'
+                            : 'Pending Submission'}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-on-surface-variant leading-relaxed pl-10">
+                        {req.description || 'Institutional compliance clearance document.'}
+                      </p>
                     </div>
 
-                    <p className="text-xs text-on-surface-variant leading-relaxed">
-                      {req.description || 'Institutional compliance document.'}
-                    </p>
-
-                    {/* Action Links: Download template or View uploaded file */}
-                    <div className="flex items-center gap-2 flex-wrap pt-1">
-                      {req.document_template_url && (
-                        <a
-                          href={resolveFileUrl(req.document_template_url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          download
-                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold border border-blue-200 transition-colors"
+                    {/* Right Side Status / Action Button */}
+                    <div className="shrink-0 flex items-center gap-2 pl-10 sm:pl-0">
+                      {req.submission_status === 'approved' ? (
+                        <span className="px-3.5 py-2 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs">
+                          <span className="material-symbols-outlined text-[18px]">verified</span>
+                          <span>Approved</span>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedReq(req);
+                            setUploadFile(null);
+                            setFilePathText(req.file_url || req.submitted_file || '');
+                          }}
+                          className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
                         >
-                          <span className="material-symbols-outlined text-[15px]">file_download</span>
-                          Download Template / Form
-                        </a>
-                      )}
-
-                      {(req.file_url || req.submitted_file) && (
-                        <a
-                          href={resolveFileUrl(req.file_url || req.submitted_file)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-container hover:bg-surface-container-high text-on-surface rounded-lg text-xs font-bold border border-outline-variant transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-[15px]">attachment</span>
-                          View Uploaded Document
-                        </a>
+                          <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                          <span>
+                            {req.submission_status === 'submitted'
+                              ? 'Re-upload Document'
+                              : req.submission_status === 'draft'
+                              ? 'Edit Draft & Submit'
+                              : 'Upload Document'}
+                          </span>
+                        </button>
                       )}
                     </div>
                   </div>
 
-                  <div className="pt-1">
-                    {req.submission_status === 'approved' ? (
-                      <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs">
-                        <span className="material-symbols-outlined text-[16px]">verified</span>
-                        <span>Verified</span>
-                      </span>
-                    ) : (
+                  {/* Actions & File Links Bar */}
+                  <div className="flex items-center gap-2.5 flex-wrap pt-2 border-t border-outline-variant/60 pl-10">
+                    {/* Direct Download Button for DOCX / Form Template */}
+                    {req.document_template_url && (
                       <button
-                        onClick={() => {
-                          setSelectedReq(req);
-                          setUploadFile(null);
-                          setFilePathText(req.file_url || req.submitted_file || '');
-                        }}
-                        className="px-3.5 py-1.5 bg-vibrant-orange hover:bg-deep-orange text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+                        type="button"
+                        onClick={(e) => handleDownloadTemplate(e, req.document_template_url, req.title || req.requirement_name)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:hover:bg-blue-900/80 dark:text-blue-300 rounded-xl text-xs font-bold border border-blue-200 dark:border-blue-800 transition-colors shadow-xs"
                       >
-                        <span className="material-symbols-outlined text-[16px]">upload_file</span>
-                        {req.submission_status === 'submitted' ? 'Re-upload' : req.submission_status === 'draft' ? 'Edit Draft / Submit' : 'Upload File'}
+                        <span className="material-symbols-outlined text-[16px]">file_download</span>
+                        <span>Download Requirement (.docx)</span>
                       </button>
+                    )}
+
+                    {/* View Uploaded Document Link */}
+                    {(req.file_url || req.submitted_file) && (
+                      <a
+                        href={resolveFileUrl(req.file_url || req.submitted_file)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface rounded-xl text-xs font-bold border border-outline-variant transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">attachment</span>
+                        <span>View My Uploaded File</span>
+                      </a>
                     )}
                   </div>
                 </div>
@@ -678,36 +928,76 @@ export default function StudentOJT() {
         </div>
       )}
 
-      {/* TAB 3: EVALUATIONS */}
+      {/* ========================================================================= */}
+      {/* TAB 3: WORKPLACE MENTOR EVALUATIONS */}
+      {/* ========================================================================= */}
       {activeTab === 'evaluations' && (
-        <div className="bento-card space-y-4">
-          <h3 className="font-bold text-base text-on-surface flex items-center gap-2">
-            <span className="material-symbols-outlined text-vibrant-orange">rate_review</span>
-            Workplace Mentor Performance Ratings
-          </h3>
+        <div className="space-y-6">
+          {/* Evaluations Performance Overview */}
+          <div className="bento-card bg-gradient-to-r from-emerald-500/10 via-surface to-surface border border-emerald-500/20 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-2xl">grade</span>
+                  <h3 className="font-bold text-base sm:text-lg text-on-surface">Workplace Mentor Performance Ratings</h3>
+                </div>
+                <p className="text-xs text-on-surface-variant">
+                  Formal competencies, task performance, and professional diligence ratings submitted by your Workplace Mentor.
+                </p>
+              </div>
 
-          {!ojtData?.evaluations || ojtData.evaluations.length === 0 ? (
-            <div className="text-center py-8 text-on-surface-variant">
-              <span className="material-symbols-outlined text-[44px] text-outline mb-2">grade</span>
-              <p className="text-sm font-bold">No performance evaluations submitted yet.</p>
-              <p className="text-xs mt-1">Your Workplace Mentor will evaluate your performance upon rendering required hours.</p>
+              {avgRating && (
+                <div className="flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl shrink-0">
+                  <div className="text-right">
+                    <span className="text-2xl font-black text-emerald-700 dark:text-emerald-300 font-mono">
+                      {avgRating} / 5.0
+                    </span>
+                    <span className="text-[10px] font-bold text-on-surface-variant block">Average Score</span>
+                  </div>
+                  <div className="text-amber-500 text-xl font-bold">⭐</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Evaluations Grid */}
+          {evaluationsList.length === 0 ? (
+            <div className="bento-card text-center py-12 text-on-surface-variant space-y-2">
+              <span className="material-symbols-outlined text-[48px] text-outline">rate_review</span>
+              <p className="text-sm font-bold text-on-surface">No performance evaluations submitted yet.</p>
+              <p className="text-xs max-w-sm mx-auto">
+                Your assigned Workplace Mentor will submit evaluation ratings upon completion of internship milestones or final shift rendered.
+              </p>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {ojtData.evaluations.map((ev) => (
-                <div key={ev.record_id} className="p-4 bg-surface-container-low rounded-xl border border-outline-variant space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold capitalize bg-orange-tint text-vibrant-orange">
-                      {ev.evaluation_period} Evaluation
+              {evaluationsList.map((ev) => (
+                <div
+                  key={ev.record_id || ev.evaluation_id}
+                  className="p-5 bg-surface-container-low rounded-2xl border border-outline-variant space-y-3.5 shadow-xs hover:border-vibrant-orange/40 transition-all"
+                >
+                  <div className="flex justify-between items-center pb-2 border-b border-outline-variant">
+                    <span className="px-3 py-1 rounded-full text-xs font-bold capitalize bg-orange-tint text-vibrant-orange border border-vibrant-orange/20">
+                      {ev.evaluation_period ? `${ev.evaluation_period} Evaluation` : 'Performance Evaluation'}
                     </span>
-                    <span className="font-bold text-pinoy-green text-sm">{ev.rating} / 5.0 ★</span>
+                    <div className="flex items-center gap-1 font-bold text-pinoy-green text-sm bg-green-tint px-3 py-1 rounded-full border border-pinoy-green/20">
+                      <span>{ev.rating} / 5.0</span>
+                      <span>★</span>
+                    </div>
                   </div>
-                  <p className="text-xs text-on-surface leading-relaxed">
-                    "{ev.comments || 'Demonstrated diligence and technical competence during the training period.'}"
-                  </p>
-                  <div className="text-[11px] text-on-surface-variant flex justify-between border-t border-outline-variant/60 pt-2">
-                    <span>Evaluator: {ev.evaluator_email || 'Workplace Mentor'}</span>
-                    <span>{new Date(ev.evaluated_at).toLocaleDateString()}</span>
+
+                  <div className="p-3.5 bg-surface rounded-xl border border-outline-variant/60">
+                    <p className="text-xs text-on-surface leading-relaxed italic">
+                      "{ev.comments || 'Demonstrated dedication, strong technical skills, and professionalism throughout the training period.'}"
+                    </p>
+                  </div>
+
+                  <div className="text-[11px] text-on-surface-variant flex justify-between items-center pt-1">
+                    <span className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[15px]">person</span>
+                      {ev.evaluator_email || 'Workplace Mentor'}
+                    </span>
+                    <span>{new Date(ev.evaluated_at || ev.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                   </div>
                 </div>
               ))}
@@ -715,10 +1005,13 @@ export default function StudentOJT() {
           )}
         </div>
       )}
-      {/* Requirement Submission Modal with Draft & Submit actions */}
+
+      {/* ========================================================================= */}
+      {/* REQUIREMENT SUBMISSION MODAL */}
+      {/* ========================================================================= */}
       {selectedReq && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 max-h-[90dvh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-outline-variant pb-3">
               <div>
                 <h3 className="font-bold text-base text-on-surface flex items-center gap-2">
@@ -726,7 +1019,7 @@ export default function StudentOJT() {
                   Submit Clearance Requirement
                 </h3>
                 <p className="text-xs text-on-surface-variant mt-0.5">
-                  Requirement: <strong>{selectedReq.title || selectedReq.requirement_name}</strong>
+                  Document: <strong>{selectedReq.title || selectedReq.requirement_name}</strong>
                 </p>
               </div>
               <button
@@ -741,54 +1034,52 @@ export default function StudentOJT() {
               </button>
             </div>
 
-            {/* If template is available, show download option inside modal */}
+            {/* Template Download Option inside Modal */}
             {selectedReq.document_template_url && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between gap-2 text-xs">
-                <div className="text-blue-900">
+              <div className="p-3.5 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-xl flex items-center justify-between gap-3 text-xs">
+                <div className="text-blue-900 dark:text-blue-200">
                   <span className="font-bold block">Need the official template?</span>
-                  <span className="text-[11px] text-blue-800">Download the institution's template before completing.</span>
+                  <span className="text-[11px] opacity-80">Download the .docx requirement before completing.</span>
                 </div>
-                <a
-                  href={resolveFileUrl(selectedReq.document_template_url)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download
-                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-colors shrink-0 flex items-center gap-1"
+                <button
+                  type="button"
+                  onClick={(e) => handleDownloadTemplate(e, selectedReq.document_template_url, selectedReq.title || selectedReq.requirement_name)}
+                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs transition-colors shrink-0 flex items-center gap-1 shadow-xs"
                 >
-                  <span className="material-symbols-outlined text-[15px]">download</span>
-                  Download
-                </a>
+                  <span className="material-symbols-outlined text-[15px]">file_download</span>
+                  <span>Download .docx</span>
+                </button>
               </div>
             )}
 
             <div className="space-y-4 text-xs">
-              {/* File Attachment Input */}
+              {/* File Upload Dropzone */}
               <div>
                 <label className="block font-bold text-on-surface mb-1">
-                  Upload Document File (PDF, DOCX, Images, etc.)
+                  Upload Completed Document (PDF, DOCX, Images, etc.)
                 </label>
                 <div className="p-4 bg-surface-container-low rounded-xl border border-dashed border-outline-variant space-y-2">
                   <input
                     type="file"
-                    id="studentReqFile"
+                    id="studentReqFileInput"
                     onChange={(e) => setUploadFile(e.target.files[0] || null)}
                     accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.xlsx"
                     className="w-full text-xs text-on-surface file:mr-2.5 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-vibrant-orange file:text-white hover:file:bg-deep-orange cursor-pointer"
                   />
                   {uploadFile && (
-                    <div className="flex items-center justify-between bg-emerald-50 text-emerald-800 p-2 rounded-lg text-[11px] font-medium">
-                      <span className="truncate flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[15px]">check_circle</span>
-                        {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
+                    <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 p-2.5 rounded-lg text-[11px] font-medium border border-emerald-200 dark:border-emerald-800">
+                      <span className="truncate flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                        {uploadFile.name} ({formatFileSize(uploadFile.size)})
                       </span>
                       <button
                         type="button"
                         onClick={() => {
                           setUploadFile(null);
-                          const input = document.getElementById('studentReqFile');
-                          if (input) input.value = '';
+                          const el = document.getElementById('studentReqFileInput');
+                          if (el) el.value = '';
                         }}
-                        className="text-error font-bold ml-2"
+                        className="text-error font-bold ml-2 hover:underline"
                       >
                         Remove
                       </button>
@@ -802,7 +1093,7 @@ export default function StudentOJT() {
                 </div>
               </div>
 
-              {/* Or Cloud Link Alternative */}
+              {/* Cloud URL Alternative */}
               <div>
                 <label className="block font-bold text-on-surface mb-1">
                   Or Cloud Document URL (Optional)
@@ -811,12 +1102,12 @@ export default function StudentOJT() {
                   type="text"
                   value={filePathText}
                   onChange={(e) => setFilePathText(e.target.value)}
-                  placeholder="https://drive.google.com/... or cloud document link"
+                  placeholder="https://drive.google.com/... or shared link"
                   className="w-full p-2.5 bg-surface-container rounded-xl border border-outline-variant text-xs text-on-surface outline-none focus:border-vibrant-orange"
                 />
               </div>
 
-              {/* Action Buttons: Save Draft vs Submit */}
+              {/* Action Buttons */}
               <div className="flex items-center justify-between pt-3 border-t border-outline-variant">
                 <button
                   type="button"
@@ -825,7 +1116,7 @@ export default function StudentOJT() {
                     setUploadFile(null);
                     setFilePathText('');
                   }}
-                  className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high"
+                  className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high transition-colors"
                 >
                   Cancel
                 </button>
@@ -838,7 +1129,7 @@ export default function StudentOJT() {
                     className="px-4 py-2 bg-surface-container text-on-surface border border-outline-variant text-xs font-bold rounded-xl hover:bg-surface-container-high transition-colors disabled:opacity-50 flex items-center gap-1.5"
                   >
                     <span className="material-symbols-outlined text-[16px]">save</span>
-                    {actionLoading ? 'Saving...' : 'Save Draft'}
+                    <span>{actionLoading ? 'Saving...' : 'Save Draft'}</span>
                   </button>
 
                   <button
@@ -848,7 +1139,7 @@ export default function StudentOJT() {
                     className="px-4 py-2 bg-vibrant-orange text-white text-xs font-bold rounded-xl hover:bg-deep-orange transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
                   >
                     <span className="material-symbols-outlined text-[16px]">send</span>
-                    {actionLoading ? 'Submitting...' : 'Submit Officially'}
+                    <span>{actionLoading ? 'Submitting...' : 'Submit Officially'}</span>
                   </button>
                 </div>
               </div>
@@ -857,10 +1148,12 @@ export default function StudentOJT() {
         </div>
       )}
 
-      {/* OJT Certificate Viewer Modal */}
+      {/* ========================================================================= */}
+      {/* OJT CERTIFICATE VIEWER MODAL */}
+      {/* ========================================================================= */}
       {viewCert && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-outline-variant rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-outline-variant pb-3">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-emerald-600 text-2xl">workspace_premium</span>
@@ -875,15 +1168,15 @@ export default function StudentOJT() {
             </div>
 
             {/* Certificate Canvas */}
-            <div className="border-4 border-double border-emerald-600/40 p-8 rounded-2xl bg-gradient-to-br from-emerald-50/40 via-white to-amber-50/30 text-center space-y-4 relative shadow-inner">
+            <div className="border-4 border-double border-emerald-600/40 p-8 rounded-2xl bg-gradient-to-br from-emerald-50/40 via-white to-amber-50/30 dark:from-emerald-950/20 dark:via-surface dark:to-amber-950/10 text-center space-y-4 relative shadow-inner">
               <div className="space-y-1">
-                <span className="text-[11px] uppercase tracking-widest text-emerald-700 font-black">Official Certificate of Completion</span>
+                <span className="text-[11px] uppercase tracking-widest text-emerald-700 dark:text-emerald-300 font-black">Official Certificate of Completion</span>
                 <h4 className="text-2xl font-black text-on-surface font-serif">INTERNSHIP COMPLETION</h4>
                 <p className="text-xs text-on-surface-variant">This is to officially certify that</p>
               </div>
 
               <div className="py-2 border-b-2 border-emerald-600/30 inline-block px-8">
-                <span className="text-xl font-bold text-emerald-900 tracking-wide">
+                <span className="text-xl font-bold text-emerald-900 dark:text-emerald-100 tracking-wide">
                   {viewCert.student_name}
                 </span>
                 <p className="text-xs text-on-surface-variant mt-0.5">Student ID: #{viewCert.student_number}</p>
@@ -896,7 +1189,7 @@ export default function StudentOJT() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 text-left border-t border-outline-variant/60 text-xs">
                 <div>
                   <span className="text-on-surface-variant block text-[11px]">Evaluation Rating:</span>
-                  <span className="font-bold text-emerald-700 text-sm">
+                  <span className="font-bold text-emerald-700 dark:text-emerald-300 text-sm">
                     {viewCert.evaluation_rating ? `${viewCert.evaluation_rating} / 5.0 ⭐` : 'Completed & Recommended'}
                   </span>
                 </div>
@@ -909,7 +1202,7 @@ export default function StudentOJT() {
               </div>
 
               <div className="pt-2 text-center">
-                <span className="inline-block px-3 py-1 bg-emerald-100/60 rounded-full text-[11px] font-mono font-bold text-emerald-800 border border-emerald-300">
+                <span className="inline-block px-3 py-1 bg-emerald-100/60 dark:bg-emerald-900/50 rounded-full text-[11px] font-mono font-bold text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
                   VERIFICATION CODE: {viewCert.certificate_code}
                 </span>
               </div>
@@ -921,7 +1214,7 @@ export default function StudentOJT() {
                 <button
                   type="button"
                   onClick={() => setViewCert(null)}
-                  className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high w-full sm:w-auto text-center"
+                  className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high w-full sm:w-auto text-center transition-colors"
                 >
                   Close
                 </button>
@@ -931,7 +1224,7 @@ export default function StudentOJT() {
                   className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5 w-full sm:w-auto text-center"
                 >
                   <span className="material-symbols-outlined text-[16px]">print</span>
-                  Print / Download
+                  <span>Print / Download</span>
                 </button>
               </div>
             </div>

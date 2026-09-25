@@ -94,7 +94,7 @@ function AnimatedRoutes() {
             <Route path="jobs" element={<StudentJobs />} />
             <Route path="applications" element={<StudentApplications />} />
             <Route path="ojt" element={<StudentOJT />} />
-            <Route path="requirements" element={<Navigate to="/dashboard/student/ojt" replace />} />
+            <Route path="requirements" element={<Navigate to="/dashboard/student/ojt?tab=requirements" replace />} />
             <Route path="skills" element={<StudentSkills />} />
             <Route path="portfolio" element={<StudentPortfolio />} />
             <Route path="complaints" element={<StudentComplaints />} />

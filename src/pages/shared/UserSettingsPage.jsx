@@ -19,6 +19,7 @@ export default function UserSettingsPage() {
   const [activeTab, setActiveTab] = useState('notifications'); // 'notifications' | 'profile' | 'security' | 'appearance'
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
   // Preferences State
@@ -212,7 +213,9 @@ export default function UserSettingsPage() {
               }
             : prev
         );
+        setProfileSaveSuccess(true);
         showNotification('success', 'Profile details updated successfully!');
+        setTimeout(() => setProfileSaveSuccess(false), 3500);
       } else {
         showNotification('error', res.message || 'Failed to update profile.');
       }
@@ -664,11 +667,24 @@ export default function UserSettingsPage() {
               </div>
 
               {/* Personal Details Form */}
-              <form onSubmit={handleSaveProfile} className="bento-card space-y-5">
-                <h3 className="text-base font-bold text-on-surface flex items-center gap-2">
-                  <span className="material-symbols-outlined text-vibrant-orange text-[22px]">badge</span>
-                  <span>Personal Profile Details</span>
-                </h3>
+              <form
+                onSubmit={handleSaveProfile}
+                className={`bento-card space-y-5 transition-all duration-500 ${
+                  profileSaveSuccess ? 'ring-2 ring-emerald-500/70 bg-emerald-50/20 shadow-lg shadow-emerald-500/10' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between border-b border-outline-variant pb-2">
+                  <h3 className="text-base font-bold text-on-surface flex items-center gap-2">
+                    <span className="material-symbols-outlined text-vibrant-orange text-[22px]">badge</span>
+                    <span>Personal Profile Details</span>
+                  </h3>
+                  {profileSaveSuccess && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold animate-in fade-in zoom-in-95 duration-200">
+                      <span className="material-symbols-outlined text-[16px] text-emerald-600">check_circle</span>
+                      <span>Changes Saved</span>
+                    </span>
+                  )}
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -746,10 +762,30 @@ export default function UserSettingsPage() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-6 py-2.5 bg-vibrant-orange text-white rounded-xl font-bold text-xs hover:bg-deep-orange transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+                    className={`px-6 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 shadow-sm flex items-center justify-center gap-2 ${
+                      profileSaveSuccess
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-400 scale-[1.02]'
+                        : saving
+                        ? 'bg-vibrant-orange/80 text-white cursor-not-allowed'
+                        : 'bg-vibrant-orange text-white hover:bg-deep-orange'
+                    }`}
                   >
-                    <span className="material-symbols-outlined text-[18px]">verified</span>
-                    <span>{saving ? 'Saving...' : 'Save Profile Changes'}</span>
+                    {profileSaveSuccess ? (
+                      <>
+                        <span className="material-symbols-outlined text-[18px] animate-bounce">check_circle</span>
+                        <span>Saved Successfully! ✓</span>
+                      </>
+                    ) : saving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Saving Changes...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[18px]">verified</span>
+                        <span>Save Profile Changes</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>

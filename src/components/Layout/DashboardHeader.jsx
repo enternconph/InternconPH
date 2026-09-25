@@ -110,8 +110,12 @@ export default function DashboardHeader() {
     // Navigate to linked record if present
     if (notif.link) {
       let targetLink = notif.link;
-      if (targetLink === '/dashboard/student/requirements') {
-        targetLink = '/dashboard/student/ojt';
+      if (
+        targetLink === '/dashboard/student/requirements' ||
+        (notif.type === 'requirement' && targetLink === '/dashboard/student/ojt') ||
+        (notif.title && notif.title.toLowerCase().includes('clearance') && targetLink === '/dashboard/student/ojt')
+      ) {
+        targetLink = '/dashboard/student/ojt?tab=requirements';
       }
       navigate(targetLink);
     }

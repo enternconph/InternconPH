@@ -55,6 +55,9 @@ export default function StudentProfile() {
   // Real-time: auto-refresh portfolio display when student uploads items in Career Portfolio page
   useRealtimeRefresh(fetchProfile);
 
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
   const showNotification = (msg, isErr = false) => {
     if (isErr) {
       setError(msg);
@@ -71,12 +74,21 @@ export default function StudentProfile() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const res = await api.put('/student/profile', formData);
-    if (res.success) {
-      showNotification('Profile updated successfully!');
-      fetchProfile();
-    } else {
-      showNotification(res.message || 'Update failed.', true);
+    setIsSaving(true);
+    try {
+      const res = await api.put('/student/profile', formData);
+      if (res.success) {
+        setSaveSuccess(true);
+        showNotification('Profile details updated successfully!');
+        fetchProfile();
+        setTimeout(() => setSaveSuccess(false), 3500);
+      } else {
+        showNotification(res.message || 'Update failed.', true);
+      }
+    } catch (err) {
+      showNotification('An error occurred while saving.', true);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -212,11 +224,24 @@ export default function StudentProfile() {
       )}
 
       {/* Editable Form */}
-      <form onSubmit={handleSubmit} className="bento-card space-y-4">
-        <h2 className="text-base font-bold text-on-surface border-b border-outline-variant pb-2 flex items-center gap-2">
-          <span className="material-symbols-outlined text-vibrant-orange text-[20px]">person</span>
-          <span>Personal & Contact Information</span>
-        </h2>
+      <form
+        onSubmit={handleSubmit}
+        className={`bento-card space-y-4 transition-all duration-500 ${
+          saveSuccess ? 'ring-2 ring-emerald-500/70 bg-emerald-50/20 shadow-lg shadow-emerald-500/10' : ''
+        }`}
+      >
+        <div className="flex items-center justify-between border-b border-outline-variant pb-2">
+          <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
+            <span className="material-symbols-outlined text-vibrant-orange text-[20px]">person</span>
+            <span>Personal & Contact Information</span>
+          </h2>
+          {saveSuccess && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold animate-in fade-in zoom-in-95 duration-200">
+              <span className="material-symbols-outlined text-[16px] text-emerald-600">check_circle</span>
+              <span>Changes Saved</span>
+            </span>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -311,9 +336,31 @@ export default function StudentProfile() {
         <div className="flex justify-end pt-2">
           <button
             type="submit"
-            className="px-6 py-2.5 bg-vibrant-orange text-white rounded-lg font-bold text-sm hover:bg-deep-orange transition-colors shadow-sm"
+            disabled={isSaving}
+            className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 shadow-sm flex items-center justify-center gap-2 ${
+              saveSuccess
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-400 scale-[1.02]'
+                : isSaving
+                ? 'bg-vibrant-orange/80 text-white cursor-not-allowed'
+                : 'bg-vibrant-orange text-white hover:bg-deep-orange'
+            }`}
           >
-            Save Profile Changes
+            {saveSuccess ? (
+              <>
+                <span className="material-symbols-outlined text-[20px] animate-bounce">check_circle</span>
+                <span>Saved Successfully! ✓</span>
+              </>
+            ) : isSaving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Saving Changes...</span>
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-[18px]">save</span>
+                <span>Save Profile Changes</span>
+              </>
+            )}
           </button>
         </div>
       </form>
