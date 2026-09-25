@@ -135,6 +135,7 @@ function AnimatedRoutes() {
             <Route path="requirements" element={<InstRequirements />} />
             <Route path="monitoring" element={<InstMonitoring />} />
             <Route path="ojt-offers" element={<InstOJTOffers />} />
+            <Route path="jobs" element={<Navigate to="/dashboard/institution/ojt-offers" replace />} />
             <Route path="settings" element={<UserSettingsPage />} />
           </Route>
         </Route>

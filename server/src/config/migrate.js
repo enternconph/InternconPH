@@ -1236,6 +1236,10 @@ export async function runMigrations() {
         await pool.query('ALTER TABLE interviews ADD COLUMN meeting_code VARCHAR(50) NULL AFTER meeting_link');
         console.log('[Migration] Added meeting_code to interviews');
       }
+      if (!intColNames.includes('reminder_sent_5m')) {
+        await pool.query('ALTER TABLE interviews ADD COLUMN reminder_sent_5m TINYINT(1) DEFAULT 0 AFTER status');
+        console.log('[Migration] Added reminder_sent_5m to interviews');
+      }
     } catch (intMigErr) {
       console.warn('[Migration Warning] Interviews table migration error:', intMigErr.message);
     }

@@ -644,6 +644,43 @@ router.post('/jobs', requireHROrAdmin, async (req, res) => {
     emitUpdate('job_posted', { job_id: jobId, organization_id: org.organization_id, posting_type: pType });
 
     const typeLabel = pType === 'ojt' ? 'OJT Opportunity' : pType === 'on_call' ? 'On-Call Opportunity' : 'Career Job Opening';
+
+    // Notify administrators and coordinators of each target institution
+    try {
+      for (const instId of selectedInstitutions) {
+        const [instRecipients] = await pool.query(
+          `SELECT DISTINCT u.user_id
+           FROM users u
+           WHERE u.user_id IN (
+             SELECT ireg.submitted_by FROM institution_registrations ireg WHERE ireg.institution_id = ? AND ireg.submitted_by IS NOT NULL
+             UNION
+             SELECT ist.user_id FROM institution_staff ist WHERE ist.institution_id = ? AND ist.is_active = 1 AND ist.user_id IS NOT NULL
+             UNION
+             SELECT u2.user_id FROM users u2 JOIN institutions inst ON u2.email = inst.contact_email WHERE inst.institution_id = ? AND u2.user_id IS NOT NULL
+           )`,
+          [instId, instId, instId]
+        );
+
+        for (const recipient of instRecipients) {
+          if (recipient.user_id) {
+            await sendNotification({
+              userId: recipient.user_id,
+              senderId: req.user.user_id,
+              senderName: org.organization_name || 'Hiring Organization',
+              title: `New Job Post: ${typeLabel}`,
+              message: `${org.organization_name || 'An organization'} has submitted a new ${typeLabel} "${title}" for your institution's review and approval.`,
+              type: 'job',
+              link: '/dashboard/institution/ojt-offers',
+              relatedType: 'job_posting',
+              relatedId: jobId
+            });
+          }
+        }
+      }
+    } catch (notifErr) {
+      console.warn('[OrgJobNotification Warning] Failed to notify target institutions:', notifErr.message);
+    }
+
     return res.status(201).json({
       success: true,
       message: `${typeLabel} posted successfully and submitted to ${selectedInstitutions.length} partner institution(s) for approval!`
@@ -1070,14 +1107,23 @@ router.post('/applicants/:id/status', requireHROrAdmin, async (req, res) => {
         shortlisted: 'Application Shortlisted!',
         interviewed: 'Interview Update',
         accepted: 'Job Offer Received!',
-        rejected: 'Application Update',
+        rejected: 'Application Status: Not Selected',
         withdrawn: 'Application Withdrawn'
       };
+      const statusMessage = status === 'rejected'
+        ? `Your application for "${app.job_title}" at ${app.organization_name} was not selected to proceed at this time. Click to view your applications.`
+        : `Your application for "${app.job_title}" at ${app.organization_name} has been updated to "${status}".`;
+
       await sendNotification({
         userId: app.student_user_id,
+        senderId: req.user.user_id,
+        senderName: app.organization_name || 'Hiring Organization',
         title: statusTitles[status] || 'Application Status Update',
-        message: `Your application for "${app.job_title}" at ${app.organization_name} has been updated to "${status}".`,
-        type: 'job'
+        message: statusMessage,
+        type: 'job',
+        link: '/dashboard/student/applications',
+        relatedType: 'application',
+        relatedId: appId
       });
     }
 
@@ -1523,10 +1569,38 @@ router.post('/interns/:ojtId/hours', async (req, res) => {
     if (ojt.student_user_id) {
       await sendNotification({
         userId: ojt.student_user_id,
+        senderId: req.user.user_id,
+        senderName: ojt.organization_name || 'Workplace Mentor',
         title: 'OJT Hours Credited',
         message: `${hoursToAdd} OJT training hour(s) have been verified and credited by ${ojt.organization_name}. Total rendered: ${newStudentCompleted} hrs.`,
-        type: 'ojt'
+        type: 'ojt',
+        link: '/dashboard/student/ojt',
+        relatedType: 'attendance',
+        relatedId: ojtId
       });
+
+      // Check if student has completed required OJT hours
+      const reqHours = parseFloat(ojt.required_ojt_hours) || 600;
+      if (reqHours > 0 && newStudentCompleted >= reqHours) {
+        const [alreadyNotified] = await pool.query(
+          `SELECT notification_id FROM notifications 
+           WHERE user_id = ? AND title LIKE '%OJT Hours Completed%' LIMIT 1`,
+          [ojt.student_user_id]
+        );
+        if (alreadyNotified.length === 0) {
+          await sendNotification({
+            userId: ojt.student_user_id,
+            senderId: req.user.user_id,
+            senderName: ojt.organization_name || 'Workplace Mentor',
+            title: 'Congratulations! OJT Hours Completed',
+            message: `You have successfully completed your required ${reqHours} OJT hours (${newStudentCompleted} hrs rendered). Your completion is now being processed for final evaluation and certification!`,
+            type: 'ojt',
+            link: '/dashboard/student/ojt',
+            relatedType: 'ojt_completed',
+            relatedId: ojtId
+          });
+        }
+      }
     }
 
     return res.json({
@@ -1861,9 +1935,14 @@ router.post('/interns/:ojtId/time-in', async (req, res) => {
     if (ojt.student_user_id) {
       await sendNotification({
         userId: ojt.student_user_id,
+        senderId: req.user.user_id,
+        senderName: org.organization_name || 'Workplace Mentor',
         title: `Mentor Recorded Time-In (${statusLabel})`,
         message: `Your workplace mentor timed you in today at ${timeInToRecord} (${statusLabel}, Philippine Time). Have a productive training shift!`,
-        type: 'ojt'
+        type: 'ojt',
+        link: '/dashboard/student/ojt',
+        relatedType: 'attendance',
+        relatedId: ojt.ojt_id
       });
     }
 
@@ -2056,10 +2135,44 @@ router.post('/interns/:ojtId/time-out', async (req, res) => {
     if (ojt.student_user_id) {
       await sendNotification({
         userId: ojt.student_user_id,
+        senderId: req.user.user_id,
+        senderName: org.organization_name || 'Workplace Mentor',
         title: `Mentor Recorded Time-Out (${statusNote})`,
         message: `Your mentor timed you out at ${timeOutToRecord} (${statusNote}, Philippine Time). ${computedHours} training hours officially credited to your DTR!`,
-        type: 'ojt'
+        type: 'ojt',
+        link: '/dashboard/student/ojt',
+        relatedType: 'attendance',
+        relatedId: ojt.ojt_id
       });
+
+      // Check if student has completed required OJT hours
+      const [stuCheck] = await pool.query(
+        'SELECT completed_ojt_hours, required_ojt_hours FROM students WHERE student_id = ?',
+        [ojt.student_id]
+      );
+      if (stuCheck.length > 0) {
+        const { completed_ojt_hours, required_ojt_hours } = stuCheck[0];
+        if (required_ojt_hours > 0 && completed_ojt_hours >= required_ojt_hours) {
+          const [alreadyNotified] = await pool.query(
+            `SELECT notification_id FROM notifications 
+             WHERE user_id = ? AND title LIKE '%OJT Hours Completed%' LIMIT 1`,
+            [ojt.student_user_id]
+          );
+          if (alreadyNotified.length === 0) {
+            await sendNotification({
+              userId: ojt.student_user_id,
+              senderId: req.user.user_id,
+              senderName: org.organization_name || 'Workplace Mentor',
+              title: 'Congratulations! OJT Hours Completed',
+              message: `You have successfully completed your required ${required_ojt_hours} OJT hours (${completed_ojt_hours} hrs rendered). Your completion is now being processed for final evaluation and certification!`,
+              type: 'ojt',
+              link: '/dashboard/student/ojt',
+              relatedType: 'ojt_completed',
+              relatedId: ojt.ojt_id
+            });
+          }
+        }
+      }
     }
 
     return res.json({
@@ -2258,6 +2371,34 @@ router.post('/evaluations', async (req, res) => {
 
     emitUpdate('evaluation_submitted', { ojt_id: targetOjtId, organization_id: org.organization_id });
 
+    // Look up student details to send evaluation received notification
+    try {
+      const [ojtStudentRows] = await pool.query(
+        `SELECT o.student_id, s.user_id as student_user_id, s.first_name, s.last_name, ho.organization_name
+         FROM ojt_records o
+         JOIN students s ON o.student_id = s.student_id
+         JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
+         WHERE o.ojt_id = ?`,
+        [targetOjtId]
+      );
+      if (ojtStudentRows.length > 0 && ojtStudentRows[0].student_user_id) {
+        const stu = ojtStudentRows[0];
+        await sendNotification({
+          userId: stu.student_user_id,
+          senderId: req.user.user_id,
+          senderName: stu.organization_name || 'Workplace Mentor',
+          title: 'Performance Evaluation Received',
+          message: `${stu.organization_name || 'Your host organization'} has submitted your official performance evaluation (Rating: ${parseFloat(rating) || 5.0}/5.0). View your evaluation and OJT records now.`,
+          type: 'ojt',
+          link: '/dashboard/student/ojt',
+          relatedType: 'evaluation',
+          relatedId: targetOjtId
+        });
+      }
+    } catch (evalNotifErr) {
+      console.warn('[EvaluationNotification Warning] Failed to notify student:', evalNotifErr.message);
+    }
+
     // 3. Automatically trigger OJT Certificate Generation & Career Portfolio insertion
     let certResult = null;
     try {
@@ -2437,6 +2578,68 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
       organization_id: org.organization_id,
       status: 'interview'
     });
+
+    // Send notifications to Student and Organization
+    try {
+      const [appDetailRows] = await pool.query(
+        `SELECT ja.student_id, s.user_id as student_user_id, s.first_name, s.last_name,
+                jp.title as job_title, ho.organization_name
+         FROM job_applications ja
+         JOIN students s ON ja.student_id = s.student_id
+         JOIN job_postings jp ON ja.job_id = jp.job_id
+         JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
+         WHERE ja.application_id = ?`,
+        [application_id]
+      );
+
+      if (appDetailRows.length > 0) {
+        const appDetail = appDetailRows[0];
+        const schedFormatted = new Date(schedule_at).toLocaleString('en-US', {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        });
+
+        // 1. Notify student about interview invitation
+        if (appDetail.student_user_id) {
+          await sendNotification({
+            userId: appDetail.student_user_id,
+            senderId: req.user.user_id,
+            senderName: appDetail.organization_name || 'Hiring Organization',
+            title: 'Interview Request Scheduled',
+            message: `You have received an interview invitation for "${appDetail.job_title}" at ${appDetail.organization_name} scheduled on ${schedFormatted} (${(mode || 'online').toUpperCase()}). Click to view details and join.`,
+            type: 'job',
+            link: '/dashboard/student/applications',
+            relatedType: 'interview',
+            relatedId: interviewId,
+            meta: {
+              interview_id: interviewId,
+              meeting_link: meetingLink,
+              mode: mode || 'online'
+            }
+          });
+        }
+
+        // 2. Notify organization recruiter about scheduled interview
+        await sendNotification({
+          userId: req.user.user_id,
+          senderId: req.user.user_id,
+          senderName: 'System Confirmation',
+          title: 'Interview Scheduled Confirmation',
+          message: `Interview invitation scheduled with ${appDetail.first_name} ${appDetail.last_name} for "${appDetail.job_title}" on ${schedFormatted}.`,
+          type: 'job',
+          link: '/dashboard/organization/interviews',
+          relatedType: 'interview',
+          relatedId: interviewId,
+          meta: {
+            interview_id: interviewId,
+            meeting_link: meetingLink,
+            mode: mode || 'online'
+          }
+        });
+      }
+    } catch (notifErr) {
+      console.warn('[InterviewNotification Warning] Error sending interview notifications:', notifErr.message);
+    }
 
     return res.status(201).json({
       success: true,
@@ -2697,6 +2900,36 @@ router.post('/offers', requireHROrAdmin, async (req, res) => {
     await connection.commit();
 
     emitUpdate('offer_updated', { application_id, organization_id: org.organization_id });
+
+    // Send notification to student
+    try {
+      const [candRows] = await pool.query(
+        `SELECT ja.student_id, s.user_id as student_user_id, s.first_name, s.last_name, jp.title as job_title, ho.organization_name
+         FROM job_applications ja
+         JOIN students s ON ja.student_id = s.student_id
+         JOIN job_postings jp ON ja.job_id = jp.job_id
+         JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
+         WHERE ja.application_id = ?`,
+        [application_id]
+      );
+
+      if (candRows.length > 0 && candRows[0].student_user_id) {
+        const cand = candRows[0];
+        await sendNotification({
+          userId: cand.student_user_id,
+          senderId: req.user.user_id,
+          senderName: cand.organization_name || 'Hiring Organization',
+          title: 'Official Internship Offer Received',
+          message: `Congratulations! ${cand.organization_name} has officially issued you an offer for "${cand.job_title}". Please view details and accept or decline.`,
+          type: 'job',
+          link: '/dashboard/student/applications',
+          relatedType: 'offer',
+          relatedId: application_id
+        });
+      }
+    } catch (notifErr) {
+      console.warn('[OfferNotification Warning] Failed to notify student of official offer:', notifErr.message);
+    }
 
     return res.status(201).json({ success: true, message: 'Official Job/OJT Offer issued to candidate!' });
   } catch (error) {
@@ -3538,7 +3771,7 @@ router.post('/complaints', async (req, res) => {
 
     const titleText = isAccidentFlag
       ? 'Urgent Accident Report: Student Intern'
-      : 'Student Misconduct Report Filed';
+      : 'New Grievance & Incident Report Filed';
     const messageText = `${org.organization_name} reported an incident concerning student ${student.first_name} ${student.last_name}: "${subject}".`;
 
     for (const recipient of instRecipients) {

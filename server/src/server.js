@@ -27,11 +27,13 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config();
 
 import { checkGoogleMeetConfigOnStartup } from './services/googleMeet.service.js';
+import { startInterviewReminderService } from './services/interviewReminder.service.js';
 
 // Run database migrations on start, prune stale sessions, and verify integrations
 runMigrations()
   .then(() => pruneStaleSessions())
   .then(() => checkGoogleMeetConfigOnStartup())
+  .then(() => startInterviewReminderService())
   .catch(console.error);
 
 const app = express();

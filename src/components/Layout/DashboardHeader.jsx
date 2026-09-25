@@ -123,6 +123,10 @@ export default function DashboardHeader() {
 
   const getNotificationIcon = (type, title = '') => {
     const lower = `${type || ''} ${title || ''}`.toLowerCase();
+    if (lower.includes('interview') || lower.includes('meet')) return 'video_camera_front';
+    if (lower.includes('portfolio')) return 'folder_special';
+    if (lower.includes('evaluation') || lower.includes('rating') || lower.includes('score')) return 'grade';
+    if (lower.includes('completed') || lower.includes('certificate')) return 'workspace_premium';
     if (lower.includes('staff') || lower.includes('faculty') || lower.includes('coordinator')) return 'badge';
     if (lower.includes('verification') || lower.includes('verify')) return 'how_to_reg';
     if (lower.includes('grievance') || lower.includes('complaint')) return 'gavel';

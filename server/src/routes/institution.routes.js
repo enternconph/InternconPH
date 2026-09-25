@@ -1459,9 +1459,13 @@ router.post('/students/:id/verify', async (req, res) => {
 
       await sendNotification({
         userId,
-        title: 'Registration Approved & Activated',
-        message: 'Your student account has been approved and verified by your institution registrar. You can now access all portal features and apply for OJT opportunities.',
-        type: 'system'
+        senderId: req.user.user_id,
+        senderName: inst.institution_name || 'Academic Institution',
+        title: 'Account Verified & Activated',
+        message: 'Your student account has been approved and verified by your institution. Note: Please add and complete your Career Portfolio before applying for OJT opportunities.',
+        type: 'verification',
+        link: '/dashboard/student/portfolio',
+        relatedType: 'portfolio'
       });
 
       return res.json({
@@ -1554,11 +1558,15 @@ router.post('/students/:studentId/toggle-status', async (req, res) => {
 
     await sendNotification({
       userId: student.user_id,
-      title: newActiveState === 1 ? 'Account Activated' : 'Account Deactivated',
+      senderId: req.user.user_id,
+      senderName: inst.institution_name || 'Academic Institution',
+      title: newActiveState === 1 ? 'Account Verified & Activated' : 'Account Deactivated',
       message: newActiveState === 1
-        ? 'Your student account status has been reactivated by your institution.'
+        ? 'Your student account status has been reactivated by your institution. Note: Please add and complete your Career Portfolio before applying for OJT opportunities.'
         : 'Your student account has been temporarily deactivated by your institution administrator.',
-      type: 'system'
+      type: 'verification',
+      link: newActiveState === 1 ? '/dashboard/student/portfolio' : null,
+      relatedType: 'portfolio'
     });
 
     return res.json({
@@ -3151,6 +3159,59 @@ router.put('/ojt-offers/:id', async (req, res) => {
        WHERE approval_id = ? AND institution_id = ?`,
       [approval_status, req.user.user_id, req.params.id, inst.institution_id]
     );
+
+    // Look up job and organization details to notify the organization
+    try {
+      const [jobRows] = await pool.query(
+        `SELECT ija.job_id, jp.title as job_title, jp.organization_id, ho.organization_name
+         FROM institution_job_approvals ija
+         JOIN job_postings jp ON ija.job_id = jp.job_id
+         JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
+         WHERE ija.approval_id = ?`,
+        [req.params.id]
+      );
+
+      if (jobRows.length > 0) {
+        const job = jobRows[0];
+        const isApproved = approval_status === 'approved';
+
+        const [orgUsers] = await pool.query(
+          `SELECT DISTINCT u.user_id
+           FROM users u
+           WHERE u.user_id IN (
+             SELECT os.user_id FROM organization_staff os WHERE os.organization_id = ? AND os.user_id IS NOT NULL
+             UNION
+             SELECT oreg.submitted_by FROM organization_registrations oreg WHERE oreg.organization_id = ? AND oreg.submitted_by IS NOT NULL
+             UNION
+             SELECT u2.user_id FROM users u2 JOIN hiring_organizations ho ON u2.email = ho.contact_email WHERE ho.organization_id = ? AND u2.user_id IS NOT NULL
+           )`,
+          [job.organization_id, job.organization_id, job.organization_id]
+        );
+
+        const notifTitle = isApproved ? 'Job Post Approved' : 'Job Post Review Update';
+        const notifMessage = isApproved
+          ? `${inst.institution_name || 'Academic Institution'} has approved your job posting "${job.job_title}". Qualified students can now discover and apply for this opportunity.`
+          : `${inst.institution_name || 'Academic Institution'} has updated your job posting "${job.job_title}" status to ${approval_status}.`;
+
+        for (const orgUser of orgUsers) {
+          if (orgUser.user_id) {
+            await sendNotification({
+              userId: orgUser.user_id,
+              senderId: req.user.user_id,
+              senderName: inst.institution_name || 'Academic Institution',
+              title: notifTitle,
+              message: notifMessage,
+              type: 'job',
+              link: '/dashboard/organization/jobs',
+              relatedType: 'job_posting',
+              relatedId: job.job_id
+            });
+          }
+        }
+      }
+    } catch (notifErr) {
+      console.warn('[InstJobNotification Warning] Failed to notify organization of approval:', notifErr.message);
+    }
 
     emitUpdate('ojt_offer_updated', { institution_id: inst.institution_id, approval_id: req.params.id, approval_status });
 
