@@ -3512,12 +3512,15 @@ router.get('/complaints', async (req, res) => {
     );
     const activeCareerPlacement = careerAppRows.length > 0 ? careerAppRows[0] : null;
 
-    // 3. List of organizations (student's applied/placed orgs + institution approved orgs)
+    // 3. List of organizations (student's applied/placed orgs + all active/approved hiring orgs)
     const [orgs] = await pool.query(
       `SELECT DISTINCT
          ho.organization_id,
          ho.organization_name,
          ho.industry,
+         ho.city,
+         ho.province,
+         ho.logo_url,
          CASE 
            WHEN EXISTS (
              SELECT 1 FROM ojt_records o 
@@ -3526,7 +3529,8 @@ router.get('/complaints', async (req, res) => {
            ) THEN 1
            WHEN EXISTS (
              SELECT 1 FROM job_applications ja 
-             WHERE ja.organization_id = ho.organization_id 
+             JOIN job_postings jp ON ja.job_id = jp.job_id
+             WHERE jp.organization_id = ho.organization_id 
                AND ja.student_id = ?
            ) THEN 1
            WHEN EXISTS (
@@ -3537,12 +3541,12 @@ router.get('/complaints', async (req, res) => {
            ELSE 0
          END as is_my_employer
        FROM hiring_organizations ho
-       WHERE ho.status IN ('active', 'approved')
+       WHERE ho.status IN ('active', 'approved', 'warned', 'pending')
        ORDER BY is_my_employer DESC, ho.organization_name ASC`,
       [student.student_id, student.student_id, student.student_id]
     );
 
-    // Determine default student status: 'ongoing_ojt', 'on_call', 'career_job', 'ojt_completer'
+    // Determine default student status: 'ongoing_ojt', 'on_call', 'career_job'
     let defaultStatus = 'ongoing_ojt';
     if (activeOjtPlacement) {
       defaultStatus = 'ongoing_ojt';
@@ -3550,8 +3554,6 @@ router.get('/complaints', async (req, res) => {
       defaultStatus = 'on_call';
     } else if (activeCareerPlacement?.posting_type === 'career_job' || activeCareerPlacement?.posting_type === 'full_time' || student.ojt_status === 'graduated' || student.status_id === 5) {
       defaultStatus = 'career_job';
-    } else if (student.ojt_status === 'completed' || student.status_id === 4) {
-      defaultStatus = 'ojt_completer';
     } else {
       defaultStatus = 'ongoing_ojt';
     }
@@ -3616,11 +3618,8 @@ router.post('/complaints', async (req, res) => {
     const isOjt = resolvedStatus === 'ongoing_ojt' || resolvedStatus === 'ojt';
 
     // Target Organization Resolution:
-    // If OJT, automatically lock to the Current OJT Placement & Host Organization
-    let targetOrgId = organization_id;
-    if (isOjt && activeOjt) {
-      targetOrgId = activeOjt.organization_id;
-    }
+    // If selected, use organization_id; otherwise if OJT, default to Current OJT Placement
+    let targetOrgId = organization_id || (isOjt && activeOjt ? activeOjt.organization_id : null);
 
     if (!targetOrgId) {
       // Check latest interacted organization
