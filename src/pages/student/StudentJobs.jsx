@@ -17,9 +17,14 @@ export default function StudentJobs() {
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Social interactions
+  // Social interactions & Modals
   const [previewFlyer, setPreviewFlyer] = useState(null);
   const [inspectJob, setInspectJob] = useState(null);
+  const [applyModalJob, setApplyModalJob] = useState(null);
+  const [coverLetter, setCoverLetter] = useState('');
+  const [applySubmitting, setApplySubmitting] = useState(false);
+  const [applyError, setApplyError] = useState('');
+  const [applySuccess, setApplySuccess] = useState('');
   const [expandedDesc, setExpandedDesc] = useState({});
   const [likedJobs, setLikedJobs] = useState(() => {
     try {
@@ -36,11 +41,14 @@ export default function StudentJobs() {
     }
   });
   const [heartAnim, setHeartAnim] = useState({});
-  const [toastNotification, setToastNotification] = useState('');
+  const [toastNotification, setToastNotification] = useState(null);
 
-  const showToast = (text) => {
-    setToastNotification(text);
-    setTimeout(() => setToastNotification(''), 3500);
+  const showToast = (text, type = 'info') => {
+    const toastObj = typeof text === 'string' ? { message: text, type } : text;
+    setToastNotification(toastObj);
+    setTimeout(() => {
+      setToastNotification((curr) => (curr?.message === toastObj.message ? null : curr));
+    }, 4500);
   };
 
   const toggleLike = (jobId) => {
@@ -71,7 +79,7 @@ export default function StudentJobs() {
       } catch (err) {
         console.error(err);
       }
-      showToast(isSaved ? 'Removed from your Saved Opportunities' : 'Saved to your Bookmarked Opportunities! 🔖');
+      showToast(isSaved ? 'Removed from your Saved Opportunities' : 'Saved to your Bookmarked Opportunities! 🔖', 'info');
       return next;
     });
   };
@@ -85,9 +93,9 @@ export default function StudentJobs() {
     const shareUrl = window.location.href;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-      showToast('Opportunity link copied to clipboard! 📋');
+      showToast('Opportunity link copied to clipboard! 📋', 'success');
     } else {
-      showToast(`Shared: ${shareText}`);
+      showToast(`Shared: ${shareText}`, 'info');
     }
   };
 
@@ -132,36 +140,99 @@ export default function StudentJobs() {
     ['ongoing', 'in_progress', 'accepted', 'deployed'].includes(user?.ojt_status)
   );
 
+  const openApplyModal = (job) => {
+    const pType = job.posting_type || 'ojt';
+
+    if (pType === 'ojt' && (isOjtCompleter || isStudentGraduated)) {
+      const msg = 'Application locked: You have already completed your OJT requirement. Please explore On-Call and Career opportunities.';
+      setErrorMessage(msg);
+      showToast(msg, 'error');
+      return;
+    }
+
+    if (pType === 'ojt' && (hasActiveOjt || job.has_active_ojt)) {
+      const msg = 'Application locked: You currently have an active OJT placement with ongoing hours and DTR.';
+      setErrorMessage(msg);
+      showToast(msg, 'error');
+      return;
+    }
+
+    if (job.can_apply === false) {
+      const msg = job.eligibility_notice || 'You are not eligible to apply for this opportunity based on institutional policy.';
+      setErrorMessage(msg);
+      showToast(msg, 'error');
+      return;
+    }
+
+    setApplyError('');
+    setApplySuccess('');
+    setCoverLetter(
+      pType === 'on_call'
+        ? `Good day! I am applying for the ${job.title} on-call engagement. I am available and ready to deliver the required scope.`
+        : pType === 'ojt'
+        ? `Good day! I am applying for the ${job.title} OJT Internship deployment at ${job.organization_name}. I am eager to contribute my skills and complete my training under your mentorship.`
+        : `Good day! I am applying for the ${job.title} position at ${job.organization_name}. Please find my verified student profile and credentials attached.`
+    );
+    setApplyModalJob(job);
+  };
+
+  const submitApplication = async (e) => {
+    if (e) e.preventDefault();
+    if (!applyModalJob) return;
+
+    const jobId = applyModalJob.job_id;
+    const pType = applyModalJob.posting_type || 'ojt';
+
+    setApplySubmitting(true);
+    setApplyError('');
+    setApplySuccess('');
+
+    try {
+      const res = await api.post(`/student/jobs/${jobId}/apply`, {
+        cover_letter: coverLetter.trim() || (
+          pType === 'on_call'
+            ? 'Applying for On-Call Professional Engagement.'
+            : pType === 'ojt'
+            ? 'Applying for OJT Internship deployment.'
+            : 'Applying for Career Job position.'
+        )
+      });
+
+      if (res.success) {
+        const successMsg = res.message || 'Application submitted successfully! 🎉';
+        setApplySuccess(successMsg);
+        showToast(successMsg, 'success');
+
+        // Immediately reflect applied status on local job cards
+        setJobs((prev) =>
+          prev.map((j) => (j.job_id === jobId ? { ...j, has_applied: 1 } : j))
+        );
+
+        setTimeout(() => {
+          setApplyModalJob(null);
+          setApplySubmitting(false);
+          setApplySuccess('');
+          fetchJobs();
+        }, 1200);
+      } else {
+        const errorMsg = res.message || 'Failed to submit application.';
+        setApplyError(errorMsg);
+        showToast(errorMsg, 'error');
+        setApplySubmitting(false);
+      }
+    } catch (err) {
+      console.error('Apply job submission error:', err);
+      const errorMsg = err?.message || 'A network error occurred while submitting your application.';
+      setApplyError(errorMsg);
+      showToast(errorMsg, 'error');
+      setApplySubmitting(false);
+    }
+  };
+
   const handleApply = async (jobId, postingType) => {
-    if (postingType === 'ojt' && (isOjtCompleter || isStudentGraduated)) {
-      setErrorMessage('Application locked: You have completed your OJT requirement. Please explore On-Call and Career opportunities.');
-      return;
-    }
-
-    if (postingType === 'ojt' && hasActiveOjt) {
-      setErrorMessage('Application locked: You currently have an active OJT placement with ongoing hours and DTR.');
-      return;
-    }
-
-    setApplying(jobId);
-    setMessage('');
-    setErrorMessage('');
-
-    const res = await api.post(`/student/jobs/${jobId}/apply`, {
-      cover_letter: postingType === 'on_call'
-        ? 'Applying for On-Call Professional Engagement.'
-        : postingType === 'ojt'
-        ? 'Applying for OJT Internship deployment.'
-        : 'Applying for Career Job position.'
-    });
-    setApplying(null);
-
-    if (res.success) {
-      setMessage(res.message || 'Application submitted successfully! 🎉');
-      showToast('Application sent to employer! 🎉');
-      fetchJobs();
-    } else {
-      setErrorMessage(res.message || 'Application failed.');
+    const targetJob = jobs.find((j) => j.job_id === jobId);
+    if (targetJob) {
+      openApplyModal(targetJob);
     }
   };
 
@@ -185,11 +256,35 @@ export default function StudentJobs() {
     <div className="min-h-screen bg-surface-container-lowest/50 py-4 sm:py-6">
       <div className="max-w-6xl mx-auto px-2 sm:px-4 lg:px-8">
         
-        {/* Toast Alert */}
+        {/* Floating Top-Right Toast Notification */}
         {toastNotification && (
-          <div className="fixed bottom-6 right-6 z-50 bg-slate-900/95 text-white px-4 py-3 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-2.5 text-xs sm:text-sm font-semibold animate-bounce">
-            <span className="material-symbols-outlined text-[20px] text-vibrant-orange">info</span>
-            <span>{toastNotification}</span>
+          <div
+            className={`fixed top-6 right-4 sm:right-6 z-[100] max-w-sm w-full p-4 rounded-3xl shadow-2xl border flex items-center gap-3 text-xs sm:text-sm font-semibold transition-all animate-bounce ${
+              toastNotification.type === 'success'
+                ? 'bg-emerald-950/95 text-emerald-100 border-emerald-500/40 shadow-emerald-950/40'
+                : toastNotification.type === 'error'
+                ? 'bg-rose-950/95 text-rose-100 border-rose-500/40 shadow-rose-950/40'
+                : 'bg-slate-900/95 text-white border-white/10 shadow-black/40'
+            }`}
+          >
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+              toastNotification.type === 'success'
+                ? 'bg-emerald-500/20 text-emerald-400'
+                : toastNotification.type === 'error'
+                ? 'bg-rose-500/20 text-rose-400'
+                : 'bg-vibrant-orange/20 text-vibrant-orange'
+            }`}>
+              <span className="material-symbols-outlined text-[20px]">
+                {toastNotification.type === 'success' ? 'check_circle' : toastNotification.type === 'error' ? 'error' : 'info'}
+              </span>
+            </div>
+            <span className="flex-1 leading-snug">{toastNotification.message}</span>
+            <button
+              onClick={() => setToastNotification(null)}
+              className="text-white/60 hover:text-white text-xs shrink-0 p-1"
+            >
+              ✕
+            </button>
           </div>
         )}
 
@@ -756,9 +851,8 @@ export default function StudentJobs() {
                         ) : (
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => handleApply(job.job_id, pType)}
-                              disabled={applying === job.job_id}
-                              className={`flex-1 py-3 rounded-2xl text-xs sm:text-sm font-black text-white transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 ${
+                              onClick={() => openApplyModal(job)}
+                              className={`flex-1 py-3 rounded-2xl text-xs sm:text-sm font-black text-white transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer ${
                                 isOnCall
                                   ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700'
                                   : isOjt
@@ -766,12 +860,7 @@ export default function StudentJobs() {
                                   : 'bg-gradient-to-r from-vibrant-orange to-deep-orange hover:opacity-95'
                               }`}
                             >
-                              {applying === job.job_id ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                  <span>Sending Application...</span>
-                                </>
-                              ) : isOnCall ? (
+                              {isOnCall ? (
                                 <>
                                   <span className="material-symbols-outlined text-[20px]">bolt</span>
                                   <span>Apply for On-Call Gig</span>
@@ -791,7 +880,7 @@ export default function StudentJobs() {
 
                             <button
                               onClick={() => setInspectJob(job)}
-                              className="px-4 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface rounded-2xl text-xs font-bold border border-outline-variant transition-colors shrink-0"
+                              className="px-4 py-3 bg-surface-container hover:bg-surface-container-high text-on-surface rounded-2xl text-xs font-bold border border-outline-variant transition-colors shrink-0 cursor-pointer"
                               title="Inspect Full Details"
                             >
                               Details
@@ -854,7 +943,7 @@ export default function StudentJobs() {
               <div className="grid grid-cols-2 gap-2 text-center text-xs">
                 <button
                   onClick={() => setTypeFilter('saved')}
-                  className="p-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high border border-outline-variant text-on-surface font-bold flex flex-col items-center gap-1"
+                  className="p-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high border border-outline-variant text-on-surface font-bold flex flex-col items-center gap-1 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[18px] text-purple-500">bookmark</span>
                   <span>Saved ({bookmarkedJobs.length})</span>
@@ -925,7 +1014,7 @@ export default function StudentJobs() {
                 </div>
                 <button
                   onClick={() => setInspectJob(null)}
-                  className="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface"
+                  className="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[18px]">close</span>
                 </button>
@@ -983,7 +1072,7 @@ export default function StudentJobs() {
               <div className="p-4 bg-surface-container-low border-t border-outline-variant flex items-center justify-between gap-3">
                 <button
                   onClick={() => setInspectJob(null)}
-                  className="px-5 py-2.5 bg-surface-container text-on-surface rounded-2xl text-xs font-bold hover:bg-surface-container-high transition-colors"
+                  className="px-5 py-2.5 bg-surface-container text-on-surface rounded-2xl text-xs font-bold hover:bg-surface-container-high transition-colors cursor-pointer"
                 >
                   Close
                 </button>
@@ -995,15 +1084,184 @@ export default function StudentJobs() {
                 ) : (
                   <button
                     onClick={() => {
-                      const pType = inspectJob.posting_type || 'ojt';
+                      const selectedJob = inspectJob;
                       setInspectJob(null);
-                      handleApply(inspectJob.job_id, pType);
+                      openApplyModal(selectedJob);
                     }}
-                    className="px-6 py-2.5 bg-vibrant-orange text-white rounded-2xl text-xs font-black hover:bg-deep-orange transition-colors shadow-md"
+                    className="px-6 py-2.5 bg-vibrant-orange text-white rounded-2xl text-xs font-black hover:bg-deep-orange transition-colors shadow-md flex items-center gap-1.5 cursor-pointer"
                   >
-                    Apply Now
+                    <span className="material-symbols-outlined text-[16px]">send</span>
+                    <span>Apply Now</span>
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* APPLICATION CONFIRMATION MODAL                                            */}
+        {/* ========================================================================= */}
+        {applyModalJob && (
+          <div
+            onClick={() => !applySubmitting && setApplyModalJob(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-lg w-full bg-surface rounded-3xl overflow-hidden shadow-2xl border border-outline-variant flex flex-col max-h-[92vh] animate-scale-up"
+            >
+              {/* Modal Header */}
+              <div className="p-4 sm:p-5 bg-surface-container-low border-b border-outline-variant flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
+                    <span className="material-symbols-outlined text-[20px]">
+                      {applyModalJob.posting_type === 'on_call' ? 'bolt' : applyModalJob.posting_type === 'ojt' ? 'school' : 'work'}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-black text-on-surface truncate">Submit Application</h3>
+                    <p className="text-xs text-on-surface-variant truncate">{applyModalJob.organization_name}</p>
+                  </div>
+                </div>
+                {!applySubmitting && (
+                  <button
+                    onClick={() => setApplyModalJob(null)}
+                    className="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">close</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs sm:text-sm">
+                {/* Error Notice */}
+                {applyError && (
+                  <div className="p-3.5 bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 rounded-2xl text-xs font-semibold flex items-start gap-2.5 animate-shake">
+                    <span className="material-symbols-outlined text-[20px] text-rose-600 shrink-0">error</span>
+                    <div className="flex-1 leading-relaxed">{applyError}</div>
+                  </div>
+                )}
+
+                {/* Success Notice */}
+                {applySuccess && (
+                  <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-2xl text-xs font-semibold flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-[20px] text-emerald-600 shrink-0">check_circle</span>
+                    <div className="flex-1 font-bold">{applySuccess}</div>
+                  </div>
+                )}
+
+                {/* Target Position Bento Card */}
+                <div className="p-3.5 rounded-2xl bg-surface-container-low border border-outline-variant space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] uppercase font-black text-on-surface-variant">Position Applied For</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                      {applyModalJob.posting_type === 'on_call' ? '⚡ On-Call' : applyModalJob.posting_type === 'ojt' ? '🎓 OJT' : '💼 Career'}
+                    </span>
+                  </div>
+                  <h4 className="font-black text-sm text-on-surface">{applyModalJob.title}</h4>
+                  <div className="flex items-center gap-3 text-xs text-on-surface-variant flex-wrap pt-1 border-t border-outline-variant/40">
+                    <span className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">corporate_fare</span>
+                      <span>{applyModalJob.organization_name}</span>
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">location_on</span>
+                      <span>{applyModalJob.location ? applyModalJob.location.split(',')[0] : 'Philippines'}</span>
+                    </span>
+                    <span className="flex items-center gap-1 font-bold text-on-surface">
+                      <span className="material-symbols-outlined text-[14px]">payments</span>
+                      <span>
+                        {applyModalJob.posting_type === 'on_call'
+                          ? `₱${parseFloat(applyModalJob.salary_rate || 0).toLocaleString()} / ${applyModalJob.salary_rate_type || 'day'}`
+                          : applyModalJob.posting_type === 'ojt'
+                          ? 'Allowance Credited'
+                          : 'Career Standard'}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Student Profile Overview */}
+                <div className="p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant space-y-1.5">
+                  <span className="text-[10px] uppercase font-black text-on-surface-variant block">Applicant Profile Transmitted</span>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-on-surface-variant">Student:</span>
+                    <span className="font-bold text-on-surface">{user?.name || user?.email}</span>
+                  </div>
+                  {studentProfile?.student_number && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-on-surface-variant">Student No.:</span>
+                      <span className="font-semibold text-on-surface">{studentProfile.student_number}</span>
+                    </div>
+                  )}
+                  {studentProfile?.program_name && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-on-surface-variant">Program:</span>
+                      <span className="font-semibold text-on-surface truncate max-w-[240px]">{studentProfile.program_name}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cover Letter / Message to Employer */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-on-surface flex items-center justify-between">
+                    <span>Note / Cover Letter to Employer</span>
+                    <span className="text-[10px] text-on-surface-variant font-normal">Optional</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={coverLetter}
+                    onChange={(e) => setCoverLetter(e.target.value)}
+                    disabled={applySubmitting}
+                    placeholder="Write a brief introduction or note to the hiring supervisor..."
+                    className="w-full p-3 rounded-2xl bg-surface-container-low border border-outline-variant text-xs sm:text-sm text-on-surface outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed resize-none"
+                  />
+                </div>
+
+                {/* Institutional Policy Notice */}
+                <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20 text-[11px] text-blue-900 dark:text-blue-200 flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-blue-600 shrink-0 mt-0.5">info</span>
+                  <span>
+                    As per CHED & institutional guidelines, your verified academic portfolio, resumes, and endorsements are securely shared with the host organization upon application.
+                  </span>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-surface-container-low border-t border-outline-variant flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  disabled={applySubmitting}
+                  onClick={() => setApplyModalJob(null)}
+                  className="px-4 py-2.5 bg-surface-container text-on-surface rounded-2xl text-xs font-bold hover:bg-surface-container-high transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={applySubmitting || Boolean(applySuccess)}
+                  onClick={submitApplication}
+                  className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl text-xs font-black transition-all shadow-md flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {applySubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      <span>Submitting Application...</span>
+                    </>
+                  ) : applySuccess ? (
+                    <>
+                      <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                      <span>Submitted!</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[18px]">send</span>
+                      <span>Confirm & Submit Application</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
