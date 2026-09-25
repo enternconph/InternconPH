@@ -41,7 +41,10 @@ export default function OrgDashboard() {
 
   const organizationName = data?.organization?.organization_name || user?.full_name || 'Employer Partner';
   const deployedInterns = data?.deployedInterns || [];
-  const activeInternsCount = data?.stats?.activeInterns || deployedInterns.filter(i => i.status === 'ongoing').length;
+  const assignedToMeInterns = isMentor ? deployedInterns.filter(i => i.is_assigned_to_mentor !== false) : deployedInterns;
+  const activeInternsCount = isMentor
+    ? assignedToMeInterns.filter(i => i.status === 'ongoing' || !i.status).length
+    : (data?.stats?.activeInterns || deployedInterns.filter(i => i.status === 'ongoing').length);
   const completedEvaluationsCount = data?.stats?.completedEvaluations || 0;
 
   // ==========================================
@@ -62,7 +65,7 @@ export default function OrgDashboard() {
               {user?.full_name || 'Workplace Mentor'} • {organizationName}
             </h1>
             <p className="text-xs text-on-surface-variant max-w-2xl">
-              As a Workplace Mentor, you are authorized to supervise student interns, track attendance & rendered hours, submit institutional disciplinary reports, and conduct performance evaluations.
+              As a Workplace Mentor, you are authorized to supervise student interns assigned to you, track attendance & rendered hours, submit institutional disciplinary reports, and conduct performance evaluations.
             </p>
           </div>
 
@@ -98,7 +101,7 @@ export default function OrgDashboard() {
                 1. Deployment & Attendance
               </div>
               <p className="text-[11px] text-on-surface-variant">
-                Monitor student login/logout timestamps and track hours rendered towards required OJT hours.
+                Monitor student login/logout timestamps and track hours rendered towards required OJT hours for interns under your direct supervision.
               </p>
             </div>
 
@@ -108,7 +111,7 @@ export default function OrgDashboard() {
                 2. Student Evaluations
               </div>
               <p className="text-[11px] text-on-surface-variant">
-                Conduct official performance ratings once hours are completed to qualify candidates for career opportunities.
+                Conduct official performance ratings for your assigned interns once hours are completed to qualify candidates for career opportunities.
               </p>
             </div>
 
@@ -131,7 +134,7 @@ export default function OrgDashboard() {
               <span className="material-symbols-outlined text-[26px]">badge</span>
             </div>
             <div>
-              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Active Deployed Interns</p>
+              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Assigned Active Interns</p>
               <p className="text-2xl font-bold text-on-surface">{activeInternsCount}</p>
             </div>
           </div>
@@ -141,8 +144,8 @@ export default function OrgDashboard() {
               <span className="material-symbols-outlined text-[26px]">assignment_turned_in</span>
             </div>
             <div>
-              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Total Interns Managed</p>
-              <p className="text-2xl font-bold text-on-surface">{deployedInterns.length}</p>
+              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Assigned Interns Managed</p>
+              <p className="text-2xl font-bold text-on-surface">{assignedToMeInterns.length} <span className="text-xs text-on-surface-variant font-normal">/ {deployedInterns.length} total</span></p>
             </div>
           </div>
 
@@ -162,7 +165,7 @@ export default function OrgDashboard() {
           <div className="flex justify-between items-center flex-wrap gap-2">
             <div>
               <h2 className="text-lg font-bold text-on-surface">Assigned Deployed Interns</h2>
-              <p className="text-xs text-on-surface-variant">Real-time attendance tracking and performance evaluation monitoring</p>
+              <p className="text-xs text-on-surface-variant">Real-time attendance tracking and performance evaluation monitoring under your supervision</p>
             </div>
             <Link
               to="/dashboard/organization/ojt"
@@ -196,36 +199,27 @@ export default function OrgDashboard() {
                     const completed = intern.completed_ojt_hours || 0;
                     const required = intern.required_ojt_hours || 600;
                     const pct = Math.min(100, Math.round((completed / required) * 100));
-
-                    const isSupervised =
-                      !isMentor ||
-                      intern.is_supervised_by_me === true ||
-                      (intern.mentor_user_id && intern.mentor_user_id === user?.user_id) ||
-                      (intern.mentor_first_name &&
-                        user?.full_name &&
-                        `${intern.mentor_first_name} ${intern.mentor_last_name}`.toLowerCase() ===
-                          user.full_name.toLowerCase()) ||
-                      (intern.supervisor_name &&
-                        user?.full_name &&
-                        intern.supervisor_name.toLowerCase() === user.full_name.toLowerCase());
+                    const isAssigned = isMentor ? intern.is_assigned_to_mentor !== false : true;
 
                     return (
-                      <tr key={intern.ojt_id} className="hover:bg-surface-container-low transition-colors">
+                      <tr
+                        key={intern.ojt_id}
+                        className={`hover:bg-surface-container-low transition-colors ${
+                          !isAssigned ? 'opacity-70 bg-surface-container-lowest/50' : ''
+                        }`}
+                      >
                         <td className="py-3 px-3">
                           <div className="font-bold text-on-surface">
                             {intern.first_name} {intern.last_name}
                           </div>
-                          <div className="text-[11px] text-on-surface-variant">
-                            ID #{intern.student_number || 'N/A'}
-                          </div>
-                          {(intern.mentor_first_name || intern.supervisor_name) && (
-                            <div className="text-[10px] text-on-surface-variant/80 flex items-center gap-1 mt-0.5">
-                              <span className="material-symbols-outlined text-[12px] text-vibrant-orange">person_check</span>
-                              <span>
-                                Mentor: {intern.mentor_first_name ? `${intern.mentor_first_name} ${intern.mentor_last_name}` : intern.supervisor_name}
+                          <div className="text-[11px] text-on-surface-variant flex items-center gap-1.5 flex-wrap">
+                            <span>ID #{intern.student_number || 'N/A'}</span>
+                            {isMentor && !isAssigned && (
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-surface-container-high text-on-surface-variant border border-outline-variant">
+                                {intern.mentor_first_name ? `Mentor: ${intern.mentor_first_name} ${intern.mentor_last_name || ''}` : 'Other Mentor'}
                               </span>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-3 text-xs">
                           <div className="font-medium text-on-surface">{intern.program_name || 'Degree Program'}</div>
@@ -251,45 +245,32 @@ export default function OrgDashboard() {
                           </span>
                         </td>
                         <td className="py-3 px-3 text-right">
-                          <div className="inline-flex gap-2 items-center">
-                            {isSupervised ? (
-                              <>
-                                <Link
-                                  to="/dashboard/organization/ojt"
-                                  className="px-2.5 py-1 bg-surface-container text-on-surface rounded text-xs font-bold hover:bg-surface-container-high transition-colors cursor-pointer"
-                                >
-                                  Attendance
-                                </Link>
-                                <Link
-                                  to="/dashboard/organization/evaluations"
-                                  className="px-2.5 py-1 bg-vibrant-orange text-white rounded text-xs font-bold hover:bg-deep-orange transition-colors cursor-pointer"
-                                >
-                                  Evaluate
-                                </Link>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  type="button"
-                                  disabled
-                                  className="px-2.5 py-1 bg-surface-container/40 text-on-surface-variant/40 rounded text-xs font-semibold cursor-not-allowed border border-outline-variant/30 flex items-center gap-1 select-none"
-                                  title="You do not supervise this intern. Only their assigned mentor can manage attendance."
-                                >
-                                  <span className="material-symbols-outlined text-[13px]">lock</span>
-                                  <span>Attendance</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled
-                                  className="px-2.5 py-1 bg-surface-container/40 text-on-surface-variant/40 rounded text-xs font-semibold cursor-not-allowed border border-outline-variant/30 flex items-center gap-1 select-none"
-                                  title="You do not supervise this intern. Only their assigned mentor can evaluate performance."
-                                >
-                                  <span className="material-symbols-outlined text-[13px]">lock</span>
-                                  <span>Evaluate</span>
-                                </button>
-                              </>
-                            )}
-                          </div>
+                          {isMentor && !isAssigned ? (
+                            <div
+                              className="inline-flex items-center gap-1.5"
+                              title="Action disabled: This student intern is not assigned to your supervision."
+                            >
+                              <span className="px-2.5 py-1 bg-surface-container/60 text-on-surface-variant/60 rounded text-xs font-semibold cursor-not-allowed border border-outline-variant/40 flex items-center gap-1 select-none">
+                                <span className="material-symbols-outlined text-[13px]">lock</span>
+                                <span>Not Assigned</span>
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="inline-flex gap-2">
+                              <Link
+                                to="/dashboard/organization/ojt"
+                                className="px-2.5 py-1 bg-surface-container text-on-surface rounded text-xs font-bold hover:bg-surface-container-high transition-colors"
+                              >
+                                Attendance
+                              </Link>
+                              <Link
+                                to="/dashboard/organization/evaluations"
+                                className="px-2.5 py-1 bg-vibrant-orange text-white rounded text-xs font-bold hover:bg-deep-orange transition-colors"
+                              >
+                                Evaluate
+                              </Link>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );

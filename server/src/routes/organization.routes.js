@@ -160,28 +160,20 @@ router.get('/dashboard', async (req, res) => {
       [orgId]
     );
 
-    // Check if requester is a mentor
-    const isMentorReq = req.user.role === 'workplace_mentor' || req.user.role === 'mentor';
-    let currentMentorStaff = null;
-    if (isMentorReq) {
-      const [mStaffRows] = await pool.query(
-        'SELECT * FROM organization_staff WHERE user_id = ? AND organization_id = ?',
-        [req.user.user_id, orgId]
-      );
-      currentMentorStaff = mStaffRows[0] || null;
-    }
+    const isMentor = isMentorUser(req, org);
+    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
 
     // 4. Deployed Interns
-    const [deployedInternsRaw] = await pool.query(
+    const [deployedInterns] = await pool.query(
       `SELECT o.*, 
               COALESCE(o.required_hours, s.required_ojt_hours, p.required_ojt_hours, 600) as required_hours,
               COALESCE(s.required_ojt_hours, o.required_hours, p.required_ojt_hours, 600) as required_ojt_hours,
               s.first_name, s.last_name, s.student_number, s.contact_number, s.completed_ojt_hours,
               p.program_name, i.institution_name,
               mentor_os.org_staff_id as mentor_staff_id,
+              mentor_os.user_id as mentor_user_id,
               mentor_os.first_name as mentor_first_name,
               mentor_os.last_name as mentor_last_name,
-              mentor_os.user_id as mentor_user_id,
               (SELECT COUNT(*) FROM ojt_performance_records opr WHERE opr.ojt_id = o.ojt_id) as evaluation_count
        FROM ojt_records o
        JOIN students s ON o.student_id = s.student_id
@@ -193,21 +185,24 @@ router.get('/dashboard', async (req, res) => {
       [orgId]
     );
 
-    const deployedInterns = deployedInternsRaw.map(intern => {
-      let isSupervised = true;
-      if (isMentorReq) {
-        isSupervised = Boolean(
-          (currentMentorStaff && intern.mentor_id === currentMentorStaff.org_staff_id) ||
-          (intern.mentor_user_id === req.user.user_id) ||
-          (currentMentorStaff && intern.supervisor_name && (
-            intern.supervisor_name.toLowerCase() === `${currentMentorStaff.first_name} ${currentMentorStaff.last_name}`.toLowerCase() ||
-            intern.supervisor_name.toLowerCase() === currentMentorStaff.first_name.toLowerCase()
-          ))
-        );
+    const formattedDeployedInterns = deployedInterns.map(intern => {
+      let isAssigned = true;
+      if (isMentor) {
+        if (mentor) {
+          const matchId = intern.mentor_id && (intern.mentor_id === mentor.org_staff_id || intern.mentor_user_id === req.user.user_id);
+          const matchName = (
+            intern.supervisor_name === `${mentor.first_name} ${mentor.last_name}` ||
+            intern.supervisor_name === mentor.first_name ||
+            (intern.mentor_first_name && intern.mentor_first_name === mentor.first_name)
+          );
+          isAssigned = Boolean(matchId || matchName);
+        } else {
+          isAssigned = false;
+        }
       }
       return {
         ...intern,
-        is_supervised_by_me: isSupervised
+        is_assigned_to_mentor: isAssigned
       };
     });
 
@@ -321,7 +316,7 @@ router.get('/dashboard', async (req, res) => {
           pendingMentorsCount,
           verifiedMentorsCount
         },
-        deployedInterns,
+        deployedInterns: formattedDeployedInterns,
         recentApplicants,
         jobs: enrichedDashboardJobs
       }
