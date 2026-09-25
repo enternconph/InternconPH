@@ -21,8 +21,10 @@
       - Flow 7: Performance Evaluation & Verified Career Portfolio Generation
       - Flow 8: Incident Reporting, Complaints, Accident Records & Grievance Shielding
    4. DATA ARCHITECTURE & ENTITY RELATIONSHIPS (HOW DATA IS CONNECTED)
-   5. TECHNICAL IMPLEMENTATION STACK & REALTIME EVENT BUS
-   6. SUMMARY OF SYSTEM SAFEGUARDS & AUDIT MECHANISMS
+   5. TOOLS & TECHNOLOGIES USED TO BUILD THE PROJECT (COMPLETE TECH STACK)
+   6. DEPLOYMENT PLATFORMS, HOSTING ARCHITECTURE & CLOUD INFRASTRUCTURE
+   7. REALTIME WEBSOCKET EVENT BUS & EXTERNAL API INTEGRATIONS
+   8. SUMMARY OF SYSTEM SAFEGUARDS & AUDIT MECHANISMS
 
    ====================================================================================================
    1. SYSTEM GOALS & STRATEGIC OBJECTIVES (WHAT THE SYSTEM IS TRYING TO ACHIEVE)
@@ -390,38 +392,110 @@
       +--- 1:1 --- [accident_reports] (Medical care, injuries, immediate actions, witnesses)
 
    ====================================================================================================
-   5. TECHNICAL IMPLEMENTATION STACK & REALTIME EVENT BUS
+   5. TOOLS & TECHNOLOGIES USED TO BUILD THE PROJECT (COMPLETE TECH STACK)
    ====================================================================================================
 
-   1. FRONTEND ARCHITECTURE:
-      - Framework: React 19 + Vite 6 Single Page Application (SPA).
-      - Routing: React Router DOM v7 with animated transitions (`framer-motion`).
-      - UI Design & Styling: Custom Vanilla Tailwind CSS tokens, dynamic Light/Dark mode (`ThemeProvider`),
-      responsive dashboard layout with slide-out drawer on mobile and persistent sidebar on desktop.
-      - Component System: Modular directory structure:
-      * `/src/pages/admin/` (System audit, institutions, orgs, skill intelligence, users)
-      * `/src/pages/institution/` (Directors, student intake, coordinators, monitoring, clearances)
-      * `/src/pages/organization/` (Job management, talent applicants, DTR verification, mentors)
-      * `/src/pages/student/` (Job discovery, DTR tracking, skills, complaints, career portfolio)
-      * `/src/pages/public/` (Landing, role-specific registration gates, login, policy disclosures)
+   1. FRONTEND TECHNOLOGIES & LIBRARIES:
+      - Core Framework: React 19.0.0 (Modern declarative UI with Hooks, Concurrent features, and Server-Ready primitives).
+      - Build Tool & Bundler: Vite 6.0.7 (Lightning-fast development server with Hot Module Replacement / HMR and Rollup-powered production bundling).
+      - Client-Side Routing: React Router DOM v7.1.3 (Declarative nested routing, route-level RBAC auth guards, and dynamic parameter parsing).
+      - Styling Engine: Tailwind CSS 3.4.17 with PostCSS 8 and Autoprefixer (Utility-first CSS, custom semantic design tokens, and Pinoy design system).
+      - Motion & Micro-interactions: Framer Motion 13.2.0 (Fluid hardware-accelerated animations, layout springs, exit transitions, and modal animations).
+      - Iconography: Material Symbols Outlined (Google Fonts) & Lucide React 1.16.0 (Unified, high-contrast, scalable vector icons).
+      - Utility Libraries:
+        * `clsx` & `tailwind-merge` (Dynamic conditional className resolution without CSS specificity collisions).
+        * `phil-address`, `psgc`, `use-postal-ph`, `zipcodes-ph` (Philippine Standard Geographic Code data engine for Regions, Provinces, Cities, Municipalities, Barangays, and Postal ZIP codes).
+        * `canvas-confetti` (Celebratory visual micro-interactions upon signing OJT offers and completing milestones).
 
-   2. BACKEND ARCHITECTURE:
-      - Runtime: Node.js (ESM modules) with Express.js REST API.
-      - Database: MySQL 8 (via `mysql2/promise` connection pool with automatic schema alignment migrations).
-      - Authentication: Stateless JSON Web Tokens (JWT) signed with 64-character secret keys.
-      - Role-Based Access Control (RBAC): Two-tier middleware (`verifyToken` + `requireRole([allowed_roles])`).
+   2. BACKEND TECHNOLOGIES & LIBRARIES:
+      - Runtime Environment: Node.js (v20+ LTS, ECMAScript Modules `type: "module"`).
+      - Web Server Framework: Express.js 4.19.2 (High-throughput RESTful routing, custom middleware pipelines, and error handling).
+      - Database Client: MySQL2 3.9.7 (`mysql2/promise` with robust connection pooling, parameterized prepared statements to prevent SQL injections, and automatic reconnection).
+      - Authentication & Security:
+        * `jsonwebtoken` 9.0.2 (Stateless cryptographically signed JWT auth tokens for sessions and RBAC).
+        * `bcryptjs` 2.4.3 (Adaptive one-way salted password hashing with cost factor 10).
+        * Native Node.js `crypto` (RSA-SHA256 asymmetric JWT assertion creation for Google Service Account Domain-Wide Delegation).
+      - File Uploads & Document Processing:
+        * `multer` 2.2.0 (Handling multipart/form-data for SEC/DTI registrations, BIR 2303, Mayor's permits, student resumes, and medical certificates).
+        * `sharp` 0.35.4 (High-performance image resizing, compression, and WebP format conversion).
+        * `cloudinary` 2.11.0 (Cloud asset storage, secure URL delivery, and document archiving).
+      - Server Optimization & Middleware:
+        * `compression` 1.8.2 (Gzip/Brotli response compression for reduced network latency).
+        * `cors` 2.8.5 (Strict Cross-Origin Resource Sharing whitelist governance).
+        * `cookie-parser` 1.4.7 (HttpOnly cookie parsing for protected credential exchanges).
+        * `dotenv` 16.4.5 (Zero-dependency environment variable isolation and configuration).
 
-   3. REALTIME WEBSOCKET EVENT BUS:
-      - Engine: Socket.IO v4.
+   3. DEVELOPMENT, TESTING & WORKSPACE TOOLING:
+      - Concurrently 10.0.5: Parallel multi-process orchestration (`npm run dev:all` runs Express backend and Vite frontend simultaneously).
+      - Nodemon 3.1.0: Real-time file system watcher and automatic backend daemon reloading on code edits.
+      - Playwright 1.63.0: End-to-end (E2E) headless browser automation for regression testing and critical flow verification.
+      - Git & GitHub: Distributed version control with semantic branching, PR reviews, and GitHub Actions CI readiness (`enternconph/InternconPH`).
+
+   ====================================================================================================
+   6. DEPLOYMENT PLATFORMS, HOSTING ARCHITECTURE & CLOUD INFRASTRUCTURE
+   ====================================================================================================
+
+   1. FRONTEND HOSTING: VERCEL (GLOBAL EDGE NETWORK)
+      - Hosting Target: React 19 + Vite Single Page Application (SPA).
+      - Infrastructure: Vercel Global Edge CDN ensuring ultra-low latency delivery across APAC and the Philippines.
+      - Continuous Deployment (CD): Automated zero-downtime builds triggered on every push to the `main` branch.
+      - Single Page Application Routing (`vercel.json`): Configured with URL rewrite rules:
+        `"rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]`
+        This ensures deep links (e.g. `/student/applications`, `/org/interviews`) are served by React Router without 404 errors.
+      - Security: Automated Let's Encrypt SSL/TLS certificate provisioning with HTTP/2 and HTTP/3 support.
+
+   2. BACKEND API HOSTING: RENDER (CLOUD CONTAINER WEB SERVICE)
+      - Hosting Target: Node.js / Express.js REST API & Socket.IO WebSocket Server.
+      - Infrastructure: Render Managed Linux Web Service (`https://internconph.onrender.com`).
+      - Continuous Deployment (CD): Automated GitHub webhook integration triggering container rebuilds and rolling deployments.
+      - Server Health & Resilience:
+        * Automatic process restarts on unexpected terminations.
+        * Startup health verification and automated database migration runner (`runMigrations()`).
+        * Managed environment variable secret vault for JWT keys, database credentials, and Google service account keys.
+
+   3. RELATIONAL DATABASE HOSTING: REMOTE MANAGED MYSQL 8 CLUSTER
+      - Database Engine: MySQL 8.x Community Server.
+      - Managed Providers: Remote Cloud Database (Render Managed MySQL / Aiven / PlanetScale / TiDB).
+      - Security & Transport: Mandatory SSL/TLS encrypted database connections with `rejectUnauthorized: false` configuration.
+      - Schema Migration Engine: Self-aligning startup migrations ensuring all tables, foreign keys, indexes, and constraints remain intact across deploys.
+
+   4. MEDIA & COMPLIANCE DOCUMENT ASSET STORAGE: CLOUDINARY CLOUD STORAGE
+      - Storage Target: PDF and image verification documents (BIR 2303, SEC Certificate, Mayor's Permit, CHED Recognition, DTR sign-offs, Student Medical Clearances).
+      - Cloud-Hosted: Offloaded to Cloudinary CDN with local fallback storage via Multer disk storage, preventing storage bloat on ephemeral server containers.
+
+   5. LOCAL DEVELOPMENT ORCHESTRATION: LARAGON WAMP STACK (WINDOWS)
+      - Local Server Environment: Laragon isolated development suite running on Windows.
+      - Local Services:
+        * Local MySQL 8.0 server listening on `127.0.0.1:3306` (database: `interncon_ph`).
+        * Dual-stack live development server via `npm run dev:all` (Vite port 5173, Express port 3000).
+
+   ====================================================================================================
+   7. REALTIME WEBSOCKET EVENT BUS & EXTERNAL API INTEGRATIONS
+   ====================================================================================================
+
+   1. REALTIME WEBSOCKET EVENT BUS (SOCKET.IO V4):
+      - Bidirectional WebSocket communication between client dashboards and Express backend.
       - Events Emitted across Entities:
-      * `job_updated`: Instant alert when opportunity is approved or updated.
-      * `application_updated`: Live status updates on job applications.
-      * `ojt_updated`: Instant sync when attendance hours are certified by mentors.
-      * `notification_received`: Push notification bell update across all connected dashboards.
-      * `complaint_updated`: Urgent dispatch of incident reports to coordinators.
+        * `job_updated`: Instant alert when an opportunity is approved or updated.
+        * `application_updated`: Live status updates on job applications across student and recruiter views.
+        * `interview_updated`: Immediate calendar sync when interview schedules are created or modified.
+        * `offer_updated`: Real-time dispatch when an official OJT or Career offer is issued, accepted, or declined.
+        * `ojt_updated`: Instant sync when attendance hours and DTR records are certified by mentors.
+        * `notification_received`: Push notification bell update across all connected user dashboards.
+        * `complaint_updated`: Urgent dispatch of incident reports and whistleblower alerts to institution coordinators.
+
+   2. GOOGLE MEET REST API V2 INTEGRATION:
+      - Automated Space Creation: Direct server-side integration with Google Meet API (`https://meet.googleapis.com/v2/spaces`).
+      - Security Architecture: Zero credential exposure to frontend clients; calls executed purely backend.
+      - Authentication Schemes:
+        * Service Account with Google Workspace Domain-Wide Delegation (native RSA-SHA256 JWT assertion with `sub` impersonation).
+        * OAuth2 Refresh Token exchange.
+      - Resiliency & Graceful Degradation:
+        * Exponential backoff retry algorithm on HTTP 429 rate limits (max 3 retries).
+        * Fallback mechanism: gracefully falls back to recruiter manual URLs or default rooms if credentials are unconfigured or down, preventing scheduling blocks or 500 errors.
 
    ====================================================================================================
-   6. SUMMARY OF SYSTEM SAFEGUARDS & AUDIT MECHANISMS
+   8. SUMMARY OF SYSTEM SAFEGUARDS & AUDIT MECHANISMS
    ====================================================================================================
 
    1. TAMPER-PROOF ATTENDANCE:
