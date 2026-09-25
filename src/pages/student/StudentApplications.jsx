@@ -322,43 +322,6 @@ export default function StudentApplications() {
         </div>
       )}
 
-      {/* Summary KPI Metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-        <div className="bento-card p-3.5 bg-surface-container-low border border-outline-variant rounded-xl flex flex-col justify-between">
-          <span className="text-on-surface-variant text-[11px] font-bold uppercase tracking-wider">Total Applied</span>
-          <div className="mt-2 text-xl font-bold text-on-surface">{stats.total}</div>
-        </div>
-
-        <div className="bento-card p-3.5 bg-blue-500/5 border border-blue-500/20 rounded-xl flex flex-col justify-between">
-          <span className="text-blue-700 dark:text-blue-400 text-[11px] font-bold uppercase tracking-wider">🎓 OJT</span>
-          <div className="mt-2 text-xl font-bold text-blue-800 dark:text-blue-300">{stats.ojtCount}</div>
-        </div>
-
-        <div className="bento-card p-3.5 bg-amber-500/5 border border-amber-500/20 rounded-xl flex flex-col justify-between">
-          <span className="text-amber-700 dark:text-amber-400 text-[11px] font-bold uppercase tracking-wider">⚡ On-Call</span>
-          <div className="mt-2 text-xl font-bold text-amber-800 dark:text-amber-300">{stats.onCallCount}</div>
-        </div>
-
-        <div className="bento-card p-3.5 bg-indigo-500/5 border border-indigo-500/20 rounded-xl flex flex-col justify-between">
-          <span className="text-indigo-700 dark:text-indigo-400 text-[11px] font-bold uppercase tracking-wider">💼 Career</span>
-          <div className="mt-2 text-xl font-bold text-indigo-800 dark:text-indigo-300">{stats.careerCount}</div>
-        </div>
-
-        <div className="bento-card p-3.5 bg-sky-500/5 border border-sky-500/20 rounded-xl flex flex-col justify-between">
-          <span className="text-sky-700 dark:text-sky-400 text-[11px] font-bold uppercase tracking-wider">📅 Interviews</span>
-          <div className="mt-2 text-xl font-bold text-sky-800 dark:text-sky-300">{stats.interviewCount}</div>
-        </div>
-
-        <div className="bento-card p-3.5 bg-orange-500/5 border border-orange-500/30 rounded-xl flex flex-col justify-between ring-1 ring-vibrant-orange/20">
-          <span className="text-vibrant-orange text-[11px] font-bold uppercase tracking-wider">🏆 Offers</span>
-          <div className="mt-2 text-xl font-bold text-vibrant-orange">{stats.offerCount}</div>
-        </div>
-
-        <div className="bento-card p-3.5 bg-green-500/5 border border-green-500/20 rounded-xl flex flex-col justify-between">
-          <span className="text-pinoy-green text-[11px] font-bold uppercase tracking-wider">🟢 Placed</span>
-          <div className="mt-2 text-xl font-bold text-pinoy-green">{stats.acceptedCount}</div>
-        </div>
-      </div>
 
       {/* SECTION 1: PRIORITY OFFERS TO APPROVE OR REJECT */}
       {pendingOffers.length > 0 && (
