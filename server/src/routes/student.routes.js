@@ -3464,7 +3464,7 @@ router.get('/complaints', async (req, res) => {
       [student.student_id]
     );
 
-    let activeOjtPlacement = ojtRows.find(r => r.status === 'ongoing' || r.status === 'active' || r.status === 'in_progress' || r.status === 'accepted') || ojtRows[0] || null;
+    let activeOjtPlacement = ojtRows.find(r => r.status === 'ongoing' || r.status === 'active' || r.status === 'in_progress' || r.status === 'accepted') || null;
 
     if (!activeOjtPlacement) {
       // Check accepted deployment offers
@@ -3493,8 +3493,8 @@ router.get('/complaints', async (req, res) => {
          FROM job_applications ja
          JOIN job_postings jp ON ja.job_id = jp.job_id
          JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
-         WHERE ja.student_id = ? AND (jp.posting_type = 'ojt' OR jp.posting_type IS NULL) AND ja.status IN ('accepted', 'hired', 'shortlisted')
-         ORDER BY FIELD(ja.status, 'accepted', 'hired', 'shortlisted'), ja.updated_at DESC
+         WHERE ja.student_id = ? AND (jp.posting_type = 'ojt' OR jp.posting_type IS NULL) AND ja.status IN ('accepted', 'hired')
+         ORDER BY FIELD(ja.status, 'accepted', 'hired'), ja.updated_at DESC
          LIMIT 1`,
         [student.student_id]
       );
@@ -3564,6 +3564,8 @@ router.get('/complaints', async (req, res) => {
       defaultStatus = 'ongoing_ojt';
     }
 
+    const hasActivePlacement = Boolean(activeOjtPlacement || activeCareerPlacement);
+
     return res.json({
       success: true,
       data: {
@@ -3573,7 +3575,7 @@ router.get('/complaints', async (req, res) => {
         assigned_organization: activeOjtPlacement || activeCareerPlacement || null,
         active_ojt_placement: activeOjtPlacement,
         active_career_placement: activeCareerPlacement,
-        can_file: true,
+        can_file: hasActivePlacement,
         has_ongoing_ojt: !!activeOjtPlacement,
         default_student_status: defaultStatus
       }
@@ -3601,8 +3603,8 @@ router.post('/complaints', async (req, res) => {
       `SELECT o.ojt_id, o.organization_id, ho.organization_name
        FROM ojt_records o
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
-       WHERE o.student_id = ?
-       ORDER BY (CASE WHEN o.status IN ('ongoing', 'active', 'accepted', 'in_progress') THEN 1 WHEN o.status = 'completed' THEN 2 ELSE 3 END), o.created_at DESC LIMIT 1`,
+       WHERE o.student_id = ? AND o.status IN ('ongoing', 'active', 'accepted', 'in_progress')
+       ORDER BY o.created_at DESC LIMIT 1`,
       [student.student_id]
     );
 
@@ -3618,6 +3620,28 @@ router.post('/complaints', async (req, res) => {
         [student.student_id]
       );
       if (offerRows.length > 0) activeOjt = offerRows[0];
+    }
+
+    if (!activeOjt) {
+      // Check accepted career / on-call positions
+      const [careerRows] = await pool.query(
+        `SELECT ja.application_id, ho.organization_id, ho.organization_name
+         FROM job_applications ja
+         JOIN job_postings jp ON ja.job_id = jp.job_id
+         JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
+         WHERE ja.student_id = ? AND ja.status IN ('accepted', 'hired')
+         ORDER BY ja.updated_at DESC LIMIT 1`,
+        [student.student_id]
+      );
+      if (careerRows.length > 0) activeOjt = careerRows[0];
+    }
+
+    // If no active host organization is assigned, prevent filing
+    if (!activeOjt) {
+      return res.status(403).json({
+        success: false,
+        message: 'You cannot file a grievance because you do not have an active Host Organization assigned. Grievance filing is only available for officially placed students and interns.'
+      });
     }
 
     const resolvedStatus = student_status || (activeOjt ? 'ongoing_ojt' : 'career_job');

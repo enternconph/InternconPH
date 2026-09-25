@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { useTimeFormat } from '../../contexts/TimeContext';
@@ -251,6 +252,7 @@ export default function StudentComplaints() {
   }, [statusFilter, searchQuery]);
 
   const activeOjtOrg = data.active_ojt_placement || data.assigned_organization;
+  const hasActiveHost = Boolean(activeOjtOrg?.organization_id && data.can_file !== false);
 
   // Auto-sync selected target org when student status is ongoing_ojt
   useEffect(() => {
@@ -261,6 +263,11 @@ export default function StudentComplaints() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!hasActiveHost) {
+      alert('You cannot file a grievance because you do not have an active Host Organization assigned.');
+      return;
+    }
 
     const targetOrgId = selectedOrgId || activeOjtOrg?.organization_id;
 
@@ -331,12 +338,76 @@ export default function StudentComplaints() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Form to submit complaint */}
+        {/* Form to submit complaint or Restricted Notice */}
         <div className="bento-card space-y-4 lg:sticky lg:top-6 h-fit">
-          <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
-            <span className="material-symbols-outlined text-error text-[22px]">gavel</span>
-            <span>File a Formal Grievance</span>
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
+              <span className="material-symbols-outlined text-error text-[22px]">gavel</span>
+              <span>File a Formal Grievance</span>
+            </h2>
+            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+              hasActiveHost ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+            }`}>
+              {hasActiveHost ? 'Eligible' : 'Restricted'}
+            </span>
+          </div>
+
+          {!hasActiveHost ? (
+            <div className="space-y-4 text-xs">
+              {/* Notice Banner */}
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-950 dark:text-amber-200 space-y-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-[20px]">domain_disabled</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-amber-950 dark:text-amber-100">No Active Host Organization Assigned</h3>
+                    <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">Grievance filing is currently unavailable</p>
+                  </div>
+                </div>
+                <p className="text-[11px] text-on-surface-variant leading-relaxed pt-1">
+                  You are currently not deployed or assigned to an active <strong>Host Training Organization</strong> or workplace employer. Formal grievances and workplace incident reports can only be submitted once your OJT deployment or workplace position is officially active.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-1">
+                <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Helpful Quick Links</p>
+                <Link
+                  to="/dashboard/student/jobs"
+                  className="w-full p-2.5 rounded-xl border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface flex items-center justify-between transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-vibrant-orange text-[18px]">search</span>
+                    <span className="font-semibold text-xs">Browse OJT Opportunities</span>
+                  </div>
+                  <span className="material-symbols-outlined text-[16px] text-on-surface-variant">arrow_forward</span>
+                </Link>
+
+                <Link
+                  to="/dashboard/student/applications"
+                  className="w-full p-2.5 rounded-xl border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface flex items-center justify-between transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-blue-600 text-[18px]">history_edu</span>
+                    <span className="font-semibold text-xs">View Application History & Offers</span>
+                  </div>
+                  <span className="material-symbols-outlined text-[16px] text-on-surface-variant">arrow_forward</span>
+                </Link>
+
+                <Link
+                  to="/dashboard/student/ojt"
+                  className="w-full p-2.5 rounded-xl border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface flex items-center justify-between transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-emerald-600 text-[18px]">timer</span>
+                    <span className="font-semibold text-xs">Check My OJT Status & Placement</span>
+                  </div>
+                  <span className="material-symbols-outlined text-[16px] text-on-surface-variant">arrow_forward</span>
+                </Link>
+              </div>
+            </div>
+          ) : (
 
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
             {/* Student Status Selector (3 Clear Categories) */}
@@ -684,6 +755,7 @@ export default function StudentComplaints() {
               <span>{submitting ? 'Submitting Report...' : 'Submit Report for Review'}</span>
             </button>
           </form>
+          )}
         </div>
 
         {/* Complaints History List */}
