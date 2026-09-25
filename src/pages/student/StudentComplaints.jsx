@@ -822,33 +822,37 @@ export default function StudentComplaints() {
 
         {/* Complaints History List */}
         <div className="lg:col-span-2 bento-card space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-outline-variant">
-            <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
                 <span className={`material-symbols-outlined text-[22px] ${statusFilter === 'warnings' ? 'text-amber-600' : 'text-vibrant-orange'}`}>
-                  {statusFilter === 'warnings' ? 'warning' : 'history'}
+                  {statusFilter === 'warnings' ? 'warning' : 'folder_open'}
                 </span>
                 <span>
                   {statusFilter === 'warnings'
-                    ? `Official Institutional Warnings Issued (${counts.warnings})`
-                    : `My Submitted Grievances (${data.complaints?.length || 0})`}
+                    ? `Official Institutional Warnings (${counts.warnings})`
+                    : `Grievances & Incident Notices (${data.complaints?.length || 0})`}
                 </span>
               </h2>
-              {counts.warnings > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setStatusFilter(statusFilter === 'warnings' ? 'all' : 'warnings')}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all shadow-xs cursor-pointer ${
-                    statusFilter === 'warnings'
-                      ? 'bg-amber-600 text-white ring-2 ring-amber-400'
-                      : 'bg-amber-500 text-white animate-pulse hover:bg-amber-600'
-                  }`}
-                  title={statusFilter === 'warnings' ? 'Click to show all records' : 'Click to filter official warnings'}
-                >
-                  <span className="material-symbols-outlined text-[14px]">warning</span>
-                  <span>Official Institutional Warning Issued ({counts.warnings})</span>
-                </button>
-              ) : (
+              {counts.warnings > 0 && (
+                statusFilter === 'warnings' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                    <span className="material-symbols-outlined text-[13px] text-amber-600">gavel</span>
+                    <span>Disciplinary Records</span>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('warnings')}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-xs cursor-pointer animate-pulse"
+                    title="Click to view official institutional warnings"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">warning</span>
+                    <span>{counts.warnings} Warning{counts.warnings > 1 ? 's' : ''} on Record</span>
+                  </button>
+                )
+              )}
+              {counts.warnings === 0 && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-container text-on-surface-variant border border-outline-variant">
                   <span className="material-symbols-outlined text-[13px] text-emerald-600">verified</span>
                   <span>No Warnings</span>
@@ -863,7 +867,7 @@ export default function StudentComplaints() {
               </span>
               <input
                 type="text"
-                placeholder="Search grievances..."
+                placeholder="Search records..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-8 py-1.5 text-xs rounded-lg border border-outline-variant bg-surface-container-low text-on-surface outline-none focus:ring-2 focus:ring-vibrant-orange"
@@ -880,22 +884,22 @@ export default function StudentComplaints() {
             </div>
           </div>
 
-          {/* Prominent Warning Banner if Institution Warnings Exist */}
-          {counts.warnings > 0 && (
-            <div className="p-3.5 rounded-xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-center justify-between gap-3 flex-wrap">
+          {/* Prominent Alert Banner if Warnings Exist and user is on another tab */}
+          {counts.warnings > 0 && statusFilter !== 'warnings' && (
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-center justify-between gap-3 flex-wrap shadow-2xs">
               <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-amber-600 text-[22px]">warning</span>
-                <div className="text-xs">
-                  <span className="font-bold">Official Institutional Warning Issued: </span>
-                  <span className="text-on-surface-variant">Your institution coordinator has issued {counts.warnings} warning note(s) regarding your placement / conduct.</span>
-                </div>
+                <span className="material-symbols-outlined text-amber-600 text-[20px]">warning</span>
+                <p className="text-xs">
+                  <span className="font-bold">Official Disciplinary Notice: </span>
+                  <span className="text-on-surface-variant">Your university coordinator recorded {counts.warnings} warning note(s) regarding training protocol or compliance.</span>
+                </p>
               </div>
               <button
                 type="button"
-                onClick={() => setStatusFilter(statusFilter === 'warnings' ? 'all' : 'warnings')}
-                className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors shadow-xs"
+                onClick={() => setStatusFilter('warnings')}
+                className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
               >
-                {statusFilter === 'warnings' ? 'Show All Grievances' : 'View Issued Warnings'}
+                Review Warnings →
               </button>
             </div>
           )}
@@ -957,8 +961,8 @@ export default function StudentComplaints() {
                   : 'bg-surface-container-low text-on-surface hover:bg-surface-container border border-outline-variant'
               }`}
             >
-              <span className="material-symbols-outlined text-[16px] text-amber-600">warning</span>
-              <span>Official Institutional Warning Issued ({counts.warnings})</span>
+              <span className="material-symbols-outlined text-[15px] text-amber-600">warning</span>
+              <span>Official Warnings ({counts.warnings})</span>
             </button>
           </div>
 
@@ -1009,113 +1013,112 @@ export default function StudentComplaints() {
           ) : (
             <>
               <div className="space-y-3">
-                {paginatedComplaints.map((c) => (
-                  <div key={c.complaint_id} className={`p-4 rounded-xl border space-y-2.5 transition-all ${
-                    c.warning_note_to_student 
-                      ? 'bg-amber-500/5 dark:bg-amber-950/20 border-amber-500/40 shadow-xs ring-1 ring-amber-500/20' 
-                      : 'bg-surface-container-low border-outline-variant'
-                  }`}>
-                    {/* Top Alert Banner for Official Warnings */}
-                    {c.warning_note_to_student && (
-                      <div className="p-2.5 bg-amber-500/15 border border-amber-500/30 rounded-lg flex items-center justify-between gap-2 flex-wrap text-amber-950 dark:text-amber-200">
-                        <div className="flex items-center gap-1.5 font-black text-xs uppercase tracking-wider">
-                          <span className="material-symbols-outlined text-amber-600 text-[18px]">warning</span>
-                          <span>Official Institutional Warning Issued</span>
-                        </div>
-                        {c.warning_sent_at && (
-                          <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300">
-                            Issued: {safeFormatDateTime(c.warning_sent_at)}
-                          </span>
-                        )}
-                      </div>
-                    )}
+                {paginatedComplaints.map((c) => {
+                  const hasWarning = Boolean((c.warning_note_to_student && c.warning_note_to_student.trim()) || c.warning_sent_at);
+                  const isOrgReport = c.complainant_type === 'organization';
 
-                    <div className="flex justify-between items-start gap-2">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <h3 className="font-bold text-xs text-on-surface">{c.subject}</h3>
-                          {c.warning_note_to_student && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                  return (
+                    <div
+                      key={c.complaint_id}
+                      className={`p-4 rounded-xl border transition-all space-y-3 ${
+                        hasWarning
+                          ? 'bg-surface dark:bg-amber-950/10 border-amber-500/40 dark:border-amber-500/30 shadow-xs ring-1 ring-amber-500/20'
+                          : 'bg-surface-container-low border-outline-variant'
+                      }`}
+                    >
+                      {/* Card Top Row: Header Badge & Status */}
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {hasWarning ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-white flex items-center gap-1 shadow-xs">
                               <span className="material-symbols-outlined text-[13px]">warning</span>
-                              Official Warning Notice
+                              Official Institutional Warning
                             </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-on-surface-variant">
-                          {c.complainant_type === 'organization' ? (
-                            <span className="text-amber-700 dark:text-amber-400 font-semibold">Reported by Partner Organization: <strong className="text-on-surface">{c.organization_name}</strong></span>
                           ) : (
-                            <>Against: <span className="font-bold text-on-surface">{c.organization_name}</span></>
-                          )} • Category: <span className="font-bold">{c.category_name}</span>
-                          {c.student_status && (
-                            <> • Status: <span className={`font-bold ${
-                              c.student_status === 'ongoing_ojt' || c.student_status === 'ojt'
-                                ? 'text-vibrant-orange'
-                                : c.student_status === 'ojt_completer'
-                                ? 'text-blue-600 dark:text-blue-400'
-                                : c.student_status === 'on_call'
-                                ? 'text-purple-600 dark:text-purple-400'
-                                : 'text-pinoy-green'
-                            }`}>
-                              {c.student_status === 'ongoing_ojt' || c.student_status === 'ojt'
-                                ? 'Ongoing OJT'
-                                : c.student_status === 'ojt_completer'
-                                ? 'OJT Completer'
-                                : c.student_status === 'on_call'
-                                ? 'On-Call'
-                                : 'Graduated / Career'}
-                            </span></>
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          c.status === 'resolved' ? 'bg-green-tint text-pinoy-green' :
-                          c.status === 'dismissed' ? 'bg-surface-container-high text-on-surface-variant' :
-                          'bg-orange-tint text-vibrant-orange animate-pulse'
-                        }`}>
-                          {c.status.replace(/_/g, ' ')}
-                        </span>
-                        {c.status === 'submitted' && c.complainant_type === 'student' && (
-                          <button
-                            onClick={() => handleWithdraw(c.complaint_id, c.subject)}
-                            className="text-on-surface-variant hover:text-error transition-colors p-1"
-                            title="Withdraw Grievance"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">close</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-xs text-on-surface-variant bg-surface-container p-2.5 rounded-lg">{c.description}</p>
-
-                    {/* Institution Warning Note Details */}
-                    {c.warning_note_to_student && (
-                      <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-500/40 rounded-xl space-y-2 shadow-xs">
-                        <div className="flex items-center justify-between gap-2 flex-wrap text-amber-900 dark:text-amber-200">
-                          <div className="flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-[18px] text-amber-600">rate_review</span>
-                            <span className="text-xs font-black uppercase tracking-wider">Official Institution Warning Note</span>
-                          </div>
-                          {c.warning_sent_at && (
-                            <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300">
-                              Issued on: {safeFormatDateTime(c.warning_sent_at)}
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-surface-container-high text-on-surface-variant border border-outline-variant/60">
+                              Grievance Report
                             </span>
                           )}
-                        </div>
-                        <p className="text-xs text-amber-950 dark:text-amber-100 font-medium leading-relaxed bg-surface/80 p-2.5 rounded-lg border border-amber-300/50 shadow-2xs italic">
-                          "{c.warning_note_to_student}"
-                        </p>
-                        <p className="text-[10px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[13px]">school</span>
-                          Disciplinary notice recorded on your official institutional record by University Administration
-                        </p>
-                      </div>
-                    )}
 
-                    <span className="text-[10px] text-on-surface-variant block">Filed on: {safeFormatDateTime(c.filed_at || c.created_at)}</span>
-                  </div>
-                ))}
+                          <span className="text-xs text-on-surface-variant font-medium">
+                            {isOrgReport ? (
+                              <>Reported by: <strong className="text-on-surface font-semibold">{c.organization_name}</strong></>
+                            ) : (
+                              <>Filed against: <strong className="text-on-surface font-semibold">{c.organization_name}</strong></>
+                            )}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            c.status === 'resolved' ? 'bg-green-tint text-pinoy-green' :
+                            c.status === 'dismissed' ? 'bg-surface-container-high text-on-surface-variant' :
+                            'bg-orange-tint text-vibrant-orange'
+                          }`}>
+                            {c.status.replace(/_/g, ' ')}
+                          </span>
+                          {c.status === 'submitted' && c.complainant_type === 'student' && (
+                            <button
+                              onClick={() => handleWithdraw(c.complaint_id, c.subject)}
+                              className="text-on-surface-variant hover:text-error transition-colors p-1"
+                              title="Withdraw Grievance"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">close</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Incident Subject & Metadata */}
+                      <div>
+                        <h3 className="text-sm font-bold text-on-surface">{c.subject}</h3>
+                        <div className="flex items-center gap-2 flex-wrap text-[11px] text-on-surface-variant mt-0.5">
+                          <span>Category: <strong className="text-on-surface">{c.category_name}</strong></span>
+                          {c.student_status && (
+                            <>
+                              <span>•</span>
+                              <span>Status: <strong className="text-vibrant-orange capitalize">{c.student_status.replace(/_/g, ' ')}</strong></span>
+                            </>
+                          )}
+                          <span>•</span>
+                          <span>Filed on {safeFormatDateTime(c.filed_at || c.created_at)}</span>
+                        </div>
+                      </div>
+
+                      {/* Incident Description */}
+                      {c.description && (
+                        <div className="p-3 rounded-lg bg-surface-container-low/80 dark:bg-surface-container-lowest border border-outline-variant/50 text-xs text-on-surface space-y-1">
+                          <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">Incident Description</span>
+                          <p className="text-xs text-on-surface-variant leading-relaxed">{c.description}</p>
+                        </div>
+                      )}
+
+                      {/* Coordinator Warning Directive Callout */}
+                      {c.warning_note_to_student && (
+                        <div className="p-3.5 bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/40 rounded-xl space-y-2 shadow-xs">
+                          <div className="flex items-center justify-between gap-2 flex-wrap text-amber-900 dark:text-amber-200">
+                            <div className="flex items-center gap-1.5 font-bold text-xs">
+                              <span className="material-symbols-outlined text-[18px] text-amber-600">rate_review</span>
+                              <span className="uppercase tracking-wider">Coordinator Official Warning Directive</span>
+                            </div>
+                            {c.warning_sent_at && (
+                              <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300">
+                                Issued {safeFormatDateTime(c.warning_sent_at)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-surface/90 dark:bg-surface-container-lowest border border-amber-300/40 text-xs font-medium text-amber-950 dark:text-amber-100 italic leading-relaxed shadow-2xs">
+                            "{c.warning_note_to_student}"
+                          </div>
+                          <p className="text-[10px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">school</span>
+                            Disciplinary notice recorded on your official university file by Institution Administration
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               <Pagination
