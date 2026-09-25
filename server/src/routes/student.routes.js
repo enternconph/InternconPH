@@ -3447,23 +3447,21 @@ router.get('/complaints', async (req, res) => {
 
     // 1. Resolve Active OJT Placement & Host Organization (Synchronized directly with OJT Progress & DTR)
     const [ojtRows] = await pool.query(
-      `SELECT o.ojt_id, o.organization_id, o.status as ojt_record_status,
-              ho.organization_name, ho.industry, ho.logo_url,
-              'ojt' as placement_type
+      `SELECT o.*, ho.organization_name, ho.industry, ho.logo_url, ho.contact_email, 'ojt' as placement_type
        FROM ojt_records o
+       JOIN students s ON o.student_id = s.student_id
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
        WHERE o.student_id = ?
-       ORDER BY (CASE WHEN o.status IN ('ongoing', 'active', 'accepted', 'in_progress') THEN 1 WHEN o.status = 'completed' THEN 2 ELSE 3 END), o.created_at DESC
-       LIMIT 1`,
+       ORDER BY o.created_at DESC`,
       [student.student_id]
     );
 
-    let activeOjtPlacement = ojtRows.length > 0 ? ojtRows[0] : null;
+    let activeOjtPlacement = ojtRows.find(r => r.status === 'ongoing' || r.status === 'active' || r.status === 'in_progress' || r.status === 'accepted') || ojtRows[0] || null;
 
     if (!activeOjtPlacement) {
       // Check accepted deployment offers
       const [offerRows] = await pool.query(
-        `SELECT dof.offer_id, dof.organization_id, 'ongoing' as ojt_record_status,
+        `SELECT dof.offer_id, dof.organization_id, 'ongoing' as status,
                 ho.organization_name, ho.industry, ho.logo_url, 'ojt' as placement_type
          FROM ojt_deployment_offers dof
          JOIN hiring_organizations ho ON dof.organization_id = ho.organization_id

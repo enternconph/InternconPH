@@ -99,24 +99,62 @@ export default function StudentComplaints() {
 
   const fetchComplaints = useCallback(async () => {
     try {
-      const res = await api.get('/student/complaints');
+      const [res, ojtRes] = await Promise.all([
+        api.get('/student/complaints'),
+        api.get('/student/ojt').catch(() => ({ success: false }))
+      ]);
+
       if (res.success && res.data) {
         const incomingCategories = (res.data.categories && res.data.categories.length > 0)
           ? res.data.categories
           : DEFAULT_STUDENT_VIOLATION_CATEGORIES;
 
+        // Resolve active OJT record directly from ojt API if not already in complaints response
+        const ojtActiveRecord = ojtRes.success && ojtRes.data?.records
+          ? (ojtRes.data.records.find((r) => r.status === 'ongoing' || r.status === 'active' || r.status === 'in_progress') || ojtRes.data.records[0])
+          : null;
+
+        const resolvedOjtPlacement = res.data.active_ojt_placement || res.data.assigned_organization || (ojtActiveRecord ? {
+          organization_id: ojtActiveRecord.organization_id,
+          organization_name: ojtActiveRecord.organization_name,
+          industry: ojtActiveRecord.industry
+        } : null);
+
+        // Merge OJT host into organizations list if not already present
+        let updatedOrgs = res.data.orgs || [];
+        if (resolvedOjtPlacement?.organization_id) {
+          const exists = updatedOrgs.some((o) => String(o.organization_id) === String(resolvedOjtPlacement.organization_id));
+          if (!exists) {
+            updatedOrgs = [
+              {
+                organization_id: resolvedOjtPlacement.organization_id,
+                organization_name: resolvedOjtPlacement.organization_name,
+                industry: resolvedOjtPlacement.industry,
+                is_my_employer: 1
+              },
+              ...updatedOrgs
+            ];
+          }
+        }
+
         setData({
           ...res.data,
-          categories: incomingCategories
+          categories: incomingCategories,
+          orgs: updatedOrgs,
+          active_ojt_placement: resolvedOjtPlacement,
+          assigned_organization: resolvedOjtPlacement
         });
+
         if (res.data.default_student_status) {
           setStudentStatus((prev) => prev || res.data.default_student_status);
         }
-        const ojtPlacement = res.data.active_ojt_placement || res.data.assigned_organization;
-        if (ojtPlacement?.organization_id) {
-          setSelectedOrgId(String(ojtPlacement.organization_id));
-        } else if (res.data.orgs?.length > 0) {
-          setSelectedOrgId((prev) => prev || String(res.data.orgs[0].organization_id));
+
+        // Automatically pre-select the active OJT Host organization
+        if (resolvedOjtPlacement?.organization_id) {
+          setSelectedOrgId(String(resolvedOjtPlacement.organization_id));
+        } else if (updatedOrgs.length > 0) {
+          const myOrg = updatedOrgs.find((o) => o.is_my_employer) || updatedOrgs[0];
+          setSelectedOrgId(String(myOrg.organization_id));
         }
       }
     } catch (err) {
@@ -186,9 +224,9 @@ export default function StudentComplaints() {
 
   const activeOjtOrg = data.active_ojt_placement || data.assigned_organization;
 
-  // Auto-sync selected target org when student status changes to ongoing_ojt
+  // Auto-sync selected target org when student status is ongoing_ojt
   useEffect(() => {
-    if (studentStatus === 'ongoing_ojt' && activeOjtOrg?.organization_id && !selectedOrgId) {
+    if ((studentStatus === 'ongoing_ojt' || studentStatus === 'ojt') && activeOjtOrg?.organization_id && !selectedOrgId) {
       setSelectedOrgId(String(activeOjtOrg.organization_id));
     }
   }, [studentStatus, activeOjtOrg, selectedOrgId]);
@@ -438,11 +476,13 @@ export default function StudentComplaints() {
               {/* Complete Organization Dropdown */}
               <select
                 required
-                value={selectedOrgId}
+                value={selectedOrgId || (activeOjtOrg?.organization_id ? String(activeOjtOrg.organization_id) : '')}
                 onChange={(e) => setSelectedOrgId(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-medium outline-none focus:ring-2 focus:ring-vibrant-orange text-xs"
               >
-                <option value="">Select target employer / host organization...</option>
+                {!activeOjtOrg?.organization_id && !selectedOrgId && (
+                  <option value="">Select target employer / host organization...</option>
+                )}
                 {(() => {
                   const orgList = data.orgs || [];
                   const myEmps = orgList.filter((o) => o.is_my_employer || String(o.organization_id) === String(activeOjtOrg?.organization_id));
