@@ -532,24 +532,22 @@ router.post('/jobs/:id/apply', async (req, res) => {
       }
     }
 
-    // One-application rule: a student may only hold ONE active application at a time.
-    // "Active" = any status except withdrawn, declined, or rejected.
-    const [activeApps] = await pool.query(
-      `SELECT ja.application_id, jp.title as job_title, ho.organization_name, ja.status
+    // Duplicate check: student cannot submit multiple active applications to the SAME opportunity
+    const [duplicateApp] = await pool.query(
+      `SELECT ja.application_id, jp.title as job_title, ja.status
        FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
-       JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
-       WHERE ja.student_id = ?
+       WHERE ja.student_id = ? AND ja.job_id = ?
          AND ja.status NOT IN ('withdrawn', 'declined', 'rejected')
        LIMIT 1`,
-      [studentId]
+      [studentId, jobId]
     );
 
-    if (activeApps.length > 0) {
-      const active = activeApps[0];
+    if (duplicateApp.length > 0) {
+      const active = duplicateApp[0];
       return res.status(400).json({
         success: false,
-        message: `You already have an active application for "${active.job_title}" at ${active.organization_name} (Status: ${active.status}). You may only apply to one opportunity at a time. Please withdraw your current application first if you wish to apply elsewhere.`
+        message: `You have already applied for "${active.job_title}" (Current Status: ${active.status}). You cannot submit duplicate applications for the same opening.`
       });
     }
 
@@ -645,11 +643,9 @@ router.get('/applications', async (req, res) => {
               jp.title as job_title, jp.description as job_description, jp.requirements as job_requirements,
               jp.deliverables as job_deliverables, jp.location, COALESCE(jp.posting_type, 'ojt') as posting_type,
               COALESCE(jp.job_type, 'ojt') as job_type, jp.work_setup,
-              COALESCE(jp.salary_rate, jp.salary_min) as salary_rate,
-              jp.salary_rate_type, jp.salary_min, jp.salary_max, jp.allowance, jp.department, jp.employment_type,
-              COALESCE(jp.slots_available, jp.slots) as slots_available,
+              jp.salary_rate, jp.salary_rate_type, jp.slots_available,
               ho.organization_id, ho.organization_name, ho.industry, ho.contact_email, ho.contact_phone,
-              ho.logo_url, ho.address as org_address, ho.website,
+              ho.address as org_address, ho.website, NULL as logo_url,
               jo.offer_id, jo.status as offer_status, jo.offered_at, jo.responded_at,
               i.interview_id, i.schedule_at as interview_schedule_at, i.mode as interview_mode,
               i.location_or_link as interview_location_or_link, i.notes as interview_notes,
@@ -668,7 +664,30 @@ router.get('/applications', async (req, res) => {
       [student.student_id]
     );
 
-    // If student has no applications yet, automatically initialize realistic sample application history
+    // Also fetch any direct deployment offers if present and not already in job_applications
+    const [directOffers] = await pool.query(
+      `SELECT odo.offer_id as application_id, odo.job_id, odo.student_id, odo.status,
+              odo.offered_at as applied_at, odo.created_at, odo.updated_at,
+              'Direct Deployment Offer' as feedback, NULL as rejection_reason,
+              jp.title as job_title, jp.description as job_description, jp.requirements as job_requirements,
+              jp.deliverables as job_deliverables, jp.location, COALESCE(jp.posting_type, 'ojt') as posting_type,
+              COALESCE(jp.job_type, 'ojt') as job_type, jp.work_setup,
+              jp.salary_rate, jp.salary_rate_type, jp.slots_available,
+              ho.organization_id, ho.organization_name, ho.industry, ho.contact_email, ho.contact_phone,
+              ho.address as org_address, ho.website, NULL as logo_url,
+              odo.offer_id, odo.status as offer_status, odo.offered_at, odo.responded_at,
+              NULL as interview_id, NULL as interview_schedule_at, NULL as interview_mode,
+              NULL as interview_location_or_link, NULL as interview_notes, NULL as interview_status
+       FROM ojt_deployment_offers odo
+       JOIN job_postings jp ON odo.job_id = jp.job_id
+       JOIN hiring_organizations ho ON odo.organization_id = ho.organization_id
+       WHERE odo.student_id = ? AND odo.job_id NOT IN (
+         SELECT job_id FROM job_applications WHERE student_id = ?
+       )`,
+      [student.student_id, student.student_id]
+    );
+
+    // If student has no applications and no direct offers yet, automatically initialize realistic sample application history
     // so the student can immediately see the application procedure, interview requests, and feedback
     if (applications.length === 0 && (!directOffers || directOffers.length === 0)) {
       try {
@@ -732,11 +751,9 @@ router.get('/applications', async (req, res) => {
                     jp.title as job_title, jp.description as job_description, jp.requirements as job_requirements,
                     jp.deliverables as job_deliverables, jp.location, COALESCE(jp.posting_type, 'ojt') as posting_type,
                     COALESCE(jp.job_type, 'ojt') as job_type, jp.work_setup,
-                    COALESCE(jp.salary_rate, jp.salary_min) as salary_rate,
-                    jp.salary_rate_type, jp.salary_min, jp.salary_max, jp.allowance, jp.department, jp.employment_type,
-                    COALESCE(jp.slots_available, jp.slots) as slots_available,
+                    jp.salary_rate, jp.salary_rate_type, jp.slots_available,
                     ho.organization_id, ho.organization_name, ho.industry, ho.contact_email, ho.contact_phone,
-                    ho.logo_url, ho.address as org_address, ho.website,
+                    ho.address as org_address, ho.website, NULL as logo_url,
                     jo.offer_id, jo.status as offer_status, jo.offered_at, jo.responded_at,
                     i.interview_id, i.schedule_at as interview_schedule_at, i.mode as interview_mode,
                     i.location_or_link as interview_location_or_link, i.notes as interview_notes,

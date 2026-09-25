@@ -2340,6 +2340,7 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
     );
 
     emitUpdate('interview_updated', { application_id, organization_id: org.organization_id });
+    emitUpdate('application_updated', { application_id, organization_id: org.organization_id, status: 'interview' });
 
     return res.status(201).json({ success: true, message: 'Interview scheduled successfully!' });
   } catch (error) {
