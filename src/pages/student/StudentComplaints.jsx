@@ -94,6 +94,18 @@ export const DEFAULT_ORGANIZATIONS = [
 
 export default function StudentComplaints() {
   const [searchParams] = useSearchParams();
+  const { formatDateTime } = useTimeFormat();
+
+  const safeFormatDateTime = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      if (formatDateTime) return formatDateTime(dateStr);
+      return new Date(dateStr).toLocaleString();
+    } catch {
+      return String(dateStr);
+    }
+  };
+
   const [data, setData] = useState({
     complaints: [],
     categories: DEFAULT_STUDENT_VIOLATION_CATEGORIES,
@@ -115,14 +127,21 @@ export default function StudentComplaints() {
 
   // Search, filter, and pagination states
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('filter') || 'all');
+  const initialFilter = searchParams.get('filter');
+  const [statusFilter, setStatusFilter] = useState(
+    initialFilter === 'warning' || initialFilter === 'warnings' ? 'warnings' : initialFilter || 'all'
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
 
   useEffect(() => {
     const f = searchParams.get('filter');
     if (f) {
-      setStatusFilter(f);
+      if (f === 'warning' || f === 'warnings') {
+        setStatusFilter('warnings');
+      } else {
+        setStatusFilter(f);
+      }
     }
   }, [searchParams]);
 
@@ -222,15 +241,15 @@ export default function StudentComplaints() {
         (c) => c.status === 'institution_review' || c.status === 'under_investigation'
       ).length,
       resolved: list.filter((c) => c.status === 'resolved').length,
-      warnings: list.filter((c) => !!c.warning_note_to_student).length,
+      warnings: list.filter((c) => Boolean((c.warning_note_to_student && c.warning_note_to_student.trim()) || c.warning_sent_at)).length,
     };
   }, [data.complaints]);
 
   // Filtered complaints based on search and status
   const filteredComplaints = useMemo(() => {
     let list = data.complaints || [];
-    if (statusFilter === 'warnings') {
-      list = list.filter((c) => !!c.warning_note_to_student);
+    if (statusFilter === 'warnings' || statusFilter === 'warning') {
+      list = list.filter((c) => Boolean((c.warning_note_to_student && c.warning_note_to_student.trim()) || c.warning_sent_at));
     } else if (statusFilter === 'under_review') {
       list = list.filter(
         (c) => c.status === 'institution_review' || c.status === 'under_investigation'
@@ -246,7 +265,8 @@ export default function StudentComplaints() {
           c.subject?.toLowerCase().includes(q) ||
           c.description?.toLowerCase().includes(q) ||
           c.organization_name?.toLowerCase().includes(q) ||
-          c.category_name?.toLowerCase().includes(q)
+          c.category_name?.toLowerCase().includes(q) ||
+          c.warning_note_to_student?.toLowerCase().includes(q)
       );
     }
     return list;
@@ -775,14 +795,29 @@ export default function StudentComplaints() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-outline-variant">
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-vibrant-orange text-[20px]">history</span>
-                <span>My Submitted Grievances ({data.complaints?.length || 0})</span>
+                <span className={`material-symbols-outlined text-[22px] ${statusFilter === 'warnings' ? 'text-amber-600' : 'text-vibrant-orange'}`}>
+                  {statusFilter === 'warnings' ? 'warning' : 'history'}
+                </span>
+                <span>
+                  {statusFilter === 'warnings'
+                    ? `Official Institutional Warnings Issued (${counts.warnings})`
+                    : `My Submitted Grievances (${data.complaints?.length || 0})`}
+                </span>
               </h2>
               {counts.warnings > 0 ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-white shadow-xs animate-pulse">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter(statusFilter === 'warnings' ? 'all' : 'warnings')}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all shadow-xs cursor-pointer ${
+                    statusFilter === 'warnings'
+                      ? 'bg-amber-600 text-white ring-2 ring-amber-400'
+                      : 'bg-amber-500 text-white animate-pulse hover:bg-amber-600'
+                  }`}
+                  title={statusFilter === 'warnings' ? 'Click to show all records' : 'Click to filter official warnings'}
+                >
                   <span className="material-symbols-outlined text-[14px]">warning</span>
                   <span>Official Institutional Warning Issued ({counts.warnings})</span>
-                </span>
+                </button>
               ) : (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-container text-on-surface-variant border border-outline-variant">
                   <span className="material-symbols-outlined text-[13px] text-emerald-600">verified</span>
@@ -904,13 +939,32 @@ export default function StudentComplaints() {
           ) : data.complaints?.length === 0 ? (
             <div className="text-center py-8 text-on-surface-variant text-xs space-y-2">
               <span className="material-symbols-outlined text-[36px] mb-2 text-pinoy-green">verified</span>
-              <p className="font-bold text-sm text-on-surface">No Grievances or Official Warnings on Record</p>
-              <p>All your interactions and workplace records are in good standing with zero disciplinary warnings.</p>
+              <p className="font-bold text-sm text-on-surface">
+                {statusFilter === 'warnings' ? 'No Official Institutional Warnings on Record' : 'No Grievances or Official Warnings on Record'}
+              </p>
+              <p>
+                {statusFilter === 'warnings'
+                  ? 'Your academic institution has not issued any disciplinary warnings or notices against you. All your training records remain in excellent standing.'
+                  : 'All your interactions and workplace records are in good standing with zero disciplinary warnings.'}
+              </p>
+              {statusFilter === 'warnings' && (
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('all')}
+                  className="text-vibrant-orange font-bold hover:underline inline-block mt-1 text-xs"
+                >
+                  View all grievances
+                </button>
+              )}
             </div>
           ) : filteredComplaints.length === 0 ? (
             <div className="text-center py-8 text-on-surface-variant text-xs space-y-2">
               <span className="material-symbols-outlined text-[36px] text-on-surface-variant opacity-60">search_off</span>
-              <p>{statusFilter === 'warnings' ? 'No official institutional warnings on file.' : 'No grievances match your search or filter criteria.'}</p>
+              <p>
+                {statusFilter === 'warnings'
+                  ? 'No official institutional warnings match your search or filter criteria.'
+                  : 'No grievances match your search or filter criteria.'}
+              </p>
               <button
                 type="button"
                 onClick={() => {
@@ -926,11 +980,26 @@ export default function StudentComplaints() {
             <>
               <div className="space-y-3">
                 {paginatedComplaints.map((c) => (
-                  <div key={c.complaint_id} className={`p-4 rounded-xl border space-y-2 transition-all ${
+                  <div key={c.complaint_id} className={`p-4 rounded-xl border space-y-2.5 transition-all ${
                     c.warning_note_to_student 
-                      ? 'bg-amber-500/5 border-amber-500/40 shadow-xs ring-1 ring-amber-500/20' 
+                      ? 'bg-amber-500/5 dark:bg-amber-950/20 border-amber-500/40 shadow-xs ring-1 ring-amber-500/20' 
                       : 'bg-surface-container-low border-outline-variant'
                   }`}>
+                    {/* Top Alert Banner for Official Warnings */}
+                    {c.warning_note_to_student && (
+                      <div className="p-2.5 bg-amber-500/15 border border-amber-500/30 rounded-lg flex items-center justify-between gap-2 flex-wrap text-amber-950 dark:text-amber-200">
+                        <div className="flex items-center gap-1.5 font-black text-xs uppercase tracking-wider">
+                          <span className="material-symbols-outlined text-amber-600 text-[18px]">warning</span>
+                          <span>Official Institutional Warning Issued</span>
+                        </div>
+                        {c.warning_sent_at && (
+                          <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300">
+                            Issued: {safeFormatDateTime(c.warning_sent_at)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex justify-between items-start gap-2">
                       <div>
                         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -938,7 +1007,7 @@ export default function StudentComplaints() {
                           {c.warning_note_to_student && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white uppercase tracking-wider flex items-center gap-1 shadow-xs">
                               <span className="material-symbols-outlined text-[13px]">warning</span>
-                              Official Institutional Warning Issued
+                              Official Warning Notice
                             </span>
                           )}
                         </div>
@@ -977,7 +1046,7 @@ export default function StudentComplaints() {
                         }`}>
                           {c.status.replace(/_/g, ' ')}
                         </span>
-                        {c.status === 'submitted' && (
+                        {c.status === 'submitted' && c.complainant_type === 'student' && (
                           <button
                             onClick={() => handleWithdraw(c.complaint_id, c.subject)}
                             className="text-on-surface-variant hover:text-error transition-colors p-1"
@@ -990,31 +1059,31 @@ export default function StudentComplaints() {
                     </div>
                     <p className="text-xs text-on-surface-variant bg-surface-container p-2.5 rounded-lg">{c.description}</p>
 
-                    {/* Institution Warning Note (if issued) */}
+                    {/* Institution Warning Note Details */}
                     {c.warning_note_to_student && (
-                      <div className="p-3.5 bg-amber-500/10 border-2 border-amber-500/30 rounded-xl space-y-2 shadow-xs">
-                        <div className="flex items-center justify-between gap-2 flex-wrap text-amber-800 dark:text-amber-300">
+                      <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-500/40 rounded-xl space-y-2 shadow-xs">
+                        <div className="flex items-center justify-between gap-2 flex-wrap text-amber-900 dark:text-amber-200">
                           <div className="flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-[18px] text-amber-600">warning</span>
+                            <span className="material-symbols-outlined text-[18px] text-amber-600">rate_review</span>
                             <span className="text-xs font-black uppercase tracking-wider">Official Institution Warning Note</span>
                           </div>
                           {c.warning_sent_at && (
-                            <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">
-                              Issued: {formatDateTime(c.warning_sent_at)}
+                            <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300">
+                              Issued on: {safeFormatDateTime(c.warning_sent_at)}
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-amber-950 dark:text-amber-100 font-medium leading-relaxed bg-surface/70 p-2.5 rounded-lg border border-amber-200/50">
+                        <p className="text-xs text-amber-950 dark:text-amber-100 font-medium leading-relaxed bg-surface/80 p-2.5 rounded-lg border border-amber-300/50 shadow-2xs italic">
                           "{c.warning_note_to_student}"
                         </p>
                         <p className="text-[10px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
                           <span className="material-symbols-outlined text-[13px]">school</span>
-                          Disciplinary notice recorded on student profile by Institution Administration
+                          Disciplinary notice recorded on your official institutional record by University Administration
                         </p>
                       </div>
                     )}
 
-                    <span className="text-[10px] text-on-surface-variant block">Filed on: {formatDateTime(c.filed_at)}</span>
+                    <span className="text-[10px] text-on-surface-variant block">Filed on: {safeFormatDateTime(c.filed_at || c.created_at)}</span>
                   </div>
                 ))}
               </div>

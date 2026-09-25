@@ -249,9 +249,9 @@ router.get('/dashboard', async (req, res) => {
               c.status as complaint_status
        FROM complaints c
        LEFT JOIN hiring_organizations ho ON c.organization_id = ho.organization_id
-       WHERE c.student_id = ? AND c.warning_note_to_student IS NOT NULL AND c.warning_note_to_student != ''
+       WHERE (c.student_id = ? OR c.student_id = ?) AND c.warning_note_to_student IS NOT NULL AND c.warning_note_to_student != ''
        ORDER BY c.warning_sent_at DESC`,
-      [studentId]
+      [studentId, req.user.user_id]
     );
 
     // Recent applications
@@ -3671,10 +3671,10 @@ router.get('/complaints', async (req, res) => {
        LEFT JOIN complaint_categories cc ON c.category_id = cc.category_id
        LEFT JOIN hiring_organizations ho ON c.organization_id = ho.organization_id
        LEFT JOIN job_postings jp ON c.job_id = jp.job_id
-       WHERE c.student_id = ?
+       WHERE (c.student_id = ? OR c.student_id = ?)
        ORDER BY (CASE WHEN c.warning_note_to_student IS NOT NULL AND c.warning_note_to_student != '' THEN 0 ELSE 1 END),
                 COALESCE(c.warning_sent_at, c.filed_at, c.created_at) DESC`,
-      [student.student_id]
+      [student.student_id, req.user.user_id]
     );
 
     let [categories] = await pool.query('SELECT category_id, category_name, description FROM complaint_categories ORDER BY category_name ASC');
@@ -3811,10 +3811,14 @@ router.get('/complaints', async (req, res) => {
 
     const hasActivePlacement = Boolean(activeOjtPlacement || activeCareerPlacement || ojtRows.length > 0);
 
+    const warningList = complaints.filter(c => Boolean((c.warning_note_to_student && c.warning_note_to_student.trim()) || c.warning_sent_at));
+
     return res.json({
       success: true,
       data: {
         complaints,
+        warnings: warningList,
+        warning_count: warningList.length,
         categories,
         orgs,
         assigned_organization: activeOjtPlacement || activeCareerPlacement || (ojtRows[0] ? { organization_id: ojtRows[0].organization_id, organization_name: ojtRows[0].organization_name, industry: ojtRows[0].industry } : null),
