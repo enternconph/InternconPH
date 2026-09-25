@@ -941,6 +941,8 @@ router.patch('/complaints/accidents/:id/read', async (req, res) => {
 
     await pool.query('UPDATE accident_reports SET admin_read_at = ? WHERE accident_id = ?', [newReadAt, accidentId]);
 
+    emitUpdate('complaint_updated', { accident_id: accidentId, role: 'system_admin' });
+
     return res.json({
       success: true,
       message: newReadAt ? 'Accident report marked as read.' : 'Accident report marked as unread.',
@@ -957,6 +959,7 @@ router.patch('/complaints/accidents/:id/read', async (req, res) => {
 router.post('/complaints/accidents/read-all', async (req, res) => {
   try {
     await pool.query('UPDATE accident_reports SET admin_read_at = NOW() WHERE admin_read_at IS NULL');
+    emitUpdate('complaint_updated', { role: 'system_admin' });
     return res.json({ success: true, message: 'All accident reports marked as read.' });
   } catch (error) {
     console.error('Mark all accidents read error:', error);

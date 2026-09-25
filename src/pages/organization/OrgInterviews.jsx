@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import api from '../../api/client';
+import { useRealtimeRefresh } from '../../contexts/SocketContext';
 
 export default function OrgInterviews() {
   const location = useLocation();
@@ -48,6 +49,8 @@ export default function OrgInterviews() {
   useEffect(() => {
     fetchInterviews();
   }, []);
+
+  useRealtimeRefresh(fetchInterviews);
 
   useEffect(() => {
     const targetId = location.state?.candidateId || location.state?.applicationId || searchParams.get('candidateId');

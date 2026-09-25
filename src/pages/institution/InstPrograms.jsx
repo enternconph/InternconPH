@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../api/client';
+import { useRealtimeRefresh } from '../../contexts/SocketContext';
 
 export default function InstPrograms() {
   const [activePrograms, setActivePrograms] = useState([]);
@@ -69,6 +70,8 @@ export default function InstPrograms() {
   useEffect(() => {
     fetchActivePrograms();
   }, []);
+
+  useRealtimeRefresh(fetchActivePrograms);
 
   const handleOpenCatalog = () => {
     setErrorMsg('');

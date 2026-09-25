@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/client';
 import { resolveFileUrl } from '../../utils/fileHelper';
+import { useRealtimeRefresh } from '../../contexts/SocketContext';
 
 export default function InstRequirements() {
   const [data, setData] = useState({ requirements: [], submissions: [], programs: [], staff_scope: null });
@@ -37,6 +38,8 @@ export default function InstRequirements() {
   useEffect(() => {
     fetchRequirements();
   }, []);
+
+  useRealtimeRefresh(fetchRequirements);
 
   const handleCreate = async (e) => {
     e.preventDefault();

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../api/client';
 import Pagination from '../../components/ui/Pagination';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { useRealtimeRefresh } from '../../contexts/SocketContext';
 
 // Human-readable action labels
 const ACTION_LABELS = {
@@ -242,6 +243,11 @@ export default function AdminAuditLogs() {
     if (activeTab === 'logs') fetchLogs();
     else if (activeTab === 'sessions') fetchSessions();
   }, [activeTab, fetchLogs, fetchSessions]);
+
+  useRealtimeRefresh(() => {
+    if (activeTab === 'logs') fetchLogs();
+    else if (activeTab === 'sessions') fetchSessions();
+  });
 
   const toggleRow = (logId) => {
     setExpandedRows(prev => {

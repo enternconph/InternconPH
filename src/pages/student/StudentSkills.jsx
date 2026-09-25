@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../../api/client';
+import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { PROGRAM_SKILLS_CATALOG, getSkillsForProgram, getRelatedSkillsForProgram } from '../../data/programSkillsData';
 import { getSkillMatchExplanation } from '../../utils/skillSynergyMatcher';
 
@@ -316,6 +317,10 @@ export default function StudentSkills() {
   useEffect(() => {
     fetchSkills('all');
   }, []);
+
+  useRealtimeRefresh(() => {
+    fetchSkills(aiAlignmentTarget, true);
+  });
 
   // Sync selectedProgramFilter with student's actual program once loaded
   useEffect(() => {

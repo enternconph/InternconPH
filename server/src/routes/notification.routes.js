@@ -1,6 +1,7 @@
 import express from 'express';
 import pool from '../config/db.js';
 import { verifyToken } from '../middleware/auth.js';
+import { emitUpdate } from '../config/socket.js';
 
 const router = express.Router();
 router.use(verifyToken);
@@ -53,6 +54,7 @@ router.get('/unread-count', async (req, res) => {
 router.put('/read-all', async (req, res) => {
   try {
     await pool.query('UPDATE notifications SET is_read = 1 WHERE user_id = ?', [req.user.user_id]);
+    emitUpdate('notification_read', { user_id: req.user.user_id });
     return res.json({ success: true, message: 'All notifications marked as read.' });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Failed to update notifications.' });
@@ -66,6 +68,7 @@ router.put('/:id/read', async (req, res) => {
       'UPDATE notifications SET is_read = 1 WHERE notification_id = ? AND user_id = ?',
       [req.params.id, req.user.user_id]
     );
+    emitUpdate('notification_read', { user_id: req.user.user_id, notification_id: req.params.id });
     return res.json({ success: true, message: 'Notification marked as read.' });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Failed to update notification.' });
