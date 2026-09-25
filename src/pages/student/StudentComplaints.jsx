@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
+import { useTimeFormat } from '../../contexts/TimeContext';
 import Pagination from '../../components/ui/Pagination';
 
 export default function StudentComplaints() {
@@ -566,13 +567,13 @@ export default function StudentComplaints() {
                         <p className="text-xs text-amber-900 leading-relaxed">{c.warning_note_to_student}</p>
                         {c.warning_sent_at && (
                           <span className="text-[10px] text-amber-700 block">
-                            Issued on: {new Date(c.warning_sent_at).toLocaleString()}
+                            Issued on: {formatDateTime(c.warning_sent_at)}
                           </span>
                         )}
                       </div>
                     )}
 
-                    <span className="text-[10px] text-on-surface-variant block">Filed on: {new Date(c.filed_at).toLocaleString()}</span>
+                    <span className="text-[10px] text-on-surface-variant block">Filed on: {formatDateTime(c.filed_at)}</span>
                   </div>
                 ))}
               </div>

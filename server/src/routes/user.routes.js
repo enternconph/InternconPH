@@ -45,6 +45,7 @@ async function getOrCreatePreferences(userId) {
 
   const defaultPref = {
     theme: 'light',
+    time_format: '24h',
     sound_enabled: 1,
     email_notifications: 1,
     sms_alerts: 0,
@@ -54,22 +55,43 @@ async function getOrCreatePreferences(userId) {
     compact_view: 0
   };
 
-  await pool.query(
-    `INSERT INTO user_preferences (user_id, theme, sound_enabled, email_notifications, sms_alerts, ojt_updates, grievance_alerts, marketing_emails, compact_view)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)`,
-    [
-      userId,
-      defaultPref.theme,
-      defaultPref.sound_enabled,
-      defaultPref.email_notifications,
-      defaultPref.sms_alerts,
-      defaultPref.ojt_updates,
-      defaultPref.grievance_alerts,
-      defaultPref.marketing_emails,
-      defaultPref.compact_view
-    ]
-  );
+  try {
+    await pool.query(
+      `INSERT INTO user_preferences (user_id, theme, time_format, sound_enabled, email_notifications, sms_alerts, ojt_updates, grievance_alerts, marketing_emails, compact_view)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)`,
+      [
+        userId,
+        defaultPref.theme,
+        defaultPref.time_format,
+        defaultPref.sound_enabled,
+        defaultPref.email_notifications,
+        defaultPref.sms_alerts,
+        defaultPref.ojt_updates,
+        defaultPref.grievance_alerts,
+        defaultPref.marketing_emails,
+        defaultPref.compact_view
+      ]
+    );
+  } catch (err) {
+    // Fallback if column not yet migrated
+    await pool.query(
+      `INSERT INTO user_preferences (user_id, theme, sound_enabled, email_notifications, sms_alerts, ojt_updates, grievance_alerts, marketing_emails, compact_view)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)`,
+      [
+        userId,
+        defaultPref.theme,
+        defaultPref.sound_enabled,
+        defaultPref.email_notifications,
+        defaultPref.sms_alerts,
+        defaultPref.ojt_updates,
+        defaultPref.grievance_alerts,
+        defaultPref.marketing_emails,
+        defaultPref.compact_view
+      ]
+    ).catch(() => {});
+  }
 
   const [created] = await pool.query('SELECT * FROM user_preferences WHERE user_id = ?', [userId]);
   return created[0] || defaultPref;
@@ -290,6 +312,7 @@ router.put('/preferences', verifyToken, async (req, res) => {
     const userId = req.user.user_id;
     const {
       theme = 'light',
+      time_format = '24h',
       sound_enabled = 1,
       email_notifications = 1,
       sms_alerts = 0,
@@ -299,31 +322,62 @@ router.put('/preferences', verifyToken, async (req, res) => {
       compact_view = 0
     } = req.body;
 
-    await pool.query(
-      `INSERT INTO user_preferences (user_id, theme, sound_enabled, email_notifications, sms_alerts, ojt_updates, grievance_alerts, marketing_emails, compact_view)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-        theme = VALUES(theme),
-        sound_enabled = VALUES(sound_enabled),
-        email_notifications = VALUES(email_notifications),
-        sms_alerts = VALUES(sms_alerts),
-        ojt_updates = VALUES(ojt_updates),
-        grievance_alerts = VALUES(grievance_alerts),
-        marketing_emails = VALUES(marketing_emails),
-        compact_view = VALUES(compact_view),
-        updated_at = CURRENT_TIMESTAMP`,
-      [
-        userId,
-        theme,
-        sound_enabled ? 1 : 0,
-        email_notifications ? 1 : 0,
-        sms_alerts ? 1 : 0,
-        ojt_updates ? 1 : 0,
-        grievance_alerts ? 1 : 0,
-        marketing_emails ? 1 : 0,
-        compact_view ? 1 : 0
-      ]
-    );
+    try {
+      await pool.query(
+        `INSERT INTO user_preferences (user_id, theme, time_format, sound_enabled, email_notifications, sms_alerts, ojt_updates, grievance_alerts, marketing_emails, compact_view)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+          theme = VALUES(theme),
+          time_format = VALUES(time_format),
+          sound_enabled = VALUES(sound_enabled),
+          email_notifications = VALUES(email_notifications),
+          sms_alerts = VALUES(sms_alerts),
+          ojt_updates = VALUES(ojt_updates),
+          grievance_alerts = VALUES(grievance_alerts),
+          marketing_emails = VALUES(marketing_emails),
+          compact_view = VALUES(compact_view),
+          updated_at = CURRENT_TIMESTAMP`,
+        [
+          userId,
+          theme,
+          time_format === '12h' ? '12h' : '24h',
+          sound_enabled ? 1 : 0,
+          email_notifications ? 1 : 0,
+          sms_alerts ? 1 : 0,
+          ojt_updates ? 1 : 0,
+          grievance_alerts ? 1 : 0,
+          marketing_emails ? 1 : 0,
+          compact_view ? 1 : 0
+        ]
+      );
+    } catch (dbErr) {
+      // Fallback if time_format column is pending migration
+      await pool.query(
+        `INSERT INTO user_preferences (user_id, theme, sound_enabled, email_notifications, sms_alerts, ojt_updates, grievance_alerts, marketing_emails, compact_view)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+          theme = VALUES(theme),
+          sound_enabled = VALUES(sound_enabled),
+          email_notifications = VALUES(email_notifications),
+          sms_alerts = VALUES(sms_alerts),
+          ojt_updates = VALUES(ojt_updates),
+          grievance_alerts = VALUES(grievance_alerts),
+          marketing_emails = VALUES(marketing_emails),
+          compact_view = VALUES(compact_view),
+          updated_at = CURRENT_TIMESTAMP`,
+        [
+          userId,
+          theme,
+          sound_enabled ? 1 : 0,
+          email_notifications ? 1 : 0,
+          sms_alerts ? 1 : 0,
+          ojt_updates ? 1 : 0,
+          grievance_alerts ? 1 : 0,
+          marketing_emails ? 1 : 0,
+          compact_view ? 1 : 0
+        ]
+      );
+    }
 
     const [updated] = await pool.query('SELECT * FROM user_preferences WHERE user_id = ?', [userId]);
 

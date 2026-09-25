@@ -4,6 +4,7 @@ import { AnimatePresence } from 'framer-motion';
 import { AuthProvider } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { TimeProvider } from './contexts/TimeContext';
 
 // Layout
 import DashboardLayout from './components/Layout/DashboardLayout';
@@ -164,13 +165,15 @@ function AnimatedRoutes() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <SocketProvider>
-          <BrowserRouter>
-            <AnimatedRoutes />
-          </BrowserRouter>
-        </SocketProvider>
-      </AuthProvider>
+      <TimeProvider>
+        <AuthProvider>
+          <SocketProvider>
+            <BrowserRouter>
+              <AnimatedRoutes />
+            </BrowserRouter>
+          </SocketProvider>
+        </AuthProvider>
+      </TimeProvider>
     </ThemeProvider>
   );
 }

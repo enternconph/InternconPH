@@ -682,6 +682,7 @@ export async function runMigrations() {
         preference_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         user_id BIGINT UNSIGNED NOT NULL UNIQUE,
         theme VARCHAR(20) DEFAULT 'light',
+        time_format VARCHAR(20) DEFAULT '24h',
         sound_enabled TINYINT(1) DEFAULT 1,
         email_notifications TINYINT(1) DEFAULT 1,
         sms_alerts TINYINT(1) DEFAULT 0,
@@ -694,6 +695,13 @@ export async function runMigrations() {
         CONSTRAINT fk_user_pref_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    const [prefCols] = await pool.query('DESCRIBE user_preferences').catch(() => [[]]);
+    const prefColNames = prefCols.map(c => c.Field);
+    if (!prefColNames.includes('time_format')) {
+      await pool.query("ALTER TABLE user_preferences ADD COLUMN time_format VARCHAR(20) DEFAULT '24h' AFTER theme");
+      console.log('[Migration] Added time_format to user_preferences');
+    }
     console.log('[Migration] user_preferences table aligned.');
 
     // 24. Performance Indexes for High-Traffic Queries

@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useTimeFormat } from '../../contexts/TimeContext';
 import { testNotificationChime } from '../../utils/audio';
+import { setTimeFormatPreference } from '../../utils/timeFormat';
 import { resolveFileUrl } from '../../utils/fileHelper';
 import api from '../../api/client';
 
@@ -15,6 +17,7 @@ export default function UserSettingsPage() {
     navigate('/login', { replace: true });
   };
   const { theme, effectiveTheme, isDark, setTheme, toggleTheme } = useTheme();
+  const { timeFormat, setTimeFormat, formatTime, currentTime } = useTimeFormat();
 
   const [activeTab, setActiveTab] = useState('notifications'); // 'notifications' | 'profile' | 'security' | 'appearance'
   const [loading, setLoading] = useState(true);
@@ -24,6 +27,8 @@ export default function UserSettingsPage() {
 
   // Preferences State
   const [preferences, setPreferences] = useState({
+    theme: 'light',
+    time_format: '24h',
     sound_enabled: 1,
     email_notifications: 1,
     sms_alerts: 0,
@@ -76,9 +81,16 @@ export default function UserSettingsPage() {
         if (res.success && res.data) {
           const { user: u, details, preferences: p } = res.data;
           if (p) {
-            setPreferences(p);
+            setPreferences((prev) => ({
+              ...prev,
+              ...p,
+              time_format: p.time_format || localStorage.getItem('interncon_time_format') || '24h'
+            }));
             // Sync audio setting to localStorage for instant lookup
             localStorage.setItem('interncon_sound_enabled', p.sound_enabled ? '1' : '0');
+            if (p.time_format) {
+              setTimeFormatPreference(p.time_format);
+            }
           }
           setProfileForm({
             display_name: u.display_name || '',
@@ -113,7 +125,11 @@ export default function UserSettingsPage() {
       const res = await api.put('/user/preferences', preferences);
       if (res.success) {
         localStorage.setItem('interncon_sound_enabled', preferences.sound_enabled ? '1' : '0');
-        showNotification('success', 'Notification and alert preferences saved successfully!');
+        if (preferences.time_format) {
+          setTimeFormatPreference(preferences.time_format);
+          setTimeFormat(preferences.time_format);
+        }
+        showNotification('success', 'Preferences and system settings saved successfully!');
       } else {
         showNotification('error', res.message || 'Failed to save preferences.');
       }
@@ -121,6 +137,19 @@ export default function UserSettingsPage() {
       showNotification('error', 'Error saving preferences: ' + err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Instant time format switch
+  const handleTimeFormatChange = async (newFmt) => {
+    setPreferences((prev) => ({ ...prev, time_format: newFmt }));
+    setTimeFormat(newFmt);
+    setTimeFormatPreference(newFmt);
+    try {
+      await api.put('/user/preferences', { ...preferences, time_format: newFmt });
+      showNotification('success', `System clock format updated to ${newFmt === '24h' ? '24-Hour (Military Time)' : '12-Hour (Standard AM/PM)'}.`);
+    } catch (err) {
+      console.warn('Auto-save time format error:', err);
     }
   };
 
@@ -971,6 +1000,117 @@ export default function UserSettingsPage() {
           {/* TAB 4: APPEARANCE & THEME */}
           {activeTab === 'appearance' && (
             <div className="space-y-6">
+              {/* System Clock & Time Display Format (24-Hour / Military Time) */}
+              <div className="bento-card space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-bold text-on-surface flex items-center gap-2">
+                      <span className="material-symbols-outlined text-vibrant-orange text-[22px]">schedule</span>
+                      <span>System Clock & Time Display Format</span>
+                    </h3>
+                    <p className="text-xs text-on-surface-variant mt-0.5">
+                      Configure your system-wide time standard. Defaults to <strong>24-Hour Clock / Military Time</strong> for precise operational logs, DTR tracking, and scheduling.
+                    </p>
+                  </div>
+
+                  {/* Live Clock Badge */}
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-container border border-outline-variant text-on-surface text-xs font-mono font-bold tracking-tight shadow-sm shrink-0 w-fit">
+                    <span className="material-symbols-outlined text-[16px] text-vibrant-orange">pace</span>
+                    <span>{formatTime(currentTime, { showSeconds: true })}</span>
+                    <span className="text-[9px] font-sans px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant uppercase font-extrabold tracking-wider border border-outline-variant/40">
+                      {preferences.time_format === '12h' ? '12-Hour' : '24-Hour Military'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 24-Hour vs 12-Hour Option Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  {/* Option 1: 24-Hour Clock (Military Time) */}
+                  <div
+                    onClick={() => handleTimeFormatChange('24h')}
+                    className={`p-4 rounded-2xl border cursor-pointer transition-all duration-200 relative flex flex-col justify-between space-y-3 ${
+                      preferences.time_format !== '12h'
+                        ? 'border-vibrant-orange bg-orange-tint/20 ring-2 ring-vibrant-orange/30 shadow-md'
+                        : 'border-outline-variant bg-surface-container-low hover:bg-surface-container'
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm ${
+                            preferences.time_format !== '12h' ? 'bg-vibrant-orange text-white' : 'bg-surface-container text-on-surface-variant'
+                          }`}>
+                            <span className="material-symbols-outlined text-[20px]">timer_10</span>
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-sm text-on-surface">24-Hour Clock (Military Time)</h4>
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">
+                              System Standard & Recommended
+                            </span>
+                          </div>
+                        </div>
+
+                        {preferences.time_format !== '12h' && (
+                          <span className="material-symbols-outlined text-vibrant-orange text-[20px]">check_circle</span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-on-surface-variant leading-relaxed">
+                        Displays hours in military notation from <code className="text-vibrant-orange font-mono">00:00:00</code> to <code className="text-vibrant-orange font-mono">23:59:59</code> across all monitoring logs, timestamps, attendance records, and grievances.
+                      </p>
+                    </div>
+
+                    {/* Live Sample Preview */}
+                    <div className="p-2.5 rounded-xl bg-surface-container-high border border-outline-variant/60 flex items-center justify-between font-mono text-xs">
+                      <span className="text-[11px] text-on-surface-variant font-sans font-semibold">Live Military Output:</span>
+                      <span className="font-bold text-vibrant-orange">{formatTime(currentTime, { format: '24h', showSeconds: true })}</span>
+                    </div>
+                  </div>
+
+                  {/* Option 2: 12-Hour Clock (Standard AM/PM) */}
+                  <div
+                    onClick={() => handleTimeFormatChange('12h')}
+                    className={`p-4 rounded-2xl border cursor-pointer transition-all duration-200 relative flex flex-col justify-between space-y-3 ${
+                      preferences.time_format === '12h'
+                        ? 'border-vibrant-orange bg-orange-tint/20 ring-2 ring-vibrant-orange/30 shadow-md'
+                        : 'border-outline-variant bg-surface-container-low hover:bg-surface-container'
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm ${
+                            preferences.time_format === '12h' ? 'bg-vibrant-orange text-white' : 'bg-surface-container text-on-surface-variant'
+                          }`}>
+                            <span className="material-symbols-outlined text-[20px]">schedule</span>
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-sm text-on-surface">12-Hour Clock (AM / PM)</h4>
+                            <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">
+                              Traditional Meridian Format
+                            </span>
+                          </div>
+                        </div>
+
+                        {preferences.time_format === '12h' && (
+                          <span className="material-symbols-outlined text-vibrant-orange text-[20px]">check_circle</span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-on-surface-variant leading-relaxed">
+                        Displays hours in 12-hour intervals with daylight and evening meridian indicators (e.g. <code className="text-on-surface font-mono">03:45:00 PM</code>).
+                      </p>
+                    </div>
+
+                    {/* Live Sample Preview */}
+                    <div className="p-2.5 rounded-xl bg-surface-container-high border border-outline-variant/60 flex items-center justify-between font-mono text-xs">
+                      <span className="text-[11px] text-on-surface-variant font-sans font-semibold">Live 12-Hour Output:</span>
+                      <span className="font-bold text-on-surface">{formatTime(currentTime, { format: '12h', showSeconds: true })}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Theme Header & Status Banner */}
               <div className="bento-card space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
