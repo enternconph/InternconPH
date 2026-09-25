@@ -478,7 +478,7 @@ export default function StudentComplaints() {
                 <label className="block font-bold text-on-surface-variant uppercase text-xs">My Current Status *</label>
                 <span className="text-[11px] text-on-surface-variant">Select your role</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="space-y-2">
                 {/* 1. Current OJT */}
                 <button
                   type="button"
@@ -488,23 +488,28 @@ export default function StudentComplaints() {
                       setSelectedOrgId(String(data.active_ojt_placement.organization_id));
                     }
                   }}
-                  className={`p-2.5 rounded-xl border text-left flex items-start gap-2.5 transition-all ${
+                  className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between gap-3 transition-all ${
                     studentStatus === 'ongoing_ojt' || studentStatus === 'ojt'
-                      ? 'border-vibrant-orange bg-orange-tint text-vibrant-orange font-bold ring-2 ring-vibrant-orange/40 shadow-xs'
+                      ? 'border-vibrant-orange bg-orange-tint/80 text-vibrant-orange font-bold ring-2 ring-vibrant-orange/40 shadow-xs'
                       : 'border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container'
                   }`}
                 >
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                    studentStatus === 'ongoing_ojt' || studentStatus === 'ojt'
-                      ? 'bg-vibrant-orange text-white'
-                      : 'bg-surface-container text-on-surface-variant'
-                  }`}>
-                    <span className="material-symbols-outlined text-[17px]">school</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                      studentStatus === 'ongoing_ojt' || studentStatus === 'ojt'
+                        ? 'bg-vibrant-orange text-white shadow-2xs'
+                        : 'bg-surface-container text-on-surface-variant'
+                    }`}>
+                      <span className="material-symbols-outlined text-[18px]">school</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-on-surface leading-tight">Current OJT Trainee</p>
+                      <p className="text-[10px] text-on-surface-variant mt-0.5">Active Academic Practicum Placement</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold truncate">Current OJT</p>
-                    <p className="text-[10px] opacity-75 truncate">Active Practicum</p>
-                  </div>
+                  {(studentStatus === 'ongoing_ojt' || studentStatus === 'ojt') && (
+                    <span className="material-symbols-outlined text-vibrant-orange text-[18px] shrink-0">check_circle</span>
+                  )}
                 </button>
 
                 {/* 2. On-Call / Part-Time */}
@@ -516,23 +521,28 @@ export default function StudentComplaints() {
                       setSelectedOrgId(String(data.active_career_placement.organization_id));
                     }
                   }}
-                  className={`p-2.5 rounded-xl border text-left flex items-start gap-2.5 transition-all ${
+                  className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between gap-3 transition-all ${
                     studentStatus === 'on_call'
                       ? 'border-purple-500 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-bold ring-2 ring-purple-500/40 shadow-xs'
                       : 'border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container'
                   }`}
                 >
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                    studentStatus === 'on_call'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-surface-container text-on-surface-variant'
-                  }`}>
-                    <span className="material-symbols-outlined text-[17px]">bolt</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                      studentStatus === 'on_call'
+                        ? 'bg-purple-600 text-white shadow-2xs'
+                        : 'bg-surface-container text-on-surface-variant'
+                    }`}>
+                      <span className="material-symbols-outlined text-[18px]">bolt</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-on-surface leading-tight">On-Call / Freelance</p>
+                      <p className="text-[10px] text-on-surface-variant mt-0.5">Part-Time, Gig, or Hourly Work</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold truncate">On-Call / Part-Time</p>
-                    <p className="text-[10px] opacity-75 truncate">Freelance / Gig</p>
-                  </div>
+                  {studentStatus === 'on_call' && (
+                    <span className="material-symbols-outlined text-purple-600 text-[18px] shrink-0">check_circle</span>
+                  )}
                 </button>
 
                 {/* 3. Career Job */}
@@ -544,23 +554,28 @@ export default function StudentComplaints() {
                       setSelectedOrgId(String(data.active_career_placement.organization_id));
                     }
                   }}
-                  className={`p-2.5 rounded-xl border text-left flex items-start gap-2.5 transition-all ${
+                  className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between gap-3 transition-all ${
                     studentStatus === 'career_job' || studentStatus === 'graduated'
                       ? 'border-pinoy-green bg-green-tint text-pinoy-green font-bold ring-2 ring-pinoy-green/40 shadow-xs'
                       : 'border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container'
                   }`}
                 >
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                    studentStatus === 'career_job' || studentStatus === 'graduated'
-                      ? 'bg-pinoy-green text-white'
-                      : 'bg-surface-container text-on-surface-variant'
-                  }`}>
-                    <span className="material-symbols-outlined text-[17px]">work</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                      studentStatus === 'career_job' || studentStatus === 'graduated'
+                        ? 'bg-pinoy-green text-white shadow-2xs'
+                        : 'bg-surface-container text-on-surface-variant'
+                    }`}>
+                      <span className="material-symbols-outlined text-[18px]">work</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-on-surface leading-tight">Career / Graduate Employment</p>
+                      <p className="text-[10px] text-on-surface-variant mt-0.5">Hired Alumnus or Permanent Placement</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold truncate">Career Job</p>
-                    <p className="text-[10px] opacity-75 truncate">Hired / Graduate</p>
-                  </div>
+                  {(studentStatus === 'career_job' || studentStatus === 'graduated') && (
+                    <span className="material-symbols-outlined text-pinoy-green text-[18px] shrink-0">check_circle</span>
+                  )}
                 </button>
               </div>
 
@@ -592,10 +607,10 @@ export default function StudentComplaints() {
 
             {/* Target Organization Field */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
                 <label className="block font-bold text-on-surface-variant uppercase text-xs">Target Host / Hiring Organization *</label>
                 {activeOjtOrg?.organization_id && (studentStatus === 'ongoing_ojt' || studentStatus === 'ojt') && (
-                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     Auto-Selected Host
                   </span>
@@ -604,39 +619,41 @@ export default function StudentComplaints() {
 
               {/* 1. If Current OJT Host exists & studentStatus is ongoing_ojt -> Auto-Selected Active Card */}
               {activeOjtOrg?.organization_id && (studentStatus === 'ongoing_ojt' || studentStatus === 'ojt') ? (
-                <div className="p-3.5 rounded-xl border border-vibrant-orange/60 bg-gradient-to-r from-orange-tint/50 via-surface-container-low to-surface-container-low shadow-xs space-y-2.5 mb-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-vibrant-orange text-white flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
+                <div className="p-3.5 rounded-xl border border-vibrant-orange/60 bg-gradient-to-br from-orange-tint/40 via-surface to-surface shadow-xs space-y-2.5 mb-2">
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-vibrant-orange text-white flex items-center justify-center font-bold text-base shrink-0 shadow-xs mt-0.5">
                         <span className="material-symbols-outlined text-[22px]">apartment</span>
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-bold text-sm text-on-surface truncate">{activeOjtOrg.organization_name}</p>
+                          <p className="font-bold text-sm text-on-surface break-words leading-snug">
+                            {activeOjtOrg.organization_name}
+                          </p>
                           <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-vibrant-orange text-white shrink-0">
                             Current OJT Host
                           </span>
                         </div>
-                        <p className="text-[11px] text-on-surface-variant truncate mt-0.5">
+                        <p className="text-[11px] text-on-surface-variant mt-0.5 leading-snug">
                           {activeOjtOrg.industry || 'Host Employer'} • Active Training Placement
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold text-xs shrink-0">
-                      <span className="material-symbols-outlined text-[20px]">verified</span>
-                      <span className="hidden sm:inline">Linked</span>
+                    <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold text-xs shrink-0 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20">
+                      <span className="material-symbols-outlined text-[16px]">verified</span>
+                      <span>Linked</span>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-outline-variant/60 flex items-center justify-between text-[11px] text-on-surface-variant">
-                    <span className="flex items-center gap-1 text-on-surface-variant">
-                      <span className="material-symbols-outlined text-[15px] text-vibrant-orange">lock</span>
-                      Automatically selected base to your OJT Progress & Placement.
+                  <div className="pt-2 border-t border-outline-variant/60 flex items-center justify-between gap-2 flex-wrap text-[11px]">
+                    <span className="flex items-center gap-1 text-on-surface-variant text-[10px]">
+                      <span className="material-symbols-outlined text-[14px] text-vibrant-orange">lock</span>
+                      Auto-selected based on your OJT placement
                     </span>
                     <button
                       type="button"
                       onClick={() => setShowManualSelect(!showManualSelect)}
-                      className="text-vibrant-orange font-bold hover:underline shrink-0 text-[10px]"
+                      className="text-vibrant-orange font-bold hover:underline shrink-0 text-[11px]"
                     >
                       {showManualSelect ? 'Hide Company List' : 'Change Employer'}
                     </button>
