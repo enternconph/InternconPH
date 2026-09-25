@@ -3430,20 +3430,56 @@ router.get('/complaints', async (req, res) => {
       }
     }
 
-    // Determine student status type: 'ojt', 'on_call', 'career_job'
-    let studentStatusType = 'ojt';
-    if (assignedOrg?.posting_type === 'on_call' || assignedOrg?.placement_type === 'on_call') {
-      studentStatusType = 'on_call';
+    // List of organizations (student's applied/placed orgs + institution approved orgs)
+    const [orgs] = await pool.query(
+      `SELECT DISTINCT
+         ho.organization_id,
+         ho.organization_name,
+         ho.industry,
+         CASE 
+           WHEN EXISTS (
+             SELECT 1 FROM ojt_records o 
+             WHERE o.organization_id = ho.organization_id 
+               AND o.student_id = ?
+           ) THEN 1
+           WHEN EXISTS (
+             SELECT 1 FROM job_applications ja 
+             WHERE ja.organization_id = ho.organization_id 
+               AND ja.student_id = ?
+           ) THEN 1
+           WHEN EXISTS (
+             SELECT 1 FROM ojt_deployment_offers dof 
+             WHERE dof.organization_id = ho.organization_id 
+               AND dof.student_id = ?
+           ) THEN 1
+           ELSE 0
+         END as is_my_employer
+       FROM hiring_organizations ho
+       WHERE ho.status IN ('active', 'approved')
+       ORDER BY is_my_employer DESC, ho.organization_name ASC`,
+      [student.student_id, student.student_id, student.student_id]
+    );
+
+    // Determine default student status: 'ongoing_ojt', 'ojt_completer', 'graduated', 'on_call'
+    let defaultStatus = 'ongoing_ojt';
+    const isOngoing = ojtRows.some(r => r.ojt_record_status === 'ongoing' || r.ojt_record_status === 'active');
+    const isCompleted = ojtRows.some(r => r.ojt_record_status === 'completed');
+    
+    if (isOngoing) {
+      defaultStatus = 'ongoing_ojt';
+    } else if (isCompleted) {
+      defaultStatus = 'ojt_completer';
     } else if (
-      assignedOrg?.posting_type === 'career_job' ||
-      assignedOrg?.placement_type === 'career_job' ||
       student.ojt_status === 'graduated' ||
       student.classification === 'alumni' ||
-      student.status_id === 5
+      student.status_id === 5 ||
+      assignedOrg?.posting_type === 'career_job'
     ) {
-      studentStatusType = 'career_job';
+      defaultStatus = 'graduated';
+    } else if (assignedOrg?.posting_type === 'on_call') {
+      defaultStatus = 'on_call';
     } else {
-      studentStatusType = 'ojt';
+      defaultStatus = 'ongoing_ojt';
     }
 
     return res.json({
@@ -3451,11 +3487,11 @@ router.get('/complaints', async (req, res) => {
       data: {
         complaints,
         categories,
+        orgs,
         assigned_organization: assignedOrg,
-        can_file: Boolean(assignedOrg),
-        student_status_type: studentStatusType,
-        is_ojt: studentStatusType === 'ojt',
-        default_student_status: studentStatusType
+        can_file: true,
+        has_ongoing_ojt: isOngoing,
+        default_student_status: defaultStatus
       }
     });
   } catch (error) {
@@ -3466,7 +3502,7 @@ router.get('/complaints', async (req, res) => {
 
 // POST /api/student/complaints
 router.post('/complaints', async (req, res) => {
-  const { category_id, subject, description, job_id, student_status } = req.body;
+  const { organization_id, category_id, subject, description, job_id, student_status } = req.body;
 
   if (!category_id || !subject || !description) {
     return res.status(400).json({ success: false, message: 'Please provide category, subject, and description.' });
@@ -3476,54 +3512,57 @@ router.post('/complaints', async (req, res) => {
     const student = await getStudentId(req.user.user_id);
     if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
 
-    // Enforce assigned organization
+    // Check ongoing OJT
     const [ojtRows] = await pool.query(
-      `SELECT o.ojt_id, o.organization_id, ho.organization_name, 'ojt' as placement_type
+      `SELECT o.ojt_id, o.organization_id, ho.organization_name
        FROM ojt_records o
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
-       WHERE o.student_id = ? AND o.status IN ('ongoing', 'active', 'accepted', 'completed')
-       ORDER BY FIELD(o.status, 'ongoing', 'active', 'accepted', 'completed'), o.created_at DESC
-       LIMIT 1`,
+       WHERE o.student_id = ? AND o.status IN ('ongoing', 'active')
+       ORDER BY o.created_at DESC LIMIT 1`,
       [student.student_id]
     );
 
-    let assignedOrg = ojtRows.length > 0 ? ojtRows[0] : null;
+    const ongoingOjt = ojtRows.length > 0 ? ojtRows[0] : null;
 
-    if (!assignedOrg) {
-      const [appRows] = await pool.query(
-        `SELECT ja.application_id, ja.job_id, jp.posting_type,
-                ho.organization_id, ho.organization_name
-         FROM job_applications ja
-         JOIN job_postings jp ON ja.job_id = jp.job_id
-         JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
-         WHERE ja.student_id = ? AND ja.status IN ('accepted', 'hired', 'shortlisted')
-         ORDER BY FIELD(ja.status, 'accepted', 'hired', 'shortlisted'), ja.updated_at DESC
+    // Resolve target organization:
+    // If ongoing OJT, lock to ongoing OJT org. Otherwise, use provided organization_id or fallback.
+    let targetOrgId = organization_id;
+    if (ongoingOjt && (!targetOrgId || student_status === 'ongoing_ojt' || student_status === 'ojt')) {
+      targetOrgId = ongoingOjt.organization_id;
+    }
+
+    if (!targetOrgId) {
+      // Find latest organization student interacted with
+      const [latestOrg] = await pool.query(
+        `SELECT organization_id FROM ojt_records WHERE student_id = ? 
+         UNION 
+         SELECT ho.organization_id FROM job_applications ja JOIN job_postings jp ON ja.job_id = jp.job_id JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id WHERE ja.student_id = ? 
          LIMIT 1`,
-        [student.student_id]
+        [student.student_id, student.student_id]
       );
-      if (appRows.length > 0) {
-        assignedOrg = {
-          ...appRows[0],
-          placement_type: appRows[0].posting_type || 'ojt'
-        };
+      if (latestOrg.length > 0) {
+        targetOrgId = latestOrg[0].organization_id;
       }
     }
 
-    if (!assignedOrg) {
-      return res.status(403).json({
+    if (!targetOrgId) {
+      return res.status(400).json({
         success: false,
-        message: 'Grievance filing is disabled because you have not been assigned to a host organization yet.'
+        message: 'Please select the target hiring organization you are filing against.'
       });
     }
 
-    const organizationId = assignedOrg.organization_id;
-    const resolvedStatus = student_status || assignedOrg.placement_type || ((student.ojt_status === 'graduated' || student.status_id === 5) ? 'graduated' : 'ojt');
-    const isNonOjt = resolvedStatus === 'on_call' || resolvedStatus === 'career_job' || assignedOrg.placement_type === 'on_call' || assignedOrg.placement_type === 'career_job';
+    // Get organization name for notification messages
+    const [orgDetail] = await pool.query('SELECT organization_name FROM hiring_organizations WHERE organization_id = ?', [targetOrgId]);
+    const targetOrgName = orgDetail.length > 0 ? orgDetail[0].organization_name : 'Host Organization';
+
+    const resolvedStatus = student_status || (ongoingOjt ? 'ongoing_ojt' : (student.ojt_status === 'graduated' ? 'graduated' : 'ongoing_ojt'));
+    const isOngoingOjt = resolvedStatus === 'ongoing_ojt' || resolvedStatus === 'ojt';
 
     const [result] = await pool.query(
       `INSERT INTO complaints (student_id, student_status, organization_id, category_id, job_id, subject, description, complainant_type, status, filed_at, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'student', 'submitted', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [student.student_id, resolvedStatus, organizationId, category_id, job_id || null, subject, description]
+      [student.student_id, resolvedStatus, targetOrgId, category_id, job_id || null, subject, description]
     );
 
     // Audit log
@@ -3532,10 +3571,15 @@ router.post('/complaints', async (req, res) => {
       [req.user.user_id, result.insertId]
     );
 
-    if (isNonOjt) {
+    if (!isOngoingOjt) {
       // Direct System Administrator routing: Skip institution entirely
       const [admins] = await pool.query("SELECT user_id FROM users WHERE role IN ('admin', 'superadmin')");
-      const statusLabel = resolvedStatus === 'on_call' ? 'On-Call' : 'Career Job';
+      const statusLabel = resolvedStatus === 'ojt_completer'
+        ? 'OJT Completer'
+        : resolvedStatus === 'graduated' || resolvedStatus === 'career_job'
+        ? 'Graduated / Career Job'
+        : 'On-Call Practitioner';
+
       for (const adm of admins) {
         if (adm.user_id) {
           await sendNotification({
@@ -3543,14 +3587,14 @@ router.post('/complaints', async (req, res) => {
             senderId: req.user.user_id,
             senderName: `${student.first_name} ${student.last_name}`,
             title: `Direct Grievance Filed (${statusLabel})`,
-            message: `${student.first_name} ${student.last_name} (${statusLabel}) filed a grievance regarding ${assignedOrg.organization_name}: "${subject}". Routed directly to System Administrator.`,
+            message: `${student.first_name} ${student.last_name} (${statusLabel}) filed a grievance regarding ${targetOrgName}: "${subject}". Routed directly to System Administrator.`,
             type: 'complaint',
             link: '/dashboard/admin/grievances',
             relatedType: 'grievance',
             relatedId: result.insertId,
             meta: {
               complaint_id: result.insertId,
-              organization_id: organizationId
+              organization_id: targetOrgId
             }
           });
         }
@@ -3558,11 +3602,11 @@ router.post('/complaints', async (req, res) => {
 
       return res.status(201).json({
         success: true,
-        message: 'Grievance submitted successfully. As an On-Call / Career Job practitioner, your report has bypassed institutional review and been sent directly to the System Administrator.'
+        message: `Grievance submitted successfully. As an ${statusLabel}, your report has bypassed institutional review and been sent directly to the System Administrator.`
       });
     }
 
-    // For OJT students: Notify the student's Institution coordinators
+    // For Ongoing OJT students: Notify the student's Institution coordinators
     const studentProgId = student.program_id || null;
     const [coordinators] = await pool.query(
       `SELECT DISTINCT user_id FROM (
@@ -3586,7 +3630,6 @@ router.post('/complaints', async (req, res) => {
       [student.institution_id, studentProgId, studentProgId, student.institution_id, student.institution_id]
     );
 
-    const statusLabel = resolvedStatus === 'ojt' ? 'OJT Student' : 'Graduated Student';
     for (const recipient of coordinators) {
       if (recipient.user_id) {
         await sendNotification({
@@ -3594,7 +3637,7 @@ router.post('/complaints', async (req, res) => {
           senderId: req.user.user_id,
           senderName: `${student.first_name} ${student.last_name}`,
           title: 'Student Grievance Filed',
-          message: `${student.first_name} ${student.last_name} (${statusLabel}) filed a formal grievance: "${subject}".`,
+          message: `${student.first_name} ${student.last_name} (Ongoing OJT) filed a formal grievance: "${subject}".`,
           type: 'complaint',
           link: '/dashboard/institution/monitoring?tab=studentGrievances',
           relatedType: 'grievance',

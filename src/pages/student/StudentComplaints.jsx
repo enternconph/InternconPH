@@ -4,13 +4,14 @@ import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import Pagination from '../../components/ui/Pagination';
 
 export default function StudentComplaints() {
-  const [data, setData] = useState({ complaints: [], categories: [], orgs: [], assigned_organization: null, can_file: false });
+  const [data, setData] = useState({ complaints: [], categories: [], orgs: [], assigned_organization: null, can_file: true });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
 
   const [catId, setCatId] = useState('');
-  const [studentStatus, setStudentStatus] = useState('');
+  const [studentStatus, setStudentStatus] = useState('ongoing_ojt');
+  const [selectedOrgId, setSelectedOrgId] = useState('');
   const [subject, setSubject] = useState('');
   const [desc, setDesc] = useState('');
 
@@ -27,6 +28,11 @@ export default function StudentComplaints() {
         setData(res.data);
         if (res.data.default_student_status) {
           setStudentStatus((prev) => prev || res.data.default_student_status);
+        }
+        if (res.data.assigned_organization?.organization_id) {
+          setSelectedOrgId((prev) => prev || String(res.data.assigned_organization.organization_id));
+        } else if (res.data.orgs?.length > 0) {
+          setSelectedOrgId((prev) => prev || String(res.data.orgs[0].organization_id));
         }
       }
     } catch (err) {
@@ -94,19 +100,30 @@ export default function StudentComplaints() {
     setCurrentPage(1);
   }, [statusFilter, searchQuery]);
 
+  const isLockedToAssignedOjt =
+    studentStatus === 'ongoing_ojt' &&
+    data.has_ongoing_ojt &&
+    !!data.assigned_organization;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!data.assigned_organization) {
-      alert('You must be assigned to an organization before filing a grievance.');
+
+    const targetOrgId = isLockedToAssignedOjt
+      ? data.assigned_organization.organization_id
+      : selectedOrgId;
+
+    if (!targetOrgId) {
+      alert('Please select the target hiring organization you are filing against.');
       return;
     }
-    const resolvedStatus = data.is_ojt ? (studentStatus || 'ojt') : data.student_status_type;
+
     setSubmitting(true);
     setMessage('');
     try {
       const res = await api.post('/student/complaints', {
         category_id: catId,
-        student_status: resolvedStatus,
+        student_status: studentStatus,
+        organization_id: targetOrgId,
         subject,
         description: desc
       });
@@ -156,34 +173,88 @@ export default function StudentComplaints() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Form to submit complaint or Locked Notice */}
-        {!data.can_file || !data.assigned_organization ? (
-          <div className="bento-card space-y-4 lg:sticky lg:top-6 h-fit bg-amber-50/50 dark:bg-amber-950/20 border-amber-300/60 dark:border-amber-700/40">
-            <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[28px]">lock</span>
-            </div>
-            <div className="space-y-1.5">
-              <h2 className="text-base font-bold text-on-surface">Grievance Filing Disabled</h2>
-              <p className="text-xs text-on-surface-variant leading-relaxed">
-                Grievance and complaint filing is only enabled when you are actively assigned or deployed to a host organization for OJT.
-              </p>
-            </div>
-            <div className="p-3 bg-white/70 dark:bg-surface rounded-xl border border-outline-variant text-[11px] text-on-surface-variant flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px] text-vibrant-orange shrink-0">info</span>
-              <span>Target organization will automatically lock to your assigned host employer once deployed.</span>
-            </div>
-          </div>
-        ) : (
-          <div className="bento-card space-y-4 lg:sticky lg:top-6 h-fit">
-            <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
-              <span className="material-symbols-outlined text-error text-[22px]">gavel</span>
-              <span>File a Formal Grievance</span>
-            </h2>
+        {/* Form to submit complaint */}
+        <div className="bento-card space-y-4 lg:sticky lg:top-6 h-fit">
+          <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
+            <span className="material-symbols-outlined text-error text-[22px]">gavel</span>
+            <span>File a Formal Grievance</span>
+          </h2>
 
-            <form onSubmit={handleSubmit} className="space-y-3 text-xs">
-              {/* Target Organization (Automatically locked to assigned OJT host) */}
-              <div>
-                <label className="block font-bold text-on-surface-variant uppercase mb-1">Target Host Organization *</label>
+          <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+            {/* Student Status Selector */}
+            <div>
+              <label className="block font-bold text-on-surface-variant uppercase mb-1.5">My Current Status *</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setStudentStatus('ongoing_ojt')}
+                  className={`p-2 rounded-lg border text-left flex items-center gap-2 transition-all ${
+                    studentStatus === 'ongoing_ojt'
+                      ? 'border-vibrant-orange bg-orange-tint text-vibrant-orange font-bold ring-1 ring-vibrant-orange'
+                      : 'border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[17px]">school</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold truncate">Ongoing OJT</p>
+                    <p className="text-[10px] opacity-75 truncate">Active Practicum</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStudentStatus('ojt_completer')}
+                  className={`p-2 rounded-lg border text-left flex items-center gap-2 transition-all ${
+                    studentStatus === 'ojt_completer'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold ring-1 ring-blue-500'
+                      : 'border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[17px]">task_alt</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold truncate">OJT Completer</p>
+                    <p className="text-[10px] opacity-75 truncate">Finished Practicum</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStudentStatus('graduated')}
+                  className={`p-2 rounded-lg border text-left flex items-center gap-2 transition-all ${
+                    studentStatus === 'graduated'
+                      ? 'border-pinoy-green bg-green-tint text-pinoy-green font-bold ring-1 ring-pinoy-green'
+                      : 'border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[17px]">workspace_premium</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold truncate">Graduated / Career</p>
+                    <p className="text-[10px] opacity-75 truncate">Alumni / Hired</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStudentStatus('on_call')}
+                  className={`p-2 rounded-lg border text-left flex items-center gap-2 transition-all ${
+                    studentStatus === 'on_call'
+                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 font-bold ring-1 ring-purple-500'
+                      : 'border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[17px]">support_agent</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold truncate">On-Call Gig</p>
+                    <p className="text-[10px] opacity-75 truncate">Freelance / Gig</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Target Organization Field */}
+            <div>
+              <label className="block font-bold text-on-surface-variant uppercase mb-1">Target Organization *</label>
+              {isLockedToAssignedOjt ? (
                 <div className="p-3 bg-surface-container rounded-xl border border-outline-variant flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-9 h-9 rounded-lg bg-orange-tint text-vibrant-orange flex items-center justify-center font-bold text-sm shrink-0">
@@ -192,7 +263,7 @@ export default function StudentComplaints() {
                     <div className="min-w-0">
                       <p className="font-bold text-xs text-on-surface truncate">{data.assigned_organization.organization_name}</p>
                       <p className="text-[10px] text-on-surface-variant capitalize truncate">
-                        {data.assigned_organization.industry || 'Host Employer'} • Active Placement
+                        {data.assigned_organization.industry || 'Host Employer'} • Assigned OJT Placement
                       </p>
                     </div>
                   </div>
@@ -201,115 +272,103 @@ export default function StudentComplaints() {
                     Assigned
                   </span>
                 </div>
-                <p className="text-[10px] text-on-surface-variant mt-1">
-                  Automatically set to your currently assigned OJT placement.
-                </p>
-              </div>
-
-              <div>
-                <label className="block font-bold text-on-surface-variant uppercase mb-1">Violation Category *</label>
+              ) : (
                 <select
                   required
-                  value={catId}
-                  onChange={(e) => setCatId(e.target.value)}
+                  value={selectedOrgId}
+                  onChange={(e) => setSelectedOrgId(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface font-medium outline-none focus:ring-2 focus:ring-vibrant-orange"
                 >
-                  <option value="">Select violation type...</option>
-                  {data.categories?.map((c) => (
-                    <option key={c.category_id} value={c.category_id}>
-                      {c.category_name}
+                  <option value="">Select target employer / host organization...</option>
+                  {data.orgs?.map((org) => (
+                    <option key={org.organization_id} value={org.organization_id}>
+                      {org.organization_name} {org.is_my_employer ? '(Associated Employer)' : ''} {org.industry ? `— ${org.industry}` : ''}
                     </option>
                   ))}
                 </select>
-              </div>
-
-              {/* Student Status Field (Only shown for OJT students) */}
-              {data.is_ojt ? (
-                <div>
-                  <label className="block font-bold text-on-surface-variant uppercase mb-1">Student Status *</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setStudentStatus('ojt')}
-                      className={`p-2.5 rounded-lg border text-left flex items-center gap-2 transition-all ${
-                        studentStatus === 'ojt'
-                          ? 'border-vibrant-orange bg-orange-tint text-vibrant-orange font-bold ring-1 ring-vibrant-orange'
-                          : 'border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[18px]">school</span>
-                      <div>
-                        <p className="text-xs font-bold">Current OJT</p>
-                        <p className="text-[10px] opacity-75">Active Practicum</p>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStudentStatus('graduated')}
-                      className={`p-2.5 rounded-lg border text-left flex items-center gap-2 transition-all ${
-                        studentStatus === 'graduated'
-                          ? 'border-pinoy-green bg-green-tint text-pinoy-green font-bold ring-1 ring-pinoy-green'
-                          : 'border-outline-variant bg-surface-container-low text-on-surface hover:bg-surface-container'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[18px]">workspace_premium</span>
-                      <div>
-                        <p className="text-xs font-bold">Graduated</p>
-                        <p className="text-[10px] opacity-75">Alumni Student</p>
-                      </div>
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-on-surface-variant mt-1">
-                    Identifies your academic status so your institution OJT coordinator can properly review your grievance.
-                  </p>
-                </div>
-              ) : (
-                <div className="p-3 bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/60 rounded-xl space-y-1 text-purple-950 dark:text-purple-100">
-                  <div className="flex items-center gap-1.5 font-bold text-xs">
-                    <span className="material-symbols-outlined text-[17px] text-purple-600 dark:text-purple-400">admin_panel_settings</span>
-                    <span>Direct System Administrator Escrow</span>
-                  </div>
-                  <p className="text-[11px] text-purple-900/85 dark:text-purple-200 leading-relaxed">
-                    As an {data.student_status_type === 'on_call' ? 'On-Call' : 'Career Job'} practitioner, your grievance will bypass institutional review and be forwarded directly to the System Administrator.
-                  </p>
-                </div>
               )}
+              <p className="text-[10px] text-on-surface-variant mt-1">
+                {isLockedToAssignedOjt
+                  ? 'Automatically locked to your active OJT host placement.'
+                  : 'Select the employer or organization you are filing a formal complaint against.'}
+              </p>
+            </div>
 
-              <div>
-                <label className="block font-bold text-on-surface-variant uppercase mb-1">Subject / Incident Title *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Brief summary of the issue..."
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low outline-none focus:ring-2 focus:ring-vibrant-orange text-on-surface"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-on-surface-variant uppercase mb-1">Detailed Description & Evidence Context *</label>
-                <textarea
-                  rows="4"
-                  required
-                  placeholder="Provide dates, personnel involved, and specific details..."
-                  value={desc}
-                  onChange={(e) => setDesc(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low outline-none focus:ring-2 focus:ring-vibrant-orange text-on-surface"
-                ></textarea>
-              </div>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-2.5 bg-error text-white font-bold rounded-lg hover:opacity-90 shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+            {/* Violation Category */}
+            <div>
+              <label className="block font-bold text-on-surface-variant uppercase mb-1">Violation Category *</label>
+              <select
+                required
+                value={catId}
+                onChange={(e) => setCatId(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface font-medium outline-none focus:ring-2 focus:ring-vibrant-orange"
               >
-                <span className="material-symbols-outlined text-[18px]">send</span>
-                <span>{submitting ? 'Submitting Report...' : 'Submit Report for Review'}</span>
-              </button>
-            </form>
-          </div>
-        )}
+                <option value="">Select violation type...</option>
+                {data.categories?.map((c) => (
+                  <option key={c.category_id} value={c.category_id}>
+                    {c.category_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Routing Notice Banner */}
+            {studentStatus === 'ongoing_ojt' ? (
+              <div className="p-3 bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-xl space-y-1 text-blue-950 dark:text-blue-100">
+                <div className="flex items-center gap-1.5 font-bold text-xs">
+                  <span className="material-symbols-outlined text-[17px] text-blue-600 dark:text-blue-400">school</span>
+                  <span>Academic Institution Review</span>
+                </div>
+                <p className="text-[11px] text-blue-900/85 dark:text-blue-200 leading-relaxed">
+                  As an active OJT student, your grievance is submitted directly to your Institution OJT Coordinator and Dean for formal review and workplace mediation.
+                </p>
+              </div>
+            ) : (
+              <div className="p-3 bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/60 rounded-xl space-y-1 text-purple-950 dark:text-purple-100">
+                <div className="flex items-center gap-1.5 font-bold text-xs">
+                  <span className="material-symbols-outlined text-[17px] text-purple-600 dark:text-purple-400">admin_panel_settings</span>
+                  <span>Direct System Administrator Escrow</span>
+                </div>
+                <p className="text-[11px] text-purple-900/85 dark:text-purple-200 leading-relaxed">
+                  As an {studentStatus === 'ojt_completer' ? 'OJT Completer' : studentStatus === 'graduated' ? 'Graduated / Career' : 'On-Call'} practitioner, your complaint skips academic institutional review and routes <strong>directly to the System Administrator</strong>.
+                </p>
+              </div>
+            )}
+
+            <div>
+              <label className="block font-bold text-on-surface-variant uppercase mb-1">Subject / Incident Title *</label>
+              <input
+                type="text"
+                required
+                placeholder="Brief summary of the issue..."
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low outline-none focus:ring-2 focus:ring-vibrant-orange text-on-surface"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-on-surface-variant uppercase mb-1">Detailed Description & Evidence Context *</label>
+              <textarea
+                rows="4"
+                required
+                placeholder="Provide dates, personnel involved, and specific details..."
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low outline-none focus:ring-2 focus:ring-vibrant-orange text-on-surface"
+              ></textarea>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full py-2.5 bg-error text-white font-bold rounded-lg hover:opacity-90 shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[18px]">send</span>
+              <span>{submitting ? 'Submitting Report...' : 'Submit Report for Review'}</span>
+            </button>
+          </form>
+        </div>
 
         {/* Complaints History List */}
         <div className="lg:col-span-2 bento-card space-y-4">
@@ -440,7 +499,23 @@ export default function StudentComplaints() {
                         <p className="text-[11px] text-on-surface-variant">
                           Against: <span className="font-bold text-on-surface">{c.organization_name}</span> • Category: <span className="font-bold">{c.category_name}</span>
                           {c.student_status && (
-                            <> • Status: <span className={`font-bold ${c.student_status === 'ojt' ? 'text-vibrant-orange' : 'text-pinoy-green'}`}>{c.student_status === 'ojt' ? 'OJT Student' : 'Graduated'}</span></>
+                            <> • Status: <span className={`font-bold ${
+                              c.student_status === 'ongoing_ojt' || c.student_status === 'ojt'
+                                ? 'text-vibrant-orange'
+                                : c.student_status === 'ojt_completer'
+                                ? 'text-blue-600 dark:text-blue-400'
+                                : c.student_status === 'on_call'
+                                ? 'text-purple-600 dark:text-purple-400'
+                                : 'text-pinoy-green'
+                            }`}>
+                              {c.student_status === 'ongoing_ojt' || c.student_status === 'ojt'
+                                ? 'Ongoing OJT'
+                                : c.student_status === 'ojt_completer'
+                                ? 'OJT Completer'
+                                : c.student_status === 'on_call'
+                                ? 'On-Call'
+                                : 'Graduated / Career'}
+                            </span></>
                           )}
                         </p>
                       </div>
