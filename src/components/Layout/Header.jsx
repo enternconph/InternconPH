@@ -69,6 +69,14 @@ export default function Header() {
           
           <button
             type="button"
+            onClick={() => handleNavClick('#about')}
+            className="text-on-surface-variant font-semibold text-sm hover:text-vibrant-orange transition-colors py-1 cursor-pointer"
+          >
+            About
+          </button>
+          
+          <button
+            type="button"
             onClick={() => handleNavClick('#how-it-works')}
             className="text-on-surface-variant font-semibold text-sm hover:text-vibrant-orange transition-colors py-1 cursor-pointer"
           >
@@ -225,6 +233,13 @@ export default function Header() {
               className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors cursor-pointer"
             >
               Home
+            </button>
+            <button
+              type="button"
+              onClick={() => handleNavClick('#about')}
+              className="text-left py-2 px-3 rounded-lg text-sm font-semibold text-on-surface hover:bg-surface-container hover:text-vibrant-orange transition-colors cursor-pointer"
+            >
+              About
             </button>
             <button
               type="button"

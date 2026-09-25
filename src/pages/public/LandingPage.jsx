@@ -16,6 +16,95 @@ export default function LandingPage() {
   });
 
   const [selectedPolicy, setSelectedPolicy] = useState(null);
+  const [activeMember, setActiveMember] = useState(null);
+  const [selectedRoleDetail, setSelectedRoleDetail] = useState(null);
+
+  const teamMembers = [
+    {
+      id: 1,
+      image: '/photo/image1.jpg',
+      role: 'The Hacker',
+      roleSubtitle: 'The Builder & Engineer',
+      emoji: '💻',
+      icon: 'terminal',
+      badgeBg: 'rgba(14, 165, 233, 0.15)',
+      badgeColor: '#38bdf8',
+      badgeBorder: 'rgba(56, 189, 248, 0.3)',
+      desc: "The technical backbone of the operation. Takes the Hipster's designs and the Hustler's vision and turns them into working, functional code.",
+      coreFocus: 'Software engineering, architecture, infrastructure, and technical problem-solving.',
+      responsibilities: [
+        'Writing clean, maintainable code',
+        'Choosing and optimizing the tech stack',
+        'Managing databases and security schemas',
+        'Shipping product updates quickly and reliably'
+      ],
+      superpower: 'Building prototypes overnight and finding creative workarounds to complex technical roadblocks.',
+      typicalTitles: 'Chief Technology Officer (CTO), Lead Engineer, Full-Stack Developer'
+    },
+    {
+      id: 2,
+      image: '/photo/image2.jpg',
+      role: 'The Hipster',
+      roleSubtitle: 'The Designer & Storyteller',
+      emoji: '🎨',
+      icon: 'palette',
+      badgeBg: 'rgba(168, 85, 247, 0.15)',
+      badgeColor: '#c084fc',
+      badgeBorder: 'rgba(192, 132, 252, 0.3)',
+      desc: 'The creative force focused on the user experience (UX), branding, and aesthetic appeal. Ensures the product is not just functional, but beautiful and intuitive to use.',
+      coreFocus: 'Design, user experience, branding, and customer empathy.',
+      responsibilities: [
+        'Designing wireframes and responsive UI components',
+        'Conducting user research and testing student flows',
+        'Keeping the brand trendy and modern',
+        'Crafting the company’s creative visual identity'
+      ],
+      superpower: 'Understanding what the customer wants before the customer even knows it.',
+      typicalTitles: 'Chief Design Officer (CDO), VP of Product, Creative Director'
+    },
+    {
+      id: 3,
+      image: '/photo/image3.jpg',
+      role: 'The Hipster',
+      roleSubtitle: 'The Designer & Storyteller',
+      emoji: '🎨',
+      icon: 'auto_awesome',
+      badgeBg: 'rgba(244, 63, 94, 0.15)',
+      badgeColor: '#fb7185',
+      badgeBorder: 'rgba(251, 113, 133, 0.3)',
+      desc: 'Drives customer empathy and aesthetic harmony across every touchpoint, ensuring intuitive interactions for students, mentors, and academic coordinators.',
+      coreFocus: 'Design, user experience, branding, and customer empathy.',
+      responsibilities: [
+        'Crafting intuitive user journeys and accessibility',
+        'Designing engaging digital interfaces and design tokens',
+        'User research and student feedback synthesis',
+        'Delivering cohesive visual storytelling across portals'
+      ],
+      superpower: 'Understanding what the customer wants before the customer even knows it.',
+      typicalTitles: 'Chief Design Officer (CDO), VP of Product, Creative Director'
+    },
+    {
+      id: 4,
+      image: '/photo/image4.jpg',
+      role: 'The Hustler',
+      roleSubtitle: 'The Business & Sales Driver',
+      emoji: '💼',
+      icon: 'rocket_launch',
+      badgeBg: 'rgba(245, 158, 11, 0.15)',
+      badgeColor: '#fbbf24',
+      badgeBorder: 'rgba(251, 191, 36, 0.3)',
+      desc: 'The operational heartbeat and the public face of the startup. Responsible for traction, monetization, and scaling the business.',
+      coreFocus: 'Sales, marketing, fundraising, and business strategy.',
+      responsibilities: [
+        'Pitching to academic and enterprise partners',
+        'Finding early customer organizations and internships',
+        'Managing the operational roadmap and budgets',
+        'Forming strategic partnerships across the country'
+      ],
+      superpower: "Selling a vision that doesn't fully exist yet and keeping the team focused on generating revenue.",
+      typicalTitles: 'Chief Executive Officer (CEO), Chief Operating Officer (COO), Head of Sales'
+    }
+  ];
 
   const policyDetails = {
     verification: {
@@ -333,6 +422,139 @@ export default function LandingPage() {
                   </div>
                   <span className="text-xs font-semibold tracking-wide">Scroll Down to Explore</span>
                 </a>
+              </div>
+
+            </div>
+          </section>
+
+          {/* ========================================================================= */}
+          {/* 1.5 CLIENT LOGOS STRIP & ABOUT / TEAM SECTION                             */}
+          {/* ========================================================================= */}
+          <section
+            id="about"
+            className="py-16 sm:py-20 md:py-24 bg-surface-container-lowest/80 border-b border-outline-variant/30 scroll-mt-20 transition-colors"
+            onClick={() => setActiveMember(null)}
+          >
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-14 md:space-y-18">
+              
+              {/* Centered Heading: InternConPH Developer */}
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="text-center max-w-3xl mx-auto space-y-3"
+              >
+                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-orange-tint text-vibrant-orange text-xs font-bold shadow-xs">
+                  <span className="material-symbols-outlined text-[16px]">terminal</span>
+                  <span>CORE ENGINEERING & DESIGN</span>
+                </div>
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-on-surface tracking-tight">
+                  InternConPH Developer
+                </h2>
+                <p className="text-xs sm:text-sm text-on-surface-variant max-w-xl mx-auto font-medium">
+                  Meet the passionate engineers, designers, and innovators building the future of Philippine internships.
+                </p>
+              </motion.div>
+
+              {/* 4 Team Member Photos in a Row (Edge-to-Edge Photo Strip) */}
+              <div
+                id="team"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 pt-2"
+              >
+                {teamMembers.map((member, idx) => {
+                  const isRevealed = activeMember === idx;
+                  return (
+                    <motion.div
+                      key={member.id}
+                      initial={{ opacity: 0, y: 25 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.4, delay: idx * 0.08 }}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`${member.role}: ${member.desc}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveMember(isRevealed ? null : idx);
+                      }}
+                      onFocus={() => setActiveMember(idx)}
+                      onBlur={() => setActiveMember(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setActiveMember(isRevealed ? null : idx);
+                        }
+                      }}
+                      className="group relative rounded-2xl sm:rounded-3xl overflow-hidden bg-white dark:bg-neutral-900 border border-outline-variant/30 hover:border-vibrant-orange/60 focus:border-vibrant-orange focus:ring-2 focus:ring-vibrant-orange/40 transition-all duration-300 outline-none cursor-pointer select-none shadow-xs hover:shadow-2xl"
+                    >
+                      {/* Photo Container: Clean cutout on plain background, edge-to-edge */}
+                      <div className="relative w-full h-[380px] sm:h-[420px] md:h-[460px] lg:h-[480px] flex items-end justify-center overflow-hidden bg-gradient-to-b from-transparent via-neutral-50/60 to-neutral-100/80 dark:from-transparent dark:via-neutral-900/60 dark:to-neutral-950/80">
+                        <img
+                          src={member.image}
+                          alt={member.role}
+                          loading="lazy"
+                          className={`w-full h-full object-contain object-bottom transition-all duration-300 ease-out group-hover:scale-105 group-hover:brightness-75 group-focus:scale-105 group-focus:brightness-75 ${
+                            isRevealed ? 'scale-105 brightness-75' : 'brightness-100'
+                          }`}
+                        />
+                      </div>
+
+                      {/* Smooth Fade / Slide-up Overlay on Hover / Focus / Tap */}
+                      <div
+                        className={`absolute inset-0 bg-gradient-to-t from-black/95 via-black/80 to-black/30 backdrop-blur-[3px] flex flex-col justify-end p-5 sm:p-6 text-center transition-all duration-300 ease-out pointer-events-none ${
+                          isRevealed
+                            ? 'opacity-100 translate-y-0'
+                            : 'opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 group-focus:opacity-100 group-focus:translate-y-0'
+                        }`}
+                      >
+                        <div className="space-y-2.5">
+                          {/* Role Pill Badge */}
+                          <div
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase shadow-md mx-auto"
+                            style={{
+                              backgroundColor: member.badgeBg,
+                              color: member.badgeColor,
+                              border: `1px solid ${member.badgeBorder}`
+                            }}
+                          >
+                            <span>{member.emoji}</span>
+                            <span>{member.role}</span>
+                          </div>
+
+                          {/* Role Subtitle */}
+                          <p className="text-[11px] font-bold tracking-wide uppercase text-white/80">
+                            {member.roleSubtitle}
+                          </p>
+
+                          {/* Description */}
+                          <p className="text-xs text-white/90 font-normal leading-relaxed line-clamp-3">
+                            {member.desc}
+                          </p>
+
+                          {/* Superpower Callout */}
+                          <div className="p-2 rounded-xl bg-white/10 border border-white/15 text-[11px] text-white/90 text-left flex items-start gap-1.5">
+                            <span className="text-amber-400 font-bold shrink-0">⚡</span>
+                            <span className="line-clamp-2"><strong>Superpower:</strong> {member.superpower}</span>
+                          </div>
+
+                          {/* View Full Breakdown CTA */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedRoleDetail(member);
+                            }}
+                            className="pointer-events-auto w-full py-2 px-3 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 text-white text-[11px] font-bold border border-white/20 transition-all flex items-center justify-center gap-1 cursor-pointer shadow-sm"
+                          >
+                            <span>View Full Profile</span>
+                            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
 
             </div>
@@ -806,6 +1028,104 @@ export default function LandingPage() {
                   className="px-6 py-2.5 bg-vibrant-orange text-white rounded-xl text-xs font-bold hover:bg-deep-orange transition-colors"
                 >
                   Close Policy Document
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ROLE DETAILS BREAKDOWN MODAL */}
+        {selectedRoleDetail && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+            onClick={() => setSelectedRoleDetail(null)}
+          >
+            <div
+              className="bg-surface border border-outline-variant rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto animate-scale-up"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-outline-variant pb-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl overflow-hidden bg-surface-container shrink-0 border border-outline-variant shadow-sm">
+                    <img src={selectedRoleDetail.image} alt={selectedRoleDetail.role} className="w-full h-full object-cover object-top" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{selectedRoleDetail.emoji}</span>
+                      <h3 className="text-xl font-black text-on-surface">
+                        {selectedRoleDetail.role}
+                      </h3>
+                    </div>
+                    <p className="text-xs font-bold text-vibrant-orange tracking-wide uppercase">
+                      {selectedRoleDetail.roleSubtitle}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRoleDetail(null)}
+                  className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[20px]">close</span>
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="space-y-4 text-xs sm:text-sm text-on-surface-variant leading-relaxed">
+                <p className="text-sm font-medium text-on-surface bg-surface-container/60 p-4 rounded-2xl border border-outline-variant/40">
+                  {selectedRoleDetail.desc}
+                </p>
+
+                <div className="space-y-1.5">
+                  <h4 className="font-bold text-on-surface text-xs uppercase tracking-wider text-vibrant-orange flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px]">target</span>
+                    <span>Core Focus</span>
+                  </h4>
+                  <p className="p-3.5 bg-surface-container rounded-xl text-on-surface font-medium">
+                    {selectedRoleDetail.coreFocus}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <h4 className="font-bold text-on-surface text-xs uppercase tracking-wider text-pinoy-green flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px]">checklist</span>
+                    <span>Key Responsibilities</span>
+                  </h4>
+                  <ul className="list-disc pl-5 space-y-1.5 text-on-surface bg-surface-container p-3.5 rounded-xl">
+                    {selectedRoleDetail.responsibilities.map((resp, i) => (
+                      <li key={i}>{resp}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="space-y-1.5">
+                  <h4 className="font-bold text-on-surface text-xs uppercase tracking-wider text-amber-500 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px]">bolt</span>
+                    <span>Superpower</span>
+                  </h4>
+                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-on-surface font-medium">
+                    {selectedRoleDetail.superpower}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <h4 className="font-bold text-on-surface text-xs uppercase tracking-wider text-blue-500 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px]">badge</span>
+                    <span>Typical Industry Titles</span>
+                  </h4>
+                  <p className="p-3.5 bg-surface-container rounded-xl text-on-surface font-semibold">
+                    {selectedRoleDetail.typicalTitles}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-outline-variant flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRoleDetail(null)}
+                  className="px-6 py-2.5 bg-vibrant-orange text-white rounded-xl text-xs font-bold hover:bg-deep-orange transition-colors cursor-pointer shadow-sm active:scale-95"
+                >
+                  Close Profile
                 </button>
               </div>
             </div>
