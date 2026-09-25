@@ -503,22 +503,31 @@ export default function StudentApplications() {
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2 pt-1 border-t border-outline-variant/60">
-                  {app.interview_location_or_link?.startsWith('http') ? (
-                    <a
-                      href={app.interview_location_or_link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex-1 py-2 px-3 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 text-center"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">videocam</span>
-                      <span>Join Meeting Link</span>
-                    </a>
-                  ) : (
-                    <div className="flex-1 text-[11px] text-on-surface-variant font-medium truncate flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[16px] text-vibrant-orange shrink-0">location_on</span>
-                      <span className="truncate">{app.interview_location_or_link || 'Location in invitation details'}</span>
-                    </div>
-                  )}
+                  {(() => {
+                    const meetUrl = app.interview_meeting_link || app.meeting_link || app.interview_location_or_link;
+                    const isOnline = app.interview_mode === 'online';
+                    const isMeet = isOnline && (app.interview_meeting_link || meetUrl?.includes('meet.google.com'));
+
+                    if (meetUrl?.startsWith('http')) {
+                      return (
+                        <a
+                          href={meetUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 py-2 px-3 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 text-center"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">videocam</span>
+                          <span>Join {isMeet ? 'Google Meet' : 'Meeting Link'}</span>
+                        </a>
+                      );
+                    }
+                    return (
+                      <div className="flex-1 text-[11px] text-on-surface-variant font-medium truncate flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[16px] text-vibrant-orange shrink-0">location_on</span>
+                        <span className="truncate">{meetUrl || 'Location in invitation details'}</span>
+                      </div>
+                    );
+                  })()}
 
                   <button
                     onClick={() => setDetailModalApp(app)}
@@ -864,17 +873,23 @@ export default function StudentApplications() {
                       )}
 
                       {/* If Interview: Join meeting link */}
-                      {isInterview && app.interview_location_or_link?.startsWith('http') && (
-                        <a
-                          href={app.interview_location_or_link}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">videocam</span>
-                          <span>Join Meeting</span>
-                        </a>
-                      )}
+                      {isInterview && (() => {
+                        const meetUrl = app.interview_meeting_link || app.meeting_link || app.interview_location_or_link;
+                        const isOnline = app.interview_mode === 'online';
+                        const isMeet = isOnline && (app.interview_meeting_link || meetUrl?.includes('meet.google.com'));
+                        if (!meetUrl?.startsWith('http')) return null;
+                        return (
+                          <a
+                            href={meetUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">videocam</span>
+                            <span>Join {isMeet ? 'Google Meet' : 'Meeting'}</span>
+                          </a>
+                        );
+                      })()}
 
                       {/* View Details */}
                       <button
@@ -1010,27 +1025,42 @@ export default function StudentApplications() {
                     ? new Date(detailModalApp.interview_schedule_at).toLocaleString()
                     : 'Set by organization'}
                 </p>
-                {detailModalApp.interview_location_or_link && (
-                  <p className="text-on-surface-variant text-[11px]">
-                    <strong>Link/Location: </strong> {detailModalApp.interview_location_or_link}
-                  </p>
-                )}
-                {detailModalApp.interview_notes && (
-                  <p className="text-on-surface-variant text-[11px] leading-relaxed">
-                    <strong>Interviewer Notes: </strong> {detailModalApp.interview_notes}
-                  </p>
-                )}
-                {detailModalApp.interview_location_or_link?.startsWith('http') && (
-                  <a
-                    href={detailModalApp.interview_location_or_link}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-xs mt-1"
-                  >
-                    <span className="material-symbols-outlined text-[14px]">videocam</span>
-                    <span>Open Meeting Link</span>
-                  </a>
-                )}
+                {(() => {
+                  const meetUrl = detailModalApp.interview_meeting_link || detailModalApp.meeting_link || detailModalApp.interview_location_or_link;
+                  const isOnline = detailModalApp.interview_mode === 'online';
+                  const isMeet = isOnline && (detailModalApp.interview_meeting_link || meetUrl?.includes('meet.google.com'));
+
+                  return (
+                    <>
+                      {meetUrl && (
+                        <p className="text-on-surface-variant text-[11px]">
+                          <strong>Link/Location: </strong> {meetUrl}
+                        </p>
+                      )}
+                      {detailModalApp.interview_meeting_code && (
+                        <p className="text-on-surface-variant text-[11px]">
+                          <strong>Meeting Code: </strong> <span className="font-mono font-bold text-on-surface">{detailModalApp.interview_meeting_code}</span>
+                        </p>
+                      )}
+                      {detailModalApp.interview_notes && (
+                        <p className="text-on-surface-variant text-[11px] leading-relaxed">
+                          <strong>Interviewer Notes: </strong> {detailModalApp.interview_notes}
+                        </p>
+                      )}
+                      {meetUrl?.startsWith('http') && (
+                        <a
+                          href={meetUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-xs mt-1"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">videocam</span>
+                          <span>Join {isMeet ? 'Google Meet' : 'Meeting Link'}</span>
+                        </a>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             )}
 

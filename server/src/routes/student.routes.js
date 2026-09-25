@@ -715,7 +715,10 @@ router.get('/applications', async (req, res) => {
               ho.address as org_address, ho.website, NULL as logo_url,
               jo.offer_id, jo.status as offer_status, jo.offered_at, jo.responded_at,
               i.interview_id, i.schedule_at as interview_schedule_at, i.mode as interview_mode,
-              i.location_or_link as interview_location_or_link, i.notes as interview_notes,
+              i.location_or_link as interview_location_or_link,
+              COALESCE(i.meeting_link, i.location_or_link) as interview_meeting_link,
+              i.meeting_link, i.meeting_code,
+              i.notes as interview_notes,
               i.status as interview_status
        FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
@@ -746,7 +749,9 @@ router.get('/applications', async (req, res) => {
                 ho.address as org_address, ho.website, NULL as logo_url,
                 odo.offer_id, odo.status as offer_status, odo.offered_at, odo.responded_at,
                 NULL as interview_id, NULL as interview_schedule_at, NULL as interview_mode,
-                NULL as interview_location_or_link, NULL as interview_notes, NULL as interview_status
+                NULL as interview_location_or_link, NULL as interview_meeting_link,
+                NULL as meeting_link, NULL as meeting_code,
+                NULL as interview_notes, NULL as interview_status
          FROM ojt_deployment_offers odo
          JOIN job_postings jp ON odo.job_id = jp.job_id
          JOIN hiring_organizations ho ON odo.organization_id = ho.organization_id
@@ -845,7 +850,10 @@ router.get('/applications', async (req, res) => {
                     ho.address as org_address, ho.website, NULL as logo_url,
                     jo.offer_id, jo.status as offer_status, jo.offered_at, jo.responded_at,
                     i.interview_id, i.schedule_at as interview_schedule_at, i.mode as interview_mode,
-                    i.location_or_link as interview_location_or_link, i.notes as interview_notes,
+                    i.location_or_link as interview_location_or_link,
+                    COALESCE(i.meeting_link, i.location_or_link) as interview_meeting_link,
+                    i.meeting_link, i.meeting_code,
+                    i.notes as interview_notes,
                     i.status as interview_status
              FROM job_applications ja
              JOIN job_postings jp ON ja.job_id = jp.job_id

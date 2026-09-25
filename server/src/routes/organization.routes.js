@@ -7,7 +7,7 @@ import { checkAndGenerateCertificate } from '../services/certificate.service.js'
 import { isValidEmail, normalizeEmail } from '../utils/email.js';
 import multer from 'multer';
 import { getUploadStorage, processUploadedFile, formatFilePath } from '../utils/upload.helper.js';
-import { createGoogleMeetSpace, isGoogleMeetConfigured } from '../services/googleMeet.service.js';
+import { createMeetSpace, isGoogleMeetConfigured } from '../services/googleMeet.js';
 
 const router = express.Router();
 router.use(verifyToken);
@@ -2328,15 +2328,17 @@ router.get('/interviews/meet-status', async (req, res) => {
 // POST /api/org/interviews/generate-meet - Dedicated endpoint to preview or generate a Google Meet space
 router.post('/interviews/generate-meet', requireHROrAdmin, async (req, res) => {
   try {
-    const topic = req.body.topic || 'OJT Interview Screening';
-    const meetRes = await createGoogleMeetSpace({ topic });
+    const meetRes = await createMeetSpace();
 
-    if (meetRes.success) {
+    if (meetRes && meetRes.meetingUri) {
       return res.json({
         success: true,
         meetLinkGenerated: true,
         meetingUri: meetRes.meetingUri,
         meetingCode: meetRes.meetingCode,
+        meeting_link: meetRes.meetingUri,
+        meeting_code: meetRes.meetingCode,
+        name: meetRes.name,
         message: 'Google Meet space generated successfully!'
       });
     }
@@ -2344,7 +2346,7 @@ router.post('/interviews/generate-meet', requireHROrAdmin, async (req, res) => {
     return res.json({
       success: false,
       meetLinkGenerated: false,
-      message: meetRes.error || 'Google Meet API is not configured or failed.',
+      message: 'Google Meet API is not configured or failed.',
       fallbackUri: `https://meet.google.com/ojt-interview-${Date.now().toString(36).slice(-4)}`
     });
   } catch (err) {
@@ -2359,7 +2361,7 @@ router.post('/interviews/generate-meet', requireHROrAdmin, async (req, res) => {
 
 // POST /api/org/interviews
 router.post('/interviews', requireHROrAdmin, async (req, res) => {
-  const { application_id, schedule_at, mode, location_or_link, notes, auto_generate_meet, platform } = req.body;
+  const { application_id, schedule_at, mode, location_or_link, notes } = req.body;
 
   if (!application_id || !schedule_at) {
     return res.status(400).json({ success: false, message: 'Application and schedule datetime are required.' });
@@ -2369,70 +2371,83 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Org not found' });
 
-    let finalLocationOrLink = (location_or_link || '').trim();
+    const manualLocationOrLink = (location_or_link || '').trim() || null;
+    let meetingLink = null;
+    let meetingCode = null;
     let meetLinkGenerated = false;
-    let meetWarning = null;
 
     const isOnline = (mode || 'online').toLowerCase() === 'online';
-    const shouldAutoGenerate = isOnline && (
-      auto_generate_meet === true ||
-      platform === 'google_meet' ||
-      !finalLocationOrLink ||
-      finalLocationOrLink.includes('ojt-interview') ||
-      finalLocationOrLink === 'Google Meet / Zoom'
-    );
 
-    // Call server-side Google Meet REST API v2 if online and auto-generate requested
-    if (shouldAutoGenerate) {
+    // If online, call createMeetSpace() before inserting the record
+    if (isOnline) {
       try {
-        const meetRes = await createGoogleMeetSpace({ topic: `OJT Interview - App #${application_id}` });
-        if (meetRes.success && meetRes.meetingUri) {
-          finalLocationOrLink = meetRes.meetingUri;
+        const meetRes = await createMeetSpace();
+        if (meetRes && meetRes.meetingUri) {
+          meetingLink = meetRes.meetingUri;
+          meetingCode = meetRes.meetingCode;
           meetLinkGenerated = true;
-          console.log(`[Google Meet API] Successfully generated space: ${finalLocationOrLink} for App #${application_id}`);
+          console.log(`[Google Meet API] Generated space ${meetingLink} for application #${application_id}`);
         } else {
+          // If createMeetSpace fails (returns null), fall back to manual location/link or null
+          meetingLink = manualLocationOrLink;
           meetLinkGenerated = false;
-          meetWarning = meetRes.error || 'Google Meet API unavailable';
-          console.warn(`[Google Meet API] Auto-generation fallback: ${meetWarning}`);
-          // If no link was manually entered by employer, assign standard Google Meet link
-          if (!finalLocationOrLink || finalLocationOrLink === 'Google Meet / Zoom') {
-            finalLocationOrLink = `https://meet.google.com/ojt-${application_id}`;
-          }
         }
       } catch (meetErr) {
+        console.warn('[Google Meet API] Error calling createMeetSpace:', meetErr.message);
+        meetingLink = manualLocationOrLink;
         meetLinkGenerated = false;
-        meetWarning = meetErr.message;
-        console.warn('[Google Meet API] Unexpected error in interview scheduling:', meetErr.message);
-        if (!finalLocationOrLink || finalLocationOrLink === 'Google Meet / Zoom') {
-          finalLocationOrLink = `https://meet.google.com/ojt-${application_id}`;
-        }
       }
-    } else if (!finalLocationOrLink) {
-      finalLocationOrLink = isOnline ? `https://meet.google.com/ojt-${application_id}` : 'Company Office Premises';
     }
 
-    await pool.query(
-      `INSERT INTO interviews (application_id, schedule_at, mode, location_or_link, status, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'scheduled', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [application_id, schedule_at, mode || 'online', finalLocationOrLink, notes || '']
+    const finalLocationOrLink = meetingLink || manualLocationOrLink || (isOnline ? 'Online Video Meeting' : 'Company Office Premises');
+
+    const [insertResult] = await pool.query(
+      `INSERT INTO interviews (application_id, schedule_at, mode, location_or_link, meeting_link, meeting_code, status, notes, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [application_id, schedule_at, mode || 'online', finalLocationOrLink, meetingLink, meetingCode, notes || '']
     );
+
+    const interviewId = insertResult.insertId;
 
     await pool.query(
       'UPDATE job_applications SET status = \'interview\' WHERE application_id = ?',
       [application_id]
     );
 
-    emitUpdate('interview_updated', { application_id, organization_id: org.organization_id });
-    emitUpdate('application_updated', { application_id, organization_id: org.organization_id, status: 'interview' });
+    // Fetch student_id to target student's socket room directly
+    const [appRows] = await pool.query('SELECT student_id FROM job_applications WHERE application_id = ?', [application_id]);
+    const studentId = appRows.length > 0 ? appRows[0].student_id : null;
+
+    // Socket.IO event emission including meeting_link
+    emitUpdate('interview_updated', {
+      interview_id: interviewId,
+      application_id,
+      student_id: studentId,
+      organization_id: org.organization_id,
+      meeting_link: meetingLink,
+      meeting_code: meetingCode,
+      location_or_link: finalLocationOrLink,
+      mode: mode || 'online',
+      schedule_at,
+      status: 'scheduled'
+    });
+    emitUpdate('application_updated', {
+      application_id,
+      student_id: studentId,
+      organization_id: org.organization_id,
+      status: 'interview'
+    });
 
     return res.status(201).json({
       success: true,
       message: meetLinkGenerated
         ? 'Interview scheduled with automated Google Meet space generated!'
         : 'Interview scheduled successfully!',
+      interview_id: interviewId,
       meetLinkGenerated,
-      location_or_link: finalLocationOrLink,
-      meetWarning
+      meeting_link: meetingLink,
+      meeting_code: meetingCode,
+      location_or_link: finalLocationOrLink
     });
   } catch (error) {
     console.error('Schedule interview error:', error);

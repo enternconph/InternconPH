@@ -409,8 +409,10 @@ export default function OrgInterviews() {
           ) : (
             <div className="space-y-3">
               {data.interviews.map((item) => {
-                const isLink = item.location_or_link?.startsWith('http');
-                const isMeet = item.location_or_link?.includes('meet.google.com');
+                const meetUrl = item.meeting_link || item.location_or_link;
+                const isLink = meetUrl?.startsWith('http');
+                const isOnline = item.mode === 'online';
+                const isMeet = isOnline && (item.meeting_link || meetUrl?.includes('meet.google.com'));
 
                 return (
                   <div key={item.interview_id} className="p-4 bg-surface-container-low rounded-xl border border-outline-variant flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -434,6 +436,12 @@ export default function OrgInterviews() {
                             Google Meet
                           </span>
                         )}
+
+                        {item.meeting_code && (
+                          <span className="px-1.5 py-0.5 rounded bg-surface-container font-mono text-[10px] text-on-surface-variant font-medium">
+                            {item.meeting_code}
+                          </span>
+                        )}
                       </div>
 
                       <p className="text-xs text-on-surface-variant font-medium">
@@ -455,10 +463,10 @@ export default function OrgInterviews() {
                         {isLink ? (
                           <>
                             <a
-                              href={item.location_or_link}
+                              href={meetUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-vibrant-orange/10 hover:bg-vibrant-orange text-vibrant-orange hover:text-white font-bold text-xs transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-vibrant-orange/10 hover:bg-vibrant-orange text-vibrant-orange hover:text-white font-bold text-xs transition-colors shadow-xs"
                             >
                               <span className="material-symbols-outlined text-[16px]">
                                 {isMeet ? 'video_call' : 'open_in_new'}
@@ -467,7 +475,7 @@ export default function OrgInterviews() {
                             </a>
                             <button
                               type="button"
-                              onClick={() => handleCopyLink(item.location_or_link, item.interview_id)}
+                              onClick={() => handleCopyLink(meetUrl, item.interview_id)}
                               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-outline-variant bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-semibold text-xs transition-colors cursor-pointer"
                               title="Copy Meeting URL"
                             >
@@ -477,7 +485,7 @@ export default function OrgInterviews() {
                               <span>{copiedId === item.interview_id ? 'Copied' : 'Copy'}</span>
                             </button>
                             <span className="text-[11px] text-on-surface-variant truncate max-w-xs opacity-75">
-                              {item.location_or_link}
+                              {meetUrl}
                             </span>
                           </>
                         ) : (

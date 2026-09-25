@@ -1224,6 +1224,22 @@ export async function runMigrations() {
       console.warn('[Migration Warning] Student user linking error:', stuLinkErr.message);
     }
 
+    // Interviews table: Add meeting_link and meeting_code for Google Meet integration
+    try {
+      const [intCols] = await pool.query('DESCRIBE interviews');
+      const intColNames = intCols.map(c => c.Field);
+      if (!intColNames.includes('meeting_link')) {
+        await pool.query('ALTER TABLE interviews ADD COLUMN meeting_link VARCHAR(255) NULL AFTER location_or_link');
+        console.log('[Migration] Added meeting_link to interviews');
+      }
+      if (!intColNames.includes('meeting_code')) {
+        await pool.query('ALTER TABLE interviews ADD COLUMN meeting_code VARCHAR(50) NULL AFTER meeting_link');
+        console.log('[Migration] Added meeting_code to interviews');
+      }
+    } catch (intMigErr) {
+      console.warn('[Migration Warning] Interviews table migration error:', intMigErr.message);
+    }
+
     console.log('[Migration] All schema alignments completed successfully!');
   } catch (error) {
     console.error('[Migration Error]', error);
