@@ -164,9 +164,9 @@ export default function DashboardHeader() {
 
   const formatTimestamp = (dateStr) => {
     const d = parseDateSafe(dateStr);
-    if (!d) return '';
-    const now = currentTime;
-    const diffMs = now - d.getTime();
+    if (!d || isNaN(d.getTime())) return '';
+    const now = Date.now();
+    const diffMs = Math.max(0, now - d.getTime());
 
     // Catch future clock drift or instant arrival
     if (diffMs < 60000) return 'Just now';
