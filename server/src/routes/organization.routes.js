@@ -7,6 +7,7 @@ import { checkAndGenerateCertificate } from '../services/certificate.service.js'
 import { isValidEmail, normalizeEmail } from '../utils/email.js';
 import multer from 'multer';
 import { getUploadStorage, processUploadedFile, formatFilePath } from '../utils/upload.helper.js';
+import { createGoogleMeetSpace, isGoogleMeetConfigured } from '../services/googleMeet.service.js';
 
 const router = express.Router();
 router.use(verifyToken);
@@ -2316,9 +2317,49 @@ router.get('/interviews', async (req, res) => {
   }
 });
 
+// GET /api/org/interviews/meet-status - Check if Google Meet REST API is configured
+router.get('/interviews/meet-status', async (req, res) => {
+  return res.json({
+    success: true,
+    configured: isGoogleMeetConfigured()
+  });
+});
+
+// POST /api/org/interviews/generate-meet - Dedicated endpoint to preview or generate a Google Meet space
+router.post('/interviews/generate-meet', requireHROrAdmin, async (req, res) => {
+  try {
+    const topic = req.body.topic || 'OJT Interview Screening';
+    const meetRes = await createGoogleMeetSpace({ topic });
+
+    if (meetRes.success) {
+      return res.json({
+        success: true,
+        meetLinkGenerated: true,
+        meetingUri: meetRes.meetingUri,
+        meetingCode: meetRes.meetingCode,
+        message: 'Google Meet space generated successfully!'
+      });
+    }
+
+    return res.json({
+      success: false,
+      meetLinkGenerated: false,
+      message: meetRes.error || 'Google Meet API is not configured or failed.',
+      fallbackUri: `https://meet.google.com/ojt-interview-${Date.now().toString(36).slice(-4)}`
+    });
+  } catch (err) {
+    console.warn('[Google Meet API] generate-meet error:', err.message);
+    return res.json({
+      success: false,
+      meetLinkGenerated: false,
+      message: err.message
+    });
+  }
+});
+
 // POST /api/org/interviews
 router.post('/interviews', requireHROrAdmin, async (req, res) => {
-  const { application_id, schedule_at, mode, location_or_link, notes } = req.body;
+  const { application_id, schedule_at, mode, location_or_link, notes, auto_generate_meet, platform } = req.body;
 
   if (!application_id || !schedule_at) {
     return res.status(400).json({ success: false, message: 'Application and schedule datetime are required.' });
@@ -2328,10 +2369,52 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Org not found' });
 
+    let finalLocationOrLink = (location_or_link || '').trim();
+    let meetLinkGenerated = false;
+    let meetWarning = null;
+
+    const isOnline = (mode || 'online').toLowerCase() === 'online';
+    const shouldAutoGenerate = isOnline && (
+      auto_generate_meet === true ||
+      platform === 'google_meet' ||
+      !finalLocationOrLink ||
+      finalLocationOrLink.includes('ojt-interview') ||
+      finalLocationOrLink === 'Google Meet / Zoom'
+    );
+
+    // Call server-side Google Meet REST API v2 if online and auto-generate requested
+    if (shouldAutoGenerate) {
+      try {
+        const meetRes = await createGoogleMeetSpace({ topic: `OJT Interview - App #${application_id}` });
+        if (meetRes.success && meetRes.meetingUri) {
+          finalLocationOrLink = meetRes.meetingUri;
+          meetLinkGenerated = true;
+          console.log(`[Google Meet API] Successfully generated space: ${finalLocationOrLink} for App #${application_id}`);
+        } else {
+          meetLinkGenerated = false;
+          meetWarning = meetRes.error || 'Google Meet API unavailable';
+          console.warn(`[Google Meet API] Auto-generation fallback: ${meetWarning}`);
+          // If no link was manually entered by employer, assign standard Google Meet link
+          if (!finalLocationOrLink || finalLocationOrLink === 'Google Meet / Zoom') {
+            finalLocationOrLink = `https://meet.google.com/ojt-${application_id}`;
+          }
+        }
+      } catch (meetErr) {
+        meetLinkGenerated = false;
+        meetWarning = meetErr.message;
+        console.warn('[Google Meet API] Unexpected error in interview scheduling:', meetErr.message);
+        if (!finalLocationOrLink || finalLocationOrLink === 'Google Meet / Zoom') {
+          finalLocationOrLink = `https://meet.google.com/ojt-${application_id}`;
+        }
+      }
+    } else if (!finalLocationOrLink) {
+      finalLocationOrLink = isOnline ? `https://meet.google.com/ojt-${application_id}` : 'Company Office Premises';
+    }
+
     await pool.query(
       `INSERT INTO interviews (application_id, schedule_at, mode, location_or_link, status, notes, created_at, updated_at)
        VALUES (?, ?, ?, ?, 'scheduled', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [application_id, schedule_at, mode || 'online', location_or_link || 'Google Meet / Zoom', notes || '']
+      [application_id, schedule_at, mode || 'online', finalLocationOrLink, notes || '']
     );
 
     await pool.query(
@@ -2342,10 +2425,18 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
     emitUpdate('interview_updated', { application_id, organization_id: org.organization_id });
     emitUpdate('application_updated', { application_id, organization_id: org.organization_id, status: 'interview' });
 
-    return res.status(201).json({ success: true, message: 'Interview scheduled successfully!' });
+    return res.status(201).json({
+      success: true,
+      message: meetLinkGenerated
+        ? 'Interview scheduled with automated Google Meet space generated!'
+        : 'Interview scheduled successfully!',
+      meetLinkGenerated,
+      location_or_link: finalLocationOrLink,
+      meetWarning
+    });
   } catch (error) {
     console.error('Schedule interview error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to schedule interview.' });
+    return res.status(500).json({ success: false, message: 'Failed to schedule interview: ' + error.message });
   }
 });
 

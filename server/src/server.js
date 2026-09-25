@@ -26,9 +26,12 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config();
 
-// Run database migrations on start and prune stale sessions
+import { checkGoogleMeetConfigOnStartup } from './services/googleMeet.service.js';
+
+// Run database migrations on start, prune stale sessions, and verify integrations
 runMigrations()
   .then(() => pruneStaleSessions())
+  .then(() => checkGoogleMeetConfigOnStartup())
   .catch(console.error);
 
 const app = express();
