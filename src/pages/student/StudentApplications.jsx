@@ -655,19 +655,46 @@ export default function StudentApplications() {
 
                           {/* REJECTION / FEEDBACK CALLOUT (Clearly prominent if rejected) */}
                           {isRejected && (
-                            <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl space-y-1 text-xs">
+                            <div className="p-3 bg-red-500/10 border border-red-500/25 rounded-xl space-y-1.5 text-xs shadow-xs">
                               <div className="flex items-center gap-1.5 font-bold text-red-700 dark:text-red-400">
                                 <span className="material-symbols-outlined text-[16px]">info</span>
-                                <span>Employer Feedback / Decision Note:</span>
+                                <span>Employer Feedback & Decision Note:</span>
+                              </div>
+                              {app.rejection_reason && (
+                                <p className="text-on-surface text-[11px] pl-5 leading-snug">
+                                  <strong className="text-red-600 dark:text-red-400">Reason: </strong>
+                                  {app.rejection_reason}
+                                </p>
+                              )}
+                              {app.feedback && (
+                                <p className="text-on-surface-variant text-[11px] pl-5 leading-relaxed">
+                                  <strong>Constructive Feedback: </strong>
+                                  {app.feedback}
+                                </p>
+                              )}
+                              {!app.rejection_reason && !app.feedback && (
+                                <p className="text-on-surface-variant leading-relaxed text-[11px] pl-5">
+                                  {app.notes || 'The hiring organization has decided to proceed with other candidates at this time. Keep applying!'}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* ACCEPTED / PLACED CALLOUT */}
+                          {isAccepted && (
+                            <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/25 rounded-xl space-y-1 text-xs shadow-xs">
+                              <div className="flex items-center gap-1.5 font-bold text-emerald-700 dark:text-emerald-400">
+                                <span className="material-symbols-outlined text-[16px]">verified</span>
+                                <span>Placement Approved & Confirmed:</span>
                               </div>
                               <p className="text-on-surface leading-relaxed text-[11px] pl-5">
-                                {app.feedback || app.notes || 'The hiring organization has decided to proceed with other candidates at this time. Keep applying!'}
+                                {app.feedback || 'Application approved. Your Training Agreement MOA and Daily Time Record (DTR) are active.'}
                               </p>
                             </div>
                           )}
 
                           {/* GENERAL EMPLOYER NOTE (for non-rejected applications) */}
-                          {!isRejected && (app.feedback || app.notes) && (
+                          {!isRejected && !isAccepted && (app.feedback || app.notes) && (
                             <div className="p-2.5 bg-surface-container-low border border-outline-variant rounded-xl space-y-1 text-xs">
                               <div className="flex items-center gap-1.5 font-bold text-on-surface">
                                 <span className="material-symbols-outlined text-[15px] text-vibrant-orange">comment</span>
@@ -865,21 +892,50 @@ export default function StudentApplications() {
               </div>
             </div>
 
-            {/* Employer Feedback / Notes (if any) */}
-            {(detailModalApp.feedback || detailModalApp.notes) && (
+            {/* Employer Feedback / Notes / Rejection Reason */}
+            {(detailModalApp.feedback || detailModalApp.notes || detailModalApp.rejection_reason) && (
               <div
-                className={`p-4 rounded-xl border space-y-1.5 ${
+                className={`p-4 rounded-xl border space-y-2 ${
                   ['rejected', 'declined_by_org', 'not_selected'].includes(detailModalApp.status)
                     ? 'bg-red-500/10 border-red-500/25'
+                    : ['accepted', 'approved', 'placed', 'completed'].includes(detailModalApp.status)
+                    ? 'bg-emerald-500/10 border-emerald-500/25'
                     : 'bg-amber-500/10 border-amber-500/25'
                 }`}
               >
-                <span className="text-[10px] uppercase font-bold text-on-surface tracking-wider block">
-                  Employer Feedback & Notes
-                </span>
-                <p className="text-xs text-on-surface leading-relaxed whitespace-pre-wrap font-medium">
-                  {detailModalApp.feedback || detailModalApp.notes}
-                </p>
+                <div className="flex items-center gap-1.5 font-bold text-xs">
+                  <span className="material-symbols-outlined text-[18px]">
+                    {['rejected', 'declined_by_org', 'not_selected'].includes(detailModalApp.status)
+                      ? 'cancel'
+                      : ['accepted', 'approved', 'placed', 'completed'].includes(detailModalApp.status)
+                      ? 'verified'
+                      : 'comment'}
+                  </span>
+                  <span>
+                    {['rejected', 'declined_by_org', 'not_selected'].includes(detailModalApp.status)
+                      ? 'Employer Decision & Rejection Feedback'
+                      : ['accepted', 'approved', 'placed', 'completed'].includes(detailModalApp.status)
+                      ? 'Placement Confirmation & Notes'
+                      : 'Employer Feedback & Notes'}
+                  </span>
+                </div>
+                {detailModalApp.rejection_reason && (
+                  <p className="text-xs text-on-surface leading-snug">
+                    <strong className="text-red-600 dark:text-red-400">Reason: </strong>
+                    {detailModalApp.rejection_reason}
+                  </p>
+                )}
+                {detailModalApp.feedback && (
+                  <p className="text-xs text-on-surface leading-relaxed">
+                    <strong>Constructive Feedback: </strong>
+                    {detailModalApp.feedback}
+                  </p>
+                )}
+                {!detailModalApp.rejection_reason && !detailModalApp.feedback && detailModalApp.notes && (
+                  <p className="text-xs text-on-surface leading-relaxed whitespace-pre-wrap">
+                    {detailModalApp.notes}
+                  </p>
+                )}
               </div>
             )}
 

@@ -640,9 +640,14 @@ router.get('/applications', async (req, res) => {
 
     const [applications] = await pool.query(
       `SELECT ja.*, 
+              COALESCE(ja.feedback, '') as feedback,
+              COALESCE(ja.rejection_reason, '') as rejection_reason,
               jp.title as job_title, jp.description as job_description, jp.requirements as job_requirements,
-              jp.deliverables as job_deliverables, jp.location, jp.posting_type, jp.job_type,
-              jp.work_setup, jp.salary_min, jp.salary_max, jp.allowance, jp.department, jp.employment_type, jp.slots,
+              jp.deliverables as job_deliverables, jp.location, COALESCE(jp.posting_type, 'ojt') as posting_type,
+              COALESCE(jp.job_type, 'ojt') as job_type, jp.work_setup,
+              COALESCE(jp.salary_rate, jp.salary_min) as salary_rate,
+              jp.salary_rate_type, jp.salary_min, jp.salary_max, jp.allowance, jp.department, jp.employment_type,
+              COALESCE(jp.slots_available, jp.slots) as slots_available,
               ho.organization_id, ho.organization_name, ho.industry, ho.contact_email, ho.contact_phone,
               ho.logo_url, ho.address as org_address, ho.website,
               jo.offer_id, jo.status as offer_status, jo.offered_at, jo.responded_at,
@@ -659,7 +664,7 @@ router.get('/applications', async (req, res) => {
          )
        ) i ON ja.application_id = i.application_id
        WHERE ja.student_id = ?
-       ORDER BY ja.applied_at DESC`,
+       ORDER BY ja.applied_at DESC, ja.created_at DESC`,
       [student.student_id]
     );
 
@@ -667,10 +672,13 @@ router.get('/applications', async (req, res) => {
     const [directOffers] = await pool.query(
       `SELECT odo.offer_id as application_id, odo.job_id, odo.student_id, odo.status,
               odo.offered_at as applied_at, odo.created_at, odo.updated_at,
+              'Direct Deployment Offer' as feedback, NULL as rejection_reason,
               jp.title as job_title, jp.description as job_description, jp.requirements as job_requirements,
               jp.deliverables as job_deliverables, jp.location, COALESCE(jp.posting_type, 'ojt') as posting_type,
-              COALESCE(jp.job_type, 'ojt') as job_type, jp.work_setup, jp.salary_min, jp.salary_max,
-              jp.allowance, jp.department, jp.employment_type, jp.slots,
+              COALESCE(jp.job_type, 'ojt') as job_type, jp.work_setup,
+              COALESCE(jp.salary_rate, jp.salary_min) as salary_rate,
+              jp.salary_rate_type, jp.salary_min, jp.salary_max, jp.allowance, jp.department, jp.employment_type,
+              COALESCE(jp.slots_available, jp.slots) as slots_available,
               ho.organization_id, ho.organization_name, ho.industry, ho.contact_email, ho.contact_phone,
               ho.logo_url, ho.address as org_address, ho.website,
               odo.offer_id, odo.status as offer_status, odo.offered_at, NULL as responded_at,
