@@ -2459,15 +2459,54 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
 router.put('/interviews/:id', requireHROrAdmin, async (req, res) => {
   const { status, notes } = req.body;
   try {
+    const finalStatus = (status || 'completed').toLowerCase();
+
+    // Look up interview, application, and student to broadcast targeted realtime events
+    const [interviews] = await pool.query(
+      `SELECT i.interview_id, i.application_id, ja.student_id, jp.organization_id
+       FROM interviews i
+       JOIN job_applications ja ON i.application_id = ja.application_id
+       JOIN job_postings jp ON ja.job_id = jp.job_id
+       WHERE i.interview_id = ?`,
+      [req.params.id]
+    );
+    const interview = interviews[0];
+
     await pool.query(
       'UPDATE interviews SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE interview_id = ?',
-      [status || 'completed', notes || '', req.params.id]
+      [finalStatus, notes || '', req.params.id]
     );
 
-    emitUpdate('interview_updated', { interview_id: req.params.id });
+    // If marked completed, update the job application status to 'interviewed'
+    if (finalStatus === 'completed' && interview?.application_id) {
+      await pool.query(
+        `UPDATE job_applications 
+         SET status = 'interviewed', updated_at = CURRENT_TIMESTAMP 
+         WHERE application_id = ? AND status = 'interview'`,
+        [interview.application_id]
+      );
+    }
 
-    return res.json({ success: true, message: 'Interview updated.' });
+    emitUpdate('interview_updated', {
+      interview_id: req.params.id,
+      application_id: interview?.application_id,
+      student_id: interview?.student_id,
+      organization_id: interview?.organization_id,
+      status: finalStatus
+    });
+
+    if (interview?.application_id) {
+      emitUpdate('application_updated', {
+        application_id: interview.application_id,
+        student_id: interview.student_id,
+        organization_id: interview.organization_id,
+        status: finalStatus === 'completed' ? 'interviewed' : undefined
+      });
+    }
+
+    return res.json({ success: true, message: `Interview marked as ${finalStatus}.` });
   } catch (error) {
+    console.error('Update interview error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update interview.' });
   }
 });

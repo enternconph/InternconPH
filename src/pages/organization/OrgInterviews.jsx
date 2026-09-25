@@ -460,7 +460,27 @@ export default function OrgInterviews() {
 
                       {/* Location / Meeting Link */}
                       <div className="flex flex-wrap items-center gap-2 pt-1">
-                        {isLink ? (
+                        {item.status === 'completed' ? (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface-variant font-bold text-xs border border-outline-variant opacity-75">
+                              <span className="material-symbols-outlined text-[15px] text-pinoy-green">check_circle</span>
+                              <span>Interview Completed</span>
+                            </span>
+                            {isLink && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopyLink(meetUrl, item.interview_id)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-outline-variant bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-semibold text-xs transition-colors cursor-pointer"
+                                title="Copy Meeting URL"
+                              >
+                                <span className="material-symbols-outlined text-[14px]">
+                                  {copiedId === item.interview_id ? 'check' : 'content_copy'}
+                                </span>
+                                <span>{copiedId === item.interview_id ? 'Copied' : 'Copy'}</span>
+                              </button>
+                            )}
+                          </div>
+                        ) : isLink ? (
                           <>
                             <a
                               href={meetUrl}

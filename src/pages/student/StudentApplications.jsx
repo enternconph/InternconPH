@@ -98,6 +98,19 @@ export default function StudentApplications() {
   // Status mapping helper
   const getStatusBadge = (app) => {
     const status = (app.status || 'submitted').toLowerCase();
+    const interviewStatus = (app.interview_status || '').toLowerCase();
+
+    // Check if interview has been completed / marked done
+    if (interviewStatus === 'completed' || status === 'interviewed') {
+      return {
+        key: 'interview_completed',
+        label: 'Interview Done',
+        color: 'bg-emerald-500/15 text-pinoy-green dark:text-emerald-400 border border-pinoy-green/30 font-bold',
+        icon: 'task_alt',
+        description: 'Interview session has ended and is marked completed. Awaiting employer evaluation.'
+      };
+    }
+
     switch (status) {
       case 'offered':
         return {
@@ -108,7 +121,6 @@ export default function StudentApplications() {
           description: 'The organization has issued you an official placement offer! Action required: Approve or Decline.'
         };
       case 'interview':
-      case 'interviewed':
       case 'interview_scheduled':
         return {
           key: 'interview',
@@ -204,7 +216,7 @@ export default function StudentApplications() {
       else if (cat === 'career_job') careerCount++;
 
       const key = getStatusBadge(app).key;
-      if (key === 'interview' || Boolean(app.interview_schedule_at)) interviewCount++;
+      if (key === 'interview' || key === 'interview_completed' || Boolean(app.interview_schedule_at)) interviewCount++;
       if (key === 'offered') offerCount++;
       if (key === 'accepted') acceptedCount++;
       if (key === 'rejected') rejectedCount++;
@@ -220,7 +232,11 @@ export default function StudentApplications() {
 
   const scheduledInterviews = useMemo(() => {
     return applications.filter(
-      (a) => a.status === 'interview' || Boolean(a.interview_schedule_at)
+      (a) =>
+        a.status === 'interview' ||
+        a.status === 'interviewed' ||
+        a.interview_status === 'completed' ||
+        Boolean(a.interview_schedule_at)
     );
   }, [applications]);
 
@@ -236,7 +252,7 @@ export default function StudentApplications() {
 
       if (statusFilter !== 'all') {
         if (statusFilter === 'offered' && statusKey !== 'offered') return false;
-        if (statusFilter === 'interview' && statusKey !== 'interview') return false;
+        if (statusFilter === 'interview' && statusKey !== 'interview' && statusKey !== 'interview_completed') return false;
         if (statusFilter === 'accepted' && statusKey !== 'accepted') return false;
         if (statusFilter === 'rejected' && statusKey !== 'rejected') return false;
         if (statusFilter === 'pending' && !['submitted', 'under_review', 'shortlisted'].includes(statusKey)) return false;
@@ -466,11 +482,19 @@ export default function StudentApplications() {
                       📍 {app.location || 'Philippines'} • {app.work_setup || 'Flexible Setup'}
                     </p>
                   </div>
-                  <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 shrink-0">
-                    {app.interview_mode === 'in_person' || app.interview_mode === 'onsite'
-                      ? '🏢 On-Site Interview'
-                      : '💻 Online Meeting'}
-                  </span>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                      {app.interview_mode === 'in_person' || app.interview_mode === 'onsite'
+                        ? '🏢 On-Site Interview'
+                        : '💻 Online Meeting'}
+                    </span>
+                    {(app.interview_status === 'completed' || app.status === 'interviewed') && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-pinoy-green border border-pinoy-green/30">
+                        <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                        <span>Interview Done</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Interview Schedule Details */}
@@ -493,6 +517,13 @@ export default function StudentApplications() {
                     </span>
                   </div>
 
+                  {(app.interview_status === 'completed' || app.status === 'interviewed') && (
+                    <div className="flex items-center gap-1.5 text-pinoy-green font-bold text-[11px] pt-1.5 border-t border-emerald-500/20">
+                      <span className="material-symbols-outlined text-[15px]">task_alt</span>
+                      <span>Interview marked as completed by employer. Google Meet room is now closed.</span>
+                    </div>
+                  )}
+
                   {app.interview_notes && (
                     <p className="text-[11px] text-on-surface-variant pl-6 leading-relaxed">
                       <strong>Instructions: </strong>
@@ -507,6 +538,21 @@ export default function StudentApplications() {
                     const meetUrl = app.interview_meeting_link || app.meeting_link || app.interview_location_or_link;
                     const isOnline = app.interview_mode === 'online';
                     const isMeet = isOnline && (app.interview_meeting_link || meetUrl?.includes('meet.google.com'));
+                    const isCompleted = app.interview_status === 'completed' || app.status === 'interviewed';
+
+                    if (isCompleted) {
+                      return (
+                        <button
+                          type="button"
+                          disabled
+                          className="flex-1 py-2 px-3 bg-surface-container text-on-surface-variant rounded-lg text-xs font-bold border border-outline-variant flex items-center justify-center gap-1.5 text-center opacity-70 cursor-not-allowed select-none"
+                          title="Interview completed. Meeting access has ended."
+                        >
+                          <span className="material-symbols-outlined text-[16px] text-pinoy-green">check_circle</span>
+                          <span>Interview Done</span>
+                        </button>
+                      );
+                    }
 
                     if (meetUrl?.startsWith('http')) {
                       return (
@@ -696,7 +742,8 @@ export default function StudentApplications() {
               const pCategory = getPostingCategory(app);
               const isRejected = ['rejected', 'declined_by_org', 'not_selected'].includes(app.status);
               const isOffered = app.status === 'offered';
-              const isInterview = app.status === 'interview' || Boolean(app.interview_schedule_at);
+              const isInterview = app.status === 'interview' || app.status === 'interviewed' || Boolean(app.interview_schedule_at);
+              const isInterviewCompleted = app.interview_status === 'completed' || app.status === 'interviewed';
               const isAccepted = ['accepted', 'approved', 'placed', 'completed'].includes(app.status);
               const canWithdraw = ['submitted', 'pending', 'under_review', 'shortlisted'].includes(app.status);
 
@@ -706,6 +753,8 @@ export default function StudentApplications() {
                   className={`p-4 sm:p-5 transition-all hover:bg-surface-container-low/60 flex flex-col lg:flex-row lg:items-start justify-between gap-4 ${
                     isOffered
                       ? 'bg-orange-500/[0.04] border-l-4 border-l-vibrant-orange'
+                      : isInterviewCompleted
+                      ? 'bg-emerald-500/[0.03] border-l-4 border-l-pinoy-green'
                       : isInterview
                       ? 'bg-blue-500/[0.03] border-l-4 border-l-blue-600'
                       : isRejected
@@ -785,14 +834,28 @@ export default function StudentApplications() {
 
                     {/* INTERVIEW SCHEDULE DETAILS */}
                     {isInterview && (
-                      <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl space-y-1.5 text-xs mt-2 shadow-xs">
+                      <div className={`p-3 rounded-xl space-y-1.5 text-xs mt-2 shadow-xs ${
+                        isInterviewCompleted
+                          ? 'bg-emerald-500/10 border border-emerald-500/30'
+                          : 'bg-blue-500/10 border border-blue-500/30'
+                      }`}>
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-[16px]">calendar_month</span>
-                            <span>Interview Scheduled by Organization:</span>
+                          <span className={`font-bold flex items-center gap-1.5 ${
+                            isInterviewCompleted
+                              ? 'text-emerald-800 dark:text-emerald-300'
+                              : 'text-blue-800 dark:text-blue-300'
+                          }`}>
+                            <span className="material-symbols-outlined text-[16px]">
+                              {isInterviewCompleted ? 'task_alt' : 'calendar_month'}
+                            </span>
+                            <span>{isInterviewCompleted ? 'Interview Completed / Over:' : 'Interview Scheduled by Organization:'}</span>
                           </span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-600 text-white uppercase">
-                            {app.interview_mode === 'in_person' || app.interview_mode === 'onsite' ? 'On-Site' : 'Online'}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                            isInterviewCompleted
+                              ? 'bg-pinoy-green text-white'
+                              : 'bg-blue-600 text-white'
+                          }`}>
+                            {isInterviewCompleted ? 'Done' : (app.interview_mode === 'in_person' || app.interview_mode === 'onsite' ? 'On-Site' : 'Online')}
                           </span>
                         </div>
                         <p className="text-on-surface font-semibold text-[11px] pl-5">
@@ -803,6 +866,12 @@ export default function StudentApplications() {
                               })
                             : 'Schedule set'}
                         </p>
+                        {isInterviewCompleted && (
+                          <p className="text-pinoy-green font-bold text-[11px] pl-5 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                            <span>Marked as Done by employer. Meeting room is now closed.</span>
+                          </p>
+                        )}
                         {app.interview_notes && (
                           <p className="text-on-surface-variant text-[11px] pl-5">
                             <strong>Notes: </strong> {app.interview_notes}
@@ -872,11 +941,26 @@ export default function StudentApplications() {
                         </>
                       )}
 
-                      {/* If Interview: Join meeting link */}
+                      {/* If Interview: Join meeting link or Disabled Done indicator */}
                       {isInterview && (() => {
                         const meetUrl = app.interview_meeting_link || app.meeting_link || app.interview_location_or_link;
                         const isOnline = app.interview_mode === 'online';
                         const isMeet = isOnline && (app.interview_meeting_link || meetUrl?.includes('meet.google.com'));
+
+                        if (isInterviewCompleted) {
+                          return (
+                            <button
+                              type="button"
+                              disabled
+                              className="px-3 py-1.5 bg-surface-container text-on-surface-variant rounded-lg text-xs font-bold border border-outline-variant flex items-center gap-1 opacity-70 cursor-not-allowed select-none"
+                              title="Interview has been completed."
+                            >
+                              <span className="material-symbols-outlined text-[14px] text-pinoy-green">check_circle</span>
+                              <span>Interview Done</span>
+                            </button>
+                          );
+                        }
+
                         if (!meetUrl?.startsWith('http')) return null;
                         return (
                           <a
@@ -1009,16 +1093,23 @@ export default function StudentApplications() {
             </div>
 
             {/* Interview Block if present */}
-            {(detailModalApp.status === 'interview' || Boolean(detailModalApp.interview_schedule_at)) && (
+            {(detailModalApp.status === 'interview' || detailModalApp.status === 'interviewed' || detailModalApp.interview_status === 'completed' || Boolean(detailModalApp.interview_schedule_at)) && (
               <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl space-y-2 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[16px]">calendar_month</span>
                     <span>Interview Information</span>
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-blue-600 text-white font-bold text-[10px] uppercase">
-                    {detailModalApp.interview_mode === 'in_person' ? 'On-Site' : 'Online'}
-                  </span>
+                  {detailModalApp.interview_status === 'completed' || detailModalApp.status === 'interviewed' ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-pinoy-green border border-pinoy-green/30 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                      <span>Interview Done</span>
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded bg-blue-600 text-white font-bold text-[10px] uppercase">
+                      {detailModalApp.interview_mode === 'in_person' ? 'On-Site' : 'Online'}
+                    </span>
+                  )}
                 </div>
                 <p className="text-on-surface font-semibold text-[11px]">
                   Schedule: {detailModalApp.interview_schedule_at
@@ -1029,6 +1120,7 @@ export default function StudentApplications() {
                   const meetUrl = detailModalApp.interview_meeting_link || detailModalApp.meeting_link || detailModalApp.interview_location_or_link;
                   const isOnline = detailModalApp.interview_mode === 'online';
                   const isMeet = isOnline && (detailModalApp.interview_meeting_link || meetUrl?.includes('meet.google.com'));
+                  const isCompleted = detailModalApp.interview_status === 'completed' || detailModalApp.status === 'interviewed';
 
                   return (
                     <>
@@ -1047,7 +1139,12 @@ export default function StudentApplications() {
                           <strong>Interviewer Notes: </strong> {detailModalApp.interview_notes}
                         </p>
                       )}
-                      {meetUrl?.startsWith('http') && (
+                      {isCompleted ? (
+                        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-pinoy-green flex items-center gap-2 text-xs font-bold mt-1">
+                          <span className="material-symbols-outlined text-[18px]">task_alt</span>
+                          <span>Interview marked as Done. Google Meet link is disabled.</span>
+                        </div>
+                      ) : meetUrl?.startsWith('http') ? (
                         <a
                           href={meetUrl}
                           target="_blank"
@@ -1057,7 +1154,7 @@ export default function StudentApplications() {
                           <span className="material-symbols-outlined text-[14px]">videocam</span>
                           <span>Join {isMeet ? 'Google Meet' : 'Meeting Link'}</span>
                         </a>
-                      )}
+                      ) : null}
                     </>
                   );
                 })()}
