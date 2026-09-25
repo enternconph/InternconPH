@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { useTimeFormat } from '../../contexts/TimeContext';
@@ -93,6 +93,7 @@ export const DEFAULT_ORGANIZATIONS = [
 ];
 
 export default function StudentComplaints() {
+  const [searchParams] = useSearchParams();
   const [data, setData] = useState({
     complaints: [],
     categories: DEFAULT_STUDENT_VIOLATION_CATEGORIES,
@@ -114,9 +115,16 @@ export default function StudentComplaints() {
 
   // Search, filter, and pagination states
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('filter') || 'all');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
+
+  useEffect(() => {
+    const f = searchParams.get('filter');
+    if (f) {
+      setStatusFilter(f);
+    }
+  }, [searchParams]);
 
   const fetchComplaints = useCallback(async () => {
     try {
@@ -130,16 +138,17 @@ export default function StudentComplaints() {
           ? res.data.categories
           : DEFAULT_STUDENT_VIOLATION_CATEGORIES;
 
-        // Resolve active OJT record directly from ojt API if not already in complaints response
-        const ojtActiveRecord = ojtRes.success && ojtRes.data?.records
+        // Resolve active OJT record directly from ojt API matching OJT Progress & DTR module
+        const ojtActiveRecord = (ojtRes.success && ojtRes.data?.records && ojtRes.data.records.length > 0)
           ? (ojtRes.data.records.find((r) => r.status === 'ongoing' || r.status === 'active' || r.status === 'in_progress') || ojtRes.data.records[0])
           : null;
 
-        const resolvedOjtPlacement = res.data.active_ojt_placement || res.data.assigned_organization || (ojtActiveRecord ? {
+        const resolvedOjtPlacement = (ojtActiveRecord ? {
           organization_id: ojtActiveRecord.organization_id,
           organization_name: ojtActiveRecord.organization_name,
-          industry: ojtActiveRecord.industry
-        } : null);
+          industry: ojtActiveRecord.industry,
+          is_my_employer: 1
+        } : null) || res.data.active_ojt_placement || res.data.assigned_organization || null;
 
         // Merge OJT host and server organizations list, with DEFAULT_ORGANIZATIONS fallback
         let baseOrgs = (res.data.orgs && res.data.orgs.length > 0) ? res.data.orgs : DEFAULT_ORGANIZATIONS;
@@ -166,12 +175,15 @@ export default function StudentComplaints() {
           }
         }
 
+        const canFileGrievance = Boolean(resolvedOjtPlacement?.organization_id || res.data.can_file);
+
         setData({
           ...res.data,
           categories: incomingCategories,
           orgs: updatedOrgs,
           active_ojt_placement: resolvedOjtPlacement,
-          assigned_organization: resolvedOjtPlacement
+          assigned_organization: resolvedOjtPlacement,
+          can_file: canFileGrievance
         });
 
         if (res.data.default_student_status) {
@@ -252,7 +264,7 @@ export default function StudentComplaints() {
   }, [statusFilter, searchQuery]);
 
   const activeOjtOrg = data.active_ojt_placement || data.assigned_organization;
-  const hasActiveHost = Boolean(activeOjtOrg?.organization_id && data.can_file !== false);
+  const hasActiveHost = Boolean(activeOjtOrg?.organization_id || data.can_file);
 
   // Auto-sync selected target org when student status is ongoing_ojt
   useEffect(() => {
@@ -840,17 +852,37 @@ export default function StudentComplaints() {
               <button
                 type="button"
                 onClick={() => setStatusFilter('warnings')}
-                className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap flex items-center gap-1 transition-all ${
+                className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap flex items-center gap-1.5 transition-all ${
                   statusFilter === 'warnings'
                     ? 'bg-amber-600 text-white font-bold shadow-sm'
-                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 border border-amber-500/30'
                 }`}
               >
-                <span className="material-symbols-outlined text-[14px]">warning</span>
-                <span>Warnings ({counts.warnings})</span>
+                <span className="material-symbols-outlined text-[16px]">warning</span>
+                <span>Institution Warnings ({counts.warnings})</span>
               </button>
             )}
           </div>
+
+          {/* Prominent Warning Banner if Institution Warnings Exist */}
+          {counts.warnings > 0 && statusFilter !== 'warnings' && (
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2.5">
+                <span className="material-symbols-outlined text-amber-600 text-[22px]">warning</span>
+                <div className="text-xs">
+                  <span className="font-bold">Official Warning Note on Record: </span>
+                  <span className="text-on-surface-variant">Your institution coordinator has issued {counts.warnings} warning note(s).</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('warnings')}
+                className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors shadow-xs"
+              >
+                View Warnings
+              </button>
+            </div>
+          )}
 
           {loading ? (
             <div className="p-8 flex justify-center">
@@ -930,17 +962,25 @@ export default function StudentComplaints() {
 
                     {/* Institution Warning Note (if issued) */}
                     {c.warning_note_to_student && (
-                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-amber-800">
-                          <span className="material-symbols-outlined text-[16px]">warning</span>
-                          <span className="text-xs font-bold">Official Institution Warning Note</span>
+                      <div className="p-3.5 bg-amber-500/10 border-2 border-amber-500/30 rounded-xl space-y-2 shadow-xs">
+                        <div className="flex items-center justify-between gap-2 flex-wrap text-amber-800 dark:text-amber-300">
+                          <div className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[18px] text-amber-600">warning</span>
+                            <span className="text-xs font-black uppercase tracking-wider">Official Institution Warning Note</span>
+                          </div>
+                          {c.warning_sent_at && (
+                            <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                              Issued: {formatDateTime(c.warning_sent_at)}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs text-amber-900 leading-relaxed">{c.warning_note_to_student}</p>
-                        {c.warning_sent_at && (
-                          <span className="text-[10px] text-amber-700 block">
-                            Issued on: {formatDateTime(c.warning_sent_at)}
-                          </span>
-                        )}
+                        <p className="text-xs text-amber-950 dark:text-amber-100 font-medium leading-relaxed bg-surface/70 p-2.5 rounded-lg border border-amber-200/50">
+                          "{c.warning_note_to_student}"
+                        </p>
+                        <p className="text-[10px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[13px]">school</span>
+                          Disciplinary notice recorded on student profile by Institution Administration
+                        </p>
                       </div>
                     )}
 

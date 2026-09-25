@@ -76,6 +76,53 @@ export default function StudentDashboard() {
         </div>
       </div>
 
+      {/* Official Institutional Warning Notice (if any issued by institution) */}
+      {data?.warnings && data.warnings.length > 0 && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 shadow-sm space-y-3">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <span className="material-symbols-outlined text-[24px]">warning</span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-sm text-amber-950 dark:text-amber-100">
+                    Official Institutional Warning Issued
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white uppercase tracking-wider">
+                    {data.warnings.length} Active {data.warnings.length === 1 ? 'Notice' : 'Notices'}
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5">
+                  Your university / institution coordinator has recorded an official disciplinary warning note on your file.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/dashboard/student/complaints?filter=warnings"
+              className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
+            >
+              <span>View Warning Details</span>
+              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+            </Link>
+          </div>
+
+          <div className="p-3 rounded-xl bg-surface/80 border border-amber-300/40 text-xs space-y-1">
+            <p className="font-bold text-amber-950 dark:text-amber-200">
+              Incident: {data.warnings[0].subject} {data.warnings[0].organization_name ? `• ${data.warnings[0].organization_name}` : ''}
+            </p>
+            <p className="text-amber-900/90 dark:text-amber-300/90 italic">
+              "{data.warnings[0].warning_note_to_student}"
+            </p>
+            {data.warnings[0].warning_sent_at && (
+              <span className="text-[10px] text-amber-700 dark:text-amber-400 block pt-1">
+                Issued on: {new Date(data.warnings[0].warning_sent_at).toLocaleString()}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bento-card flex items-center gap-4">

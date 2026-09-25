@@ -17,6 +17,8 @@ export default function InstMonitoring() {
   const [forwardForm, setForwardForm] = useState({ summary: '', include_student_details: false });
   const [warnModal, setWarnModal] = useState(null);
   const [warnForm, setWarnForm] = useState({ warning_note: '' });
+  const [warningSuccessModal, setWarningSuccessModal] = useState(false);
+  const [justIssuedWarningIds, setJustIssuedWarningIds] = useState([]);
   const [escalateModal, setEscalateModal] = useState(null);
   const [escalateForm, setEscalateForm] = useState({ report_title: '', findings: '', recommendations: '' });
   const [certModal, setCertModal] = useState(null);
@@ -114,6 +116,7 @@ export default function InstMonitoring() {
   const handleOpenWarning = (c) => {
     setWarnModal(c);
     setWarnForm({ warning_note: '' });
+    setWarningSuccessModal(false);
   };
 
   const handleOpenEscalate = (c) => {
@@ -178,6 +181,11 @@ export default function InstMonitoring() {
       setWarnModal(null);
       return;
     }
+    if (warnModal?.warning_note_to_student || justIssuedWarningIds.includes(warnModal?.complaint_id)) {
+      alert('An official warning note has already been issued for this complaint. Warnings can only be issued once.');
+      setWarnModal(null);
+      return;
+    }
     if (!warnForm.warning_note.trim()) {
       alert('Please enter warning note content.');
       return;
@@ -186,15 +194,34 @@ export default function InstMonitoring() {
     try {
       const res = await api.post(`/inst/complaints/${warnModal.complaint_id}/warn-student`, warnForm);
       if (res.success) {
+        setJustIssuedWarningIds((prev) => [...prev, warnModal.complaint_id]);
+        setWarningSuccessModal(true);
+        // Optimistically update complaint in local list so button is immediately disabled and row updates
+        setData((prev) => {
+          const updateItem = (item) =>
+            item.complaint_id === warnModal.complaint_id
+              ? { ...item, warning_note_to_student: warnForm.warning_note, warning_sent_at: new Date().toISOString() }
+              : item;
+          return {
+            ...prev,
+            complaints: (prev.complaints || []).map(updateItem),
+            employerComplaints: (prev.employerComplaints || []).map(updateItem),
+            conductComplaints: (prev.conductComplaints || []).map(updateItem)
+          };
+        });
         showToast('Official warning note issued to student.');
-        setWarnModal(null);
-        fetchMonitoring();
+        setTimeout(() => {
+          setWarningSuccessModal(false);
+          setWarnModal(null);
+          setActionLoading(false);
+          fetchMonitoring();
+        }, 1400);
       } else {
         alert(res.message || 'Failed to issue warning.');
+        setActionLoading(false);
       }
     } catch (err) {
       alert(err.response?.data?.message || 'Server error issuing warning.');
-    } finally {
       setActionLoading(false);
     }
   };
@@ -450,8 +477,9 @@ export default function InstMonitoring() {
                             Forwarded to Org
                           </span>
                         ) : null}
-                        {c.warning_note_to_student ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                        {(c.warning_note_to_student || justIssuedWarningIds.includes(c.complaint_id)) ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 animate-in zoom-in-95 duration-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                             Warning Issued
                           </span>
                         ) : null}
@@ -494,11 +522,13 @@ export default function InstMonitoring() {
                         onClick={() => {
                           setWarnModal(c);
                           setWarnForm({ warning_note: '' });
+                          setWarningSuccessModal(false);
                         }}
-                        className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg border border-amber-200 hover:bg-amber-100 transition-colors flex items-center gap-1.5"
+                        disabled={Boolean(c.warning_note_to_student) || justIssuedWarningIds.includes(c.complaint_id)}
+                        className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg border border-amber-200 hover:bg-amber-100 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <span className="material-symbols-outlined text-[16px]">warning</span>
-                        Issue Warning to Student
+                        {c.warning_note_to_student || justIssuedWarningIds.includes(c.complaint_id) ? 'Warning Already Issued' : 'Issue Warning to Student'}
                       </button>
                     )}
 
@@ -564,8 +594,9 @@ export default function InstMonitoring() {
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-container text-on-surface-variant">
                           Conduct Report
                         </span>
-                        {c.warning_note_to_student && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                        {(c.warning_note_to_student || justIssuedWarningIds.includes(c.complaint_id)) && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 animate-in zoom-in-95 duration-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                             Warning Sent
                           </span>
                         )}
@@ -604,12 +635,13 @@ export default function InstMonitoring() {
                       onClick={() => {
                         setWarnModal(c);
                         setWarnForm({ warning_note: '' });
+                        setWarningSuccessModal(false);
                       }}
-                      disabled={!!c.warning_note_to_student}
+                      disabled={Boolean(c.warning_note_to_student) || justIssuedWarningIds.includes(c.complaint_id)}
                       className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg border border-amber-200 hover:bg-amber-100 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span className="material-symbols-outlined text-[16px]">warning</span>
-                      {c.warning_note_to_student ? 'Warning Already Issued' : 'Issue Warning to Student'}
+                      {c.warning_note_to_student || justIssuedWarningIds.includes(c.complaint_id) ? 'Warning Already Issued' : 'Issue Warning to Student'}
                     </button>
 
                     <button
@@ -1067,42 +1099,63 @@ export default function InstMonitoring() {
             </div>
 
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
-              <p>This official warning will be recorded on the student's grievance record and they will receive a real-time notification.</p>
+              <p>This official warning can only be issued <strong>once</strong> per incident report. It will be recorded on the student's grievance record and dispatch a real-time notification.</p>
             </div>
 
-            <form onSubmit={handleWarnStudent} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-on-surface mb-1">
-                  Warning Note Content <span className="text-error">*</span>
-                </label>
-                <textarea
-                  required
-                  rows={4}
-                  value={warnForm.warning_note}
-                  onChange={(e) => setWarnForm({ ...warnForm, warning_note: e.target.value })}
-                  placeholder="Detail the warning, expected corrections, and consequences of repeat violations..."
-                  className="w-full p-2.5 bg-surface-container rounded-xl border border-outline-variant text-xs text-on-surface"
-                />
+            {warningSuccessModal ? (
+              <div className="py-8 px-4 text-center space-y-4 animate-in zoom-in-95 duration-300">
+                <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center ring-8 ring-emerald-50 shadow-inner animate-bounce">
+                  <span className="material-symbols-outlined text-[36px]">check_circle</span>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-extrabold text-base text-on-surface">
+                    Official Warning Note Issued!
+                  </h3>
+                  <p className="text-xs text-on-surface-variant max-w-sm mx-auto">
+                    Disciplinary warning has been recorded on the student's institutional record. A real-time notification with full details was dispatched to their student portal.
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20 text-[11px] font-bold">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                  <span>1-Time Warning Applied • Action Disabled</span>
+                </div>
               </div>
+            ) : (
+              <form onSubmit={handleWarnStudent} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-on-surface mb-1">
+                    Warning Note Content <span className="text-error">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={warnForm.warning_note}
+                    onChange={(e) => setWarnForm({ ...warnForm, warning_note: e.target.value })}
+                    placeholder="Detail the warning, expected corrections, and consequences of repeat violations..."
+                    className="w-full p-2.5 bg-surface-container rounded-xl border border-outline-variant text-xs text-on-surface"
+                  />
+                </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setWarnModal(null)}
-                  className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-xl hover:bg-amber-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  <span className="material-symbols-outlined text-[16px]">send</span>
-                  {actionLoading ? 'Sending...' : 'Send Official Warning'}
-                </button>
-              </div>
-            </form>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setWarnModal(null)}
+                    disabled={actionLoading}
+                    className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-xl hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">{actionLoading ? 'hourglass_top' : 'send'}</span>
+                    {actionLoading ? 'Issuing Warning...' : 'Send Official Warning'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

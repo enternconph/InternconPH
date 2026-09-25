@@ -227,20 +227,32 @@ router.get('/dashboard', async (req, res) => {
       [studentId]
     );
 
-    // Active OJT
+    // Active OJT - robust resolution matching OJT Progress module
     const [ojtRows] = await pool.query(
       `SELECT o.*, ho.organization_name, jp.title as job_title
        FROM ojt_records o
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
-       LEFT JOIN job_applications ja ON ja.student_id = o.student_id AND ja.status = 'shortlisted'
+       LEFT JOIN job_applications ja ON ja.student_id = o.student_id AND ja.status IN ('accepted', 'hired', 'shortlisted')
        LEFT JOIN job_postings jp ON ja.job_id = jp.job_id
-       WHERE o.student_id = ? AND o.status = 'ongoing'
-       ORDER BY o.created_at DESC
+       WHERE o.student_id = ?
+       ORDER BY (CASE WHEN o.status IN ('ongoing', 'active', 'accepted', 'in_progress') THEN 0 ELSE 1 END), o.created_at DESC
        LIMIT 1`,
       [studentId]
     );
 
     const activeOjt = ojtRows.length > 0 ? ojtRows[0] : null;
+
+    // Official Institutional Warnings issued to student
+    const [warningRows] = await pool.query(
+      `SELECT c.complaint_id, c.subject, c.description, c.warning_note_to_student, c.warning_sent_at,
+              COALESCE(ho.organization_name, 'Host Training Organization') as organization_name,
+              c.status as complaint_status
+       FROM complaints c
+       LEFT JOIN hiring_organizations ho ON c.organization_id = ho.organization_id
+       WHERE c.student_id = ? AND c.warning_note_to_student IS NOT NULL AND c.warning_note_to_student != ''
+       ORDER BY c.warning_sent_at DESC`,
+      [studentId]
+    );
 
     // Recent applications
     const [recentApps] = await pool.query(
@@ -318,7 +330,8 @@ router.get('/dashboard', async (req, res) => {
           totalCount: dashPortfolioItems.length + resumeCount,
           isGraduated: Boolean(isGraduated),
           isOjtCompleter: Boolean(isOjtCompleter)
-        }
+        },
+        warnings: warningRows || []
       }
     });
   } catch (error) {
@@ -1022,12 +1035,58 @@ router.get('/ojt', async (req, res) => {
       [student.student_id]
     );
 
-    const activeRec = ojtRecords.find(r => r.status === 'ongoing' || r.status === 'active') || ojtRecords[0];
+    let finalRecords = ojtRecords;
+    if (finalRecords.length === 0) {
+      // Check accepted deployment offers
+      const [offerRecords] = await pool.query(
+        `SELECT dof.offer_id as ojt_id, dof.student_id, dof.organization_id,
+                COALESCE(s.required_ojt_hours, p.required_ojt_hours, 600) as required_hours,
+                0 as rendered_hours, 'ongoing' as status,
+                ho.organization_name, ho.industry, ho.contact_email,
+                '' as mentor_first_name, '' as mentor_last_name,
+                'Workplace Mentor' as mentor_title, 'Workplace Mentorship' as mentor_department,
+                '' as mentor_contact
+         FROM ojt_deployment_offers dof
+         JOIN students s ON dof.student_id = s.student_id
+         LEFT JOIN programs p ON s.program_id = p.program_id
+         JOIN hiring_organizations ho ON dof.organization_id = ho.organization_id
+         WHERE dof.student_id = ? AND dof.status IN ('accepted', 'deployed', 'active')
+         ORDER BY dof.created_at DESC LIMIT 1`,
+        [student.student_id]
+      );
+      if (offerRecords.length > 0) {
+        finalRecords = offerRecords;
+      } else {
+        // Check accepted job applications for OJT
+        const [appRecords] = await pool.query(
+          `SELECT ja.application_id as ojt_id, ja.student_id, ho.organization_id,
+                  COALESCE(s.required_ojt_hours, p.required_ojt_hours, 600) as required_hours,
+                  0 as rendered_hours, 'ongoing' as status,
+                  ho.organization_name, ho.industry, ho.contact_email,
+                  '' as mentor_first_name, '' as mentor_last_name,
+                  'Workplace Mentor' as mentor_title, 'Workplace Mentorship' as mentor_department,
+                  '' as mentor_contact
+           FROM job_applications ja
+           JOIN students s ON ja.student_id = s.student_id
+           LEFT JOIN programs p ON s.program_id = p.program_id
+           JOIN job_postings jp ON ja.job_id = jp.job_id
+           JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
+           WHERE ja.student_id = ? AND ja.status IN ('accepted', 'hired')
+           ORDER BY ja.updated_at DESC LIMIT 1`,
+          [student.student_id]
+        );
+        if (appRecords.length > 0) {
+          finalRecords = appRecords;
+        }
+      }
+    }
+
+    const activeRec = finalRecords.find(r => r.status === 'ongoing' || r.status === 'active') || finalRecords[0];
 
     return res.json({
       success: true,
       data: {
-        records: ojtRecords,
+        records: finalRecords,
         evaluations,
         requiredHours: activeRec?.required_hours || student.required_ojt_hours || 600
       }
@@ -3604,13 +3663,17 @@ router.get('/complaints', async (req, res) => {
     if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
 
     const [complaints] = await pool.query(
-      `SELECT c.*, c.student_status, cc.category_name, ho.organization_name, jp.title as job_title
+      `SELECT c.*, c.student_status, 
+              COALESCE(cc.category_name, c.incident_category, 'General Incident / Workplace Report') as category_name, 
+              COALESCE(ho.organization_name, 'Host Training Organization') as organization_name, 
+              jp.title as job_title
        FROM complaints c
-       JOIN complaint_categories cc ON c.category_id = cc.category_id
-       JOIN hiring_organizations ho ON c.organization_id = ho.organization_id
+       LEFT JOIN complaint_categories cc ON c.category_id = cc.category_id
+       LEFT JOIN hiring_organizations ho ON c.organization_id = ho.organization_id
        LEFT JOIN job_postings jp ON c.job_id = jp.job_id
        WHERE c.student_id = ?
-       ORDER BY c.filed_at DESC`,
+       ORDER BY (CASE WHEN c.warning_note_to_student IS NOT NULL AND c.warning_note_to_student != '' THEN 0 ELSE 1 END),
+                COALESCE(c.warning_sent_at, c.filed_at, c.created_at) DESC`,
       [student.student_id]
     );
 
@@ -3642,11 +3705,11 @@ router.get('/complaints', async (req, res) => {
        JOIN students s ON o.student_id = s.student_id
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
        WHERE o.student_id = ?
-       ORDER BY o.created_at DESC`,
+       ORDER BY (CASE WHEN o.status IN ('ongoing', 'active', 'accepted', 'in_progress') THEN 0 ELSE 1 END), o.created_at DESC`,
       [student.student_id]
     );
 
-    let activeOjtPlacement = ojtRows.find(r => r.status === 'ongoing' || r.status === 'active' || r.status === 'in_progress' || r.status === 'accepted') || null;
+    let activeOjtPlacement = ojtRows.find(r => r.status === 'ongoing' || r.status === 'active' || r.status === 'in_progress' || r.status === 'accepted') || ojtRows[0] || null;
 
     if (!activeOjtPlacement) {
       // Check accepted deployment offers
@@ -3746,7 +3809,7 @@ router.get('/complaints', async (req, res) => {
       defaultStatus = 'ongoing_ojt';
     }
 
-    const hasActivePlacement = Boolean(activeOjtPlacement || activeCareerPlacement);
+    const hasActivePlacement = Boolean(activeOjtPlacement || activeCareerPlacement || ojtRows.length > 0);
 
     return res.json({
       success: true,
@@ -3754,8 +3817,8 @@ router.get('/complaints', async (req, res) => {
         complaints,
         categories,
         orgs,
-        assigned_organization: activeOjtPlacement || activeCareerPlacement || null,
-        active_ojt_placement: activeOjtPlacement,
+        assigned_organization: activeOjtPlacement || activeCareerPlacement || (ojtRows[0] ? { organization_id: ojtRows[0].organization_id, organization_name: ojtRows[0].organization_name, industry: ojtRows[0].industry } : null),
+        active_ojt_placement: activeOjtPlacement || (ojtRows[0] ? { organization_id: ojtRows[0].organization_id, organization_name: ojtRows[0].organization_name, industry: ojtRows[0].industry } : null),
         active_career_placement: activeCareerPlacement,
         can_file: hasActivePlacement,
         has_ongoing_ojt: !!activeOjtPlacement,
@@ -3780,13 +3843,13 @@ router.post('/complaints', async (req, res) => {
     const student = await getStudentId(req.user.user_id);
     if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
 
-    // Check ongoing OJT placement
+    // Check ongoing or assigned OJT placement
     const [ojtRows] = await pool.query(
-      `SELECT o.ojt_id, o.organization_id, ho.organization_name
+      `SELECT o.ojt_id, o.organization_id, ho.organization_name, o.status
        FROM ojt_records o
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
-       WHERE o.student_id = ? AND o.status IN ('ongoing', 'active', 'accepted', 'in_progress')
-       ORDER BY o.created_at DESC LIMIT 1`,
+       WHERE o.student_id = ?
+       ORDER BY (CASE WHEN o.status IN ('ongoing', 'active', 'accepted', 'in_progress') THEN 0 ELSE 1 END), o.created_at DESC`,
       [student.student_id]
     );
 
@@ -3818,8 +3881,8 @@ router.post('/complaints', async (req, res) => {
       if (careerRows.length > 0) activeOjt = careerRows[0];
     }
 
-    // If no active host organization is assigned, prevent filing
-    if (!activeOjt) {
+    // If no active host organization is assigned and no target org specified, check if student selected one
+    if (!activeOjt && !organization_id) {
       return res.status(403).json({
         success: false,
         message: 'You cannot file a grievance because you do not have an active Host Organization assigned. Grievance filing is only available for officially placed students and interns.'
