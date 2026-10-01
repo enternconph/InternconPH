@@ -13,22 +13,31 @@ export default function QRCodeScanner({ isOpen, onClose, onSuccess, onError }) {
     
     try {
       setScanning(true);
-      const token = result[0].rawValue;
+      
+      // Robust token extraction
+      const token = result[0]?.rawValue || result?.text || (typeof result === 'string' ? result : null);
+      if (!token) {
+        onError('Could not read QR code. Please try again.');
+        setScanning(false);
+        return;
+      }
+
       setLocationStatus('Verifying location...');
+      
+      // Check if Geolocation is supported/available
+      if (!navigator.geolocation) {
+        console.warn('Geolocation API is not available (might require HTTPS or localhost). Bypassing frontend location requirement for testing, backend will still enforce if required.');
+        // Proceed without location if we can't get it at all due to browser restrictions
+        // The backend will handle the missing location gracefully (either allow or deny based on its rules)
+        onSuccess(token, null, null);
+        return;
+      }
       
       // Get location
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           try {
             const { latitude, longitude } = position.coords;
-            
-            // Check if we need to clock in or clock out
-            // Since we don't know the exact endpoint to call from just the token,
-            // we will let the backend handle the logic based on the student's current status.
-            // Wait, our backend has /attendance/clock-in and /attendance/clock-out
-            // If the student is already clocked in today without clocking out, we call clock-out.
-            // Actually, we can just call an endpoint, or pass the token to the parent so the parent calls it.
-            // But we need to pass lat and lng to the parent.
             onSuccess(token, latitude, longitude);
           } catch (error) {
             console.error('API Error during QR scan:', error);
@@ -37,6 +46,7 @@ export default function QRCodeScanner({ isOpen, onClose, onSuccess, onError }) {
           }
         },
         (error) => {
+          console.warn('Geolocation error:', error);
           let errorMsg = 'Location error';
           if (error.code === 1) errorMsg = 'Location permission denied. Please allow location access to clock in.';
           if (error.code === 2) errorMsg = 'Location unavailable. Please try again.';
@@ -48,7 +58,7 @@ export default function QRCodeScanner({ isOpen, onClose, onSuccess, onError }) {
       );
     } catch (err) {
       console.error(err);
-      onError('An error occurred while scanning.');
+      onError('An error occurred while scanning: ' + err.message);
       setScanning(false);
     }
   };

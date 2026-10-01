@@ -1224,7 +1224,7 @@ export default function StudentOJT() {
         isOpen={isScannerOpen} 
         onClose={() => setIsScannerOpen(false)} 
         onSuccess={handleQRScan}
-        onError={(msg) => showToast(msg, true)}
+        onError={(msg) => { showToast(msg, true); setIsScannerOpen(false); }}
       />
 
       {/* Success Modal */}
