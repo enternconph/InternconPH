@@ -231,6 +231,12 @@ export async function runMigrations() {
     if (!hoColNames.includes('mayors_permit_number')) {
       await pool.query("ALTER TABLE hiring_organizations ADD COLUMN mayors_permit_number VARCHAR(100) NULL AFTER bir_tin");
     }
+    if (!hoColNames.includes('latitude')) {
+      await pool.query("ALTER TABLE hiring_organizations ADD COLUMN latitude DECIMAL(10,6) NULL AFTER address");
+    }
+    if (!hoColNames.includes('longitude')) {
+      await pool.query("ALTER TABLE hiring_organizations ADD COLUMN longitude DECIMAL(11,6) NULL AFTER latitude");
+    }
 
     // 10. Align organization_documents
     await pool.query("ALTER TABLE organization_documents MODIFY COLUMN document_type VARCHAR(100) NOT NULL");
