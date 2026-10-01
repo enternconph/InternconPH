@@ -7,6 +7,8 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { runMigrations } from './config/migrate.js';
 import { initSocket } from './config/socket.js';
 import { pruneStaleSessions } from './utils/session.js';
@@ -38,6 +40,23 @@ runMigrations()
 
 const app = express();
 app.set('trust proxy', 1);
+
+// Global Security Headers to block XSS and enforce standard policies
+app.use(helmet({
+  crossOriginResourcePolicy: false // allowing public static assets
+}));
+
+// Global Rate Limiter
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 500, // Limit each IP to 500 requests per 15 minutes
+  standardHeaders: true, 
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests from this IP, please try again later.' }
+});
+
+// Apply the rate limiting middleware to API routes
+app.use('/api/', apiLimiter);
 
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;

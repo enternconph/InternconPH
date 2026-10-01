@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
+import QRCodeScanner from '../../components/student/QRCodeScanner';
 import { resolveFileUrl, formatFileSize, getFileIcon } from '../../utils/fileHelper';
 
 export default function StudentOJT() {
@@ -24,6 +25,7 @@ export default function StudentOJT() {
 
   // Filter and search states
   const [dtrSearch, setDtrSearch] = useState('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [reqFilter, setReqFilter] = useState('all'); // 'all' | 'mandatory' | 'pending' | 'approved'
 
   // Requirement Submission State
@@ -32,8 +34,8 @@ export default function StudentOJT() {
   const [filePathText, setFilePathText] = useState('');
 
   // Certificate State
-  const [certificates, setCertificates] = useState([]);
-  const [viewCert, setViewCert] = useState(null);
+  
+  
 
   useEffect(() => {
     if (urlTab) {
@@ -47,11 +49,11 @@ export default function StudentOJT() {
 
   const fetchAllOjtData = useCallback(async () => {
     try {
-      const [ojtRes, attRes, reqRes, certRes] = await Promise.all([
+      const [ojtRes, attRes, reqRes] = await Promise.all([
         api.get('/student/ojt'),
         api.get('/student/attendance'),
         api.get('/student/requirements'),
-        api.get('/student/certificates')
+        
       ]);
 
       if (ojtRes.success && ojtRes.data) {
@@ -63,9 +65,7 @@ export default function StudentOJT() {
       if (reqRes.success && reqRes.data) {
         setRequirements(reqRes.data);
       }
-      if (certRes.success && certRes.data) {
-        setCertificates(certRes.data);
-      }
+      
     } catch (err) {
       console.error('Fetch student OJT data error:', err);
     } finally {
@@ -79,6 +79,36 @@ export default function StudentOJT() {
 
   // Real-time synchronization
   useRealtimeRefresh(fetchAllOjtData);
+
+  
+  const handleQRScan = async (token, lat, lng) => {
+    setIsScannerOpen(false);
+    setActionLoading(true);
+    try {
+      // Determine if clocking in or clocking out
+      const isClockingOut = isClockedInToday && !isClockedOutToday;
+      const endpoint = isClockingOut ? '/student/attendance/clock-out' : '/student/attendance/clock-in';
+      
+      const payload = {
+        qr_token: token,
+        latitude: lat,
+        longitude: lng
+      };
+      
+      const res = await api.post(endpoint, payload);
+      if (res.success) {
+        showToast(res.message);
+        fetchAllOjtData(); // refresh data
+      } else {
+        showToast(res.message || 'Failed to process QR code.', true);
+      }
+    } catch (err) {
+      console.error('QR Scan Error:', err);
+      showToast(err.response?.data?.message || 'An error occurred during scanning.', true);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const showToast = (message, isError = false) => {
     setToast({ message, isError });
@@ -313,16 +343,7 @@ export default function StudentOJT() {
               </span>
             )}
           </button>
-          {certificates.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setViewCert(certificates[0])}
-              className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-            >
-              <span className="material-symbols-outlined text-[18px]">workspace_premium</span>
-              <span>OJT Certificate</span>
-            </button>
-          )}
+          
         </div>
       </div>
 
@@ -403,19 +424,17 @@ export default function StudentOJT() {
                   Required OJT Training Hours Satisfied ({doneHours} / {reqHours} hrs)
                 </h4>
                 <p className="text-xs text-emerald-800 dark:text-emerald-200 leading-relaxed">
-                  Congratulations! You have fulfilled your required training hours. Daily Time Record shifts have been finalized. Please ensure your Clearance Checklist documents are fully submitted and approved for final certificate release.
+                  Congratulations! You have fulfilled your required training hours. Daily Time Record shifts have been finalized. Your Daily Time Record shifts have been finalized. You can now view your overall performance and evaluations below.
                 </p>
               </div>
-              {certificates.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setViewCert(certificates[0])}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shrink-0 transition-colors shadow-sm flex items-center gap-1.5"
-                >
-                  <span className="material-symbols-outlined text-[16px]">workspace_premium</span>
-                  <span>View Certificate</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setActiveTab('evaluations')}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shrink-0 transition-colors shadow-sm flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[16px]">monitoring</span>
+                <span>View Performance & Evaluation</span>
+              </button>
             </div>
           )}
 
@@ -447,15 +466,21 @@ export default function StudentOJT() {
                     <span>Shift Completed • {todayLog.hours_rendered || 0} hrs Credited</span>
                   </span>
                 ) : isClockedInToday ? (
-                  <span className="px-3.5 py-1.5 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-bold flex items-center gap-1.5 border border-emerald-500/20">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>On Duty • Timed-In by Mentor</span>
-                  </span>
+                  <button 
+                    onClick={() => setIsScannerOpen(true)}
+                    className="px-4 py-2 bg-vibrant-orange hover:bg-orange-600 text-white rounded-full text-xs font-bold flex items-center gap-2 transition-colors shadow-md"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+                    <span>Scan to Clock Out</span>
+                  </button>
                 ) : (
-                  <span className="px-3.5 py-1.5 bg-amber-500/15 text-amber-700 dark:text-amber-300 rounded-full text-xs font-bold flex items-center gap-1.5 border border-amber-500/20">
-                    <span className="material-symbols-outlined text-[16px]">hourglass_top</span>
-                    <span>Awaiting Mentor Time-In</span>
-                  </span>
+                  <button 
+                    onClick={() => setIsScannerOpen(true)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-xs font-bold flex items-center gap-2 transition-colors shadow-md"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+                    <span>Scan to Clock In</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -1149,88 +1174,14 @@ export default function StudentOJT() {
       )}
 
       {/* ========================================================================= */}
-      {/* OJT CERTIFICATE VIEWER MODAL */}
-      {/* ========================================================================= */}
-      {viewCert && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-emerald-600 text-2xl">workspace_premium</span>
-                <div>
-                  <h3 className="font-bold text-base text-on-surface">OJT Completion Certificate</h3>
-                  <p className="text-xs text-on-surface-variant">Verified Academic & Internship Credential</p>
-                </div>
-              </div>
-              <button onClick={() => setViewCert(null)} className="text-on-surface-variant hover:text-on-surface">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            {/* Certificate Canvas */}
-            <div className="border-4 border-double border-emerald-600/40 p-8 rounded-2xl bg-gradient-to-br from-emerald-50/40 via-white to-amber-50/30 dark:from-emerald-950/20 dark:via-surface dark:to-amber-950/10 text-center space-y-4 relative shadow-inner">
-              <div className="space-y-1">
-                <span className="text-[11px] uppercase tracking-widest text-emerald-700 dark:text-emerald-300 font-black">Official Certificate of Completion</span>
-                <h4 className="text-2xl font-black text-on-surface font-serif">INTERNSHIP COMPLETION</h4>
-                <p className="text-xs text-on-surface-variant">This is to officially certify that</p>
-              </div>
-
-              <div className="py-2 border-b-2 border-emerald-600/30 inline-block px-8">
-                <span className="text-xl font-bold text-emerald-900 dark:text-emerald-100 tracking-wide">
-                  {viewCert.student_name}
-                </span>
-                <p className="text-xs text-on-surface-variant mt-0.5">Student ID: #{viewCert.student_number}</p>
-              </div>
-
-              <p className="text-xs text-on-surface-variant max-w-md mx-auto leading-relaxed">
-                has satisfactorily completed the required <strong>{viewCert.rendered_hours || viewCert.required_hours || 600} hours</strong> of On-the-Job Training in <strong>{viewCert.program_name || 'Degree Program'}</strong> from <strong>{viewCert.institution_name}</strong> at <strong>{viewCert.organization_name}</strong>.
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 text-left border-t border-outline-variant/60 text-xs">
-                <div>
-                  <span className="text-on-surface-variant block text-[11px]">Evaluation Rating:</span>
-                  <span className="font-bold text-emerald-700 dark:text-emerald-300 text-sm">
-                    {viewCert.evaluation_rating ? `${viewCert.evaluation_rating} / 5.0 ⭐` : 'Completed & Recommended'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-on-surface-variant block text-[11px]">Date Issued:</span>
-                  <span className="font-bold text-on-surface">
-                    {viewCert.issued_at ? new Date(viewCert.issued_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
-                  </span>
-                </div>
-              </div>
-
-              <div className="pt-2 text-center">
-                <span className="inline-block px-3 py-1 bg-emerald-100/60 dark:bg-emerald-900/50 rounded-full text-[11px] font-mono font-bold text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
-                  VERIFICATION CODE: {viewCert.certificate_code}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-3 pt-2">
-              <span className="text-[11px] text-on-surface-variant text-center sm:text-left">Added to your Digital Career Portfolio & Credentials</span>
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setViewCert(null)}
-                  className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high w-full sm:w-auto text-center transition-colors"
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5 w-full sm:w-auto text-center"
-                >
-                  <span className="material-symbols-outlined text-[16px]">print</span>
-                  <span>Print / Download</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      
+    
+      <QRCodeScanner 
+        isOpen={isScannerOpen} 
+        onClose={() => setIsScannerOpen(false)} 
+        onSuccess={handleQRScan}
+        onError={(msg) => showToast(msg, true)}
+      />
     </div>
   );
 }

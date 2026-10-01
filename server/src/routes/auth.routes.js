@@ -46,12 +46,7 @@ const instUpload = multer({
   { name: 'other_doc_file', maxCount: 1 }
 ]);
 
-// Helper to generate JWT token
-const generateToken = (payload) => {
-  return jwt.sign(payload, process.env.JWT_SECRET || 'internconph_jwt_secret_2026_super_key', {
-    expiresIn: '7d'
-  });
-};
+
 
 /**
  * Validates whether a phone number adheres to Philippine standards.
@@ -362,18 +357,11 @@ router.post('/login', async (req, res) => {
     const cookieOptions = getSessionCookieOptions(req);
     res.cookie('interncon_session', session.rawToken, cookieOptions);
 
-    // Generate JWT token as well for dual compatibility / API clients
-    const token = generateToken({
-      ...roleData,
-      session_id: session.sessionId
-    });
+
 
     return res.json({
       success: true,
       message: 'Login successful.',
-      token,
-      session_token: session.rawToken,
-      session_id: session.sessionId,
       user: roleData
     });
   } catch (error) {

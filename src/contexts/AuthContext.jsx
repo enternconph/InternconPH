@@ -17,16 +17,7 @@ export const AuthProvider = ({ children }) => {
   // Synchronize authentication state across multiple browser tabs
   useEffect(() => {
     const handleStorageChange = (e) => {
-      if (e.key === 'token') {
-        if (!e.newValue) {
-          setUser(null);
-        } else {
-          const savedUser = localStorage.getItem('user');
-          try {
-            if (savedUser) setUser(JSON.parse(savedUser));
-          } catch (_) {}
-        }
-      } else if (e.key === 'user') {
+      if (e.key === 'user') {
         if (!e.newValue) {
           setUser(null);
         } else {
@@ -52,24 +43,17 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('token');
       try {
         const res = await api.get('/auth/me');
         if (res.success && res.user) {
           setUser(res.user);
           localStorage.setItem('user', JSON.stringify(res.user));
-          if (res.token) {
-            localStorage.setItem('token', res.token);
-          }
         } else {
-          localStorage.removeItem('token');
           localStorage.removeItem('user');
           setUser(null);
         }
       } catch (err) {
-        if (!token) {
-          setUser(null);
-        }
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -80,14 +64,11 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     // Purge any residual or previous session state before logging in
-    localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
 
     const res = await api.post('/auth/login', { email, password });
-    if (res.success && (res.token || res.session_token)) {
-      const activeToken = res.token || res.session_token;
-      localStorage.setItem('token', activeToken);
+    if (res.success) {
       localStorage.setItem('user', JSON.stringify(res.user));
       setUser(res.user);
       return { success: true, user: res.user };
@@ -99,7 +80,6 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.post('/auth/logout');
     } catch (_) {}
-    localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
   };

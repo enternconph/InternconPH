@@ -31,7 +31,7 @@ export default function AdminOrganizations() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
 
-  const token = localStorage.getItem('token') || '';
+
 
   const fetchOrgs = useCallback(async () => {
     try {
@@ -382,8 +382,8 @@ export default function AdminOrganizations() {
                   ) : (
                     <div className="space-y-2.5">
                       {orgDetail.documents.map((doc, idx) => {
-                        const viewUrl = `/api/admin/documents/${doc.document_id}/view?token=${token}`;
-                        const downloadUrl = `/api/admin/documents/${doc.document_id}/download?token=${token}`;
+                        const viewUrl = `/api/admin/documents/${doc.document_id}/view`;
+                        const downloadUrl = `/api/admin/documents/${doc.document_id}/download`;
 
                         return (
                           <div

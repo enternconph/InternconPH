@@ -1,4 +1,5 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import multer from 'multer';
 import path from 'path';
@@ -1212,35 +1213,56 @@ router.delete('/attendance/:id', async (req, res) => {
   }
 });
 
+
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2-lat1) * (Math.PI/180);
+  const dLon = (lon2-lon1) * (Math.PI/180);
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * (Math.PI/180)) * Math.cos(lat2 * (Math.PI/180)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  return R * c; 
+}
+
 // POST /api/student/attendance/clock-in
 router.post('/attendance/clock-in', async (req, res) => {
+  const { qr_token, latitude, longitude } = req.body;
   try {
     const student = await getStudentId(req.user.user_id);
     if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
 
-    // Must have ongoing OJT
+    if (!qr_token) return res.status(400).json({ success: false, message: 'QR Code is required.' });
+
+    let decoded;
+    try {
+      decoded = jwt.verify(qr_token, process.env.JWT_SECRET || 'fallback_secret');
+    } catch (e) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired QR code.' });
+    }
+
+    if (decoded.type !== 'dtr_attendance') return res.status(400).json({ success: false, message: 'Invalid QR code type.' });
+
+    // Verify OJT deployment
     const [ojts] = await pool.query(
-      "SELECT * FROM ojt_records WHERE student_id = ? AND status = 'ongoing' ORDER BY created_at DESC LIMIT 1",
+      "SELECT o.*, h.latitude as org_lat, h.longitude as org_lon FROM ojt_records o JOIN hiring_organizations h ON o.organization_id = h.organization_id WHERE o.student_id = ? AND o.status = 'ongoing' ORDER BY o.created_at DESC LIMIT 1",
       [student.student_id]
     );
 
-    if (ojts.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'You do not have an active/ongoing OJT deployment to clock in to.'
-      });
+    if (ojts.length === 0) return res.status(400).json({ success: false, message: 'No active OJT deployment found.' });
+    
+    const ojt = ojts[0];
+    if (ojt.organization_id !== decoded.org_id) {
+      return res.status(400).json({ success: false, message: 'QR code belongs to a different organization.' });
     }
 
-    const ojt = ojts[0];
-
-    // Disable clock-in if student has completed required OJT hours or status is completed
-    const reqHours = Number(ojt.required_hours) || 600;
-    const renHours = Number(ojt.rendered_hours) || 0;
-    if (ojt.status === 'completed' || renHours >= reqHours) {
-      return res.status(400).json({
-        success: false,
-        message: 'You have already completed your required OJT training hours. Time In is disabled.'
-      });
+    // Verify Location if lat/lon is provided and org has location setup
+    if (ojt.org_lat && ojt.org_lon && latitude && longitude) {
+      const distance = getDistanceFromLatLonInKm(latitude, longitude, ojt.org_lat, ojt.org_lon);
+      if (distance > 0.5) { // 500 meters radius limit
+        return res.status(400).json({ success: false, message: 'You must be at the organization premises to time in. Location out of bounds.' });
+      }
     }
 
     // Check if already clocked in today
@@ -1249,16 +1271,12 @@ router.post('/attendance/clock-in', async (req, res) => {
       [student.student_id, ojt.ojt_id]
     );
 
-    if (existing.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `You have already clocked in today at ${existing[0].time_in}.`
-      });
-    }
+    if (existing.length > 0) return res.status(400).json({ success: false, message: 'You have already clocked in today.' });
 
+    // Note: status is set to 'approved' automatically instead of 'pending' since system handles it now
     const [resRow] = await pool.query(
       `INSERT INTO ojt_attendance_logs (ojt_id, student_id, log_date, time_in, status, created_at, updated_at)
-       VALUES (?, ?, CURRENT_DATE(), CURRENT_TIME(), 'pending', NOW(), NOW())`,
+       VALUES (?, ?, CURRENT_DATE(), CURRENT_TIME(), 'approved', NOW(), NOW())`,
       [ojt.ojt_id, student.student_id]
     );
 
@@ -1266,7 +1284,7 @@ router.post('/attendance/clock-in', async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Clocked in successfully! Have a productive training day.',
+      message: 'Clocked in successfully!',
       data: { attendance_id: resRow.insertId }
     });
   } catch (error) {
@@ -1277,69 +1295,77 @@ router.post('/attendance/clock-in', async (req, res) => {
 
 // POST /api/student/attendance/clock-out
 router.post('/attendance/clock-out', async (req, res) => {
-  const { tasks_accomplished } = req.body;
+  const { tasks_accomplished, qr_token, latitude, longitude } = req.body;
 
   try {
     const student = await getStudentId(req.user.user_id);
     if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
 
+    if (!qr_token) return res.status(400).json({ success: false, message: 'QR Code is required.' });
+
+    let decoded;
+    try {
+      decoded = jwt.verify(qr_token, process.env.JWT_SECRET || 'fallback_secret');
+    } catch (e) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired QR code.' });
+    }
+
+    if (decoded.type !== 'dtr_attendance') return res.status(400).json({ success: false, message: 'Invalid QR code type.' });
+
     // Find today's open clock-in log
-    const [existing] = await pool.query(
-      `SELECT * FROM ojt_attendance_logs 
-       WHERE student_id = ? AND log_date = CURRENT_DATE() AND time_out IS NULL 
-       ORDER BY time_in DESC LIMIT 1`,
+    const [existingLogs] = await pool.query(
+      `SELECT al.*, o.organization_id, h.latitude as org_lat, h.longitude as org_lon 
+       FROM ojt_attendance_logs al 
+       JOIN ojt_records o ON al.ojt_id = o.ojt_id 
+       JOIN hiring_organizations h ON o.organization_id = h.organization_id
+       WHERE al.student_id = ? AND al.log_date = CURRENT_DATE() AND al.time_out IS NULL 
+       ORDER BY al.time_in DESC LIMIT 1`,
       [student.student_id]
     );
 
-    if (existing.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No active clock-in found for today. Please clock in first.'
-      });
+    if (existingLogs.length === 0) {
+      return res.status(400).json({ success: false, message: 'No active clock-in found for today. Please clock in first.' });
     }
 
-    const log = existing[0];
+    const log = existingLogs[0];
+    if (log.organization_id !== decoded.org_id) {
+      return res.status(400).json({ success: false, message: 'QR code belongs to a different organization.' });
+    }
 
-    // Compute approximate hours
+    if (log.org_lat && log.org_lon && latitude && longitude) {
+      const distance = getDistanceFromLatLonInKm(latitude, longitude, log.org_lat, log.org_lon);
+      if (distance > 0.5) {
+        return res.status(400).json({ success: false, message: 'You must be at the organization premises to time out. Location out of bounds.' });
+      }
+    }
+
     await pool.query(
       `UPDATE ojt_attendance_logs 
        SET time_out = CURRENT_TIME(),
            hours_rendered = ROUND(GREATEST(0, (TIME_TO_SEC(TIMEDIFF(CURRENT_TIME(), time_in)) / 3600)), 2),
            tasks_accomplished = ?,
-           updated_at = NOW()
+           updated_at = NOW() 
        WHERE attendance_id = ?`,
       [tasks_accomplished || 'Completed daily assigned training tasks.', log.attendance_id]
     );
 
-    emitUpdate('attendance_logged', { ojt_id: log.ojt_id, student_id: student.student_id });
-
-    // Notify organization mentors
-    const [orgStaff] = await pool.query(
-      `SELECT user_id FROM organization_staff WHERE organization_id = (
-         SELECT organization_id FROM ojt_records WHERE ojt_id = ?
-       )`,
-      [log.ojt_id]
+    // After updating, recalculate total OJT hours
+    await pool.query(
+      `UPDATE ojt_records 
+       SET rendered_hours = (SELECT COALESCE(SUM(hours_rendered), 0) FROM ojt_attendance_logs WHERE ojt_id = ? AND status = 'approved')
+       WHERE ojt_id = ?`,
+      [log.ojt_id, log.ojt_id]
     );
-    for (const staff of orgStaff) {
-      if (staff.user_id) {
-        await sendNotification({
-          userId: staff.user_id,
-          title: 'DTR Clock-Out Submitted',
-          message: `${student.first_name} ${student.last_name} submitted daily time log for mentor review.`,
-          type: 'ojt'
-        });
-      }
-    }
 
-    return res.json({
-      success: true,
-      message: 'Clocked out successfully! Your daily time log has been submitted for Workplace Mentor verification.'
-    });
+    emitUpdate('attendance_logged', { ojt_id: log.ojt_id, student_id: student.student_id, organization_id: log.organization_id });
+
+    return res.status(200).json({ success: true, message: 'Clocked out successfully!' });
   } catch (error) {
     console.error('Clock out error:', error);
     return res.status(500).json({ success: false, message: 'Failed to clock out: ' + error.message });
   }
 });
+
 
 // GET /api/student/profile
 router.get('/profile', async (req, res) => {

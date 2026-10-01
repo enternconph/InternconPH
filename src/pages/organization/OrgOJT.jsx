@@ -3,6 +3,7 @@ import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, formatPortfolioTitle, formatFileSubtitle, formatCleanFileName } from '../../utils/fileHelper';
 import Pagination from '../../components/ui/Pagination';
+import QRCode from 'react-qr-code';
 
 export default function OrgOJT() {
   const [interns, setInterns] = useState([]);
@@ -23,12 +24,37 @@ export default function OrgOJT() {
   const [submittingIncident, setSubmittingIncident] = useState(false);
 
   // Mentor Time-Out Confirmation Modal (Automated calculation, no manual time/hour inputs)
-  const [showTimeOutModal, setShowTimeOutModal] = useState(false);
-  const [timeOutStudent, setTimeOutStudent] = useState(null);
-  const [timeOutForm, setTimeOutForm] = useState({
-    tasks_accomplished: ''
-  });
-  const [submittingTimeOut, setSubmittingTimeOut] = useState(false);
+  
+  
+  
+  
+
+  // QR Code Generation States
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrToken, setQrToken] = useState('');
+  const [qrLoading, setQrLoading] = useState(false);
+
+  // Auto-refresh QR token every 10 seconds when modal is open
+  useEffect(() => {
+    let interval;
+    if (showQRModal) {
+      const fetchQR = async () => {
+        try {
+          const res = await api.get('/org/dtr/qr');
+          if (res.success && res.token) {
+            setQrToken(res.token);
+          }
+        } catch (err) {
+          console.error('QR fetch error', err);
+        }
+      };
+      fetchQR(); // initial fetch
+      interval = setInterval(fetchQR, 10000); // 10 seconds refresh
+    } else {
+      setQrToken('');
+    }
+    return () => clearInterval(interval);
+  }, [showQRModal]);
 
   // Intern Portfolio Modal
   const [inspectInternId, setInspectInternId] = useState(null);
@@ -88,57 +114,9 @@ export default function OrgOJT() {
     }
   };
 
-  const handleQuickTimeIn = async (intern) => {
-    const req = intern.required_hours || intern.required_ojt_hours || 600;
-    const done = intern.rendered_hours || 0;
-    if (intern.status === 'completed' || done >= req) {
-      showToast('Intern has already completed required OJT hours. Additional time recording is disabled.', true);
-      return;
-    }
-    try {
-      const res = await api.post(`/org/interns/${intern.ojt_id}/time-in`, {});
-      if (res.success) {
-        showToast(res.message || `Timed in ${intern.first_name}!`);
-        fetchData();
-      } else {
-        showToast(res.message || 'Failed to record time in.', true);
-      }
-    } catch (err) {
-      showToast(err.message || 'Error recording time in.', true);
-    }
-  };
-
-  const openTimeOutModal = (intern) => {
-    setTimeOutStudent(intern);
-    setTimeOutForm({
-      tasks_accomplished: intern.today_tasks || ''
-    });
-    setShowTimeOutModal(true);
-  };
-
-  const handleTimeOutSubmit = async (e) => {
-    e.preventDefault();
-    if (!timeOutStudent) return;
-    setSubmittingTimeOut(true);
-    try {
-      const res = await api.post(`/org/interns/${timeOutStudent.ojt_id}/time-out`, {
-        tasks_accomplished: timeOutForm.tasks_accomplished
-      });
-      if (res.success) {
-        showToast(res.message || `Timed out and credited training hours for ${timeOutStudent.first_name}!`);
-        setShowTimeOutModal(false);
-        setTimeOutStudent(null);
-        fetchData();
-      } else {
-        showToast(res.message || 'Failed to record time out.', true);
-      }
-    } catch (err) {
-      showToast(err.message || 'Error recording time out.', true);
-    } finally {
-      setSubmittingTimeOut(false);
-    }
-  };
-
+  
+  
+  
   const handleSubmitIncident = async (e) => {
     e.preventDefault();
     if (!incidentStudent) return;
@@ -247,6 +225,13 @@ export default function OrgOJT() {
           <span className="material-symbols-outlined text-[16px] text-vibrant-orange">schedule</span>
           <span className="font-bold">Philippine Standard Time (UTC+8)</span>
         </div>
+        <button
+          onClick={() => setShowQRModal(true)}
+          className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2 self-start sm:self-auto"
+        >
+          <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+          Generate DTR QR
+        </button>
       </div>
 
       {message && (
@@ -357,7 +342,7 @@ export default function OrgOJT() {
                   <th className="py-3 px-4">University & Program</th>
                   <th className="py-3 px-4">Position & Schedule (PST)</th>
                   <th className="py-3 px-4">Rendered / Required</th>
-                  <th className="py-3 px-4">Today's Attendance (Mentor Handled)</th>
+                  <th className="py-3 px-4">Today's Attendance</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -436,19 +421,11 @@ export default function OrgOJT() {
                         ) : !intern.today_time_in ? (
                           <div className="flex items-center gap-2">
                             <span className="text-[11px] text-on-surface-variant font-medium">Not Timed In</span>
-                            <button
-                              onClick={() => handleQuickTimeIn(intern)}
-                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-xs"
-                              title="Time in student for today (PST)"
-                            >
-                              <span className="material-symbols-outlined text-[15px]">login</span>
-                              <span>Time In</span>
-                            </button>
                           </div>
                         ) : !intern.today_time_out ? (
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="flex items-center gap-1">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse font-mono">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono">
                                 In: {intern.today_time_in.slice(0, 5)}
                               </span>
                               <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
@@ -459,14 +436,7 @@ export default function OrgOJT() {
                                 {intern.today_time_in_status === 'late' ? 'Late' : 'On-Time'}
                               </span>
                             </div>
-                            <button
-                              onClick={() => openTimeOutModal(intern)}
-                              className="px-2.5 py-1 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-xs"
-                              title="Time out student and credit training hours"
-                            >
-                              <span className="material-symbols-outlined text-[15px]">logout</span>
-                              <span>Time Out</span>
-                            </button>
+                            <span className="text-[11px] text-on-surface-variant font-medium animate-pulse">Working...</span>
                           </div>
                         ) : (
                           <div className="space-y-1">
@@ -612,92 +582,34 @@ export default function OrgOJT() {
         </div>
       )}
 
-      {/* Mentor Time-Out Confirmation Modal (Automated calculation, anti-manipulation) */}
-      {showTimeOutModal && timeOutStudent && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 max-h-[90dvh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-              <h3 className="font-bold text-base text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-vibrant-orange">logout</span>
-                Record Student Daily Time-Out
-              </h3>
-              <button onClick={() => setShowTimeOutModal(false)} className="text-on-surface-variant hover:text-on-surface">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            <div className="p-3 bg-surface-container rounded-xl text-xs space-y-1.5">
-              <p className="font-bold text-on-surface">
-                Intern: {timeOutStudent.first_name} {timeOutStudent.last_name} (#{timeOutStudent.student_number})
-              </p>
-              <p className="text-on-surface-variant">{timeOutStudent.institution_name} • {timeOutStudent.program_name}</p>
-              
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-outline-variant">
-                <div>
-                  <span className="text-[10px] text-on-surface-variant block">Today's Time-In:</span>
-                  <span className="font-mono font-bold text-emerald-700">
-                    {formatPHTTime(timeOutStudent.today_time_in)}
-                  </span>
-                  <span className={`ml-1 text-[9px] px-1 py-0.2 rounded font-bold uppercase ${
-                    timeOutStudent.today_time_in_status === 'late'
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-emerald-100 text-emerald-800'
-                  }`}>
-                    {timeOutStudent.today_time_in_status === 'late' ? 'Late' : 'On-Time'}
-                  </span>
+      {/* QR Generation Modal */}
+      {showQRModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-surface rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in fade-in flex flex-col items-center text-center">
+            <h3 className="font-bold text-lg text-on-surface mb-2 flex items-center gap-2">
+              <span className="material-symbols-outlined text-vibrant-orange">qr_code</span>
+              DTR Scanner QR
+            </h3>
+            <p className="text-xs text-on-surface-variant mb-6">
+              Ask your interns to scan this QR code using the InternCon.PH student dashboard to Time In or Time Out. This code refreshes automatically every 10 seconds.
+            </p>
+            
+            <div className="bg-white p-4 rounded-2xl shadow-inner border border-outline-variant mb-6 inline-block">
+              {qrToken ? (
+                <QRCode value={qrToken} size={200} level="H" />
+              ) : (
+                <div className="w-[200px] h-[200px] flex items-center justify-center bg-surface-container-low rounded-xl">
+                  <div className="animate-spin rounded-full h-8 w-8 border-4 border-vibrant-orange border-t-transparent"></div>
                 </div>
-                <div>
-                  <span className="text-[10px] text-on-surface-variant block">Target Schedule:</span>
-                  <span className="font-mono text-on-surface font-semibold">
-                    {timeOutStudent.scheduled_start_time || '08:00'} - {timeOutStudent.scheduled_finish_time || '17:00'}
-                  </span>
-                </div>
-              </div>
+              )}
             </div>
 
-            {/* Anti-manipulation info banner */}
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-2 text-xs text-blue-900">
-              <span className="material-symbols-outlined text-[18px] text-blue-600 shrink-0 mt-0.5">verified_user</span>
-              <div className="space-y-0.5">
-                <p className="font-bold">Automated Attendance & Overtime Capping</p>
-                <p className="text-[11px] text-blue-800 leading-relaxed">
-                  Time-out timestamp is automatically captured using Philippine Standard Time (UTC+8). If the student departs after scheduled finish time ({timeOutStudent.scheduled_finish_time || '17:00'}), additional overtime will <strong>not</strong> be credited to required OJT hours.
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleTimeOutSubmit} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-on-surface mb-1">
-                  Tasks Accomplished / Training Notes (Optional)
-                </label>
-                <textarea
-                  rows={3}
-                  value={timeOutForm.tasks_accomplished}
-                  onChange={(e) => setTimeOutForm({ ...timeOutForm, tasks_accomplished: e.target.value })}
-                  placeholder="e.g. Completed module assignments, participated in design review, finalized deliverables..."
-                  className="w-full p-2.5 bg-surface-container rounded-xl border border-outline-variant text-xs text-on-surface outline-none focus:border-vibrant-orange"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowTimeOutModal(false)}
-                  className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingTimeOut}
-                  className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange text-white text-xs font-bold rounded-xl transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
-                >
-                  <span className="material-symbols-outlined text-[16px]">logout</span>
-                  <span>{submittingTimeOut ? 'Recording Time-Out...' : 'Confirm Time-Out (PST)'}</span>
-                </button>
-              </div>
-            </form>
+            <button
+              onClick={() => setShowQRModal(false)}
+              className="w-full px-4 py-2.5 bg-surface-container text-on-surface text-sm font-bold rounded-xl hover:bg-surface-container-high transition-colors"
+            >
+              Close Window
+            </button>
           </div>
         </div>
       )}

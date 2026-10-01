@@ -31,7 +31,7 @@ export default function AdminInstitutions() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
 
-  const token = localStorage.getItem('token') || '';
+
 
   const fetchInstitutions = useCallback(async () => {
     try {
@@ -380,8 +380,8 @@ export default function AdminInstitutions() {
                   ) : (
                     <div className="space-y-2.5">
                       {instDetail.documents.map((doc, idx) => {
-                        const viewUrl = `/api/admin/documents/${doc.document_id}/view?type=institution&token=${token}`;
-                        const downloadUrl = `/api/admin/documents/${doc.document_id}/download?type=institution&token=${token}`;
+                        const viewUrl = `/api/admin/documents/${doc.document_id}/view?type=institution`;
+                        const downloadUrl = `/api/admin/documents/${doc.document_id}/download?type=institution`;
                         const isSelfDeclared = doc.file_path && doc.file_path.startsWith('Ref:');
 
                         return (

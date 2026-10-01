@@ -4,19 +4,12 @@ const API_BASE = RAW_API_URL ? (RAW_API_URL.endsWith('/api') ? RAW_API_URL : `${
 let isRedirectingToLogin = false;
 
 export async function apiRequest(endpoint, options = {}) {
-  const token = localStorage.getItem('token');
   const isFormData = options.body instanceof FormData;
 
   const headers = {
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...options.headers,
   };
-
-  // On login requests, never send stale Authorization header from a previous session
-  if (endpoint.includes('/login')) {
-    delete headers['Authorization'];
-  }
 
   const response = await fetch(`${API_BASE}${endpoint}`, {
     cache: 'no-store',
@@ -28,8 +21,7 @@ export async function apiRequest(endpoint, options = {}) {
   const data = await response.json().catch(() => ({ success: false, message: 'Invalid response from server' }));
 
   if (!response.ok && response.status === 401) {
-    // If unauthorized, clean up stale tokens
-    localStorage.removeItem('token');
+    // If unauthorized, clean up stale session state
     localStorage.removeItem('user');
 
     // Only redirect to login if the user is currently on a protected route.

@@ -1,0 +1,896 @@
+---
+title: "INTERNCONPH"
+subtitle: "Simple OJT Management System"
+---
+
+**System Workflow and Functional Guide**
+
+# 1. SYSTEM OVERVIEW
+
+**Stop Chasing Paperwork and Track Internships in Real-Time**
+
+Managing student internships involves endless paper forms and disconnected communication. InternConPH centralizes your entire OJT process so you oversee every student from preparation to completion.
+
+* **Speed up approvals:** Review student requirements and accounts in one click.
+* **Monitor accurate attendance:** Track student hours automatically using secure, daily QR code scans.
+* **Streamline evaluations:** Receive supervisor feedback directly into the platform.
+
+Your students stay accountable, and you eliminate lost records. Worried about a complicated setup? The system imports your student lists directly to skip manual data entry.
+
+[Start Tracking Your Interns Today]
+
+# 2. GOAL OF THE SYSTEM
+
+The main goal of InternConPH is to provide a **simple and organized web-based platform for managing the complete OJT process of students**.
+
+Specifically, the system aims to:
+
+1. Organize student OJT requirements in one place.
+2. Help the institution manage and monitor student OJT placements.
+3. Record student attendance through QR-based Daily Time Records.
+4. Allow supervisors to verify the student's attendance and rendered hours.
+5. Allow supervisors to evaluate student performance during and after the OJT.
+6. Allow students to monitor their OJT progress and remaining required hours.
+7. Allow students to submit their OJT journal, narrative report, and supporting evidence.
+8. Allow the institution to review the student's final requirements.
+9. Provide a complete digital record of the student's OJT.
+10. Reduce the use of paper-based attendance sheets and OJT documents.
+
+# 3. SIMPLE SYSTEM CONCEPT
+
+InternConPH follows one main process:
+
+**Prepare → Deploy → Monitor → Evaluate → Complete**
+
+### Prepare
+
+The student registers, the coordinator approves the account, and the student submits the required OJT documents.
+
+### Deploy
+
+The institution approves the requirements and records the student's OJT placement.
+
+### Monitor
+
+The student attends the OJT, records attendance through QR, and submits journals.
+
+### Evaluate
+
+The organization supervisor evaluates the student's performance.
+
+### Complete
+
+After completing the required hours, the student submits the final narrative report and evidence. The institution reviews the submission and confirms completion.
+
+# 4. SYSTEM USERS
+
+The system has four main types of users.
+
+## 4.1 System Administrator
+
+The System Administrator manages the overall system.
+
+### Main functions:
+
+* Manage user accounts
+* Manage institution accounts
+* Manage organization accounts
+* Verify organization registration
+* View system records
+* Handle incident reports escalated by the institution or the student
+* Maintain basic system settings
+
+The administrator does not manage the student's daily OJT activities.
+
+## 4.2 Institution / OJT Coordinator
+
+The Institution or OJT Coordinator manages the students' OJT activities.
+
+### Main functions:
+
+* Manage students
+* Add or import student records
+* Approve or reject student account registrations
+* Set required OJT hours
+* Review student requirements
+* Approve or return requirements
+* Record and approve OJT placements
+* Monitor student attendance
+* Monitor rendered hours
+* View student journals
+* View supervisor evaluations
+* Review and record action on student incident reports
+* Review final narrative reports
+* Confirm OJT completion and record the OJT result (Passed or Failed)
+* Generate basic OJT reports
+
+## 4.3 Student
+
+The student uses InternConPH to manage their own OJT records.
+
+### Main functions:
+
+* Register an account and accept the data privacy consent
+* Complete their profile
+* Submit OJT requirements
+* View requirement status
+* View OJT placement
+* Display their attendance QR code
+* View DTR records
+* Request an attendance correction for a missed or wrong record
+* View completed and remaining hours
+* Submit OJT journal
+* View evaluation results
+* Report an OJT concern
+* Submit narrative report
+* Upload OJT photos and supporting evidence
+* View OJT completion status
+
+## 4.4 Organization / OJT Supervisor
+
+The host organization manages the student's workplace activities.
+
+### Main functions:
+
+* View assigned interns
+* View student OJT information
+* Scan the student's QR code
+* Record time-in and time-out
+* Verify or reject attendance
+* Approve or reject attendance correction requests
+* View rendered hours
+* Submit student evaluation
+* Add evaluation comments
+* Confirm the student's OJT completion information
+
+The organization may have an HR account and a Supervisor account, but both are part of the same organization.
+
+* **HR account:** manages the organization profile, assigns supervisors to interns, and can view all interns of the organization.
+* **Supervisor account:** scans QR codes, verifies attendance, and submits evaluations for the interns assigned to that supervisor only.
+
+# 5. SIMPLE OJT WORKFLOW
+
+The complete system follows this flow:
+
+```text
+Student Registration
+        ↓
+Coordinator Approves Account
+        ↓
+Submit OJT Requirements
+        ↓
+Institution Reviews Requirements
+        ↓
+Requirements Approved
+        ↓
+OJT Placement
+        ↓
+Organization / Supervisor Assigned
+        ↓
+OJT Starts
+        ↓
+QR Time-In / Time-Out
+        ↓
+Supervisor Verifies Attendance
+        ↓
+Student Submits Journal
+        ↓
+Supervisor Midterm Evaluation
+        ↓
+Continue OJT
+        ↓
+Supervisor Final Evaluation
+        ↓
+Required Hours Completed
+        ↓
+Student Submits Narrative Report
+and OJT Evidence
+        ↓
+Institution Final Review
+        ↓
+OJT Completed
+```
+
+This is the primary workflow of InternConPH.
+
+# 6. STUDENT REGISTRATION AND ACCOUNT APPROVAL
+
+The student receives registration information from the institution.
+
+The student provides basic information such as:
+
+* Student ID
+* Full name
+* Program/Course
+* Year level
+* Email
+* Contact number
+* Password
+* Consent to the Data Privacy Notice
+
+After registration, the account status is **Pending Approval**. The student can only see a message that the account is waiting for approval.
+
+The OJT Coordinator checks the registration against the institution's student list (Student ID and Program/Course) and decides:
+
+```text
+Approve  →  Student can access the OJT dashboard
+Reject   →  Student sees the reason and can correct the information
+```
+
+The coordinator who approves the account becomes the student's assigned coordinator. Students are grouped by Program/Course.
+
+# 7. OJT REQUIREMENTS
+
+The student sees a simple checklist of required documents.
+
+Example:
+
+| Requirement             | Status  |
+| ----------------------- | ------- |
+| Resume                  | Pending |
+| Medical Certificate     | Pending |
+| Endorsement Letter      | Pending |
+| School Requirements     | Pending |
+| Other Required Document | Pending |
+
+The student uploads the required documents.
+
+The institution reviews each document.
+
+Possible statuses:
+
+```text
+Pending
+Submitted
+Approved
+Needs Revision
+```
+
+If a document needs correction, the institution provides a short comment and the student can resubmit it.
+
+When all required documents are approved, the student can proceed to OJT placement.
+
+# 8. OJT PLACEMENT
+
+The institution records the student's OJT placement.
+
+The placement contains:
+
+* Organization name
+* Organization address
+* OJT position
+* Supervisor name
+* Supervisor contact information
+* Start date
+* Expected end date
+* Required OJT hours
+
+Example:
+
+```text
+Organization: ABC Company
+Position: IT Intern
+Supervisor: Juan Dela Cruz
+Start Date: October 1, 2026
+End Date: December 15, 2026
+Required Hours: 486 hours
+```
+
+The student can view the placement information from their dashboard.
+
+### Placement Status
+
+```text
+Approved  →  Active  →  Completed
+
+Approved / Active  →  Ended Early
+```
+
+**Ended Early** is used when a placement stops before the required hours are completed, for example when the student withdraws, the organization ends the placement, or the student changes host. The coordinator records the reason. All verified hours are kept, and the coordinator can record a new placement for the student.
+
+# 9. QR-BASED DTR / ATTENDANCE
+
+QR attendance is one of the main features of InternConPH.
+
+Each student has a personal QR code. The QR code changes every day, so an old screenshot cannot be reused.
+
+The organization supervisor uses the system to scan the student's QR code.
+
+### Time-In
+
+```text
+Student shows QR
+       ↓
+Supervisor scans QR
+       ↓
+System records Time-In (Pending)
+```
+
+### Time-Out
+
+```text
+Student shows QR
+       ↓
+Supervisor scans QR
+       ↓
+System records Time-Out (Pending)
+```
+
+The system calculates the rendered hours based on the recorded time.
+
+The supervisor reviews each record and marks it **Verified** or **Rejected**. Only Verified records count toward the student's required hours.
+
+### Attendance Rules
+
+* The daily working hours are set by the institution (example: 8 hours per day).
+* A one-hour lunch break is automatically deducted when the shift covers the lunch period. For example, 8:00 AM to 5:00 PM counts as 8 hours.
+* Hours beyond the daily maximum are not counted unless the supervisor approves them.
+* Days without a scan (absences and holidays) count as zero hours.
+* Hours are shown to one decimal place.
+
+### Missed Scan or Wrong Record (Correction Request)
+
+```text
+Student submits Correction Request
+(date, correct time, reason)
+            ↓
+Supervisor Approves or Rejects
+            ↓
+Approved: record is corrected and marked Verified
+Rejected: hours stay unchanged
+```
+
+Every correction is saved in the audit log.
+
+# 10. DTR MONITORING
+
+The student can view their DTR.
+
+Example:
+
+| Date   | Time-In | Time-Out |   Hours | Status   |
+| ------ | ------- | -------- | ------: | -------- |
+| Oct. 1 | 8:00 AM | 5:00 PM  |   8 hrs | Verified |
+| Oct. 2 | 8:05 AM | 5:00 PM  | 7.9 hrs | Verified |
+| Oct. 3 | 8:00 AM | 5:00 PM  |   8 hrs | Verified |
+| Oct. 4 | 8:00 AM | 5:00 PM  |   8 hrs | Pending  |
+
+The system also displays:
+
+```text
+Required Hours: 486
+Completed Hours: 325
+Remaining Hours: 161
+```
+
+Completed Hours include verified records only. Pending records are shown separately until the supervisor verifies them.
+
+This allows the student and institution to easily determine the student's OJT progress.
+
+# 11. OJT JOURNAL
+
+The student records their OJT activities through a simple journal.
+
+Each journal entry may contain:
+
+* Date
+* Activities performed
+* Skills learned
+* Problems encountered
+* Short reflection
+* Optional photo/evidence
+
+Example:
+
+```text
+Date: October 10, 2026
+
+Activities:
+Assisted in computer maintenance and helped
+organize company files.
+
+Skills Learned:
+Basic troubleshooting and file management.
+
+Reflection:
+I learned how to properly handle workplace
+tasks and communicate with employees.
+```
+
+The student can only write a journal for a date that has an attendance record.
+
+The institution can view the student's journal entries and mark each one **Reviewed** or **Needs Revision** with a short comment. Journals are visible only to the student and the institution.
+
+# 12. STUDENT PROGRESS
+
+The student's dashboard should clearly show their OJT progress.
+
+Example:
+
+```text
+MY OJT PROGRESS
+
+Requirements       ✓ Completed
+Placement           ✓ Approved
+Attendance          ✓ Active
+Journal             ✓ Active
+Midterm Evaluation  ✓ Completed
+Final Evaluation    Pending
+Required Hours      325 / 486
+
+Remaining Hours     161
+
+Final Report        Locked
+```
+
+The final report becomes available when the required OJT hours have been completed.
+
+# 13. SUPERVISOR EVALUATION
+
+The organization supervisor evaluates the student's performance.
+
+The system has two evaluations:
+
+### Midterm Evaluation
+
+Used to monitor the student's performance during the OJT.
+
+### Final Evaluation
+
+Used to evaluate the student's overall performance at the end of the OJT.
+
+The evaluation may include:
+
+* Quality of Work
+* Attendance
+* Responsibility
+* Communication
+* Teamwork
+* Initiative
+* Technical Skills
+* Professionalism
+
+The supervisor provides ratings and comments.
+
+### Rating Scale
+
+| Rating | Meaning   |
+| -----: | --------- |
+|      5 | Excellent |
+|      4 | Very Good |
+|      3 | Good      |
+|      2 | Fair      |
+|      1 | Poor      |
+
+### Evaluation Schedule
+
+* The **Midterm Evaluation** is requested when the student reaches 50% of the required hours.
+* The **Final Evaluation** is requested when the student completes the required hours and is due within 7 days.
+* The supervisor receives a reminder if an evaluation is not yet submitted. An overdue evaluation is reported to the coordinator.
+* The institution can approve the student's final review only after the Final Evaluation is submitted.
+
+### Who Can See the Evaluation
+
+* The **coordinator** can view every submitted evaluation.
+* The **student** can view the Midterm Evaluation after it is submitted, and the Final Evaluation after the institution completes the final review.
+* The **HR account and the supervisor** of the organization can view the evaluations they submitted.
+
+# 14. OJT INCIDENT / CONCERN REPORTING
+
+A simple reporting feature is included for important OJT concerns.
+
+Students can report problems related to their internship to the institution.
+
+Examples:
+
+* Workplace safety concern
+* Harassment
+* Unfair treatment
+* Attendance dispute
+* Other OJT-related concern
+
+The institution reviews the report and records the action taken.
+
+The purpose of this feature is to provide students with a proper way to report serious OJT concerns.
+
+This feature should remain simple and should not become a separate complex complaint-management system.
+
+### Incident Flow
+
+```text
+Student submits report
+          ↓
+Coordinator reviews and records the action taken
+          ↓
+Resolved, or Escalated to Admin
+```
+
+* The report is visible to the coordinator. The organization does not see who filed it.
+* The report is escalated to the Admin when it involves the coordinator, when it is a serious safety or harassment concern, or when there is no action after 7 days. The student can also request escalation.
+
+# 15. REQUIRED HOURS COMPLETION
+
+The system automatically monitors the student's verified hours.
+
+Example:
+
+```text
+Required Hours: 486
+Verified Hours: 486
+
+STATUS:
+OJT HOURS COMPLETED
+```
+
+Only verified hours are counted. Pending or rejected records do not count.
+
+Once the required hours are completed:
+
+**Final Report becomes available.**
+
+# 16. FINAL NARRATIVE REPORT
+
+After completing the required OJT hours, the student submits the final narrative report.
+
+The student can either type the report or upload a document.
+
+The report may contain:
+
+* Introduction
+* Company/Organization Background
+* OJT Activities
+* Tasks Performed
+* Skills Learned
+* Experiences
+* Challenges
+* Conclusion
+
+The student can also upload supporting evidence such as:
+
+* OJT photos
+* Certificate
+* Supporting documents
+
+# 17. FINAL REVIEW
+
+The institution reviews the student's final submission.
+
+The institution can approve the final review only when the required hours are verified and the Final Evaluation has been submitted.
+
+There are only two main results:
+
+### Approved
+
+```text
+Final Report
+     ↓
+Approved
+     ↓
+OJT Completed
+```
+
+When approved, the coordinator records the **OJT Result**: **Passed** or **Failed** (with a short reason if Failed). If the institution also uses a numerical grade, it can be entered here.
+
+### Needs Revision
+
+```text
+Final Report
+     ↓
+Needs Revision
+     ↓
+Student Corrects Report
+     ↓
+Resubmits
+```
+
+Once approved, the student's OJT status becomes **Completed**.
+
+# 18. OJT COMPLETION RECORD
+
+After successful completion, the system stores the student's OJT record.
+
+The record contains:
+
+* Student information
+* Organization
+* OJT position
+* OJT dates
+* Required hours
+* Completed hours
+* DTR
+* Journal
+* Midterm evaluation
+* Final evaluation
+* Narrative report
+* Supporting evidence
+* Completion status
+* OJT result (Passed or Failed)
+
+This provides the institution with a centralized digital OJT record.
+
+# 19. SIMPLE DASHBOARDS
+
+Every dashboard has a **Notifications** icon at the top right.
+
+## Student Dashboard
+
+```text
+Dashboard
+│
+├── My Requirements
+├── My OJT
+├── DTR / Attendance
+├── Journal
+├── Evaluation
+├── Report a Concern
+├── Final Report
+└── Profile
+```
+
+## Institution Dashboard
+
+```text
+Dashboard
+│
+├── Students (Account Approvals)
+├── Requirements
+├── OJT Placements
+├── DTR Monitoring
+├── Journals
+├── Evaluations
+├── Incident Reports
+├── Final Reports
+└── Reports
+```
+
+## Organization Dashboard
+
+```text
+Dashboard
+│
+├── My Interns
+├── QR Attendance
+├── DTR (Verification and Corrections)
+├── Evaluations
+└── Organization Profile
+```
+
+## Admin Dashboard
+
+```text
+Dashboard
+│
+├── Users
+├── Institutions
+├── Organizations
+├── Verification
+├── Escalated Reports
+└── System Reports
+```
+
+# 20. BASIC DATA FLOW
+
+The system can be understood through five major data groups:
+
+```text
+STUDENT
+   │
+   ├── Requirements
+   │
+   └── OJT Placement
+            │
+            ├── Organization
+            │
+            ├── Supervisor
+            │
+            ├── DTR / Attendance
+            │
+            ├── Journal
+            │
+            └── Evaluation
+                     │
+                     ↓
+              Final Submission
+                     │
+                     ↓
+                Completion
+```
+
+This is the main relationship of the system.
+
+# 21. BASIC DATABASE GROUPS
+
+The database should focus on the records actually needed by the OJT process.
+
+### User Records
+
+* Users
+* Students
+* Institution Staff
+* Organizations
+* Supervisors
+
+### OJT Records
+
+* OJT Placements
+* OJT Requirements
+* DTR / Attendance
+* Attendance Corrections
+* Journals
+* Evaluations
+* Final Reports
+* Completion Records
+
+### Supporting Records
+
+* Notifications
+* Incident Reports
+* Audit Logs
+
+The database should avoid creating separate tables for features that are not part of the core OJT process.
+
+# 22. SYSTEM RULES
+
+The system follows simple rules:
+
+1. A student must have an approved account before using the OJT system.
+2. Required documents must be approved before OJT deployment.
+3. Each student has one active OJT placement at a time.
+4. Only the assigned organization/supervisor can verify the student's OJT attendance.
+5. Only verified attendance counts toward the student's required hours.
+6. The final report becomes available after the required hours are completed.
+7. The institution reviews the student's final submission.
+8. A returned submission can be corrected and resubmitted.
+9. Completed OJT records are retained as part of the student's internship history.
+10. Users can only access information appropriate to their role.
+11. Missed or wrong attendance can only be corrected through a correction request approved by the supervisor.
+12. A placement that stops before the required hours are completed is marked Ended Early, and its verified hours are kept.
+13. The final review can be approved only after the Final Evaluation is submitted.
+14. Approvals, corrections, and status changes are saved in the audit log.
+
+# 23. NOTIFICATIONS
+
+The system shows notifications inside the system (bell icon). Each important step notifies the person who must act next.
+
+| Event                                            | Who is notified                                      |
+| ------------------------------------------------ | ---------------------------------------------------- |
+| Student registers                                | Coordinator                                          |
+| Account approved or rejected                     | Student                                              |
+| Requirement submitted, approved, or returned     | Coordinator, Student                                 |
+| Placement recorded                               | Student, Supervisor                                  |
+| Attendance recorded or correction requested      | Supervisor                                           |
+| Correction approved or rejected                  | Student                                              |
+| Evaluation requested, reminder, or overdue       | Supervisor, then Coordinator if overdue              |
+| Required hours completed (final report unlocked) | Student, Coordinator                                 |
+| Final report approved or returned                | Student                                              |
+| Incident report submitted or escalated           | Coordinator, then Admin if escalated                 |
+
+Email alerts are optional. SMS notifications are not part of the initial system.
+
+# 24. DATA PRIVACY
+
+InternConPH keeps student information, so it follows the Data Privacy Act of 2012 (Republic Act No. 10173).
+
+* **Consent:** the student accepts a privacy notice during registration. The notice explains what information is collected, why it is collected, and who can see it.
+* **Limited data:** the system collects only what the OJT process needs. It does not store government ID numbers, bank details, or other unnecessary personal information.
+* **Role-based access:** each user sees only what their role needs (Rule 10). Journals are visible only to the student and the institution. The organization never sees who filed an incident report. The Admin does not view student OJT records except for support or escalated reports.
+* **Retention:** OJT records are kept for the period required by the institution. After that, they are archived or deleted according to the institution's policy.
+* **Student rights:** students can ask the institution to correct their information.
+* **Responsibility:** the institution assigns a Data Protection Officer and prepares a basic response plan for data breaches.
+
+# 25. SIMPLE SYSTEM STATUS
+
+The student follows only these major stages:
+
+```text
+REGISTERED (Pending Approval)
+     ↓
+ACCOUNT APPROVED
+     ↓
+REQUIREMENTS
+     ↓
+REQUIREMENTS APPROVED
+     ↓
+DEPLOYED
+     ↓
+ONGOING OJT
+     ↓
+HOURS COMPLETED
+     ↓
+FINAL SUBMISSION
+     ↓
+COMPLETED (Passed / Failed)
+```
+
+If a placement ends early, the student returns to **Requirements Approved**. When the coordinator records a new placement, the student is **Deployed** again and keeps all earlier verified hours.
+
+This status flow should be visible to the student and institution.
+
+# 26. FEATURES NOT INCLUDED IN THE INITIAL SYSTEM
+
+To keep InternConPH simple and manageable, the initial version does not include:
+
+* Job marketplace
+* Career job applications
+* On-call projects
+* Social media features
+* Messaging system
+* Advanced skill matching
+* Automated career portfolio
+* Complex recruitment pipeline
+* Google Meet integration
+* SMS integration
+* Multi-school management
+* Complex analytics
+* Automated MOA renewal
+* Advanced organization marketplace
+* Complex access-code hierarchy
+* Multiple academic administrative roles
+* Complex remote/hybrid attendance system
+
+These features may be considered in future versions if the basic OJT system is already working properly.
+
+# 27. CORE SYSTEM FLOW FOR THE PROJECT
+
+The complete InternConPH system can therefore be explained in one simple diagram:
+
+```text
+                  INTERNCONPH
+                       │
+        ┌──────────────┼──────────────┐
+        ↓              ↓              ↓
+     STUDENT       INSTITUTION    ORGANIZATION
+        │              │              │
+        └──────────────┼──────────────┘
+                       ↓
+                OJT MANAGEMENT
+                       │
+        ┌──────────────┼──────────────┐
+        ↓              ↓              ↓
+   REQUIREMENTS    PLACEMENT       ATTENDANCE
+                                      │
+                                      ↓
+                                  EVALUATION
+                                      │
+                                      ↓
+                              REQUIRED HOURS
+                                  COMPLETED
+                                      │
+                                      ↓
+                              FINAL REPORT
+                                      │
+                                      ↓
+                              FINAL REVIEW
+                                      │
+                                      ↓
+                                COMPLETED
+```
+
+# 28. ACCEPTANCE TESTS
+
+The system is considered ready for testing when all of the following pass using test accounts for a student, a coordinator, a supervisor, and an admin.
+
+| #  | Test                       | Expected result                                                                                                                         |
+| -- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 1  | Registration and approval  | A new student sees only a "Pending Approval" message. After the coordinator approves, the dashboard opens and the coordinator is assigned. A rejected student sees the reason. |
+| 2  | Requirements               | The student uploads all documents. The coordinator returns one with a comment, the student resubmits, and after all are approved, placement can be recorded. |
+| 3  | Placement                  | The coordinator records a placement and the student can see it. A second active placement is blocked. Marking a placement Ended Early keeps its verified hours. |
+| 4  | QR attendance              | The supervisor scans the QR for time-in and time-out and the record is Pending. After verification it is Verified and the hours are added. A supervisor who is not assigned to the student cannot scan or verify. |
+| 5  | Hour rules and corrections | 8:00 AM to 5:00 PM counts as 8 hours. Overtime is not counted unless approved. A correction request for a missed time-out is approved and logged. A rejected request leaves the hours unchanged. |
+| 6  | Journal                    | The student can write a journal only for a date with an attendance record. The coordinator can review it and the supervisor cannot see it. |
+| 7  | Evaluations                | The supervisor is notified at 50% of the hours and at completion. Ratings use the 1 to 5 scale. The student sees the midterm after it is submitted and the final only after the final review. |
+| 8  | Hours completion           | Pending records do not count. When verified hours reach the required hours, the final report unlocks automatically. |
+| 9  | Final review               | The coordinator cannot approve without the Final Evaluation. "Needs Revision" returns the report and the student can resubmit. Approval sets the status to Completed with a Passed or Failed result and creates the completion record. |
+| 10 | Incident and access        | A student files a report and the coordinator records an action. The organization cannot see who filed it. Escalation reaches the Admin. Each user can open only the records their role allows. |
+
+# 29. FINAL SYSTEM DESCRIPTION
+
+InternConPH is a web-based OJT management system designed to simplify the internship process for students, educational institutions, and host organizations. It manages the student's OJT requirements, placement, QR-based attendance, journals, supervisor evaluations, final narrative report, and completion record in one platform.
+
+Instead of using separate paper forms and disconnected records, the system provides one organized process that allows each user to perform their specific OJT responsibilities.
+
+The system focuses on the essential OJT process rather than adding unnecessary recruitment, employment, social, and advanced automation features. This makes the system easier to use, easier to develop, easier to test, and easier for students, coordinators, supervisors, and panel members to understand.
+
+# 30. ONE-SENTENCE EXPLANATION FOR THE PANEL
+
+**"InternConPH is a simple web-based system that manages the student's OJT from requirements and placement, through QR attendance and supervisor evaluation, until the submission of the final narrative report and completion of the internship."**
