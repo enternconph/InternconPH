@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { AuthProvider } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
@@ -66,13 +66,14 @@ const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
 
 function AnimatedRoutes() {
   const location = useLocation();
+  const isDesktop = navigator.userAgent.toLowerCase().includes('electron');
 
   return (
     <Suspense fallback={<DashboardSkeleton />}>
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
           {/* Public Routes */}
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={isDesktop ? <Navigate to="/login" replace /> : <LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/get-started" element={<GetStartedPage />} />
         <Route path="/register/student" element={<RegisterStudentPage />} />
@@ -169,9 +170,9 @@ export default function App() {
       <TimeProvider>
         <AuthProvider>
           <SocketProvider>
-            <BrowserRouter>
+            <HashRouter>
               <AnimatedRoutes />
-            </BrowserRouter>
+            </HashRouter>
           </SocketProvider>
         </AuthProvider>
       </TimeProvider>

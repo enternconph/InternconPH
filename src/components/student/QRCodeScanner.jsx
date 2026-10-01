@@ -46,15 +46,10 @@ export default function QRCodeScanner({ isOpen, onClose, onSuccess, onError }) {
           }
         },
         (error) => {
-          console.warn('Geolocation error:', error);
-          let errorMsg = 'Location error';
-          if (error.code === 1) errorMsg = 'Location permission denied. Please allow location access to clock in.';
-          if (error.code === 2) errorMsg = 'Location unavailable. Please try again.';
-          if (error.code === 3) errorMsg = 'Location request timed out. Please try again.';
-          onError(errorMsg);
-          setScanning(false);
+          console.warn('Geolocation error (fallback to null):', error);
+          onSuccess(token, null, null);
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
     } catch (err) {
       console.error(err);

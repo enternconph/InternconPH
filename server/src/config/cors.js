@@ -10,7 +10,7 @@ export function getAllowedOrigins() {
 }
 
 export function corsOriginCallback(origin, callback) {
-  if (!origin) return callback(null, true);
+  if (!origin || origin.startsWith('file://')) return callback(null, true);
   const allowed = getAllowedOrigins();
   if (allowed.includes('*') || allowed.includes(origin)) {
     return callback(null, true);

@@ -2,19 +2,27 @@
   "name": "internconph-frontend",
   "private": true,
   "version": "1.0.0",
+  "description": "InternConPH internship management system",
+  "author": "InternConPH",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "server": "npm --prefix server run dev",
     "dev:all": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run server\" \"npm run dev\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:dev": "concurrently -k -n \"VITE,ELECTRON\" \"vite\" \"wait-on http://localhost:5173 && cross-env ELECTRON_DEV=1 electron .\"",
+    "electron:dev:all": "concurrently -k -n \"SERVER,VITE,ELECTRON\" \"npm run server\" \"vite\" \"wait-on http://localhost:5173 && cross-env ELECTRON_DEV=1 electron .\"",
+    "electron:build": "vite build --mode production && electron-builder",
+    "cap:sync": "vite build --mode production && npx cap sync"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "@yudiel/react-qr-scanner": "^2.6.0",
     "clsx": "^2.1.1",
     "framer-motion": "^13.2.0",
-    "googleapis": "^182.0.0",
     "lucide-react": "^1.16.0",
     "phil-address": "^2.0.1",
     "psgc": "^2.2.0",
@@ -28,12 +36,37 @@
     "zipcodes-ph": "^1.1.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "concurrently": "^10.0.5",
+    "cross-env": "^7.0.3",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
     "playwright": "^1.63.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "wait-on": "^9.5.1"
+  },
+  "build": {
+    "appId": "ph.interncon.desktop",
+    "productName": "InternConPH",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   }
 }
