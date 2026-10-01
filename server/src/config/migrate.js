@@ -255,7 +255,7 @@ export async function runMigrations() {
         time_out TIME NULL,
         hours_rendered DECIMAL(5,2) DEFAULT 0.00,
         tasks_accomplished TEXT NULL,
-        status ENUM('pending', 'verified', 'rejected') DEFAULT 'pending',
+        status ENUM('pending', 'verified', 'rejected', 'approved', 'Late') DEFAULT 'pending',
         verified_by BIGINT UNSIGNED NULL,
         verified_at DATETIME NULL,
         rejection_notes TEXT NULL,
@@ -1242,6 +1242,13 @@ export async function runMigrations() {
       }
     } catch (intMigErr) {
       console.warn('[Migration Warning] Interviews table migration error:', intMigErr.message);
+    }
+
+    try {
+      await pool.query("ALTER TABLE ojt_attendance_logs MODIFY COLUMN status ENUM('pending', 'verified', 'rejected', 'approved', 'Late') DEFAULT 'pending'");
+      console.log('[Migration] Modified status enum in ojt_attendance_logs to include approved and Late');
+    } catch (err) {
+      console.warn('[Migration Warning] Could not modify status enum:', err.message);
     }
 
     console.log('[Migration] All schema alignments completed successfully!');
