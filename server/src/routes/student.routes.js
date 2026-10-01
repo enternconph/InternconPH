@@ -1152,7 +1152,8 @@ router.get('/attendance', async (req, res) => {
               ho.organization_name,
               COALESCE(os.first_name, v_os.first_name, 'Workplace') as mentor_first_name,
               COALESCE(os.last_name, v_os.last_name, 'Mentor') as mentor_last_name,
-              COALESCE(os.job_title, v_os.job_title, 'Supervisor') as mentor_title
+              COALESCE(os.job_title, v_os.job_title, 'Supervisor') as mentor_title,
+              TIME_TO_SEC(TIMEDIFF(CURRENT_TIME(), att.time_in)) / 3600 as hours_since_in
        FROM ojt_attendance_logs att
        JOIN ojt_records o ON att.ojt_id = o.ojt_id
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
@@ -1163,7 +1164,39 @@ router.get('/attendance', async (req, res) => {
        LIMIT 1`,
       [student.student_id]
     );
-    const todayLog = todayRows.length > 0 ? todayRows[0] : null;
+    let todayLog = todayRows.length > 0 ? todayRows[0] : null;
+
+    // Auto clock-out if 5 hours have passed since time_in and time_out is null
+    if (todayLog && todayLog.time_in && !todayLog.time_out && todayLog.hours_since_in >= 5) {
+      await pool.query(
+        `UPDATE ojt_attendance_logs 
+         SET time_out = ADDTIME(time_in, '05:00:00'),
+             hours_rendered = 5,
+             tasks_accomplished = 'Auto-clocked out after 5 hours',
+             updated_at = NOW(),
+             status = 'Late' 
+         WHERE attendance_id = ?`,
+        [todayLog.attendance_id]
+      );
+      
+      // Refresh the today log to reflect the auto clock-out
+      const [refreshedRows] = await pool.query(
+        `SELECT att.*,
+                DATE_FORMAT(att.log_date, '%Y-%m-%d') as log_date_str,
+                ho.organization_name,
+                COALESCE(os.first_name, v_os.first_name, 'Workplace') as mentor_first_name,
+                COALESCE(os.last_name, v_os.last_name, 'Mentor') as mentor_last_name,
+                COALESCE(os.job_title, v_os.job_title, 'Supervisor') as mentor_title
+         FROM ojt_attendance_logs att
+         JOIN ojt_records o ON att.ojt_id = o.ojt_id
+         JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
+         LEFT JOIN organization_staff os ON COALESCE(att.mentor_id, o.mentor_id) = os.org_staff_id
+         LEFT JOIN organization_staff v_os ON att.verified_by = v_os.user_id
+         WHERE att.attendance_id = ?`,
+        [todayLog.attendance_id]
+      );
+      todayLog = refreshedRows.length > 0 ? refreshedRows[0] : null;
+    }
 
     return res.json({
       success: true,
@@ -1363,6 +1396,57 @@ router.post('/attendance/clock-out', async (req, res) => {
   } catch (error) {
     console.error('Clock out error:', error);
     return res.status(500).json({ success: false, message: 'Failed to clock out: ' + error.message });
+  }
+});
+
+// POST /api/student/attendance/manual-clock-out
+router.post('/attendance/manual-clock-out', async (req, res) => {
+  const { tasks_accomplished } = req.body;
+
+  try {
+    const student = await getStudentId(req.user.user_id);
+    if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
+
+    // Find today's open clock-in log
+    const [existingLogs] = await pool.query(
+      `SELECT al.* 
+       FROM ojt_attendance_logs al 
+       WHERE al.student_id = ? AND al.log_date = CURRENT_DATE() AND al.time_out IS NULL 
+       ORDER BY al.time_in DESC LIMIT 1`,
+      [student.student_id]
+    );
+
+    if (existingLogs.length === 0) {
+      return res.status(400).json({ success: false, message: 'No active clock-in found for today.' });
+    }
+
+    const log = existingLogs[0];
+    
+    await pool.query(
+      `UPDATE ojt_attendance_logs 
+       SET time_out = CURRENT_TIME(),
+           hours_rendered = ROUND(GREATEST(0, (TIME_TO_SEC(TIMEDIFF(CURRENT_TIME(), time_in)) / 3600)), 2),
+           tasks_accomplished = ?,
+           updated_at = NOW(),
+           status = 'Late'
+       WHERE attendance_id = ?`,
+      [tasks_accomplished || 'Manually clocked out.', log.attendance_id]
+    );
+
+    // Recalculate total OJT hours
+    await pool.query(
+      `UPDATE ojt_records 
+       SET rendered_hours = (SELECT COALESCE(SUM(hours_rendered), 0) FROM ojt_attendance_logs WHERE ojt_id = ? AND status = 'approved')
+       WHERE ojt_id = ?`,
+      [log.ojt_id, log.ojt_id]
+    );
+
+    emitUpdate('attendance_logged', { ojt_id: log.ojt_id, student_id: student.student_id });
+
+    return res.status(200).json({ success: true, message: 'Manually clocked out successfully!' });
+  } catch (error) {
+    console.error('Manual Clock out error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to manually clock out: ' + error.message });
   }
 });
 

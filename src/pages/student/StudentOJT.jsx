@@ -26,6 +26,8 @@ export default function StudentOJT() {
   // Filter and search states
   const [dtrSearch, setDtrSearch] = useState('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannerAction, setScannerAction] = useState('clock-in'); // 'clock-in' | 'clock-out'
+  const [showSuccessModal, setShowSuccessModal] = useState({ isOpen: false, type: '', time: '', message: '' });
   const [reqFilter, setReqFilter] = useState('all'); // 'all' | 'mandatory' | 'pending' | 'approved'
 
   // Requirement Submission State
@@ -85,8 +87,8 @@ export default function StudentOJT() {
     setIsScannerOpen(false);
     setActionLoading(true);
     try {
-      // Determine if clocking in or clocking out
-      const isClockingOut = isClockedInToday && !isClockedOutToday;
+      // Determine if clocking in or clocking out based on the button clicked
+      const isClockingOut = scannerAction === 'clock-out';
       const endpoint = isClockingOut ? '/student/attendance/clock-out' : '/student/attendance/clock-in';
       
       const payload = {
@@ -97,14 +99,44 @@ export default function StudentOJT() {
       
       const res = await api.post(endpoint, payload);
       if (res.success) {
-        showToast(res.message);
         fetchAllOjtData(); // refresh data
+        setShowSuccessModal({
+          isOpen: true,
+          type: isClockingOut ? 'Clock Out' : 'Clock In',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          message: res.message
+        });
       } else {
         showToast(res.message || 'Failed to process QR code.', true);
       }
     } catch (err) {
       console.error('QR Scan Error:', err);
       showToast(err.response?.data?.message || 'An error occurred during scanning.', true);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleManualClockOut = async () => {
+    if (!window.confirm('Are you sure you want to clock out manually? This should only be used if you forgot to scan the QR code before leaving.')) return;
+    
+    setActionLoading(true);
+    try {
+      const res = await api.post('/student/attendance/manual-clock-out', { tasks_accomplished: 'Completed daily assigned training tasks.' });
+      if (res.success) {
+        fetchAllOjtData();
+        setShowSuccessModal({
+          isOpen: true,
+          type: 'Manual Clock Out',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          message: res.message
+        });
+      } else {
+        showToast(res.message || 'Failed to clock out.', true);
+      }
+    } catch (err) {
+      console.error('Manual clock out error:', err);
+      showToast(err.response?.data?.message || 'An error occurred during manual clock out.', true);
     } finally {
       setActionLoading(false);
     }
@@ -466,16 +498,26 @@ export default function StudentOJT() {
                     <span>Shift Completed • {todayLog.hours_rendered || 0} hrs Credited</span>
                   </span>
                 ) : isClockedInToday ? (
-                  <button 
-                    onClick={() => setIsScannerOpen(true)}
-                    className="px-4 py-2 bg-vibrant-orange hover:bg-orange-600 text-white rounded-full text-xs font-bold flex items-center gap-2 transition-colors shadow-md"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
-                    <span>Scan to Clock Out</span>
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => handleManualClockOut()}
+                      disabled={actionLoading}
+                      className="px-4 py-2 bg-surface-container hover:bg-surface-container-high text-on-surface-variant rounded-full text-xs font-bold flex items-center gap-2 transition-colors shadow-sm"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">edit_calendar</span>
+                      <span>Manual Clock Out</span>
+                    </button>
+                    <button 
+                      onClick={() => { setScannerAction('clock-out'); setIsScannerOpen(true); }}
+                      className="px-4 py-2 bg-vibrant-orange hover:bg-orange-600 text-white rounded-full text-xs font-bold flex items-center gap-2 transition-colors shadow-md"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+                      <span>Scan to Clock Out</span>
+                    </button>
+                  </div>
                 ) : (
                   <button 
-                    onClick={() => setIsScannerOpen(true)}
+                    onClick={() => { setScannerAction('clock-in'); setIsScannerOpen(true); }}
                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-xs font-bold flex items-center gap-2 transition-colors shadow-md"
                   >
                     <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
@@ -542,13 +584,15 @@ export default function StudentOJT() {
                   </span>
                   {todayLog?.time_out && (
                     <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
-                      todayLog.time_out_status === 'early'
+                      todayLog.status?.toLowerCase() === 'late'
+                        ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+                        : todayLog.time_out_status === 'early'
                         ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                         : todayLog.time_out_status === 'overtime'
                         ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
                         : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                     }`}>
-                      {todayLog.time_out_status === 'early' ? 'Early' : todayLog.time_out_status === 'overtime' ? 'Overtime (Capped)' : 'On-Time'}
+                      {todayLog.status?.toLowerCase() === 'late' ? 'Late' : todayLog.time_out_status === 'early' ? 'Early' : todayLog.time_out_status === 'overtime' ? 'Overtime (Capped)' : 'On-Time'}
                     </span>
                   )}
                 </div>
@@ -1182,6 +1226,29 @@ export default function StudentOJT() {
         onSuccess={handleQRScan}
         onError={(msg) => showToast(msg, true)}
       />
+
+      {/* Success Modal */}
+      {showSuccessModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface-container rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl transform scale-100 animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-green-tint text-pinoy-green rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white dark:border-surface-container">
+              <span className="material-symbols-outlined text-3xl">check_circle</span>
+            </div>
+            <h3 className="text-xl font-black text-on-surface mb-1">
+              {showSuccessModal.type} Successful!
+            </h3>
+            <p className="text-on-surface-variant text-sm mb-6">
+              {showSuccessModal.message} at <span className="font-bold text-on-surface">{showSuccessModal.time}</span>.
+            </p>
+            <button
+              onClick={() => setShowSuccessModal({ isOpen: false, type: '', time: '', message: '' })}
+              className="w-full py-3 bg-vibrant-orange hover:bg-orange-600 text-white font-bold rounded-xl transition-colors shadow-md"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

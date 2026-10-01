@@ -21,6 +21,11 @@ export default function OrgInterviews() {
   const [meetConfigured, setMeetConfigured] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
 
+  // New States for Filter and Modals
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [confirmStatusChange, setConfirmStatusChange] = useState(null); // { id, newStatus, candidateName }
+  const [postMeetInterview, setPostMeetInterview] = useState(null); // item object
+
   const fetchInterviews = async () => {
     setLoading(true);
     const res = await api.get('/org/interviews');
@@ -147,12 +152,23 @@ export default function OrgInterviews() {
     if (res.success) fetchInterviews();
   };
 
+  const confirmAndUpdateStatus = async () => {
+    if (!confirmStatusChange) return;
+    await handleUpdateStatus(confirmStatusChange.id, confirmStatusChange.newStatus);
+    setConfirmStatusChange(null);
+    setPostMeetInterview(null); // close post-meet modal if open
+  };
+
   const handleCopyLink = (text, id) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2500);
   };
+
+  const filteredInterviews = data.interviews?.filter(
+    item => filterStatus === 'all' || item.status === filterStatus
+  ) || [];
 
   return (
     <div className="p-4 md:p-8 space-y-6">
@@ -383,18 +399,31 @@ export default function OrgInterviews() {
 
         {/* Interviews List */}
         <div className="lg:col-span-2 bento-card space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
               <span className="material-symbols-outlined text-vibrant-orange text-[20px]">event_available</span>
-              <span>Scheduled Candidate Interviews ({data.interviews?.length || 0})</span>
+              <span>Scheduled Candidate Interviews ({filteredInterviews.length})</span>
             </h2>
-            <button
-              onClick={fetchInterviews}
-              className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg transition-colors cursor-pointer"
-              title="Refresh list"
-            >
-              <span className="material-symbols-outlined text-[18px]">refresh</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-1.5 rounded-lg border border-outline-variant bg-surface-container text-xs font-bold text-on-surface outline-none"
+              >
+                <option value="all">All Status</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="no_show">No Show</option>
+              </select>
+              <button
+                onClick={fetchInterviews}
+                className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg transition-colors cursor-pointer"
+                title="Refresh list"
+              >
+                <span className="material-symbols-outlined text-[18px]">refresh</span>
+              </button>
+            </div>
           </div>
 
           {loading ? (
@@ -404,11 +433,11 @@ export default function OrgInterviews() {
           ) : data.interviews?.length === 0 ? (
             <div className="text-center py-8 text-on-surface-variant text-xs">
               <span className="material-symbols-outlined text-[36px] mb-2">event_busy</span>
-              <p>No interviews scheduled yet.</p>
+              <p>No interviews found.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {data.interviews.map((item) => {
+              {filteredInterviews.map((item) => {
                 const meetUrl = item.meeting_link || item.location_or_link;
                 const isLink = meetUrl?.startsWith('http');
                 const isOnline = item.mode === 'online';
@@ -486,6 +515,11 @@ export default function OrgInterviews() {
                               href={meetUrl}
                               target="_blank"
                               rel="noopener noreferrer"
+                              onClick={() => {
+                                if (item.status === 'scheduled') {
+                                  setPostMeetInterview(item);
+                                }
+                              }}
                               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-vibrant-orange/10 hover:bg-vibrant-orange text-vibrant-orange hover:text-white font-bold text-xs transition-colors shadow-xs"
                             >
                               <span className="material-symbols-outlined text-[16px]">
@@ -528,8 +562,18 @@ export default function OrgInterviews() {
                     <div className="flex sm:flex-col gap-2 shrink-0">
                       <select
                         value={item.status}
-                        onChange={(e) => handleUpdateStatus(item.interview_id, e.target.value)}
-                        className="px-2.5 py-1 rounded border border-outline-variant bg-surface-container text-xs font-bold"
+                        disabled={item.status !== 'scheduled'}
+                        onChange={(e) => {
+                          const newStatus = e.target.value;
+                          if (newStatus !== item.status) {
+                            setConfirmStatusChange({
+                              id: item.interview_id,
+                              newStatus,
+                              candidateName: `${item.first_name} ${item.last_name}`,
+                            });
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded border border-outline-variant bg-surface-container text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <option value="scheduled">Scheduled</option>
                         <option value="completed">Mark Completed</option>
@@ -544,6 +588,75 @@ export default function OrgInterviews() {
           )}
         </div>
       </div>
+
+      {/* Post Meeting Modal */}
+      {postMeetInterview && !confirmStatusChange && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-surface rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-outline-variant animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 space-y-4">
+              <div className="w-12 h-12 rounded-full bg-vibrant-orange/10 flex items-center justify-center mx-auto mb-2">
+                <span className="material-symbols-outlined text-[24px] text-vibrant-orange">record_voice_over</span>
+              </div>
+              <h3 className="text-xl font-bold text-on-surface text-center">Interview Session Started</h3>
+              <p className="text-sm text-on-surface-variant text-center">
+                You have joined the meeting for <span className="font-bold text-on-surface">{postMeetInterview.first_name} {postMeetInterview.last_name}</span>.
+                Once the interview is over, how would you like to proceed?
+              </p>
+              
+              <div className="pt-4 flex flex-col gap-3">
+                <button
+                  onClick={() => setConfirmStatusChange({
+                    id: postMeetInterview.interview_id,
+                    newStatus: 'completed',
+                    candidateName: `${postMeetInterview.first_name} ${postMeetInterview.last_name}`
+                  })}
+                  className="w-full py-2.5 px-4 bg-pinoy-green text-white font-bold rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Mark Interview as Completed
+                </button>
+                <button
+                  onClick={() => setPostMeetInterview(null)}
+                  className="w-full py-2.5 px-4 bg-surface-container text-on-surface font-bold rounded-lg hover:bg-surface-container-high transition-colors"
+                >
+                  Will Meet Again (Resume Later)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Change Confirmation Modal */}
+      {confirmStatusChange && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-surface rounded-2xl shadow-xl w-full max-w-sm overflow-hidden border border-outline-variant animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 space-y-4">
+              <h3 className="text-lg font-bold text-on-surface">Confirm Status Change</h3>
+              <p className="text-sm text-on-surface-variant">
+                Are you sure you want to mark the interview with <span className="font-bold">{confirmStatusChange.candidateName}</span> as <span className="font-bold uppercase">{confirmStatusChange.newStatus.replace('_', ' ')}</span>?
+              </p>
+              <div className="p-3 bg-error/10 text-error rounded-lg text-xs font-semibold flex gap-2">
+                <span className="material-symbols-outlined text-[16px] shrink-0">warning</span>
+                <p>This action cannot be undone. You will not be able to change the status again once confirmed.</p>
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => setConfirmStatusChange(null)}
+                  className="flex-1 py-2 rounded-lg font-bold text-sm text-on-surface bg-surface-container hover:bg-surface-container-high transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmAndUpdateStatus}
+                  className="flex-1 py-2 rounded-lg font-bold text-sm text-white bg-vibrant-orange hover:bg-deep-orange transition-colors"
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
