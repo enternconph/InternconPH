@@ -324,7 +324,7 @@ export default function StudentJobs() {
 
         {/* Global Alert Messages */}
         {message && (
-          <div className="mb-4 p-3.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 rounded-2xl text-xs font-bold flex items-center justify-between border border-emerald-500/20 shadow-xs animate-fade-in">
+          <div className="mb-4 p-3.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 rounded-2xl text-xs font-bold flex items-center justify-between border border-emerald-500/20 shadow-xs animate-">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px]">check_circle</span>
               <span>{message}</span>
@@ -334,7 +334,7 @@ export default function StudentJobs() {
         )}
 
         {errorMessage && (
-          <div className="mb-4 p-3.5 bg-rose-500/10 text-rose-700 dark:text-rose-300 rounded-2xl text-xs font-bold flex items-center justify-between border border-rose-500/20 shadow-xs animate-fade-in">
+          <div className="mb-4 p-3.5 bg-rose-500/10 text-rose-700 dark:text-rose-300 rounded-2xl text-xs font-bold flex items-center justify-between border border-rose-500/20 shadow-xs animate-">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px]">error</span>
               <span>{errorMessage}</span>
@@ -384,7 +384,7 @@ export default function StudentJobs() {
                     >
                       {/* Story Circle with Glowing Ring */}
                       <div
-                        className={`w-13 h-13 sm:w-16 sm:h-16 rounded-full p-[2.5px] transition-all duration-300 ${
+                        className={`w-13 h-13 sm:w-16 sm:h-16 rounded-full p-[2.5px] transition-all  ${
                           isActive
                             ? `bg-gradient-to-tr ${story.gradient} ring-2 ring-vibrant-orange/50 scale-105 shadow-md`
                             : 'bg-gradient-to-tr from-outline-variant to-outline-variant/40 hover:scale-105 hover:p-[3px] hover:bg-gradient-to-tr hover:from-vibrant-orange hover:to-pink-500'
@@ -444,7 +444,7 @@ export default function StudentJobs() {
 
             {/* OJT Completer Status Alert (if applicable) */}
             {isOjtCompleter && !isStudentGraduated && (
-              <div className="p-4 bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-teal-500/10 border border-blue-500/20 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs animate-fade-in">
+              <div className="p-4 bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-teal-500/10 border border-blue-500/20 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs animate-">
                 <div className="flex items-start sm:items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
                     <span className="material-symbols-outlined text-[22px]">verified</span>
@@ -520,7 +520,7 @@ export default function StudentJobs() {
                   return (
                     <article
                       key={job.job_id}
-                      className="bg-surface rounded-3xl border border-outline-variant/80 overflow-hidden shadow-xs hover:shadow-md transition-all duration-300"
+                      className="bg-surface rounded-3xl border border-outline-variant/80 overflow-hidden shadow-xs hover:shadow-md transition-all"
                     >
                       {/* ========================================================= */}
                       {/* POST HEADER (Avatar, Name, Verified, Location, More Menu) */}
@@ -637,7 +637,7 @@ export default function StudentJobs() {
                               alt={`${job.title} Poster`}
                               loading="lazy"
                               decoding="async"
-                              className="relative z-10 w-full h-auto max-h-[640px] sm:max-h-[720px] object-contain transition-transform duration-300 group-hover/media:scale-[1.01]"
+                              className="relative z-10 w-full h-auto max-h-[640px] sm:max-h-[720px] object-contain transition-transform group-hover/media:scale-[1.01]"
                               onError={(e) => {
                                 e.target.style.display = 'none';
                               }}
@@ -1027,7 +1027,7 @@ export default function StudentJobs() {
         {inspectJob && (
           <div
             onClick={() => setInspectJob(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fade-in"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-"
           >
             <div
               onClick={(e) => e.stopPropagation()}
@@ -1139,7 +1139,7 @@ export default function StudentJobs() {
         {applyModalJob && (
           <div
             onClick={() => !applySubmitting && setApplyModalJob(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-"
           >
             <div
               onClick={(e) => e.stopPropagation()}
@@ -1307,7 +1307,7 @@ export default function StudentJobs() {
         {previewFlyer && (
           <div
             onClick={() => setPreviewFlyer(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in cursor-zoom-out"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate- cursor-zoom-out"
           >
             <div
               onClick={(e) => e.stopPropagation()}

@@ -514,7 +514,7 @@ export default function OrgEvaluations() {
 
                           <div className="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
                             <div
-                              className="bg-vibrant-orange h-full rounded-full transition-all duration-300"
+                              className="bg-vibrant-orange h-full rounded-full transition-all"
                               style={{ width: `${pct}%` }}
                             ></div>
                           </div>

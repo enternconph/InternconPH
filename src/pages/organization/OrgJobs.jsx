@@ -416,7 +416,7 @@ export default function OrgJobs() {
 
       {/* Warning Banner when no Workplace Mentor exists */}
       {!loading && mentors.length === 0 && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs animate-fade-in">
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs animate-">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-[24px]">supervisor_account</span>
@@ -1447,7 +1447,7 @@ export default function OrgJobs() {
 
       {/* NO WORKPLACE MENTOR WARNING MODAL */}
       {showNoMentorWarning && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-">
           <div className="bg-white dark:bg-surface rounded-2xl border border-outline-variant p-5 sm:p-6 w-full max-w-md space-y-4 shadow-2xl relative max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-outline-variant/60 pb-3">
               <div className="flex items-center gap-2">

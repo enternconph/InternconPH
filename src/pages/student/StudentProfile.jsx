@@ -226,7 +226,7 @@ export default function StudentProfile() {
       {/* Editable Form */}
       <form
         onSubmit={handleSubmit}
-        className={`bento-card space-y-4 transition-all duration-500 ${
+        className={`bento-card space-y-4 transition-all  ${
           saveSuccess ? 'ring-2 ring-emerald-500/70 bg-emerald-50/20 shadow-lg shadow-emerald-500/10' : ''
         }`}
       >
@@ -236,7 +236,7 @@ export default function StudentProfile() {
             <span>Personal & Contact Information</span>
           </h2>
           {saveSuccess && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold animate-in fade-in zoom-in-95 duration-200">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold -95">
               <span className="material-symbols-outlined text-[16px] text-emerald-600">check_circle</span>
               <span>Changes Saved</span>
             </span>
@@ -337,7 +337,7 @@ export default function StudentProfile() {
           <button
             type="submit"
             disabled={isSaving}
-            className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 shadow-sm flex items-center justify-center gap-2 ${
+            className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all  shadow-sm flex items-center justify-center gap-2 ${
               saveSuccess
                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-400 scale-[1.02]'
                 : isSaving

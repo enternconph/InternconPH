@@ -390,7 +390,7 @@ export default function AdminComplaints() {
                 return (
                   <div
                     key={report.report_id}
-                    className="bento-card border border-outline-variant/60 hover:border-outline-variant transition-all duration-200 p-5 space-y-4"
+                    className="bento-card border border-outline-variant/60 hover:border-outline-variant transition-all p-5 space-y-4"
                   >
                     {/* Card Header */}
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 border-b border-outline-variant/40 pb-3">

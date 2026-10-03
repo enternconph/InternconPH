@@ -232,7 +232,7 @@ export default function OrgDashboard() {
                           </div>
                           <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
                             <div
-                              className="bg-vibrant-orange h-full rounded-full transition-all duration-300"
+                              className="bg-vibrant-orange h-full rounded-full transition-all"
                               style={{ width: `${pct}%` }}
                             />
                           </div>
@@ -303,7 +303,7 @@ export default function OrgDashboard() {
     <div className="p-4 md:p-8 space-y-6">
       {/* Pending Mentor Verification Alert Banner */}
       {pendingMentorsCount > 0 && (
-        <div className="p-4 bg-orange-tint/60 border border-vibrant-orange/40 rounded-2xl flex items-center justify-between flex-wrap gap-3 animate-fade-in shadow-sm">
+        <div className="p-4 bg-orange-tint/60 border border-vibrant-orange/40 rounded-2xl flex items-center justify-between flex-wrap gap-3 animate- shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-vibrant-orange text-white flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-[22px]">pending_actions</span>
@@ -662,7 +662,7 @@ export default function OrgDashboard() {
 
       {/* NO WORKPLACE MENTOR WARNING MODAL */}
       {showNoMentorWarning && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-">
           <div className="bg-white dark:bg-surface rounded-2xl border border-outline-variant p-5 sm:p-6 w-full max-w-md space-y-4 shadow-2xl relative max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-outline-variant/60 pb-3">
               <div className="flex items-center gap-2">

@@ -187,7 +187,7 @@ export default function StudentDashboard() {
 
             <div className="w-full bg-surface-container h-3 rounded-full overflow-hidden">
               <div
-                className="bg-vibrant-orange h-full rounded-full transition-all duration-500"
+                className="bg-vibrant-orange h-full rounded-full transition-all"
                 style={{ width: `${progressPct}%` }}
               ></div>
             </div>

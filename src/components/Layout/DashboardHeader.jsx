@@ -260,7 +260,7 @@ export default function DashboardHeader() {
             type="button"
             id="notification-bell-btn"
             onClick={() => setPanelOpen(!panelOpen)}
-            className={`relative p-2 rounded-xl transition-all duration-200 ${
+            className={`relative p-2 rounded-xl transition-all  ${
               panelOpen
                 ? 'bg-orange-tint text-vibrant-orange shadow-inner'
                 : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
@@ -284,7 +284,7 @@ export default function DashboardHeader() {
             type="button"
             id="theme-toggle-btn"
             onClick={toggleTheme}
-            className={`p-2 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 ${
+            className={`p-2 rounded-xl transition-all  cursor-pointer active:scale-95 ${
               isDark
                 ? 'bg-primary-container/20 text-primary-container hover:bg-primary-container/30 border border-primary-container/40'
                 : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
@@ -292,7 +292,7 @@ export default function DashboardHeader() {
             title={isDark ? 'Switch to Light Mode' : 'Switch to Aura Radiant Dark Mode'}
             aria-label="Toggle Theme Mode"
           >
-            <span className="material-symbols-outlined text-[22px] block transition-transform duration-300">
+            <span className="material-symbols-outlined text-[22px] block transition-transform">
               {isDark ? 'light_mode' : 'dark_mode'}
             </span>
           </button>
@@ -302,11 +302,11 @@ export default function DashboardHeader() {
             type="button"
             id="settings-header-btn"
             onClick={() => navigate('/dashboard/settings')}
-            className="p-2 rounded-xl bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all duration-200 cursor-pointer"
+            className="p-2 rounded-xl bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all cursor-pointer"
             title="Account Settings & Preferences"
             aria-label="Account Settings"
           >
-            <span className="material-symbols-outlined text-[22px] block hover:rotate-45 transition-transform duration-300">
+            <span className="material-symbols-outlined text-[22px] block hover:rotate-45 transition-transform">
               settings
             </span>
           </button>
@@ -316,7 +316,7 @@ export default function DashboardHeader() {
             type="button"
             id="header-logout-btn"
             onClick={handleLogout}
-            className="p-2 rounded-xl bg-surface-container text-error hover:bg-error-container hover:text-error transition-all duration-200 cursor-pointer"
+            className="p-2 rounded-xl bg-surface-container text-error hover:bg-error-container hover:text-error transition-all cursor-pointer"
             title="Sign Out"
             aria-label="Sign Out"
           >
@@ -325,7 +325,7 @@ export default function DashboardHeader() {
 
           {/* Notifications Dropdown Panel */}
           {panelOpen && (
-            <div className="absolute right-0 top-full mt-2 w-[min(calc(100vw-1.5rem),24rem)] max-w-[384px] bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200 max-h-[85vh] flex flex-col">
+            <div className="absolute right-0 top-full mt-2 w-[min(calc(100vw-1.5rem),24rem)] max-w-[384px] bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant overflow-hidden z-50 max-h-[85vh] flex flex-col">
               {/* Panel Header */}
               <div className="p-4 border-b border-outline-variant bg-surface-container-low/50 flex items-center justify-between">
                 <div className="flex items-center gap-2">

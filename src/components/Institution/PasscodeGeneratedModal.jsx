@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 
 /**
  * Animated Modal that celebrates and prominently reveals a newly generated Staff Passcode.
@@ -85,20 +84,13 @@ Instructions:
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto custom-scrollbar">
         {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+        <div
           onClick={onClose}
           className="fixed inset-0 bg-black/75 backdrop-blur-md transition-opacity"
         />
 
         {/* Modal Card */}
-        <motion.div
-          initial={{ scale: 0.85, opacity: 0, y: 30 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.9, opacity: 0, y: 20 }}
-          transition={{ type: 'spring', damping: 24, stiffness: 300 }}
+        <div
           className="relative w-full max-w-lg bg-surface rounded-3xl shadow-[0_25px_60px_-15px_rgba(255,107,0,0.3)] border border-outline-variant overflow-hidden z-10 my-8"
         >
           {/* Animated Glowing Top Bar */}
@@ -302,7 +294,7 @@ Instructions:
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </AnimatePresence>
   );

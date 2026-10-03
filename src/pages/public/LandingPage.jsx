@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import Header from '../../components/Layout/Header';
 import Footer from '../../components/Layout/Footer';
 import api from '../../api/client';
@@ -298,16 +297,13 @@ export default function LandingPage() {
               {/* Top Floating Badge */}
               <div className="relative z-20 flex items-center justify-between">
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white/90 text-xs font-semibold shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-amber-400 pulse" />
                   <span>CHED CMO 104 & DOLE SIPP Certified Platform</span>
                 </div>
               </div>
 
               {/* Center/Left Hero Typography & CTAs */}
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, ease: 'easeOut' }}
+              <div
                 className="relative z-20 max-w-3xl my-auto space-y-6 pt-8 pb-12 text-left"
               >
                 {/* Eyebrow */}
@@ -339,7 +335,7 @@ export default function LandingPage() {
                       className="px-7 sm:px-8 py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-amber-400 via-vibrant-orange to-deep-orange text-white font-black text-sm sm:text-base hover:brightness-110 shadow-xl shadow-orange-500/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group cursor-pointer"
                     >
                       <span>Get Started</span>
-                      <span className="material-symbols-outlined text-[20px] transition-transform duration-200 group-hover:translate-x-1">
+                      <span className="material-symbols-outlined text-[20px] transition-transform group-hover:translate-x-1">
                         arrow_forward
                       </span>
                     </Link>
@@ -353,12 +349,12 @@ export default function LandingPage() {
                       explore
                     </span>
                     <span>How It Works</span>
-                    <span className="material-symbols-outlined text-[18px] opacity-70 transition-transform duration-200 group-hover:translate-x-0.5">
+                    <span className="material-symbols-outlined text-[18px] opacity-70 transition-transform group-hover:translate-x-0.5">
                       arrow_forward
                     </span>
                   </a>
                 </div>
-              </motion.div>
+              </div>
 
               {/* Bottom Metrics & Scroll Indicator Strip */}
               <div className="relative z-20 pt-6 border-t border-white/15 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -418,8 +414,8 @@ export default function LandingPage() {
                   href="#how-it-works"
                   className="hidden md:flex items-center gap-2.5 text-white/75 hover:text-white transition-colors group cursor-pointer shrink-0"
                 >
-                  <div className="w-9 h-9 rounded-full border border-white/30 group-hover:border-white flex items-center justify-center backdrop-blur-sm bg-white/5 transition-all group-hover:bg-white/15">
-                    <span className="material-symbols-outlined text-[18px] animate-bounce">
+                  <div className="w-9 h-9 rounded-full border border-white/30 group- flex items-center justify-center backdrop-blur-sm bg-white/5 transition-all group-hover:bg-white/15">
+                    <span className="material-symbols-outlined text-[18px] bounce">
                       arrow_downward
                     </span>
                   </div>
@@ -441,11 +437,7 @@ export default function LandingPage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-14 md:space-y-18">
               
               {/* Centered Heading: InternConPH Developer */}
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5 }}
+              <div
                 className="text-center max-w-3xl mx-auto space-y-3"
               >
                 <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-orange-tint text-vibrant-orange text-xs font-bold shadow-xs">
@@ -458,7 +450,7 @@ export default function LandingPage() {
                 <p className="text-xs sm:text-sm text-on-surface-variant max-w-xl mx-auto font-medium">
                   Meet the passionate engineers, designers, and innovators building the future of Philippine internships.
                 </p>
-              </motion.div>
+              </div>
 
               {/* 4 Team Member Photos in a Row (Edge-to-Edge Photo Strip) */}
               <div
@@ -468,12 +460,8 @@ export default function LandingPage() {
                 {teamMembers.map((member, idx) => {
                   const isRevealed = activeMember === idx;
                   return (
-                    <motion.div
+                    <div
                       key={member.id}
-                      initial={{ opacity: 0, y: 25 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.4, delay: idx * 0.08 }}
                       tabIndex={0}
                       role="button"
                       aria-label={`${member.role}: ${member.desc}`}
@@ -489,7 +477,7 @@ export default function LandingPage() {
                           setActiveMember(isRevealed ? null : idx);
                         }
                       }}
-                      className="group relative rounded-2xl sm:rounded-3xl overflow-hidden bg-white dark:bg-neutral-900 border border-outline-variant/30 hover:border-vibrant-orange/60 focus:border-vibrant-orange focus:ring-2 focus:ring-vibrant-orange/40 transition-all duration-300 outline-none cursor-pointer select-none shadow-xs hover:shadow-2xl"
+                      className="group relative rounded-2xl sm:rounded-3xl overflow-hidden bg-white dark:bg-neutral-900 border border-outline-variant/30 /60 focus:border-vibrant-orange focus:ring-2 focus:ring-vibrant-orange/40 transition-all outline-none cursor-pointer select-none shadow-xs hover:shadow-2xl"
                     >
                       {/* Photo Container: Clean cutout on plain background, edge-to-edge */}
                       <div className="relative w-full h-[380px] sm:h-[420px] md:h-[460px] lg:h-[480px] flex items-end justify-center overflow-hidden bg-gradient-to-b from-transparent via-neutral-50/60 to-neutral-100/80 dark:from-transparent dark:via-neutral-900/60 dark:to-neutral-950/80">
@@ -497,7 +485,7 @@ export default function LandingPage() {
                           src={member.image}
                           alt={member.role}
                           loading="lazy"
-                          className={`w-full h-full object-contain object-bottom transition-all duration-300 ease-out group-hover:scale-105 group-hover:brightness-75 group-focus:scale-105 group-focus:brightness-75 ${
+                          className={`w-full h-full object-contain object-bottom transition-all  ease-out  group-hover:brightness-75 group-focus:scale-105 group-focus:brightness-75 ${
                             isRevealed ? 'scale-105 brightness-75' : 'brightness-100'
                           }`}
                         />
@@ -505,7 +493,7 @@ export default function LandingPage() {
 
                       {/* Smooth Fade / Slide-up Overlay on Hover / Focus / Tap */}
                       <div
-                        className={`absolute inset-0 bg-gradient-to-t from-black/95 via-black/80 to-black/30 backdrop-blur-[3px] flex flex-col justify-end p-5 sm:p-6 text-center transition-all duration-300 ease-out pointer-events-none ${
+                        className={`absolute inset-0 bg-gradient-to-t from-black/95 via-black/80 to-black/30 backdrop-blur-[3px] flex flex-col justify-end p-5 sm:p-6 text-center transition-all  ease-out pointer-events-none ${
                           isRevealed
                             ? 'opacity-100 translate-y-0'
                             : 'opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 group-focus:opacity-100 group-focus:translate-y-0'
@@ -555,7 +543,7 @@ export default function LandingPage() {
                           </button>
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   );
                 })}
               </div>
@@ -567,11 +555,7 @@ export default function LandingPage() {
           {/* 2. HOW INTERNCONPH WORKS (9 Comprehensive Pillars)                         */}
           {/* ========================================================================= */}
           <section id="how-it-works" className="py-20 px-4 md:px-8 max-w-7xl mx-auto scroll-mt-20">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
+            <div
               className="text-center max-w-3xl mx-auto mb-16 space-y-3"
             >
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-tint text-vibrant-orange text-xs font-bold">
@@ -579,7 +563,7 @@ export default function LandingPage() {
                 <span>CHED CMO 104 & DOLE Compliant Architecture</span>
               </div>
               <h2 className="text-3xl md:text-4xl font-black text-on-surface">How InternConPH Works</h2>
-            </motion.div>
+            </div>
 
             {/* 9 Process Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -639,13 +623,9 @@ export default function LandingPage() {
                   desc: 'Structured multi-party grievance mechanism allowing students, mentors, and institutions to report workplace infractions, safety issues, or contract violations with due process.'
                 }
               ].map((item, idx) => (
-                <motion.div
+                <div
                   key={idx}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.4, delay: idx * 0.05 }}
-                  className="bento-card p-6 flex flex-col justify-between space-y-4 hover:border-vibrant-orange hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+                  className="bento-card p-6 flex flex-col justify-between space-y-4    transition-all"
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -657,7 +637,7 @@ export default function LandingPage() {
                     <h3 className="text-base font-bold text-on-surface">{item.title}</h3>
                     <p className="text-xs text-on-surface-variant leading-relaxed">{item.desc}</p>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
           </section>
@@ -667,11 +647,7 @@ export default function LandingPage() {
           {/* ========================================================================= */}
           <section id="opportunities" className="py-20 px-4 md:px-8 bg-surface-container-lowest border-y border-outline-variant scroll-mt-20">
             <div className="max-w-5xl mx-auto">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5 }}
+              <div
                 className="bento-card p-8 md:p-12 space-y-6 bg-gradient-to-br from-surface via-surface-container-low to-orange-500/5 border border-vibrant-orange/30 shadow-xl"
               >
                 <div className="flex items-center gap-3">
@@ -701,7 +677,7 @@ export default function LandingPage() {
                     Enter Candidate Portal →
                   </Link>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </section>
 
@@ -711,13 +687,9 @@ export default function LandingPage() {
           <section className="py-20 px-4 md:px-8 max-w-7xl mx-auto space-y-16">
             
             {/* For Students */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
+            <div
               id="for-students"
-              className="bento-card grid grid-cols-1 lg:grid-cols-2 gap-8 items-center p-8 md:p-12 scroll-mt-20 hover:border-vibrant-orange hover:shadow-xl transition-all duration-300"
+              className="bento-card grid grid-cols-1 lg:grid-cols-2 gap-8 items-center p-8 md:p-12 scroll-mt-20   transition-all"
             >
               <div className="space-y-4">
                 <span className="px-3.5 py-1 rounded-full text-xs font-bold bg-orange-tint text-vibrant-orange">
@@ -765,16 +737,12 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
             {/* For Organizations */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
+            <div
               id="for-organizations"
-              className="bento-card grid grid-cols-1 lg:grid-cols-2 gap-8 items-center p-8 md:p-12 scroll-mt-20 hover:border-pinoy-green hover:shadow-xl transition-all duration-300"
+              className="bento-card grid grid-cols-1 lg:grid-cols-2 gap-8 items-center p-8 md:p-12 scroll-mt-20   transition-all"
             >
               <div className="space-y-4">
                 <span className="px-3.5 py-1 rounded-full text-xs font-bold bg-green-tint text-pinoy-green">
@@ -822,16 +790,12 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
             {/* For Institutions */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
+            <div
               id="for-institutions"
-              className="bento-card grid grid-cols-1 lg:grid-cols-2 gap-8 items-center p-8 md:p-12 scroll-mt-20 hover:border-blue-500 hover:shadow-xl transition-all duration-300"
+              className="bento-card grid grid-cols-1 lg:grid-cols-2 gap-8 items-center p-8 md:p-12 scroll-mt-20 500  transition-all"
             >
               <div className="space-y-4">
                 <span className="px-3.5 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600">
@@ -879,7 +843,7 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
           </section>
 
@@ -888,11 +852,7 @@ export default function LandingPage() {
           {/* ========================================================================= */}
           <section id="policies" className="py-20 px-4 md:px-8 bg-surface-container-lowest border-y border-outline-variant scroll-mt-20">
             <div className="max-w-7xl mx-auto space-y-12">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5 }}
+              <div
                 className="text-center max-w-3xl mx-auto space-y-3"
               >
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-tint text-pinoy-green font-bold text-xs">
@@ -903,7 +863,7 @@ export default function LandingPage() {
                 <p className="text-on-surface-variant text-xs sm:text-sm leading-relaxed">
                   InternConPH strictly implements the guidelines of the Commission on Higher Education (CHED), Department of Labor and Employment (DOLE), and the National Privacy Commission (NPC) to safeguard students, universities, and industry partners.
                 </p>
-              </motion.div>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[
@@ -950,13 +910,9 @@ export default function LandingPage() {
                     desc: 'Cryptographically audited time-in/out records and mentor evaluations preventing falsification of rendered hours. Certificates of Completion generated only upon verified satisfaction.'
                   }
                 ].map((pol, idx) => (
-                  <motion.div
+                  <div
                     key={pol.key}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.4, delay: idx * 0.05 }}
-                    className="bento-card p-6 flex flex-col justify-between space-y-4 hover:border-vibrant-orange hover:shadow-xl hover:-translate-y-1 transition-all"
+                    className="bento-card p-6 flex flex-col justify-between space-y-4    transition-all"
                   >
                     <div className="space-y-3">
                       <div className="w-12 h-12 rounded-xl bg-orange-tint text-vibrant-orange flex items-center justify-center">
@@ -976,7 +932,7 @@ export default function LandingPage() {
                         <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                       </button>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -988,11 +944,11 @@ export default function LandingPage() {
         {/* POLICY DETAILS MODAL */}
         {selectedPolicy && policyDetails[selectedPolicy] && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 "
             onClick={() => setSelectedPolicy(null)}
           >
             <div
-              className="bg-surface border border-outline-variant rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto animate-scale-up"
+              className="bg-surface border border-outline-variant rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto scale-up"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-4 border-b border-outline-variant pb-4">
@@ -1040,11 +996,11 @@ export default function LandingPage() {
         {/* ROLE DETAILS BREAKDOWN MODAL */}
         {selectedRoleDetail && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 "
             onClick={() => setSelectedRoleDetail(null)}
           >
             <div
-              className="bg-surface border border-outline-variant rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto animate-scale-up"
+              className="bg-surface border border-outline-variant rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto scale-up"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-4 border-b border-outline-variant pb-4">

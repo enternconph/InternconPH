@@ -311,7 +311,7 @@ export default function AdminOrganizations() {
       {/* Legal Document Inspection Modal */}
       {selectedOrg && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white border border-outline-variant rounded-2xl max-w-4xl w-full p-5 sm:p-6 shadow-2xl space-y-4 my-6 animate-in fade-in zoom-in duration-150 flex flex-col max-h-[90vh]">
+          <div className="bg-white border border-outline-variant rounded-2xl max-w-4xl w-full p-5 sm:p-6 shadow-2xl space-y-4 my-6 flex flex-col max-h-[90vh]">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-outline-variant pb-3 shrink-0">
               <div className="flex items-center gap-2.5">

@@ -592,7 +592,7 @@ export default function OrgInterviews() {
       {/* Post Meeting Modal */}
       {postMeetInterview && !confirmStatusChange && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-surface rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-outline-variant animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-surface rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-outline-variant -95">
             <div className="p-6 space-y-4">
               <div className="w-12 h-12 rounded-full bg-vibrant-orange/10 flex items-center justify-center mx-auto mb-2">
                 <span className="material-symbols-outlined text-[24px] text-vibrant-orange">record_voice_over</span>
@@ -629,7 +629,7 @@ export default function OrgInterviews() {
       {/* Status Change Confirmation Modal */}
       {confirmStatusChange && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-surface rounded-2xl shadow-xl w-full max-w-sm overflow-hidden border border-outline-variant animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-surface rounded-2xl shadow-xl w-full max-w-sm overflow-hidden border border-outline-variant -95">
             <div className="p-6 space-y-4">
               <h3 className="text-lg font-bold text-on-surface">Confirm Status Change</h3>
               <p className="text-sm text-on-surface-variant">

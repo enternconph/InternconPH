@@ -332,7 +332,7 @@ export default function OrgGrievances() {
 
       {/* Toast Banner */}
       {toast && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-bold rounded-2xl flex items-center gap-2 animate-in fade-in duration-200 shadow-sm">
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-bold rounded-2xl flex items-center gap-2 shadow-sm">
           <span className="material-symbols-outlined text-emerald-600">check_circle</span>
           <span>{toast}</span>
         </div>
@@ -509,7 +509,7 @@ export default function OrgGrievances() {
 
               {/* TOGGLE ACCIDENT REPORT DETAILS */}
               {formData.is_accident && (
-                <div className="p-5 bg-gradient-to-br from-rose-500/10 via-surface-container/50 to-surface-container-high/40 border border-rose-500/30 rounded-2xl space-y-4 shadow-xs animate-in fade-in duration-200">
+                <div className="p-5 bg-gradient-to-br from-rose-500/10 via-surface-container/50 to-surface-container-high/40 border border-rose-500/30 rounded-2xl space-y-4 shadow-xs">
                   <div className="space-y-0.5">
                     <span className="text-sm font-bold text-on-surface flex items-center gap-2">
                       <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-rose-500/15 text-rose-400 border border-rose-500/30">
@@ -523,7 +523,7 @@ export default function OrgGrievances() {
                   </div>
 
                   {/* Extended Accident Form Fields */}
-                  <div className="pt-4 border-t border-rose-500/20 space-y-4 animate-in fade-in duration-200">
+                  <div className="pt-4 border-t border-rose-500/20 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-semibold text-on-surface mb-1.5">
@@ -1006,7 +1006,7 @@ export default function OrgGrievances() {
 
       {/* DETAIL MODAL */}
       {selectedItem && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-surface-container-lowest max-w-2xl w-full rounded-2xl p-6 shadow-2xl border border-outline-variant space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3 border-b border-outline-variant pb-3">
               <div>

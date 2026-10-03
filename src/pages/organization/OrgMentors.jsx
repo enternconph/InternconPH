@@ -273,14 +273,14 @@ export default function OrgMentors() {
 
       {/* Toast Messages */}
       {message && (
-        <div className="p-3 bg-green-tint text-pinoy-green rounded-lg text-xs font-bold flex items-center gap-2 border border-pinoy-green/20 animate-fade-in">
+        <div className="p-3 bg-green-tint text-pinoy-green rounded-lg text-xs font-bold flex items-center gap-2 border border-pinoy-green/20 animate-">
           <span className="material-symbols-outlined text-[18px]">check_circle</span>
           <span>{message}</span>
         </div>
       )}
 
       {errorMsg && (
-        <div className="p-3 bg-error-container text-error rounded-lg text-xs font-bold flex items-center gap-2 border border-error/20 animate-fade-in">
+        <div className="p-3 bg-error-container text-error rounded-lg text-xs font-bold flex items-center gap-2 border border-error/20 animate-">
           <span className="material-symbols-outlined text-[18px]">error</span>
           <span>{errorMsg}</span>
         </div>
@@ -288,7 +288,7 @@ export default function OrgMentors() {
 
       {/* Generated Code Display Banner */}
       {generatedCode && (
-        <div className="bento-card bg-orange-tint/40 border border-vibrant-orange/30 animate-fade-in">
+        <div className="bento-card bg-orange-tint/40 border border-vibrant-orange/30 animate-">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-vibrant-orange text-white flex items-center justify-center shrink-0 shadow-sm">
@@ -849,7 +849,7 @@ export default function OrgMentors() {
         const hasAnyMismatch = isEmpIdMismatch || isEmailMismatch || isDeptMismatch || isIdMismatch || selectedMentor.has_discrepancy;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-">
             <div className="bg-surface max-w-2xl w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden flex flex-col max-h-[90vh]">
               {/* Modal Header */}
               <div className="p-6 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
@@ -888,7 +888,7 @@ export default function OrgMentors() {
               <div className="p-6 overflow-y-auto space-y-5 text-xs">
                 {/* PROMINENT TOP WARNING ALERT IF UNMATCHED DATA DETECTED */}
                 {hasAnyMismatch && (
-                  <div className="p-4 bg-red-500/10 border-2 border-red-500/40 rounded-xl space-y-2 text-red-600 animate-fade-in shadow-sm">
+                  <div className="p-4 bg-red-500/10 border-2 border-red-500/40 rounded-xl space-y-2 text-red-600 animate- shadow-sm">
                     <div className="flex items-center gap-2 font-bold text-sm">
                       <span className="material-symbols-outlined text-red-600 text-[22px]">warning</span>
                       <span>⚠️ Warning: Unmatched Registration Information Detected</span>
@@ -1226,7 +1226,7 @@ export default function OrgMentors() {
                   </div>
                 )}
                 {duplicateWarning ? (
-                  <div className="mt-1.5 p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[11px] flex items-start gap-1.5 animate-fade-in">
+                  <div className="mt-1.5 p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[11px] flex items-start gap-1.5 animate-">
                     <span className="material-symbols-outlined text-[16px] text-red-600 shrink-0 mt-0.5">error</span>
                     <span className="font-medium leading-tight">{duplicateWarning.message}</span>
                   </div>

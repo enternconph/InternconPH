@@ -382,7 +382,7 @@ export default function StudentOJT() {
       {/* Toast Alert */}
       {toast.message && (
         <div
-          className={`p-3.5 rounded-2xl text-xs font-bold flex items-center gap-2.5 border shadow-sm animate-in fade-in slide-in-from-top-2 duration-200 ${
+          className={`p-3.5 rounded-2xl text-xs font-bold flex items-center gap-2.5 border shadow-sm     ${
             toast.isError
               ? 'bg-error-container text-error border-error/20'
               : 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
@@ -435,7 +435,7 @@ export default function StudentOJT() {
           </div>
           <div className="w-full bg-surface-container-high h-4 rounded-full overflow-hidden p-0.5 border border-outline-variant/60">
             <div
-              className="bg-gradient-to-r from-vibrant-orange to-deep-orange h-full rounded-full transition-all duration-700 shadow-inner"
+              className="bg-gradient-to-r from-vibrant-orange to-deep-orange h-full rounded-full transition-all shadow-inner"
               style={{ width: `${progressPct}%` }}
             ></div>
           </div>
@@ -821,7 +821,7 @@ export default function StudentOJT() {
               </div>
               <div className="w-full bg-surface-container-high h-3 rounded-full overflow-hidden border border-outline-variant/60">
                 <div
-                  className="bg-blue-600 h-full rounded-full transition-all duration-500"
+                  className="bg-blue-600 h-full rounded-full transition-all"
                   style={{ width: `${reqsProgressPct}%` }}
                 ></div>
               </div>
@@ -1079,7 +1079,7 @@ export default function StudentOJT() {
       {/* REQUIREMENT SUBMISSION MODAL */}
       {/* ========================================================================= */}
       {selectedReq && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-outline-variant pb-3">
               <div>
@@ -1230,7 +1230,7 @@ export default function StudentOJT() {
       {/* Success Modal */}
       {showSuccessModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-surface-container rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl transform scale-100 animate-in zoom-in-95 duration-200">
+          <div className="bg-surface-container rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl transform scale-100 -95">
             <div className="w-16 h-16 bg-green-tint text-pinoy-green rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white dark:border-surface-container">
               <span className="material-symbols-outlined text-3xl">check_circle</span>
             </div>

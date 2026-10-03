@@ -478,7 +478,7 @@ export default function InstMonitoring() {
                           </span>
                         ) : null}
                         {(c.warning_note_to_student || justIssuedWarningIds.includes(c.complaint_id)) ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 animate-in zoom-in-95 duration-200">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 -95">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                             Warning Issued
                           </span>
@@ -595,7 +595,7 @@ export default function InstMonitoring() {
                           Conduct Report
                         </span>
                         {(c.warning_note_to_student || justIssuedWarningIds.includes(c.complaint_id)) && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 animate-in zoom-in-95 duration-200">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 -95">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                             Warning Sent
                           </span>
@@ -1103,7 +1103,7 @@ export default function InstMonitoring() {
             </div>
 
             {warningSuccessModal ? (
-              <div className="py-8 px-4 text-center space-y-4 animate-in zoom-in-95 duration-300">
+              <div className="py-8 px-4 text-center space-y-4 -95">
                 <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center ring-8 ring-emerald-50 shadow-inner animate-bounce">
                   <span className="material-symbols-outlined text-[36px]">check_circle</span>
                 </div>

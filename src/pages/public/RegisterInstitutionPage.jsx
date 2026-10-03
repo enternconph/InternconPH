@@ -520,7 +520,7 @@ export default function RegisterInstitutionPage() {
               alt="Institution Registration" 
               loading="lazy"
               decoding="async"
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+              className="absolute inset-0 w-full h-full object-cover transition-transform hover:scale-105"
             />
             {/* Overlay to ensure image blends elegantly */}
             <div className="absolute inset-0 bg-gradient-to-tr from-orange-tint/40 to-transparent mix-blend-overlay"></div>

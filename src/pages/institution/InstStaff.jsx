@@ -467,7 +467,7 @@ export default function InstStaff() {
 
       {/* Standard Flash Message Banner (when no generated code is active) */}
       {!generatedCode && message && (
-        <div className="p-4 bg-green-tint text-pinoy-green rounded-xl text-xs font-bold flex items-center justify-between gap-2 border border-pinoy-green/20 animate-fade-in">
+        <div className="p-4 bg-green-tint text-pinoy-green rounded-xl text-xs font-bold flex items-center justify-between gap-2 border border-pinoy-green/20 animate-">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px]">check_circle</span>
             <span>{message}</span>
@@ -1502,7 +1502,7 @@ export default function InstStaff() {
         const hasAnyMismatch = isPosMismatch || isProgMismatch || isDeanDeptMismatch || isEmailMismatch || selectedStaff.has_discrepancy;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-">
             <div className="bg-surface max-w-2xl w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden flex flex-col max-h-[90vh]">
               {/* Modal Header */}
               <div className="p-4 sm:p-6 border-b border-outline-variant bg-surface-container-low flex items-start sm:items-center justify-between gap-3">
@@ -1541,7 +1541,7 @@ export default function InstStaff() {
                 
                 {/* PROMINENT TOP WARNING ALERT IF UNMATCHED DATA DETECTED */}
                 {hasAnyMismatch && (
-                  <div className="p-4 bg-red-500/10 border-2 border-red-500/40 rounded-xl space-y-2 text-red-600 animate-fade-in shadow-sm">
+                  <div className="p-4 bg-red-500/10 border-2 border-red-500/40 rounded-xl space-y-2 text-red-600 animate- shadow-sm">
                     <div className="flex items-center gap-2 font-bold text-sm">
                       <span className="material-symbols-outlined text-red-600 text-[22px]">warning</span>
                       <span>⚠️ Warning: Unmatched Registration Information Detected</span>
@@ -1872,7 +1872,7 @@ export default function InstStaff() {
         const roleInfo = formatPosition(code.intended_position);
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-">
             <div className="bg-surface max-w-md w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden flex flex-col animate-scale-up max-h-[90dvh]">
               {/* Modal Header */}
               <div className="p-5 border-b border-outline-variant bg-surface-container-low flex items-center gap-3 shrink-0">

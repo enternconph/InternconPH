@@ -157,7 +157,7 @@ export function ListSkeleton({ count = 5, className = '' }) {
  */
 export function DashboardSkeleton() {
   return (
-    <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-300">
+    <div className="p-4 md:p-8 space-y-8">
       {/* Greeting Header Skeleton */}
       <div className="space-y-2">
         <Skeleton variant="text" className="h-7 w-64" />

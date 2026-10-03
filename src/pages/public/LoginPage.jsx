@@ -67,7 +67,7 @@ export default function LoginPage() {
                 type="button"
                 id="login-theme-toggle-btn"
                 onClick={toggleTheme}
-                className={`p-2 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 ${
+                className={`p-2 rounded-xl transition-all  cursor-pointer active:scale-95 ${
                   isDark
                     ? 'bg-primary-container/20 text-primary-container hover:bg-primary-container/30 border border-primary-container/40'
                     : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
@@ -187,7 +187,7 @@ export default function LoginPage() {
               onError={(e) => {
                 e.target.src = '/building.jpg';
               }}
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+              className="absolute inset-0 w-full h-full object-cover transition-transform hover:scale-105"
             />
             {/* Overlay to ensure image blends elegantly */}
             <div className="absolute inset-0 bg-gradient-to-tr from-vibrant-orange/20 to-transparent mix-blend-overlay"></div>

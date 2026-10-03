@@ -391,7 +391,7 @@ export default function DemoAccountsDrawer({ isOpen, onClose, onSelectAccount, l
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-">
       <div 
         className="relative w-full max-w-4xl bg-surface rounded-3xl shadow-2xl border border-outline-variant/50 overflow-hidden flex flex-col max-h-[85vh] animate-scale-up"
         onClick={(e) => e.stopPropagation()}

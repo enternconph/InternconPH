@@ -517,7 +517,7 @@ export default function OrgOJT() {
       {/* Incident / Misconduct Report Modal */}
       {showIncidentModal && incidentStudent && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 max-h-[90dvh] overflow-y-auto">
+          <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-outline-variant pb-3">
               <h3 className="font-bold text-base text-on-surface flex items-center gap-2">
                 <span className="material-symbols-outlined text-error">report_problem</span>
@@ -585,7 +585,7 @@ export default function OrgOJT() {
       {/* QR Generation Modal */}
       {showQRModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-surface rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in fade-in flex flex-col items-center text-center">
+          <div className="bg-surface rounded-2xl w-full max-w-sm p-6 shadow-2xl flex flex-col items-center text-center">
             <h3 className="font-bold text-lg text-on-surface mb-2 flex items-center gap-2">
               <span className="material-symbols-outlined text-vibrant-orange">qr_code</span>
               DTR Scanner QR
@@ -617,7 +617,7 @@ export default function OrgOJT() {
       {/* Intern Portfolio & Profile Inspection Modal */}
       {inspectInternId && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface border border-outline-variant rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in">
+          <div className="bg-surface border border-outline-variant rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-">
             {/* Modal Header */}
             <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
               <div className="flex items-center gap-3">

@@ -1,6 +1,5 @@
 import React, { Suspense, lazy } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
 import { AuthProvider } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -75,7 +74,6 @@ function AnimatedRoutes() {
 
   return (
     <Suspense fallback={<DashboardSkeleton />}>
-      <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
           {/* Public Routes */}
           <Route path="/" element={showDashboard ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
@@ -164,7 +162,6 @@ function AnimatedRoutes() {
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </AnimatePresence>
   </Suspense>
   );
 }

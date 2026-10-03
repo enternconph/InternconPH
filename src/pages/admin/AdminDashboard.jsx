@@ -189,9 +189,9 @@ export default function AdminDashboard() {
 
             {/* Distribution Bar */}
             <div className="w-full h-2.5 bg-surface-container-high rounded-full overflow-hidden flex mb-3">
-              <div style={{ width: `${studentPct}%` }} className="bg-emerald-500 h-full transition-all duration-500" />
-              <div style={{ width: `${orgPct}%` }} className="bg-vibrant-orange h-full transition-all duration-500" />
-              <div style={{ width: `${instPct}%` }} className="bg-indigo-500 h-full transition-all duration-500" />
+              <div style={{ width: `${studentPct}%` }} className="bg-emerald-500 h-full transition-all" />
+              <div style={{ width: `${orgPct}%` }} className="bg-vibrant-orange h-full transition-all" />
+              <div style={{ width: `${instPct}%` }} className="bg-indigo-500 h-full transition-all" />
             </div>
 
             {/* Role Breakdown */}

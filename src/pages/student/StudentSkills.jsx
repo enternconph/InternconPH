@@ -820,7 +820,7 @@ export default function StudentSkills() {
 
       {/* ─── TOAST NOTIFICATIONS ──────────────────────────────────────── */}
       {message && (
-        <div className="p-4 bg-green-tint text-pinoy-green border border-pinoy-green/20 rounded-xl text-xs font-bold flex items-center justify-between shadow-sm animate-fade-in">
+        <div className="p-4 bg-green-tint text-pinoy-green border border-pinoy-green/20 rounded-xl text-xs font-bold flex items-center justify-between shadow-sm animate-">
           <div className="flex items-center gap-2.5">
             <span className="material-symbols-outlined text-[20px]">check_circle</span>
             <span>{message}</span>
@@ -832,7 +832,7 @@ export default function StudentSkills() {
       )}
 
       {errorMessage && (
-        <div className="p-4 bg-red-50 text-error border border-error/20 rounded-xl text-xs font-bold flex items-center justify-between shadow-sm animate-fade-in">
+        <div className="p-4 bg-red-50 text-error border border-error/20 rounded-xl text-xs font-bold flex items-center justify-between shadow-sm animate-">
           <div className="flex items-center gap-2.5">
             <span className="material-symbols-outlined text-[20px]">error</span>
             <span>{errorMessage}</span>
@@ -860,7 +860,7 @@ export default function StudentSkills() {
             </div>
             <div className="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
               <div
-                className="bg-gradient-to-r from-vibrant-orange to-deep-orange h-full rounded-full transition-all duration-500"
+                className="bg-gradient-to-r from-vibrant-orange to-deep-orange h-full rounded-full transition-all"
                 style={{ width: `${data.readiness.overall_readiness}%` }}
               ></div>
             </div>
@@ -1154,7 +1154,7 @@ export default function StudentSkills() {
 
                   {/* Primary Interactive Curriculum Competency Chips */}
                   {programSkillsStructure.allRelated.length > 0 && !skillSearchTerm && (
-                    <div className="p-3 bg-gradient-to-br from-surface-container-low to-surface-container rounded-xl border border-outline-variant space-y-2.5 animate-fade-in">
+                    <div className="p-3 bg-gradient-to-br from-surface-container-low to-surface-container rounded-xl border border-outline-variant space-y-2.5 animate-">
                       <div className="flex items-center justify-between flex-wrap gap-2">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="material-symbols-outlined text-vibrant-orange text-[16px]">school</span>
@@ -1377,7 +1377,7 @@ export default function StudentSkills() {
                     </div>
                   )}
                   {customSkillPreview && !previewLoading && (
-                    <div className="p-3 bg-gradient-to-br from-surface-container to-surface-container-high rounded-xl border border-outline-variant space-y-2 animate-fade-in">
+                    <div className="p-3 bg-gradient-to-br from-surface-container to-surface-container-high rounded-xl border border-outline-variant space-y-2 animate-">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Live Internet Preview</span>
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-green-tint text-pinoy-green animate-pulse">
@@ -1491,7 +1491,7 @@ export default function StudentSkills() {
             )}
 
             {explorerIntel && !explorerLoading && (
-              <div className="p-3 bg-surface-container rounded-xl border border-outline-variant space-y-2 text-xs animate-fade-in">
+              <div className="p-3 bg-surface-container rounded-xl border border-outline-variant space-y-2 text-xs animate-">
                 <div className="flex justify-between items-start">
                   <div>
                     <h4 className="font-bold text-sm text-on-surface">{explorerIntel.skill_name}</h4>
@@ -1735,7 +1735,7 @@ export default function StudentSkills() {
                   return (
                     <div
                       key={rec.recommendation_id}
-                      className="p-4 bg-gradient-to-br from-surface-container-lowest to-surface-container rounded-2xl border border-outline-variant hover:border-vibrant-orange transition-all duration-200 space-y-3 flex flex-col justify-between shadow-sm hover:shadow-md group h-full"
+                      className="p-4 bg-gradient-to-br from-surface-container-lowest to-surface-container rounded-2xl border border-outline-variant hover:border-vibrant-orange transition-all space-y-3 flex flex-col justify-between shadow-sm hover:shadow-md group h-full"
                     >
                       {/* Top Bar: Skill & Synergy Tag */}
                       <div className="space-y-2">
@@ -1920,7 +1920,7 @@ export default function StudentSkills() {
 
       {/* ─── 4. DEEP-DIVE MARKET INTELLIGENCE MODAL ────────────────────── */}
       {activeModalSkill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-">
           <div className="bg-surface rounded-2xl border border-outline-variant max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-5 animate-scale-up">
             {/* Modal Header */}
             <div className="flex justify-between items-start border-b border-outline-variant pb-4">
@@ -2063,11 +2063,11 @@ export default function StudentSkills() {
       {/* ─── MODAL: CONFIRM REMOVE SKILL ───────────────────────────── */}
       {skillToDelete && (
         <div 
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => !deletingSkillId && setSkillToDelete(null)}
         >
           <div 
-            className="bg-surface-container-lowest border border-outline-variant rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200"
+            className="bg-surface-container-lowest border border-outline-variant rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 -95"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3">

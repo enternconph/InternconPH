@@ -698,7 +698,7 @@ export default function UserSettingsPage() {
               {/* Personal Details Form */}
               <form
                 onSubmit={handleSaveProfile}
-                className={`bento-card space-y-5 transition-all duration-500 ${
+                className={`bento-card space-y-5 transition-all  ${
                   profileSaveSuccess ? 'ring-2 ring-emerald-500/70 bg-emerald-50/20 shadow-lg shadow-emerald-500/10' : ''
                 }`}
               >
@@ -708,7 +708,7 @@ export default function UserSettingsPage() {
                     <span>Personal Profile Details</span>
                   </h3>
                   {profileSaveSuccess && (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold animate-in fade-in zoom-in-95 duration-200">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold -95">
                       <span className="material-symbols-outlined text-[16px] text-emerald-600">check_circle</span>
                       <span>Changes Saved</span>
                     </span>
@@ -791,7 +791,7 @@ export default function UserSettingsPage() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className={`px-6 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 shadow-sm flex items-center justify-center gap-2 ${
+                    className={`px-6 py-2.5 rounded-xl font-bold text-xs transition-all  shadow-sm flex items-center justify-center gap-2 ${
                       profileSaveSuccess
                         ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-400 scale-[1.02]'
                         : saving
@@ -910,7 +910,7 @@ export default function UserSettingsPage() {
                         </div>
                         <div className="w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
                           <div
-                            className={`h-full transition-all duration-300 ${pwdStrength.color}`}
+                            className={`h-full transition-all  ${pwdStrength.color}`}
                             style={{ width: `${pwdStrength.score}%` }}
                           ></div>
                         </div>
@@ -1033,7 +1033,7 @@ export default function UserSettingsPage() {
                   {/* Option 1: 24-Hour Clock / Military Time (Default) */}
                   <div
                     onClick={() => handleTimeFormatChange('24h')}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all duration-200 relative flex flex-col justify-between ${
+                    className={`p-4 rounded-2xl border cursor-pointer transition-all  relative flex flex-col justify-between ${
                       preferences.time_format === '24h'
                         ? 'bg-orange-tint/20 dark:bg-orange-950/30 border-vibrant-orange ring-2 ring-vibrant-orange/30 shadow-sm'
                         : 'bg-surface-container border-outline-variant hover:border-outline-variant/80'
@@ -1079,7 +1079,7 @@ export default function UserSettingsPage() {
                   {/* Option 2: 12-Hour Clock (Standard AM/PM) */}
                   <div
                     onClick={() => handleTimeFormatChange('12h')}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all duration-200 relative flex flex-col justify-between ${
+                    className={`p-4 rounded-2xl border cursor-pointer transition-all  relative flex flex-col justify-between ${
                       preferences.time_format === '12h'
                         ? 'bg-blue-50/50 dark:bg-blue-950/30 border-blue-500 ring-2 ring-blue-500/30 shadow-sm'
                         : 'bg-surface-container border-outline-variant hover:border-outline-variant/80'
@@ -1197,7 +1197,7 @@ export default function UserSettingsPage() {
                 {/* 1. Classic Light Mode */}
                 <div
                   onClick={() => setTheme('light')}
-                  className={`bento-card cursor-pointer transition-all duration-200 relative flex flex-col justify-between ${
+                  className={`bento-card cursor-pointer transition-all  relative flex flex-col justify-between ${
                     theme === 'light'
                       ? 'border-vibrant-orange ring-2 ring-vibrant-orange/30 shadow-md'
                       : 'hover:border-outline-variant/80'
@@ -1253,7 +1253,7 @@ export default function UserSettingsPage() {
                 {/* 2. Aura Radiant Dark */}
                 <div
                   onClick={() => setTheme('dark')}
-                  className={`bento-card cursor-pointer transition-all duration-200 relative flex flex-col justify-between ${
+                  className={`bento-card cursor-pointer transition-all  relative flex flex-col justify-between ${
                     theme === 'dark'
                       ? 'border-[#ff8c00] ring-2 ring-[#ff8c00]/40 shadow-md'
                       : 'hover:border-outline-variant/80'
@@ -1312,7 +1312,7 @@ export default function UserSettingsPage() {
                 {/* 3. System Match */}
                 <div
                   onClick={() => setTheme('system')}
-                  className={`bento-card cursor-pointer transition-all duration-200 relative flex flex-col justify-between ${
+                  className={`bento-card cursor-pointer transition-all  relative flex flex-col justify-between ${
                     theme === 'system'
                       ? 'border-vibrant-orange ring-2 ring-vibrant-orange/30 shadow-md'
                       : 'hover:border-outline-variant/80'

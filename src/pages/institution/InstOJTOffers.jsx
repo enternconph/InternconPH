@@ -84,7 +84,7 @@ export default function InstOJTOffers() {
 
       {/* Toast Message */}
       {message && (
-        <div className="p-3 bg-green-tint text-pinoy-green rounded-lg text-xs font-bold flex items-center gap-2 border border-pinoy-green/20 animate-fade-in">
+        <div className="p-3 bg-green-tint text-pinoy-green rounded-lg text-xs font-bold flex items-center gap-2 border border-pinoy-green/20 animate-">
           <span className="material-symbols-outlined text-[18px]">check_circle</span>
           <span>{message}</span>
         </div>
@@ -163,7 +163,7 @@ export default function InstOJTOffers() {
                           alt={`${offer.title} flyer`}
                           loading="lazy"
                           decoding="async"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                           onError={(e) => { e.target.style.display = 'none'; }}
                         />
                       </div>

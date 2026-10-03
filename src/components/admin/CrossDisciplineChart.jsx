@@ -197,7 +197,7 @@ export default function CrossDisciplineChart({ matrix = [], onSelectDiscipline, 
                     onClick={() => onSelectDiscipline && onSelectDiscipline(item.id)}
                     onMouseEnter={() => setHoveredItem(item)}
                     onMouseLeave={() => setHoveredItem(null)}
-                    className={`flex-1 min-w-[50px] max-w-[85px] h-full flex flex-col items-center justify-end group cursor-pointer transition-all duration-300 ${
+                    className={`flex-1 min-w-[50px] max-w-[85px] h-full flex flex-col items-center justify-end group cursor-pointer transition-all  ${
                       isSelected ? 'opacity-100 scale-105' : 'hover:opacity-100 opacity-90'
                     }`}
                   >
@@ -206,7 +206,7 @@ export default function CrossDisciplineChart({ matrix = [], onSelectDiscipline, 
                       {/* Orange Bar: Openings */}
                       <div
                         style={{ height: `${demandHeightPct}%` }}
-                        className={`w-1/2 rounded-t-lg bg-gradient-to-t from-orange-500 to-amber-400 relative transition-all duration-500 group-hover:brightness-110 ${
+                        className={`w-1/2 rounded-t-lg bg-gradient-to-t from-orange-500 to-amber-400 relative transition-all  group-hover:brightness-110 ${
                           isHovered ? 'shadow-lg shadow-orange-500/30' : ''
                         }`}
                       >
@@ -218,7 +218,7 @@ export default function CrossDisciplineChart({ matrix = [], onSelectDiscipline, 
                       {/* Green Bar: Student Talent */}
                       <div
                         style={{ height: `${talentHeightPct}%` }}
-                        className={`w-1/2 rounded-t-lg bg-gradient-to-t from-emerald-600 to-teal-400 relative transition-all duration-500 group-hover:brightness-110 ${
+                        className={`w-1/2 rounded-t-lg bg-gradient-to-t from-emerald-600 to-teal-400 relative transition-all  group-hover:brightness-110 ${
                           isHovered ? 'shadow-lg shadow-emerald-500/30' : ''
                         }`}
                       >
@@ -267,7 +267,7 @@ export default function CrossDisciplineChart({ matrix = [], onSelectDiscipline, 
                     onClick={() => onSelectDiscipline && onSelectDiscipline(item.id)}
                     onMouseEnter={() => setHoveredItem(item)}
                     onMouseLeave={() => setHoveredItem(null)}
-                    className="flex-1 min-w-[50px] max-w-[90px] h-full flex flex-col items-center justify-end group cursor-pointer transition-all duration-300"
+                    className="flex-1 min-w-[50px] max-w-[90px] h-full flex flex-col items-center justify-end group cursor-pointer transition-all"
                   >
                     {/* Single Column */}
                     <div className="w-full flex items-end justify-center h-full relative">
@@ -276,7 +276,7 @@ export default function CrossDisciplineChart({ matrix = [], onSelectDiscipline, 
                           height: `${heightPct}%`,
                           backgroundColor: colorHex
                         }}
-                        className={`w-3/4 rounded-t-xl relative transition-all duration-500 group-hover:scale-105 ${
+                        className={`w-3/4 rounded-t-xl relative transition-all  group-hover:scale-105 ${
                           isHovered ? 'shadow-xl' : 'opacity-90 hover:opacity-100'
                         }`}
                       >
@@ -330,13 +330,13 @@ export default function CrossDisciplineChart({ matrix = [], onSelectDiscipline, 
                     onClick={() => onSelectDiscipline && onSelectDiscipline(item.id)}
                     onMouseEnter={() => setHoveredItem(item)}
                     onMouseLeave={() => setHoveredItem(null)}
-                    className="flex-1 min-w-[50px] max-w-[90px] h-full flex flex-col items-center justify-end group cursor-pointer transition-all duration-300"
+                    className="flex-1 min-w-[50px] max-w-[90px] h-full flex flex-col items-center justify-end group cursor-pointer transition-all"
                   >
                     {/* Single Column */}
                     <div className="w-full flex items-end justify-center h-full relative">
                       <div
                         style={{ height: `${heightPct}%` }}
-                        className={`w-3/4 rounded-t-xl bg-gradient-to-t from-emerald-600 to-teal-400 relative transition-all duration-500 group-hover:scale-105 ${
+                        className={`w-3/4 rounded-t-xl bg-gradient-to-t from-emerald-600 to-teal-400 relative transition-all  group-hover:scale-105 ${
                           isHovered ? 'shadow-xl shadow-emerald-500/30' : 'opacity-90 hover:opacity-100'
                         }`}
                       >
@@ -394,7 +394,7 @@ export default function CrossDisciplineChart({ matrix = [], onSelectDiscipline, 
                     strokeWidth={strokeWidth}
                     strokeDasharray={strokeDasharray}
                     strokeDashoffset={strokeDashoffset}
-                    className="transition-all duration-500 cursor-pointer hover:stroke-width-32"
+                    className="transition-all cursor-pointer hover:stroke-width-32"
                     onMouseEnter={() => setHoveredItem(slice)}
                     onMouseLeave={() => setHoveredItem(null)}
                     onClick={() => onSelectDiscipline && onSelectDiscipline(slice.id)}
@@ -448,7 +448,7 @@ export default function CrossDisciplineChart({ matrix = [], onSelectDiscipline, 
                 </div>
                 <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
                   <div
-                    className="h-full rounded-full transition-all duration-500"
+                    className="h-full rounded-full transition-all"
                     style={{ 
                       width: `${slice.percentage}%`,
                       backgroundColor: slice.colorHex 

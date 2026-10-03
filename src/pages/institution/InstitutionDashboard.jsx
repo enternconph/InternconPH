@@ -133,7 +133,7 @@ function StudentDetailDrawer({ studentId, onClose }) {
                         const subInfo = formatFileSubtitle(item);
 
                         return (
-                          <div key={item.item_id || idx} className="group flex items-center justify-between p-3 bg-surface-container-low dark:bg-surface-container/60 hover:bg-surface-container border border-outline-variant/60 hover:border-vibrant-orange/40 rounded-2xl transition-all duration-200 shadow-xs">
+                          <div key={item.item_id || idx} className="group flex items-center justify-between p-3 bg-surface-container-low dark:bg-surface-container/60 hover:bg-surface-container border border-outline-variant/60 hover:border-vibrant-orange/40 rounded-2xl transition-all shadow-xs">
                             <div className="flex items-center gap-3 min-w-0 flex-1">
                               {isImg && fileUrl ? (
                                 <img
@@ -212,7 +212,7 @@ function StudentDetailDrawer({ studentId, onClose }) {
                         const subInfo = formatFileSubtitle(item);
 
                         return (
-                          <div key={item.item_id || idx} className="group flex items-center justify-between p-3 bg-surface-container-low dark:bg-surface-container/60 hover:bg-surface-container border border-outline-variant/60 hover:border-vibrant-orange/40 rounded-2xl transition-all duration-200 shadow-xs">
+                          <div key={item.item_id || idx} className="group flex items-center justify-between p-3 bg-surface-container-low dark:bg-surface-container/60 hover:bg-surface-container border border-outline-variant/60 hover:border-vibrant-orange/40 rounded-2xl transition-all shadow-xs">
                             <div className="flex items-center gap-3 min-w-0 flex-1">
                               {isImg && fileUrl ? (
                                 <img
@@ -289,7 +289,7 @@ function StudentDetailDrawer({ studentId, onClose }) {
                         const subInfo = formatFileSubtitle(item);
 
                         return (
-                          <div key={item.item_id || idx} className="group flex items-center justify-between p-3 bg-surface-container-low dark:bg-surface-container/60 hover:bg-surface-container border border-outline-variant/60 hover:border-vibrant-orange/40 rounded-2xl transition-all duration-200 shadow-xs">
+                          <div key={item.item_id || idx} className="group flex items-center justify-between p-3 bg-surface-container-low dark:bg-surface-container/60 hover:bg-surface-container border border-outline-variant/60 hover:border-vibrant-orange/40 rounded-2xl transition-all shadow-xs">
                             <div className="flex items-center gap-3 min-w-0 flex-1">
                               {isImg && fileUrl ? (
                                 <img
@@ -556,7 +556,7 @@ export default function InstitutionDashboard() {
     <div className="p-3 sm:p-4 md:p-8 space-y-4 sm:space-y-6 w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Pending Dispatched Opportunities Alert Banner */}
       {(stats.pendingOffersCount || 0) > 0 && (
-        <div className="p-4 bg-orange-tint/70 border border-vibrant-orange/40 rounded-2xl flex items-center justify-between flex-wrap gap-3 animate-fade-in shadow-xs">
+        <div className="p-4 bg-orange-tint/70 border border-vibrant-orange/40 rounded-2xl flex items-center justify-between flex-wrap gap-3 animate- shadow-xs">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-vibrant-orange text-white flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-[22px]">approval</span>
@@ -579,7 +579,7 @@ export default function InstitutionDashboard() {
 
       {/* Pending Staff Verification Alert Banner */}
       {!isStaff && (stats.pendingStaffCount || 0) > 0 && (
-        <div className="p-4 bg-amber-500/10 border border-amber-500/40 rounded-2xl flex items-center justify-between flex-wrap gap-3 animate-fade-in shadow-xs">
+        <div className="p-4 bg-amber-500/10 border border-amber-500/40 rounded-2xl flex items-center justify-between flex-wrap gap-3 animate- shadow-xs">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
               <span className="material-symbols-outlined text-[22px]">badge</span>

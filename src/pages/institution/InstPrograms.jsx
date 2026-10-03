@@ -312,14 +312,14 @@ export default function InstPrograms() {
 
       {/* Messages */}
       {message && (
-        <div className="p-3.5 bg-green-tint text-pinoy-green rounded-xl text-xs font-bold flex items-center gap-2 border border-pinoy-green/20 animate-fade-in">
+        <div className="p-3.5 bg-green-tint text-pinoy-green rounded-xl text-xs font-bold flex items-center gap-2 border border-pinoy-green/20 animate-">
           <span className="material-symbols-outlined text-[18px]">check_circle</span>
           <span>{message}</span>
         </div>
       )}
 
       {errorMsg && (
-        <div className="p-3.5 bg-error-container text-error rounded-xl text-xs font-bold flex items-center gap-2 border border-error/20 animate-fade-in">
+        <div className="p-3.5 bg-error-container text-error rounded-xl text-xs font-bold flex items-center gap-2 border border-error/20 animate-">
           <span className="material-symbols-outlined text-[18px]">error</span>
           <span>{errorMsg}</span>
         </div>
@@ -535,7 +535,7 @@ export default function InstPrograms() {
           </div>
         ) : viewMode === 'grouped' ? (
           /* GROUP BY DEPARTMENT VIEW */
-          <div className="space-y-6 animate-fade-in">
+          <div className="space-y-6 animate-">
             {Object.entries(groupedPrograms).map(([deptName, deptPrograms]) => {
               const deptIcon = getDepartmentIcon(deptName);
               const totalStudents = deptPrograms.reduce((sum, p) => sum + parseInt(p.student_count || 0, 10), 0);
@@ -642,7 +642,7 @@ export default function InstPrograms() {
           </div>
         ) : (
           /* FLAT TABLE VIEW */
-          <div className="bento-card overflow-x-auto p-0 animate-fade-in">
+          <div className="bento-card overflow-x-auto p-0 animate-">
             <table className="w-full text-left text-xs min-w-[750px]">
               <thead>
                 <tr className="border-b border-outline-variant bg-surface-container-low text-on-surface-variant font-bold uppercase text-[10px] tracking-wider whitespace-nowrap">
@@ -753,7 +753,7 @@ export default function InstPrograms() {
 
             {/* In-Modal Alerts */}
             {modalSuccess && (
-              <div className="p-3 bg-green-tint text-pinoy-green rounded-xl text-xs font-bold flex items-center justify-between gap-2 border border-pinoy-green/20 shrink-0 animate-fade-in">
+              <div className="p-3 bg-green-tint text-pinoy-green rounded-xl text-xs font-bold flex items-center justify-between gap-2 border border-pinoy-green/20 shrink-0 animate-">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[18px]">check_circle</span>
                   <span>{modalSuccess}</span>
@@ -765,7 +765,7 @@ export default function InstPrograms() {
             )}
 
             {modalError && (
-              <div className="p-3 bg-error-container text-error rounded-xl text-xs font-bold flex items-center justify-between gap-2 border border-error/20 shrink-0 animate-fade-in">
+              <div className="p-3 bg-error-container text-error rounded-xl text-xs font-bold flex items-center justify-between gap-2 border border-error/20 shrink-0 animate-">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[18px]">error</span>
                   <span>{modalError}</span>

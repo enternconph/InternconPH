@@ -13,13 +13,13 @@ export default function GetStartedPage() {
         <main className="flex-grow py-8 sm:py-12 px-4 sm:px-6 md:px-8 max-w-6xl mx-auto flex flex-col justify-center">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 mb-8 items-stretch">
             {/* STUDENT CARD */}
-            <div className="group flex flex-col bg-surface rounded-[28px] border border-outline-variant/80 shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1.5 overflow-hidden">
+            <div className="group flex flex-col bg-surface rounded-[28px] border border-outline-variant/80 shadow-md  transition-all transform  overflow-hidden">
               {/* Top Edge-to-Edge Image */}
               <div className="w-full h-52 sm:h-56 bg-surface-container-low overflow-hidden relative">
                 <img
                   src="/photo/stud.jpg"
                   alt="College Student"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-cover  "
                   onError={(e) => {
                     e.target.src = '/photo/StudentReg.jpg';
                   }}
@@ -51,13 +51,13 @@ export default function GetStartedPage() {
             </div>
 
             {/* ORGANIZATION CARD */}
-            <div className="group flex flex-col bg-surface rounded-[28px] border border-outline-variant/80 shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1.5 overflow-hidden">
+            <div className="group flex flex-col bg-surface rounded-[28px] border border-outline-variant/80 shadow-md  transition-all transform  overflow-hidden">
               {/* Top Edge-to-Edge Image */}
               <div className="w-full h-52 sm:h-56 bg-surface-container-low overflow-hidden relative">
                 <img
                   src="/photo/org.jpg"
                   alt="Hiring Organization"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-cover  "
                   onError={(e) => {
                     e.target.src = '/photo/organization.jpg';
                   }}
@@ -97,13 +97,13 @@ export default function GetStartedPage() {
             </div>
 
             {/* INSTITUTION CARD */}
-            <div className="group flex flex-col bg-surface rounded-[28px] border border-outline-variant/80 shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1.5 overflow-hidden">
+            <div className="group flex flex-col bg-surface rounded-[28px] border border-outline-variant/80 shadow-md  transition-all transform  overflow-hidden">
               {/* Top Edge-to-Edge Image */}
               <div className="w-full h-52 sm:h-56 bg-surface-container-low overflow-hidden relative">
                 <img
                   src="/photo/school.jpg"
                   alt="Institution Director"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-cover  "
                   onError={(e) => {
                     e.target.src = '/photo/institutionreg.jpg';
                   }}

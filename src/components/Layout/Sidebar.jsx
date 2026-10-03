@@ -36,7 +36,7 @@ function SidebarNavItem({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={onLeave}
         className={({ isActive }) =>
-          `relative flex items-center transition-all duration-200 ${
+          `relative flex items-center transition-all  ${
             isCollapsed
               ? `w-11 h-11 justify-center rounded-xl ${
                   isActive
@@ -55,7 +55,7 @@ function SidebarNavItem({
           <>
             {/* Icon */}
             <span
-              className={`material-symbols-outlined shrink-0 transition-transform duration-150 ${
+              className={`material-symbols-outlined shrink-0 transition-transform  ${
                 isCollapsed ? 'text-[22px]' : 'text-[20px]'
               }`}
             >
@@ -100,7 +100,7 @@ function SidebarSectionTitle({ title, isCollapsed }) {
     return <div className="my-2 mx-auto w-6 h-[1px] bg-outline-variant/60" />;
   }
   return (
-    <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block transition-opacity duration-200">
+    <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block transition-opacity">
       {title}
     </span>
   );
@@ -151,7 +151,7 @@ export default function Sidebar() {
   return (
     <>
       <aside
-        className={`fixed inset-y-0 left-0 z-50 bg-surface-container-lowest border-r border-outline-variant flex flex-col h-screen h-[100dvh] max-h-screen max-h-[100dvh] transition-[width,transform] duration-300 ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:shrink-0 lg:h-full lg:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-50 bg-surface-container-lowest border-r border-outline-variant flex flex-col h-screen h-[100dvh] max-h-screen max-h-[100dvh] transition-[width,transform]  ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:shrink-0 lg:h-full lg:shadow-none ${
           sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         } ${
           sidebarCollapsed ? 'w-[min(18rem,calc(100vw-3rem))] sm:w-64 lg:w-[76px]' : 'w-[min(18rem,calc(100vw-3rem))] sm:w-64 lg:w-64'
@@ -159,7 +159,7 @@ export default function Sidebar() {
       >
         {/* Brand Header */}
         <div
-          className={`p-3.5 flex items-center shrink-0 bg-surface-container-lowest transition-all duration-300 ${
+          className={`p-3.5 flex items-center shrink-0 bg-surface-container-lowest transition-all  ${
             sidebarCollapsed ? 'lg:justify-center justify-between gap-3' : 'justify-between gap-3'
           }`}
         >
@@ -172,7 +172,7 @@ export default function Sidebar() {
               loading="lazy"
               decoding="async"
             />
-            <div className={`overflow-hidden transition-opacity duration-200 ${sidebarCollapsed ? 'lg:hidden' : 'block'}`}>
+            <div className={`overflow-hidden transition-opacity  ${sidebarCollapsed ? 'lg:hidden' : 'block'}`}>
               <span className="font-black text-lg text-vibrant-orange tracking-tight block">íntєrncσnᵖʰ</span>
               <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider truncate block">
                 {getPositionLabel()}
@@ -488,7 +488,7 @@ export default function Sidebar() {
       {sidebarCollapsed && hoveredItem && (
         <div
           role="tooltip"
-          className="hidden lg:flex fixed left-[86px] z-[9999] -translate-y-1/2 px-3 py-1.5 rounded-xl bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white text-xs font-semibold shadow-2xl border border-white/10 items-center gap-2 pointer-events-none transition-all duration-150 animate-in fade-in zoom-in-95 select-none"
+          className="hidden lg:flex fixed left-[86px] z-[9999] -translate-y-1/2 px-3 py-1.5 rounded-xl bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white text-xs font-semibold shadow-2xl border border-white/10 items-center gap-2 pointer-events-none transition-all -95 select-none"
           style={{ top: `${hoveredItem.top}px` }}
         >
           {/* Tooltip Left Arrow Pointer */}

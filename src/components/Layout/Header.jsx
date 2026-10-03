@@ -69,7 +69,7 @@ export default function Header() {
             type="button"
             id="public-theme-toggle-btn"
             onClick={toggleTheme}
-            className={`p-2 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 ${
+            className={`p-2 rounded-xl transition-all  cursor-pointer active:scale-95 ${
               isDark
                 ? 'bg-primary-container/20 text-primary-container hover:bg-primary-container/30 border border-primary-container/40'
                 : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
@@ -104,7 +104,7 @@ export default function Header() {
                 className="inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-500 via-vibrant-orange to-deep-orange text-white px-3.5 py-1.5 rounded-xl text-xs font-bold hover:brightness-110 transition-all shadow-sm active:scale-95 group"
               >
                 <span>Get Started</span>
-                <span className="material-symbols-outlined text-[15px] transition-transform duration-200 group-hover:translate-x-0.5">
+                <span className="material-symbols-outlined text-[15px] transition-transform group-hover:translate-x-0.5">
                   arrow_forward
                 </span>
               </Link>
@@ -128,7 +128,7 @@ export default function Header() {
 
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-outline-variant bg-surface-container-lowest/98 backdrop-blur-lg px-4 py-5 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="md:hidden border-t border-outline-variant bg-surface-container-lowest/98 backdrop-blur-lg px-4 py-5 shadow-2xl">
           <nav className="flex flex-col space-y-2">
             {/* Mobile Navigation Links (Removed as requested) */}
 

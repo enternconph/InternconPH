@@ -299,7 +299,7 @@ export default function StudentApplications() {
 
       {/* Global Toast Messages */}
       {message && (
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 shadow-xs animate-fade-in">
+        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 shadow-xs animate-">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-pinoy-green">check_circle</span>
             <span>{message}</span>
@@ -311,7 +311,7 @@ export default function StudentApplications() {
       )}
 
       {error && (
-        <div className="p-4 bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 shadow-xs animate-fade-in">
+        <div className="p-4 bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 shadow-xs animate-">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-red-600">error</span>
             <span>{error}</span>
@@ -325,7 +325,7 @@ export default function StudentApplications() {
 
       {/* SECTION 1: PRIORITY OFFERS TO APPROVE OR REJECT */}
       {pendingOffers.length > 0 && (
-        <div className="p-5 rounded-2xl bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-orange-500/5 border-2 border-vibrant-orange/50 shadow-sm space-y-4 animate-fade-in">
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-orange-500/5 border-2 border-vibrant-orange/50 shadow-sm space-y-4 animate-">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2.5">
               <span className="w-9 h-9 rounded-xl bg-vibrant-orange text-white flex items-center justify-center shadow-xs">
@@ -419,7 +419,7 @@ export default function StudentApplications() {
 
       {/* SECTION 2: INTERVIEW SCHEDULES SET BY THE ORGANIZATION */}
       {scheduledInterviews.length > 0 && (
-        <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-600/10 via-sky-500/10 to-blue-500/5 border-2 border-blue-500/40 shadow-sm space-y-4 animate-fade-in">
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-600/10 via-sky-500/10 to-blue-500/5 border-2 border-blue-500/40 shadow-sm space-y-4 animate-">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2.5">
               <span className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
@@ -748,7 +748,7 @@ export default function StudentApplications() {
             return (
               <div
                 key={app.application_id || app.offer_id}
-                className={`p-5 sm:p-6 rounded-2xl border transition-all duration-200 relative overflow-hidden flex flex-col lg:flex-row lg:items-start justify-between gap-5 shadow-2xs hover:shadow-md ${
+                className={`p-5 sm:p-6 rounded-2xl border transition-all  relative overflow-hidden flex flex-col lg:flex-row lg:items-start justify-between gap-5 shadow-2xs hover:shadow-md ${
                   isOffered
                     ? 'bg-surface border-vibrant-orange/40 ring-1 ring-vibrant-orange/20'
                     : isAccepted || isInterviewCompleted

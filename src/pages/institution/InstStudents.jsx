@@ -513,7 +513,7 @@ export default function InstStudents() {
 
       {/* Toast Messages */}
       {message && (
-        <div className="p-4 bg-green-tint text-pinoy-green rounded-xl text-xs font-bold flex items-center justify-between gap-2 border border-pinoy-green/20 animate-fade-in">
+        <div className="p-4 bg-green-tint text-pinoy-green rounded-xl text-xs font-bold flex items-center justify-between gap-2 border border-pinoy-green/20 animate-">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px]">check_circle</span>
             <span>{message}</span>
@@ -534,7 +534,7 @@ export default function InstStudents() {
       )}
 
       {errorMessage && (
-        <div className="p-4 bg-error-container text-error rounded-xl text-xs font-bold flex items-center gap-2 border border-error/20 animate-fade-in">
+        <div className="p-4 bg-error-container text-error rounded-xl text-xs font-bold flex items-center gap-2 border border-error/20 animate-">
           <span className="material-symbols-outlined text-[20px]">error</span>
           <span>{errorMessage}</span>
         </div>
@@ -965,7 +965,7 @@ export default function InstStudents() {
 
       {/* MODAL 1: GENERATE PROGRAM ACCESS CODE */}
       {showCodeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-">
           <div className="bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden max-h-[90dvh] flex flex-col">
             <div className="p-6 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
               <div className="flex items-center gap-3">
@@ -1365,7 +1365,7 @@ export default function InstStudents() {
         const regOjtBadge = getOjtStatusBadge(selectedStudent.ojt_status);
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-">
             <div className="bg-surface max-w-2xl w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden flex flex-col max-h-[90vh]">
               {/* Modal Header */}
               <div className="p-6 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
@@ -1562,7 +1562,7 @@ export default function InstStudents() {
 
       {/* MODAL 4: STUDENT CAREER PORTFOLIO & SUPPORTING DOCUMENTS VIEWER */}
       {portfolioModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-">
           <div className="bg-surface max-w-4xl w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden flex flex-col max-h-[92vh]">
             {/* Header */}
             <div className="p-5 sm:p-6 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
@@ -1952,7 +1952,7 @@ export default function InstStudents() {
 
       {/* MODAL 5: REGISTRAR GRADUATE STUDENT CONFIRMATION */}
       {graduateModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-">
           <div className="bg-surface max-w-md w-full rounded-2xl shadow-2xl border border-outline-variant p-6 space-y-4 text-xs">
             <div className="flex items-center gap-3 text-emerald-600">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
@@ -2014,7 +2014,7 @@ export default function InstStudents() {
 
       {/* MODAL 3: REJECT CONFIRMATION */}
       {rejectModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-">
           <div className="bg-surface max-w-md w-full rounded-2xl shadow-2xl border border-outline-variant p-5 sm:p-6 space-y-4 text-xs max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center gap-3 text-red-500">
               <span className="material-symbols-outlined text-[28px]">warning</span>
