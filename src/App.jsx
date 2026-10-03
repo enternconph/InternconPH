@@ -6,6 +6,9 @@ import { SocketProvider } from './contexts/SocketContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { TimeProvider } from './contexts/TimeContext';
 
+import { isNative, isElectron } from './services/platform';
+import { useAuth } from './contexts/AuthContext';
+
 // Layout
 import DashboardLayout from './components/Layout/DashboardLayout';
 import ProtectedRoute from './components/Layout/ProtectedRoute';
@@ -66,14 +69,16 @@ const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
 
 function AnimatedRoutes() {
   const location = useLocation();
-  const isDesktop = navigator.userAgent.toLowerCase().includes('electron');
+  const { user } = useAuth();
+  const isApp = isNative || isElectron;
+  const showDashboard = isApp && user;
 
   return (
     <Suspense fallback={<DashboardSkeleton />}>
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
           {/* Public Routes */}
-          <Route path="/" element={isDesktop ? <Navigate to="/login" replace /> : <LandingPage />} />
+          <Route path="/" element={showDashboard ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/get-started" element={<GetStartedPage />} />
         <Route path="/register/student" element={<RegisterStudentPage />} />

@@ -4,7 +4,9 @@
 
 export function resolveFileUrl(filePath) {
   if (!filePath) return '';
-  const apiBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/+$/, '') : '';
+  const apiBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) 
+    ? import.meta.env.VITE_API_URL.replace(/\/+$/, '') 
+    : '';
 
   if (filePath.startsWith('certificate://') || filePath.startsWith('certificate:')) {
     const code = filePath.replace(/^certificate:\/\//, '').replace(/^certificate:/, '');

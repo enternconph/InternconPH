@@ -10,9 +10,6 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
-              return 'vendor-react';
-            }
             if (id.includes('framer-motion')) {
               return 'vendor-motion';
             }
@@ -25,7 +22,6 @@ export default defineConfig({
             if (id.includes('phil-address') || id.includes('psgc') || id.includes('use-postal-ph') || id.includes('zipcodes-ph')) {
               return 'vendor-geo';
             }
-            return 'vendor-misc';
           }
         }
       }
@@ -33,6 +29,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    strictPort: true,
     proxy: {
       '/api': {
         target: 'http://localhost:3000',

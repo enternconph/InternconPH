@@ -56,15 +56,8 @@ export default function LoginPage() {
           {/* LEFT PANEL - Form */}
           <div className="w-full lg:w-1/2 p-5 sm:p-8 md:p-12 lg:p-16 flex flex-col relative bg-surface">
             
-            {/* Top Navigation: Back Button & Theme Toggle */}
-            <div className="absolute top-4 left-4 right-4 sm:top-8 sm:left-8 sm:right-8 flex items-center justify-between">
-              <Link 
-                to="/" 
-                className="flex items-center gap-1.5 text-sm font-bold text-on-surface-variant hover:text-vibrant-orange transition-colors"
-              >
-                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                Back
-              </Link>
+            {/* Top Navigation: Theme Toggle */}
+            <div className="absolute top-4 left-4 right-4 sm:top-8 sm:left-8 sm:right-8 flex items-center justify-end">
               <button
                 type="button"
                 id="login-theme-toggle-btn"

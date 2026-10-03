@@ -6,8 +6,10 @@ let isRedirectingToLogin = false;
 export async function apiRequest(endpoint, options = {}) {
   const isFormData = options.body instanceof FormData;
 
+  const token = localStorage.getItem('auth_token');
   const headers = {
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...options.headers,
   };
 
@@ -23,6 +25,7 @@ export async function apiRequest(endpoint, options = {}) {
   if (!response.ok && response.status === 401) {
     // If unauthorized, clean up stale session state
     localStorage.removeItem('user');
+    localStorage.removeItem('auth_token');
 
     // Only redirect to login if the user is currently on a protected route.
     // Passive session checks (/auth/me, /auth/session) and public routes must never force a login redirect.

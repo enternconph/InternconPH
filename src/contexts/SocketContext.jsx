@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import { API_URL } from '../config';
+import api from '../api/client';
 
 const SocketContext = createContext(null);
 
@@ -25,18 +27,14 @@ export const SocketProvider = ({ children }) => {
     async function initSocketConnection() {
       try {
         // 1. Fetch cross-origin WebSocket JWT token
-        const res = await fetch('/api/auth/socket-token', {
-          credentials: 'include',
-          cache: 'no-store'
-        });
-        const data = await res.json().catch(() => ({ success: false }));
+        const data = await api.get('/auth/socket-token').catch(() => ({ success: false }));
         const token = data.success ? data.token : null;
 
         if (!isMounted) return;
 
-        // In local dev, VITE_SOCKET_URL is unset, so io(undefined) connects through Vite proxy
-        // In production on Vercel, VITE_SOCKET_URL points directly to Render backend
-        const socketUrl = import.meta.env.VITE_SOCKET_URL || undefined;
+        // In local dev, API_URL is unset, so io(undefined) connects through Vite proxy
+        // In production on Vercel or local app builds, it points directly to the backend
+        const socketUrl = API_URL || undefined;
 
         activeSocket = io(socketUrl, {
           transports: ['websocket'],
@@ -50,11 +48,7 @@ export const SocketProvider = ({ children }) => {
         // Refresh token on reconnect attempts or connection errors
         const refreshToken = async () => {
           try {
-            const r = await fetch('/api/auth/socket-token', {
-              credentials: 'include',
-              cache: 'no-store'
-            });
-            const d = await r.json().catch(() => ({ success: false }));
+            const d = await api.get('/auth/socket-token').catch(() => ({ success: false }));
             if (d.success && d.token && activeSocket) {
               activeSocket.auth = { token: d.token };
             }
