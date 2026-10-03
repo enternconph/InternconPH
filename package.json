@@ -1,7 +1,7 @@
 {
   "name": "internconph-frontend",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "InternConPH internship management system",
   "author": "InternConPH",
   "type": "module",
@@ -30,6 +30,7 @@
     "@yudiel/react-qr-scanner": "^2.6.0",
     "axios": "^1.20.0",
     "clsx": "^2.1.1",
+    "electron-log": "^5.4.4",
     "electron-updater": "^6.8.9",
     "framer-motion": "^13.2.0",
     "lucide-react": "^1.16.0",

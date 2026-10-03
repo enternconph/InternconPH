@@ -25,7 +25,8 @@ function createWindow() {
     }
 
     win.webContents.on('console-message', (event, level, message, line, sourceId) => {
-        console.log(`[RENDERER] ${message} (line ${line})`);
+        const log = require('electron-log');
+        log.info(`[RENDERER] ${message} (line ${line})`);
     });
 }
 
@@ -80,6 +81,9 @@ app.whenReady().then(() => {
     // Check for updates if not in dev mode
     if (!process.env.ELECTRON_DEV) {
         const { autoUpdater } = require('electron-updater');
+        const log = require('electron-log');
+        log.transports.file.level = 'info';
+        autoUpdater.logger = log;
         autoUpdater.checkForUpdatesAndNotify();
     }
 });

@@ -32,13 +32,18 @@ export default function LoginPage() {
 
     setLoading(true);
 
-    const res = await login(email, password);
-    setLoading(false);
-
-    if (res.success && res.user) {
-      navigate(getDashboardUrl(res.user.role_name || res.user.role));
-    } else {
-      setError(res.message || 'Invalid email or password.');
+    try {
+      const res = await login(email, password);
+      if (res.success && res.user) {
+        navigate(getDashboardUrl(res.user.role_name || res.user.role));
+      } else {
+        setError(res.message || 'Invalid email or password.');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred during login.');
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 

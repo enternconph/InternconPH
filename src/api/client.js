@@ -13,12 +13,18 @@ export async function apiRequest(endpoint, options = {}) {
     ...options.headers,
   };
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    cache: 'no-store',
-    ...options,
-    credentials: 'include',
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      cache: 'no-store',
+      ...options,
+      credentials: 'include',
+      headers,
+    });
+  } catch (error) {
+    console.error('API Connection Error:', error);
+    return { success: false, message: 'Cannot connect to server. Please ensure the backend is running.' };
+  }
 
   const data = await response.json().catch(() => ({ success: false, message: 'Invalid response from server' }));
 

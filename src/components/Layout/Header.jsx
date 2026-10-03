@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { isWeb } from '../../utils/platform';
 
 export default function Header() {
   const { user, logout, getDashboardUrl } = useAuth();
@@ -188,7 +189,7 @@ export default function Header() {
               <span className="material-symbols-outlined text-[16px]">dashboard</span>
               <span>Dashboard</span>
             </Link>
-          ) : (
+          ) : !isWeb() && (
             <div className="hidden sm:flex items-center gap-2">
               <Link
                 to="/login"
@@ -286,7 +287,7 @@ export default function Header() {
               Policies & Compliance
             </button>
 
-            {!user && (
+            {!user && !isWeb() && (
               <div className="pt-3 border-t border-outline-variant/60 flex flex-col gap-2">
                 <Link
                   to="/login"

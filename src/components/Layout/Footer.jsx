@@ -1,5 +1,5 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
+import { isWeb } from '../../utils/platform';
 
 export default function Footer() {
   return (
@@ -26,15 +26,17 @@ export default function Footer() {
           </ul>
         </div>
 
-        <div>
-          <h4 className="font-bold text-on-surface text-sm uppercase tracking-wider mb-4">Join</h4>
-          <ul className="space-y-2 text-sm text-on-surface-variant">
-            <li><Link to="/register/student" className="hover:text-vibrant-orange transition-colors">Register as Student</Link></li>
-            <li><Link to="/register/organization" className="hover:text-vibrant-orange transition-colors">Partner as Employer</Link></li>
-            <li><Link to="/register/institution" className="hover:text-vibrant-orange transition-colors">Accredit Institution</Link></li>
-            <li><Link to="/login" className="hover:text-vibrant-orange transition-colors">Member Sign In</Link></li>
-          </ul>
-        </div>
+        {!isWeb() && (
+          <div>
+            <h4 className="font-bold text-on-surface text-sm uppercase tracking-wider mb-4">Join</h4>
+            <ul className="space-y-2 text-sm text-on-surface-variant">
+              <li><Link to="/register/student" className="hover:text-vibrant-orange transition-colors">Register as Student</Link></li>
+              <li><Link to="/register/organization" className="hover:text-vibrant-orange transition-colors">Partner as Employer</Link></li>
+              <li><Link to="/register/institution" className="hover:text-vibrant-orange transition-colors">Accredit Institution</Link></li>
+              <li><Link to="/login" className="hover:text-vibrant-orange transition-colors">Member Sign In</Link></li>
+            </ul>
+          </div>
+        )}
 
         <div>
           <h4 className="font-bold text-on-surface text-sm uppercase tracking-wider mb-4">Contact</h4>

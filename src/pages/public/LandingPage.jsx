@@ -5,6 +5,7 @@ import Header from '../../components/Layout/Header';
 import Footer from '../../components/Layout/Footer';
 import api from '../../api/client';
 import PageTransition from '../../components/Layout/PageTransition';
+import { isWeb } from '../../utils/platform';
 
 export default function LandingPage() {
   const location = useLocation();
@@ -332,15 +333,17 @@ export default function LandingPage() {
 
                 {/* Action CTA Buttons */}
                 <div className="flex flex-wrap items-center gap-3.5 pt-2">
-                  <Link
-                    to="/get-started"
-                    className="px-7 sm:px-8 py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-amber-400 via-vibrant-orange to-deep-orange text-white font-black text-sm sm:text-base hover:brightness-110 shadow-xl shadow-orange-500/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group cursor-pointer"
-                  >
-                    <span>Get Started</span>
-                    <span className="material-symbols-outlined text-[20px] transition-transform duration-200 group-hover:translate-x-1">
-                      arrow_forward
-                    </span>
-                  </Link>
+                  {!isWeb() && (
+                    <Link
+                      to="/get-started"
+                      className="px-7 sm:px-8 py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-amber-400 via-vibrant-orange to-deep-orange text-white font-black text-sm sm:text-base hover:brightness-110 shadow-xl shadow-orange-500/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group cursor-pointer"
+                    >
+                      <span>Get Started</span>
+                      <span className="material-symbols-outlined text-[20px] transition-transform duration-200 group-hover:translate-x-1">
+                        arrow_forward
+                      </span>
+                    </Link>
+                  )}
 
                   <a
                     href="#how-it-works"
