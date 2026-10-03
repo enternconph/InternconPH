@@ -13,6 +13,14 @@ input::-ms-clear {
   pointer-events: none !important;
 }
 
+/* Native App Feel: Prevent text selection on structural elements */
+aside, header, nav, button, a {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
 :root {
   /* InternConPH Original Light Mode Tokens (100% Exact Match) */
   --surface-rgb: 255, 255, 255;

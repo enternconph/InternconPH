@@ -191,45 +191,70 @@ export default function DashboardHeader() {
     return true;
   });
 
+  const getPageTitle = () => {
+    const path = location.pathname;
+    if (path.includes('/settings')) return 'Settings';
+    if (path.includes('/jobs')) return 'Jobs';
+    if (path.includes('/applications')) return 'Applications';
+    if (path.includes('/ojt')) return 'OJT & Progress';
+    if (path.includes('/skills')) return 'Skills';
+    if (path.includes('/portfolio')) return 'Portfolio';
+    if (path.includes('/complaints') || path.includes('/grievances')) return 'Grievances';
+    if (path.includes('/profile')) return 'My Profile';
+    if (path.includes('/applicants')) return 'Applicants';
+    if (path.includes('/interviews')) return 'Interviews';
+    if (path.includes('/offers') || path.includes('/ojt-offers')) return 'Offers';
+    if (path.includes('/evaluations')) return 'Evaluations';
+    if (path.includes('/mentors')) return 'Mentors';
+    if (path.includes('/students')) return 'Students';
+    if (path.includes('/monitoring')) return 'Monitoring';
+    if (path.includes('/programs')) return 'Programs';
+    if (path.includes('/requirements')) return 'Requirements';
+    if (path.includes('/staff')) return 'Staff';
+    if (path.includes('/users')) return 'Users';
+    if (path.includes('/institutions')) return 'Institutions';
+    if (path.includes('/organizations')) return 'Organizations';
+    if (path.includes('/analytics')) return 'Analytics';
+    if (path.includes('/audit-logs')) return 'Audit Logs';
+    return 'Dashboard';
+  };
+
   return (
-    <header className="sticky top-0 z-30 bg-surface-container-lowest/90 backdrop-blur-md border-b border-outline-variant px-3 sm:px-4 md:px-8 py-2.5 sm:py-3 transition-colors shrink-0">
-      <div className="flex items-center justify-between gap-2 sm:gap-4">
-        {/* Left: Mobile Hamburger Toggle + Branding + Desktop Breadcrumbs */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <button
-            type="button"
-            id="mobile-sidebar-toggle-btn"
-            onClick={toggleSidebar}
-            className="lg:hidden p-2 rounded-xl bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors shrink-0 flex items-center justify-center cursor-pointer"
-            aria-label="Toggle navigation menu"
-            title="Toggle navigation menu"
-          >
-            <span className="material-symbols-outlined text-[22px] block">menu</span>
-          </button>
+    <header className="sticky top-0 z-30 bg-surface-container-lowest text-on-surface px-3 sm:px-4 md:px-6 py-3 transition-colors shrink-0 flex items-center justify-between">
+      {/* Left: Mobile Hamburger Toggle + Native Page Title */}
+      <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+        <button
+          type="button"
+          id="mobile-sidebar-toggle-btn"
+          onClick={toggleSidebar}
+          className="lg:hidden p-1.5 rounded-full hover:bg-surface-container-high transition-colors shrink-0 flex items-center justify-center cursor-pointer"
+          aria-label="Toggle navigation menu"
+          title="Toggle navigation menu"
+        >
+          <span className="material-symbols-outlined text-[24px] block">menu</span>
+        </button>
 
-          {/* Mobile branding next to hamburger */}
-          <div className="flex items-center gap-2 lg:hidden overflow-hidden">
-            <img src="/logo.png" alt="internconPH Logo" className="h-7 w-auto object-contain shrink-0" decoding="async" />
-            <span className="font-bold text-base text-vibrant-orange tracking-tight truncate">íntєrncσnᵖʰ</span>
-          </div>
+        {/* Desktop Sidebar Toggle Button */}
+        <button
+          type="button"
+          onClick={toggleSidebarCollapse}
+          className="hidden lg:flex p-1.5 rounded-full hover:bg-surface-container-high transition-colors shrink-0 items-center justify-center cursor-pointer"
+          aria-label={sidebarCollapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)'}
+          title={sidebarCollapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)'}
+        >
+          <span className="material-symbols-outlined text-[20px]">
+            {sidebarCollapsed ? 'dock_to_right' : 'dock_to_left'}
+          </span>
+        </button>
 
-          {/* Desktop Sidebar Toggle Button */}
-          <button
-            type="button"
-            onClick={toggleSidebarCollapse}
-            className="hidden lg:flex p-1.5 rounded-xl bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors shrink-0 items-center justify-center cursor-pointer"
-            aria-label={sidebarCollapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)'}
-            title={sidebarCollapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)'}
-          >
-            <span className="material-symbols-outlined text-[18px]">
-              {sidebarCollapsed ? 'dock_to_right' : 'dock_to_left'}
-            </span>
-          </button>
+        {/* Dynamic App Bar Title */}
+        <h1 className="text-lg sm:text-xl font-bold tracking-tight truncate">
+          {getPageTitle()}
+        </h1>
+      </div>
 
-        </div>
-
-        {/* Right: Actions & Controls */}
-        <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 relative shrink-0" ref={panelRef}>
+      {/* Right: Actions & Controls */}
+      <div className="flex items-center gap-1 sm:gap-2 relative shrink-0" ref={panelRef}>
           {/* Notification Bell Button */}
           <button
             type="button"
@@ -436,7 +461,6 @@ export default function DashboardHeader() {
             </div>
           )}
         </div>
-      </div>
     </header>
   );
 }
