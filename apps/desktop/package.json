@@ -1,0 +1,47 @@
+{
+  "name": "@internconph/desktop",
+  "version": "1.0.1",
+  "description": "InternConPH Desktop App",
+  "author": "InternConPH",
+  "main": "main.cjs",
+  "scripts": {
+    "dev": "cross-env ELECTRON_DEV=1 electron .",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "ph.interncon.desktop",
+    "productName": "InternConPH",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "../web/dist/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "../web/build/icon.ico"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YourGitHubUsername",
+        "repo": "InternConPH-Releases"
+      }
+    ],
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

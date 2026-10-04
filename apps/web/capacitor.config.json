@@ -1,0 +1,14 @@
+{
+  "appId": "com.internconph.app",
+  "appName": "InternConPH",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}
