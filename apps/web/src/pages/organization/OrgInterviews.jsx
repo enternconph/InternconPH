@@ -112,7 +112,18 @@ export default function OrgInterviews() {
         setLocLink(res.fallbackUri);
         setMessage(`Generated meeting link: ${res.fallbackUri}`);
       } else {
-        alert(res.message || 'Could not generate Google Meet space. You can enter a link manually.');
+        const fallback = window.confirm(
+          `Auto-generation failed (${res.error || res.message || 'Account limit'}).\n\n` +
+          `Automatic Meet generation via API requires a Google Workspace account. ` +
+          `Since you may be using a personal account, you can generate a link manually.\n\n` +
+          `Click OK to open Google Meet in a new tab. It will instantly create a new meeting. ` +
+          `Copy the URL from the address bar and paste it in the Custom URL field.`
+        );
+        if (fallback) {
+          window.open('https://meet.google.com/new', '_blank');
+          setAutoGenerateMeet(false);
+          setLocLink('');
+        }
       }
     } catch (err) {
       alert('Error generating Google Meet link: ' + err.message);
