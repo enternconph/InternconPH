@@ -27,7 +27,7 @@ import {
   BookOpen,
   ClipboardX,
   Building2,
-  UsersCog,
+  UserCog,
   ShieldAlert,
   TrendingUp,
   Receipt,
