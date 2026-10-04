@@ -327,19 +327,19 @@ export default function OrgInterviews() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
                       <input
                         type="text"
                         placeholder="Optional: generated link appears here"
                         value={locLink}
                         onChange={(e) => setLocLink(e.target.value)}
-                        className="w-full px-3 py-2 text-xs rounded-lg border border-outline-variant bg-surface-container outline-none"
+                        className="flex-1 px-3 py-2 text-xs rounded-lg border border-outline-variant bg-surface-container outline-none min-w-0"
                       />
                       <button
                         type="button"
                         onClick={handleInstantGenerateMeet}
                         disabled={isGeneratingMeet}
-                        className="w-full px-3 py-2 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant rounded-lg font-bold text-xs text-vibrant-orange flex justify-center items-center gap-1.5 transition-colors cursor-pointer"
+                        className="px-4 py-2 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant rounded-lg font-bold text-xs text-vibrant-orange flex justify-center items-center gap-1.5 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                         title="Generate a real Google Meet link right now"
                       >
                         <span className="material-symbols-outlined text-[16px]">
