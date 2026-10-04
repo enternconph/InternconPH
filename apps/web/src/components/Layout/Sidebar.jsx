@@ -3,12 +3,44 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSidebar } from './DashboardLayout';
 import { resolveFileUrl } from '../../utils/fileHelper';
+import {
+  LayoutDashboard,
+  Rss,
+  Send,
+  Clock,
+  BrainCircuit,
+  FolderOpen,
+  Scale,
+  User,
+  Users,
+  Briefcase,
+  IdCard,
+  MessageSquare,
+  AlertTriangle,
+  FilePlus,
+  CalendarCheck,
+  CheckSquare,
+  UserPlus,
+  GraduationCap,
+  UserCheck,
+  Activity,
+  BookOpen,
+  ClipboardX,
+  Building2,
+  UsersCog,
+  ShieldAlert,
+  TrendingUp,
+  Receipt,
+  Settings,
+  LogOut,
+  X
+} from 'lucide-react';
 
 // Reusable Navigation Item with Icon, Badge, Tooltip & Active State
 function SidebarNavItem({
   to,
   end = false,
-  icon,
+  icon: Icon,
   label,
   badge,
   badgeColor,
@@ -36,17 +68,17 @@ function SidebarNavItem({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={onLeave}
         className={({ isActive }) =>
-          `relative flex items-center transition-all  ${
+          `relative flex items-center transition-all ${
             isCollapsed
-              ? `w-11 h-11 justify-center rounded-xl ${
+              ? `w-10 h-10 justify-center rounded-md ${
                   isActive
-                    ? 'bg-vibrant-orange text-white shadow-md shadow-vibrant-orange/30 ring-1 ring-vibrant-orange/50'
-                    : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                    ? 'bg-vibrant-orange text-white shadow-sm'
+                    : 'text-muted-foreground hover:bg-surface-container hover:text-foreground'
                 }`
-              : `w-full gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs sm:text-sm ${
+              : `w-full gap-3 px-3 py-2 rounded-md font-medium text-[13px] sm:text-sm ${
                   isActive
-                    ? 'bg-vibrant-orange text-white font-bold shadow-sm ring-1 ring-vibrant-orange/50'
-                    : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                    ? 'bg-vibrant-orange/10 text-vibrant-orange font-semibold'
+                    : 'text-muted-foreground hover:bg-surface-container hover:text-foreground'
                 }`
           }`
         }
@@ -54,13 +86,10 @@ function SidebarNavItem({
         {({ isActive }) => (
           <>
             {/* Icon */}
-            <span
-              className={`material-symbols-outlined shrink-0 transition-transform  ${
-                isCollapsed ? 'text-[22px]' : 'text-[20px]'
-              }`}
-            >
-              {icon}
-            </span>
+            <Icon 
+              className={`shrink-0 transition-transform ${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'}`} 
+              strokeWidth={isActive ? 2.5 : 2} 
+            />
 
             {/* Label (expanded mode) */}
             {!isCollapsed && (
@@ -72,7 +101,7 @@ function SidebarNavItem({
             {/* Full badge in expanded mode */}
             {!isCollapsed && badge && (
               <span
-                className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 capitalize ${
+                className={`ml-auto px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 capitalize ${
                   badgeColor || 'bg-vibrant-orange/20 text-vibrant-orange dark:bg-vibrant-orange/30 dark:text-orange-300'
                 }`}
               >
@@ -82,9 +111,9 @@ function SidebarNavItem({
 
             {/* Minimal dot badge indicator in collapsed mode */}
             {isCollapsed && badge && (
-              <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
+              <span className="absolute top-1 right-1 flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-vibrant-orange opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-vibrant-orange ring-2 ring-surface-container-lowest"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-vibrant-orange ring-2 ring-background"></span>
               </span>
             )}
           </>
@@ -97,10 +126,10 @@ function SidebarNavItem({
 // Section Header / Divider
 function SidebarSectionTitle({ title, isCollapsed }) {
   if (isCollapsed) {
-    return <div className="my-2 mx-auto w-6 h-[1px] bg-outline-variant/60" />;
+    return <div className="my-3 mx-auto w-4 h-[1px] bg-border" />;
   }
   return (
-    <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block transition-opacity">
+    <span className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 block transition-opacity">
       {title}
     </span>
   );
@@ -111,8 +140,7 @@ export default function Sidebar() {
   const {
     sidebarOpen,
     setSidebarOpen,
-    sidebarCollapsed,
-    toggleSidebarCollapse
+    sidebarCollapsed
   } = useSidebar();
   const navigate = useNavigate();
 
@@ -151,15 +179,15 @@ export default function Sidebar() {
   return (
     <>
       <aside
-        className={`fixed inset-y-0 left-0 z-50 bg-surface-container-lowest border-r border-outline-variant flex flex-col h-screen h-[100dvh] max-h-screen max-h-[100dvh] pt-[max(2.25rem,calc(env(safe-area-inset-top)+0.5rem))] lg:pt-0 transition-[width,transform] ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:shrink-0 lg:h-full lg:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-50 bg-background border-r border-border flex flex-col h-screen h-[100dvh] max-h-screen max-h-[100dvh] pt-[max(2.25rem,calc(env(safe-area-inset-top)+0.5rem))] lg:pt-0 transition-[width,transform] ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:shrink-0 lg:h-full lg:shadow-none ${
           sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         } ${
-          sidebarCollapsed ? 'w-[min(18rem,calc(100vw-3rem))] sm:w-64 lg:w-[76px]' : 'w-[min(18rem,calc(100vw-3rem))] sm:w-64 lg:w-64'
+          sidebarCollapsed ? 'w-[min(18rem,calc(100vw-3rem))] sm:w-64 lg:w-[72px]' : 'w-[min(18rem,calc(100vw-3rem))] sm:w-64 lg:w-64'
         }`}
       >
         {/* Brand Header */}
         <div
-          className={`p-3.5 flex items-center shrink-0 bg-surface-container-lowest transition-all  ${
+          className={`p-4 flex items-center shrink-0 bg-background transition-all border-b border-border/40 ${
             sidebarCollapsed ? 'lg:justify-center justify-between gap-3' : 'justify-between gap-3'
           }`}
         >
@@ -168,13 +196,13 @@ export default function Sidebar() {
             <img
               src="/logo.png"
               alt="internconPH Logo"
-              className="h-8 sm:h-9 w-auto object-contain shrink-0"
+              className="h-8 w-auto object-contain shrink-0"
               loading="lazy"
               decoding="async"
             />
-            <div className={`overflow-hidden transition-opacity  ${sidebarCollapsed ? 'lg:hidden' : 'block'}`}>
-              <span className="font-black text-lg text-vibrant-orange tracking-tight block">íntєrncσnᵖʰ</span>
-              <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider truncate block">
+            <div className={`overflow-hidden transition-opacity ${sidebarCollapsed ? 'lg:hidden' : 'block'}`}>
+              <span className="font-bold text-base text-foreground tracking-tight block">internconPH</span>
+              <span className="text-[10px] text-muted-foreground truncate block capitalize">
                 {getPositionLabel()}
               </span>
             </div>
@@ -184,17 +212,17 @@ export default function Sidebar() {
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors shrink-0"
+            className="lg:hidden p-1.5 rounded-md text-muted-foreground hover:bg-surface-container hover:text-foreground transition-colors shrink-0"
             aria-label="Close sidebar"
           >
-            <span className="material-symbols-outlined text-[20px] block">close</span>
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Navigation Links */}
         <nav
-          className={`flex-1 p-3 space-y-3 overflow-y-auto overscroll-contain min-h-0 ${
-            sidebarCollapsed ? 'lg:px-2.5' : 'lg:p-3.5'
+          className={`flex-1 px-3 py-4 space-y-1 overflow-y-auto overscroll-contain min-h-0 ${
+            sidebarCollapsed ? 'lg:px-2 lg:py-4' : 'lg:px-4 lg:py-6'
           }`}
         >
           {/* ================================================================= */}
@@ -202,28 +230,28 @@ export default function Sidebar() {
           {/* ================================================================= */}
           {role === 'student' && (
             <>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Main" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/student" end icon="dashboard" label="Dashboard" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/student" end icon={LayoutDashboard} label="Dashboard" {...navItemProps} />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Opportunities & OJT" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/student/jobs" icon="dynamic_feed" label="Browse Jobs & Feed" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/student/applications" icon="send" label="My Applications" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/student/ojt" icon="timelapse" label="OJT Progress & DTR" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/student/jobs" icon={Rss} label="Browse Jobs & Feed" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/student/applications" icon={Send} label="My Applications" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/student/ojt" icon={Clock} label="OJT Progress & DTR" {...navItemProps} />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Skills & Career" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/student/skills" icon="psychology" label="Skills & Matches" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/student/portfolio" icon="folder_special" label="Career Portfolio" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/student/skills" icon={BrainCircuit} label="Skills & Matches" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/student/portfolio" icon={FolderOpen} label="Career Portfolio" {...navItemProps} />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Account & Support" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/student/complaints" icon="gavel" label="Grievances & Reports" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/student/profile" icon="person" label="My Profile" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/student/complaints" icon={Scale} label="Grievances & Reports" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/student/profile" icon={User} label="My Profile" {...navItemProps} />
               </div>
             </>
           )}
@@ -233,16 +261,16 @@ export default function Sidebar() {
           {/* ================================================================= */}
           {(role === 'workplace_mentor' || role === 'mentor') && (
             <>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Overview" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/organization" end icon="dashboard" label="Mentor Dashboard" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization" end icon={LayoutDashboard} label="Mentor Dashboard" {...navItemProps} />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Supervision" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/organization/ojt" icon="badge" label="Deployed Interns & DTR" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/evaluations" icon="rate_review" label="Student Evaluations" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/grievances" icon="report_problem" label="Grievance & Incident Reports" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/ojt" icon={IdCard} label="Deployed Interns & DTR" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/evaluations" icon={MessageSquare} label="Student Evaluations" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/grievances" icon={AlertTriangle} label="Grievance & Incidents" {...navItemProps} />
               </div>
             </>
           )}
@@ -252,25 +280,25 @@ export default function Sidebar() {
           {/* ================================================================= */}
           {(role === 'hiring_organization' || role === 'hr_staff') && (
             <>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Overview" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/organization" end icon="dashboard" label="Employer Dashboard" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization" end icon={LayoutDashboard} label="Employer Dashboard" {...navItemProps} />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Recruitment Pipeline" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/organization/jobs" icon="post_add" label="Job Postings" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/applicants" icon="group" label="Applicants & Talent" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/interviews" icon="event_available" label="Interviews" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/offers" icon="assignment_turned_in" label="Offers & Deployments" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/jobs" icon={FilePlus} label="Job Postings" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/applicants" icon={Users} label="Applicants & Talent" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/interviews" icon={CalendarCheck} label="Interviews" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/offers" icon={CheckSquare} label="Offers & Deployments" {...navItemProps} />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Interns & Mentorship" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/organization/ojt" icon="badge" label="Deployed Interns & DTR" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/evaluations" icon="rate_review" label="Evaluations" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/grievances" icon="report_problem" label="Grievance & Incidents" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/mentors" icon="supervisor_account" label="Workplace Mentors" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/ojt" icon={IdCard} label="Deployed Interns & DTR" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/evaluations" icon={MessageSquare} label="Evaluations" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/grievances" icon={AlertTriangle} label="Grievance & Incidents" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/organization/mentors" icon={UserPlus} label="Workplace Mentors" {...navItemProps} />
               </div>
             </>
           )}
@@ -280,23 +308,23 @@ export default function Sidebar() {
           {/* ================================================================= */}
           {role === 'institution' && (
             <>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Overview" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/institution" end icon="dashboard" label="Institution Overview" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/institution" end icon={LayoutDashboard} label="Institution Overview" {...navItemProps} />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Students & OJT" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/institution/students" icon="verified_user" label="Student Verification" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/institution/monitoring" icon="monitoring" label="OJT Monitoring & DTR" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/institution/ojt-offers" icon="work_outline" label="Dispatched OJT Offers" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/institution/students" icon={UserCheck} label="Student Verification" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/institution/monitoring" icon={Activity} label="OJT Monitoring & DTR" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/institution/ojt-offers" icon={Briefcase} label="Dispatched OJT Offers" {...navItemProps} />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Academic Operations" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/institution/staff" icon="badge" label="Faculty & Coordinators" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/institution/programs" icon="menu_book" label="Degree Programs" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/institution/requirements" icon="assignment_late" label="Clearance Requirements" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/institution/staff" icon={IdCard} label="Faculty & Coordinators" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/institution/programs" icon={BookOpen} label="Degree Programs" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/institution/requirements" icon={ClipboardX} label="Clearance Requirements" {...navItemProps} />
               </div>
             </>
           )}
@@ -306,39 +334,39 @@ export default function Sidebar() {
           {/* ================================================================= */}
           {role === 'institution_staff' && (
             <>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Overview" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/institution" end icon="dashboard" label="Staff Overview" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/institution" end icon={LayoutDashboard} label="Staff Overview" {...navItemProps} />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Assigned Scope" isCollapsed={sidebarCollapsed} />
                 {(position === 'ojt_supervisor' || position === 'ojt_coordinator' || !position) && (
                   <>
-                    <SidebarNavItem to="/dashboard/institution/students" icon="verified_user" label="Student Verification" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/monitoring" icon="monitoring" label="OJT Monitoring & Logs" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/ojt-offers" icon="work_outline" label="OJT Offers" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/students" icon={UserCheck} label="Student Verification" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/monitoring" icon={Activity} label="OJT Monitoring & Logs" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/ojt-offers" icon={Briefcase} label="OJT Offers" {...navItemProps} />
                   </>
                 )}
 
                 {position === 'registrar' && (
                   <>
-                    <SidebarNavItem to="/dashboard/institution/students" icon="verified_user" label="Student Verification" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/requirements" icon="assignment_late" label="Clearance Requirements" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/students" icon={UserCheck} label="Student Verification" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/requirements" icon={ClipboardX} label="Clearance Requirements" {...navItemProps} />
                   </>
                 )}
 
                 {position === 'guidance_counselor' && (
-                  <SidebarNavItem to="/dashboard/institution/monitoring" icon="gavel" label="Grievance Oversight" {...navItemProps} />
+                  <SidebarNavItem to="/dashboard/institution/monitoring" icon={Scale} label="Grievance Oversight" {...navItemProps} />
                 )}
 
                 {position === 'dean' && (
                   <>
-                    <SidebarNavItem to="/dashboard/institution/students" icon="verified_user" label="Department Students" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/staff" icon="badge" label="Department Staff" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/programs" icon="menu_book" label="Department Programs" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/monitoring" icon="monitoring" label="OJT Monitoring" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/ojt-offers" icon="work_outline" label="OJT & Job Offers" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/students" icon={UserCheck} label="Department Students" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/staff" icon={IdCard} label="Department Staff" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/programs" icon={BookOpen} label="Department Programs" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/monitoring" icon={Activity} label="OJT Monitoring" {...navItemProps} />
+                    <SidebarNavItem to="/dashboard/institution/ojt-offers" icon={Briefcase} label="OJT & Job Offers" {...navItemProps} />
                   </>
                 )}
               </div>
@@ -350,43 +378,43 @@ export default function Sidebar() {
           {/* ================================================================= */}
           {role === 'system_admin' && (
             <>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="System" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/admin" end icon="admin_panel_settings" label="System Overview" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin" end icon={ShieldAlert} label="System Overview" {...navItemProps} />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Platform Entities" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/admin/institutions" icon="school" label="Institutions" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/admin/organizations" icon="business" label="Organizations" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/admin/jobs" icon="work" label="Job Moderation" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/admin/users" icon="manage_accounts" label="User Accounts" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin/institutions" icon={GraduationCap} label="Institutions" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin/organizations" icon={Building2} label="Organizations" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin/jobs" icon={Briefcase} label="Job Moderation" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin/users" icon={UsersCog} label="User Accounts" {...navItemProps} />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <SidebarSectionTitle title="Governance & Intelligence" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/admin/complaints" icon="gavel" label="Grievance Oversight" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/admin/analytics" icon="trending_up" label="Skill Analytics" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/admin/audit-logs" icon="receipt_long" label="Audit Trail" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin/complaints" icon={Scale} label="Grievance Oversight" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin/analytics" icon={TrendingUp} label="Skill Analytics" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin/audit-logs" icon={Receipt} label="Audit Trail" {...navItemProps} />
               </div>
             </>
           )}
 
           {/* Mobile Quick Sign Out */}
-          <div className="pt-3 mt-3 border-t border-outline-variant/60 lg:hidden">
+          <div className="pt-3 mt-3 border-t border-border lg:hidden">
             <button
               type="button"
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-error hover:bg-error-container transition-colors cursor-pointer"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-md font-medium text-[13px] sm:text-sm text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[20px]">logout</span>
+              <LogOut className="w-4 h-4" />
               <span>Sign Out</span>
             </button>
           </div>
         </nav>
 
         {/* User Profile Footer */}
-        <div className="p-3 pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))] border-t border-outline-variant bg-surface-container-low shrink-0 mt-auto">
+        <div className="p-3 pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))] border-t border-border bg-background shrink-0 mt-auto">
           {/* User Profile / Settings Row */}
           <div
             onClick={() => {
@@ -403,12 +431,12 @@ export default function Sidebar() {
               }
             }}
             onMouseLeave={() => setHoveredItem(null)}
-            className={`flex items-center rounded-2xl hover:bg-surface-container transition-colors cursor-pointer group ${
-              sidebarCollapsed ? 'lg:justify-center lg:p-1.5 p-2 gap-3 mb-2' : 'gap-3 mb-2.5 p-2'
+            className={`flex items-center rounded-md hover:bg-surface-container transition-colors cursor-pointer group ${
+              sidebarCollapsed ? 'lg:justify-center lg:p-1.5 p-2 gap-3 mb-2' : 'gap-3 mb-2 p-2'
             }`}
             title="Manage Profile & Settings"
           >
-            <div className="w-9 h-9 rounded-full overflow-hidden bg-vibrant-orange text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+            <div className="w-8 h-8 rounded-md overflow-hidden bg-vibrant-orange text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
               {user.avatar_url ? (
                 <img
                   src={resolveFileUrl(user.avatar_url)}
@@ -428,17 +456,15 @@ export default function Sidebar() {
 
             {/* Profile Info (hidden on collapsed desktop) */}
             <div className={`overflow-hidden flex-1 min-w-0 ${sidebarCollapsed ? 'lg:hidden' : 'block'}`}>
-              <p className="font-bold text-xs text-on-surface truncate group-hover:text-vibrant-orange transition-colors">
+              <p className="font-semibold text-[13px] text-foreground truncate group-hover:text-vibrant-orange transition-colors">
                 {user.display_name || user.full_name || user.email}
               </p>
-              <p className="text-[10px] text-on-surface-variant truncate">{user.email}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
             </div>
 
-            <span className={`material-symbols-outlined text-[18px] text-on-surface-variant group-hover:text-vibrant-orange group-hover:rotate-45 transition-all ${
+            <Settings className={`w-4 h-4 text-muted-foreground group-hover:text-vibrant-orange transition-all ${
               sidebarCollapsed ? 'lg:hidden' : 'block'
-            }`}>
-              settings
-            </span>
+            }`} />
           </div>
 
           {/* Sign Out Button */}
@@ -454,18 +480,18 @@ export default function Sidebar() {
                 });
               }}
               onMouseLeave={() => setHoveredItem(null)}
-              className="hidden lg:flex w-10 h-10 mx-auto items-center justify-center bg-surface-container hover:bg-error-container hover:text-error rounded-xl text-on-surface-variant transition-colors cursor-pointer"
+              className="hidden lg:flex w-10 h-10 mx-auto items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-md transition-colors cursor-pointer"
               aria-label="Sign Out"
             >
-              <span className="material-symbols-outlined text-[18px]">logout</span>
+              <LogOut className="w-5 h-5" />
             </button>
           ) : (
             <button
               type="button"
               onClick={handleLogout}
-              className="hidden lg:flex w-full items-center justify-center gap-2 py-2 px-3 bg-surface-container hover:bg-error-container hover:text-error rounded-xl text-xs font-bold text-on-surface-variant transition-colors cursor-pointer"
+              className="hidden lg:flex w-full items-center justify-center gap-2 py-2 px-3 bg-surface-container hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-md text-[13px] font-semibold transition-colors cursor-pointer border border-border"
             >
-              <span className="material-symbols-outlined text-[16px]">logout</span>
+              <LogOut className="w-4 h-4" />
               <span>Sign Out</span>
             </button>
           )}
@@ -476,14 +502,14 @@ export default function Sidebar() {
       {sidebarCollapsed && hoveredItem && (
         <div
           role="tooltip"
-          className="hidden lg:flex fixed left-[86px] z-[9999] -translate-y-1/2 px-3 py-1.5 rounded-xl bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white text-xs font-semibold shadow-2xl border border-white/10 items-center gap-2 pointer-events-none transition-all -95 select-none"
+          className="hidden lg:flex fixed left-[80px] z-[9999] -translate-y-1/2 px-3 py-1.5 rounded-md bg-popover text-popover-foreground text-xs font-medium shadow-md border border-border items-center gap-2 pointer-events-none transition-all select-none"
           style={{ top: `${hoveredItem.top}px` }}
         >
           {/* Tooltip Left Arrow Pointer */}
-          <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-0 h-0 border-y-4 border-y-transparent border-r-[6px] border-r-slate-900/95 dark:border-r-slate-800/95" />
+          <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-0 h-0 border-y-4 border-y-transparent border-r-[6px] border-r-border" />
           <span className="relative z-10">{hoveredItem.label}</span>
           {hoveredItem.badge && (
-            <span className="relative z-10 px-1.5 py-0.5 text-[10px] font-bold rounded-md bg-vibrant-orange text-white shadow-xs">
+            <span className="relative z-10 px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-vibrant-orange text-white shadow-xs">
               {hoveredItem.badge}
             </span>
           )}

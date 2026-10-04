@@ -6,6 +6,30 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useSidebar } from './DashboardLayout';
 import { playNotificationChime } from '../../utils/audio';
 import api from '../../api/client';
+import {
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Bell,
+  BellRing,
+  Sun,
+  Moon,
+  Settings,
+  LogOut,
+  Video,
+  FolderOpen,
+  Star,
+  Award,
+  IdCard,
+  UserCheck,
+  Scale,
+  AlertTriangle,
+  Siren,
+  BadgeCheck,
+  Clock,
+  ArrowRight,
+  BellOff
+} from 'lucide-react';
 
 export default function DashboardHeader() {
   const { user, logout } = useAuth();
@@ -123,18 +147,18 @@ export default function DashboardHeader() {
 
   const getNotificationIcon = (type, title = '') => {
     const lower = `${type || ''} ${title || ''}`.toLowerCase();
-    if (lower.includes('interview') || lower.includes('meet')) return 'video_camera_front';
-    if (lower.includes('portfolio')) return 'folder_special';
-    if (lower.includes('evaluation') || lower.includes('rating') || lower.includes('score')) return 'grade';
-    if (lower.includes('completed') || lower.includes('certificate')) return 'workspace_premium';
-    if (lower.includes('staff') || lower.includes('faculty') || lower.includes('coordinator')) return 'badge';
-    if (lower.includes('verification') || lower.includes('verify')) return 'how_to_reg';
-    if (lower.includes('grievance') || lower.includes('complaint')) return 'gavel';
-    if (lower.includes('warning') || lower.includes('sanction') || lower.includes('suspend')) return 'warning';
-    if (lower.includes('accident') || lower.includes('incident')) return 'emergency';
-    if (lower.includes('offer') || lower.includes('job') || lower.includes('hire') || lower.includes('requirement')) return 'verified';
-    if (lower.includes('dtr') || lower.includes('time') || lower.includes('clock')) return 'schedule';
-    return 'notifications';
+    if (lower.includes('interview') || lower.includes('meet')) return Video;
+    if (lower.includes('portfolio')) return FolderOpen;
+    if (lower.includes('evaluation') || lower.includes('rating') || lower.includes('score')) return Star;
+    if (lower.includes('completed') || lower.includes('certificate')) return Award;
+    if (lower.includes('staff') || lower.includes('faculty') || lower.includes('coordinator')) return IdCard;
+    if (lower.includes('verification') || lower.includes('verify')) return UserCheck;
+    if (lower.includes('grievance') || lower.includes('complaint')) return Scale;
+    if (lower.includes('warning') || lower.includes('sanction') || lower.includes('suspend')) return AlertTriangle;
+    if (lower.includes('accident') || lower.includes('incident')) return Siren;
+    if (lower.includes('offer') || lower.includes('job') || lower.includes('hire') || lower.includes('requirement')) return BadgeCheck;
+    if (lower.includes('dtr') || lower.includes('time') || lower.includes('clock')) return Clock;
+    return Bell;
   };
 
   const parseDateSafe = (dateStr) => {
@@ -220,61 +244,57 @@ export default function DashboardHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-surface-container-lowest text-on-surface pt-[max(2rem,env(safe-area-inset-top))] lg:pt-0 transition-colors shrink-0 flex flex-col shadow-sm">
-      <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 h-[60px] sm:h-[64px]">
+    <header className="sticky top-0 z-30 bg-background text-foreground pt-[max(1rem,env(safe-area-inset-top))] lg:pt-0 transition-colors shrink-0 flex flex-col border-b border-border shadow-sm">
+      <div className="flex items-center justify-between px-3 sm:px-6 h-[56px] sm:h-[60px]">
         {/* Left: Mobile Hamburger Toggle + Native Page Title */}
         <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
           <button
             type="button"
             id="mobile-sidebar-toggle-btn"
             onClick={toggleSidebar}
-            className="lg:hidden p-1.5 rounded-full hover:bg-surface-container-high transition-colors shrink-0 flex items-center justify-center cursor-pointer"
+            className="lg:hidden p-1.5 rounded-md text-muted-foreground hover:bg-surface-container hover:text-foreground transition-colors shrink-0 flex items-center justify-center cursor-pointer"
             aria-label="Toggle navigation menu"
             title="Toggle navigation menu"
           >
-            <span className="material-symbols-outlined text-[24px] block">menu</span>
+            <Menu className="w-5 h-5" />
           </button>
 
           {/* Desktop Sidebar Toggle Button */}
           <button
             type="button"
             onClick={toggleSidebarCollapse}
-            className="hidden lg:flex p-1.5 rounded-full hover:bg-surface-container-high transition-colors shrink-0 items-center justify-center cursor-pointer"
+            className="hidden lg:flex p-1.5 rounded-md text-muted-foreground hover:bg-surface-container hover:text-foreground transition-colors shrink-0 items-center justify-center cursor-pointer"
             aria-label={sidebarCollapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)'}
             title={sidebarCollapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)'}
           >
-            <span className="material-symbols-outlined text-[20px]">
-              {sidebarCollapsed ? 'dock_to_right' : 'dock_to_left'}
-            </span>
+            {sidebarCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
           </button>
 
           {/* Dynamic App Bar Title */}
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight truncate">
+          <h1 className="text-base sm:text-lg font-semibold tracking-tight truncate">
             {getPageTitle()}
           </h1>
         </div>
 
         {/* Right: Actions & Controls */}
-        <div className="flex items-center gap-1 sm:gap-2 relative shrink-0" ref={panelRef}>
+        <div className="flex items-center gap-1.5 sm:gap-2 relative shrink-0" ref={panelRef}>
             {/* Notification Bell Button */}
             <button
               type="button"
               id="notification-bell-btn"
               onClick={() => setPanelOpen(!panelOpen)}
-              className={`relative p-2 rounded-xl transition-all  ${
+              className={`relative p-2 rounded-md transition-all ${
                 panelOpen
-                  ? 'bg-orange-tint text-vibrant-orange shadow-inner'
-                  : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                  ? 'bg-vibrant-orange/10 text-vibrant-orange'
+                  : 'text-muted-foreground hover:bg-surface-container hover:text-foreground'
               }`}
               title="Notifications"
               aria-label="View notifications"
             >
-              <span className="material-symbols-outlined text-[22px] block">
-                {unreadCount > 0 ? 'notifications_active' : 'notifications'}
-              </span>
+              {unreadCount > 0 ? <BellRing className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
 
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-vibrant-orange text-white text-[10px] font-extrabold flex items-center justify-center shadow-md animate-pulse">
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-vibrant-orange text-white text-[10px] font-bold flex items-center justify-center shadow-sm animate-pulse">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
@@ -285,17 +305,15 @@ export default function DashboardHeader() {
               type="button"
               id="theme-toggle-btn"
               onClick={toggleTheme}
-              className={`p-2 rounded-xl transition-all  cursor-pointer active:scale-95 hidden sm:block ${
+              className={`p-2 rounded-md transition-all cursor-pointer active:scale-95 hidden sm:block ${
                 isDark
-                  ? 'bg-primary-container/20 text-primary-container hover:bg-primary-container/30 border border-primary-container/40'
-                  : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                  ? 'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20'
+                  : 'text-muted-foreground hover:bg-surface-container hover:text-foreground'
               }`}
               title={isDark ? 'Switch to Light Mode' : 'Switch to Aura Radiant Dark Mode'}
               aria-label="Toggle Theme Mode"
             >
-              <span className="material-symbols-outlined text-[22px] block transition-transform">
-                {isDark ? 'light_mode' : 'dark_mode'}
-              </span>
+              {isDark ? <Sun className="w-5 h-5 transition-transform" /> : <Moon className="w-5 h-5 transition-transform" />}
             </button>
 
             {/* Settings Navigation Shortcut */}
@@ -303,13 +321,11 @@ export default function DashboardHeader() {
               type="button"
               id="settings-header-btn"
               onClick={() => navigate('/dashboard/settings')}
-              className="p-2 rounded-xl bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all cursor-pointer"
+              className="p-2 rounded-md text-muted-foreground hover:bg-surface-container hover:text-foreground transition-all cursor-pointer"
               title="Account Settings & Preferences"
               aria-label="Account Settings"
             >
-              <span className="material-symbols-outlined text-[22px] block hover:rotate-45 transition-transform">
-                settings
-              </span>
+              <Settings className="w-5 h-5 hover:rotate-90 transition-transform" />
             </button>
 
             {/* Quick Sign Out Action (Hidden on Mobile) */}
@@ -317,23 +333,23 @@ export default function DashboardHeader() {
               type="button"
               id="header-logout-btn"
               onClick={handleLogout}
-              className="p-2 rounded-xl bg-surface-container text-error hover:bg-error-container hover:text-error transition-all cursor-pointer hidden md:block"
+              className="p-2 rounded-md text-destructive hover:bg-destructive/10 transition-all cursor-pointer hidden md:block"
               title="Sign Out"
               aria-label="Sign Out"
             >
-              <span className="material-symbols-outlined text-[22px] block">logout</span>
+              <LogOut className="w-5 h-5" />
             </button>
 
           {/* Notifications Dropdown Panel */}
           {panelOpen && (
-            <div className="absolute right-0 top-full mt-2 w-[min(calc(100vw-1.5rem),24rem)] max-w-[384px] bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant overflow-hidden z-50 max-h-[85vh] flex flex-col">
+            <div className="absolute right-0 top-full mt-2 w-[min(calc(100vw-1.5rem),24rem)] max-w-[384px] bg-popover rounded-xl shadow-lg border border-border overflow-hidden z-50 max-h-[85vh] flex flex-col">
               {/* Panel Header */}
-              <div className="p-4 border-b border-outline-variant bg-surface-container-low/50 flex items-center justify-between">
+              <div className="p-4 border-b border-border bg-muted/30 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-vibrant-orange text-[20px]">notifications</span>
-                  <h3 className="text-sm font-bold text-on-surface">Notifications</h3>
+                  <Bell className="w-5 h-5 text-vibrant-orange" />
+                  <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
                   {unreadCount > 0 && (
-                    <span className="px-2 py-0.5 rounded-full bg-vibrant-orange/10 text-vibrant-orange text-[10px] font-bold">
+                    <span className="px-2 py-0.5 rounded-md bg-vibrant-orange/10 text-vibrant-orange text-[10px] font-bold">
                       {unreadCount} new
                     </span>
                   )}
@@ -343,7 +359,7 @@ export default function DashboardHeader() {
                   <button
                     onClick={handleMarkAllAsRead}
                     disabled={loading}
-                    className="text-[11px] font-bold text-vibrant-orange hover:text-deep-orange hover:underline transition-all disabled:opacity-50"
+                    className="text-[11px] font-semibold text-vibrant-orange hover:text-deep-orange hover:underline transition-all disabled:opacity-50"
                   >
                     Mark all read
                   </button>
@@ -351,13 +367,13 @@ export default function DashboardHeader() {
               </div>
 
               {/* Filter Tabs */}
-              <div className="flex items-center border-b border-outline-variant px-3 pt-2 bg-surface-container-lowest text-xs">
+              <div className="flex items-center border-b border-border px-3 pt-2 bg-popover text-xs">
                 <button
                   onClick={() => setActiveFilter('all')}
                   className={`pb-2 px-3 font-semibold transition-all border-b-2 ${
                     activeFilter === 'all'
                       ? 'border-vibrant-orange text-vibrant-orange'
-                      : 'border-transparent text-on-surface-variant hover:text-on-surface'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   All ({notifications.length})
@@ -367,7 +383,7 @@ export default function DashboardHeader() {
                   className={`pb-2 px-3 font-semibold transition-all border-b-2 ${
                     activeFilter === 'unread'
                       ? 'border-vibrant-orange text-vibrant-orange'
-                      : 'border-transparent text-on-surface-variant hover:text-on-surface'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   Unread ({unreadCount})
@@ -375,14 +391,14 @@ export default function DashboardHeader() {
               </div>
 
               {/* Notification Items List */}
-              <div className="max-h-[380px] overflow-y-auto divide-y divide-outline-variant/50">
+              <div className="max-h-[380px] overflow-y-auto divide-y divide-border/50">
                 {filteredNotifications.length === 0 ? (
                   <div className="p-8 text-center">
-                    <div className="w-12 h-12 mx-auto rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant/40 mb-3">
-                      <span className="material-symbols-outlined text-2xl">notifications_off</span>
+                    <div className="w-12 h-12 mx-auto rounded-full bg-muted flex items-center justify-center text-muted-foreground/40 mb-3">
+                      <BellOff className="w-6 h-6" />
                     </div>
-                    <p className="text-xs font-bold text-on-surface">No notifications</p>
-                    <p className="text-[11px] text-on-surface-variant mt-1">
+                    <p className="text-xs font-semibold text-foreground">No notifications</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">
                       {activeFilter === 'unread'
                         ? "You've read all your notifications!"
                         : 'Updates regarding grievances, complaints, and alerts will appear here.'}
@@ -390,7 +406,7 @@ export default function DashboardHeader() {
                   </div>
                 ) : (
                   filteredNotifications.map((notif) => {
-                    const iconName = getNotificationIcon(notif.type || notif.related_type, notif.title);
+                    const NotifIcon = getNotificationIcon(notif.type || notif.related_type, notif.title);
                     const isUnread = !notif.is_read;
 
                     return (
@@ -399,46 +415,46 @@ export default function DashboardHeader() {
                         onClick={() => handleNotificationClick(notif)}
                         className={`p-3.5 flex items-start gap-3 cursor-pointer transition-colors ${
                           isUnread
-                            ? 'bg-vibrant-orange/10 hover:bg-vibrant-orange/15'
-                            : 'hover:bg-surface-container-low'
+                            ? 'bg-vibrant-orange/5 hover:bg-vibrant-orange/10'
+                            : 'hover:bg-muted/50'
                         }`}
                       >
                         {/* Icon */}
                         <div
-                          className={`w-9 h-9 rounded-xl shrink-0 flex items-center justify-center ${
+                          className={`w-9 h-9 rounded-md shrink-0 flex items-center justify-center ${
                             isUnread
                               ? 'bg-vibrant-orange text-white shadow-sm'
-                              : 'bg-surface-container text-on-surface-variant'
+                              : 'bg-muted text-muted-foreground'
                           }`}
                         >
-                          <span className="material-symbols-outlined text-[18px]">{iconName}</span>
+                          <NotifIcon className="w-4 h-4" strokeWidth={isUnread ? 2.5 : 2} />
                         </div>
 
                         {/* Content */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-1 mb-0.5">
-                            <span className="text-[11px] font-bold text-on-surface truncate">
+                            <span className="text-[11px] font-semibold text-foreground truncate">
                               {notif.sender_name || 'System Notification'}
                             </span>
-                            <span className="text-[10px] text-on-surface-variant shrink-0">
+                            <span className="text-[10px] text-muted-foreground shrink-0">
                               {formatTimestamp(notif.created_at)}
                             </span>
                           </div>
 
                           {notif.title && (
-                            <p className="text-xs font-semibold text-on-surface line-clamp-1 mb-0.5">
+                            <p className="text-xs font-medium text-foreground line-clamp-1 mb-0.5">
                               {notif.title}
                             </p>
                           )}
 
-                          <p className="text-[11px] text-on-surface-variant line-clamp-2 leading-relaxed">
+                          <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
                             {notif.message}
                           </p>
 
                           {notif.link && (
-                            <div className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-vibrant-orange">
+                            <div className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-vibrant-orange">
                               <span>View Details</span>
-                              <span className="material-symbols-outlined text-[12px]">arrow_forward</span>
+                              <ArrowRight className="w-3 h-3" />
                             </div>
                           )}
                         </div>
@@ -454,8 +470,8 @@ export default function DashboardHeader() {
               </div>
 
               {/* Panel Footer */}
-              <div className="p-2.5 bg-surface-container-low/50 border-t border-outline-variant text-center">
-                <span className="text-[10px] text-on-surface-variant">
+              <div className="p-2.5 bg-muted/30 border-t border-border text-center">
+                <span className="text-[10px] text-muted-foreground">
                   Automatically updated upon backend events
                 </span>
               </div>

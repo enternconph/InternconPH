@@ -2,6 +2,22 @@ import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSidebar } from './DashboardLayout';
+import { 
+  Home, 
+  Briefcase, 
+  Clock, 
+  User, 
+  Users, 
+  FilePlus, 
+  IdCard, 
+  MessageSquare, 
+  UserCheck, 
+  Activity, 
+  Menu, 
+  UsersCog, 
+  GraduationCap, 
+  Settings 
+} from 'lucide-react';
 
 export default function MobileBottomBar() {
   const { user, getDashboardUrl } = useAuth();
@@ -19,46 +35,46 @@ export default function MobileBottomBar() {
     switch (role) {
       case 'student':
         return [
-          { label: 'Home', icon: 'home', path: dashboardUrl },
-          { label: 'Jobs', icon: 'work', path: '/dashboard/student/jobs' },
-          { label: 'OJT', icon: 'timelapse', path: '/dashboard/student/ojt' },
-          { label: 'Profile', icon: 'person', path: '/dashboard/student/profile' }
+          { label: 'Home', icon: Home, path: dashboardUrl },
+          { label: 'Jobs', icon: Briefcase, path: '/dashboard/student/jobs' },
+          { label: 'OJT', icon: Clock, path: '/dashboard/student/ojt' },
+          { label: 'Profile', icon: User, path: '/dashboard/student/profile' }
         ];
       case 'hiring_organization':
       case 'hr_staff':
         return [
-          { label: 'Home', icon: 'home', path: dashboardUrl },
-          { label: 'Applicants', icon: 'group', path: '/dashboard/organization/applicants' },
-          { label: 'Jobs', icon: 'post_add', path: '/dashboard/organization/jobs' },
-          { label: 'Interns', icon: 'badge', path: '/dashboard/organization/ojt' }
+          { label: 'Home', icon: Home, path: dashboardUrl },
+          { label: 'Applicants', icon: Users, path: '/dashboard/organization/applicants' },
+          { label: 'Jobs', icon: FilePlus, path: '/dashboard/organization/jobs' },
+          { label: 'Interns', icon: IdCard, path: '/dashboard/organization/ojt' }
         ];
       case 'workplace_mentor':
       case 'mentor':
         return [
-          { label: 'Home', icon: 'home', path: dashboardUrl },
-          { label: 'Interns', icon: 'badge', path: '/dashboard/organization/ojt' },
-          { label: 'Ratings', icon: 'rate_review', path: '/dashboard/organization/evaluations' },
-          { label: 'Profile', icon: 'person', path: '/dashboard/settings' }
+          { label: 'Home', icon: Home, path: dashboardUrl },
+          { label: 'Interns', icon: IdCard, path: '/dashboard/organization/ojt' },
+          { label: 'Ratings', icon: MessageSquare, path: '/dashboard/organization/evaluations' },
+          { label: 'Profile', icon: User, path: '/dashboard/settings' }
         ];
       case 'institution':
       case 'institution_staff':
         return [
-          { label: 'Home', icon: 'home', path: dashboardUrl },
-          { label: 'Students', icon: 'verified_user', path: '/dashboard/institution/students' },
-          { label: 'Monitoring', icon: 'monitoring', path: '/dashboard/institution/monitoring' },
-          { label: 'Menu', icon: 'menu', path: 'MENU_TOGGLE' }
+          { label: 'Home', icon: Home, path: dashboardUrl },
+          { label: 'Students', icon: UserCheck, path: '/dashboard/institution/students' },
+          { label: 'Monitoring', icon: Activity, path: '/dashboard/institution/monitoring' },
+          { label: 'Menu', icon: Menu, path: 'MENU_TOGGLE' }
         ];
       case 'system_admin':
         return [
-          { label: 'Home', icon: 'home', path: dashboardUrl },
-          { label: 'Users', icon: 'manage_accounts', path: '/dashboard/admin/users' },
-          { label: 'Institutions', icon: 'school', path: '/dashboard/admin/institutions' },
-          { label: 'Menu', icon: 'menu', path: 'MENU_TOGGLE' }
+          { label: 'Home', icon: Home, path: dashboardUrl },
+          { label: 'Users', icon: UsersCog, path: '/dashboard/admin/users' },
+          { label: 'Institutions', icon: GraduationCap, path: '/dashboard/admin/institutions' },
+          { label: 'Menu', icon: Menu, path: 'MENU_TOGGLE' }
         ];
       default:
         return [
-          { label: 'Home', icon: 'home', path: dashboardUrl },
-          { label: 'Settings', icon: 'settings', path: '/dashboard/settings' }
+          { label: 'Home', icon: Home, path: dashboardUrl },
+          { label: 'Settings', icon: Settings, path: '/dashboard/settings' }
         ];
     }
   };
@@ -69,10 +85,11 @@ export default function MobileBottomBar() {
     <nav
       id="mobile-bottom-nav-bar"
       aria-label="Mobile Navigation Bar"
-      className="absolute bottom-0 left-0 right-0 z-40 lg:hidden bg-surface-container-lowest border-t border-outline-variant px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_20px_rgba(0,0,0,0.04)] flex items-center justify-around transition-colors h-[64px] sm:h-[72px]"
+      className="absolute bottom-0 left-0 right-0 z-40 lg:hidden bg-background border-t border-border px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.02)] flex items-center justify-around transition-colors h-[64px] sm:h-[72px]"
     >
       {tabs.map((tab, index) => {
         const isActive = location.pathname === tab.path || (tab.path !== 'MENU_TOGGLE' && tab.path !== dashboardUrl && location.pathname.startsWith(tab.path));
+        const Icon = tab.icon;
 
         return (
           <button
@@ -88,16 +105,14 @@ export default function MobileBottomBar() {
             className={`flex flex-col items-center justify-center flex-1 h-full pt-1.5 transition-all active:scale-95 cursor-pointer ${
               isActive
                 ? 'text-vibrant-orange'
-                : 'text-on-surface-variant hover:text-on-surface'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
             aria-label={tab.label}
           >
-            <div className={`flex items-center justify-center px-4 py-1 rounded-full mb-0.5 transition-all duration-300 ease-in-out ${isActive ? 'bg-orange-tint/50 scale-110' : 'bg-transparent'}`}>
-              <span className={`material-symbols-outlined text-[24px] ${isActive ? 'font-fill' : ''}`}>
-                {tab.icon}
-              </span>
+            <div className={`flex items-center justify-center px-4 py-1 rounded-md mb-0.5 transition-all duration-300 ease-in-out ${isActive ? 'bg-vibrant-orange/10 scale-110' : 'bg-transparent'}`}>
+              <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
             </div>
-            <span className={`text-[10px] sm:text-[11px] tracking-tight ${isActive ? 'font-bold' : 'font-medium'}`}>
+            <span className={`text-[10px] sm:text-[11px] tracking-tight ${isActive ? 'font-semibold' : 'font-medium'}`}>
               {tab.label}
             </span>
           </button>
@@ -105,4 +120,4 @@ export default function MobileBottomBar() {
       })}
     </nav>
   );
-}
+}

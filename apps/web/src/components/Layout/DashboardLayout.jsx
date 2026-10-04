@@ -70,7 +70,7 @@ export default function DashboardLayout() {
         toggleSidebarCollapse
       }}
     >
-      <div className="flex h-screen h-[100dvh] w-full max-w-full bg-surface-container-low text-on-surface overflow-hidden">
+      <div className="flex h-screen h-[100dvh] w-full max-w-full bg-background text-foreground overflow-hidden">
         {/* Mobile Backdrop Overlay */}
         {sidebarOpen && (
           <div

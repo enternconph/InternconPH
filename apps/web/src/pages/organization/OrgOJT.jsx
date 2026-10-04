@@ -87,7 +87,7 @@ export default function OrgOJT() {
     try {
       const res = await api.get('/org/interns');
       if (res.success && res.data) {
-        setInterns(res.data);
+        setInterns(Array.isArray(res.data) ? res.data : []);
       }
     } catch (err) {
       console.error('Fetch Org OJT data error:', err);
@@ -148,7 +148,7 @@ export default function OrgOJT() {
   const { ongoingCount, completedCount } = useMemo(() => {
     let ongoing = 0;
     let completed = 0;
-    interns.forEach((i) => {
+    (interns || []).forEach((i) => {
       const req = i.required_hours || i.required_ojt_hours || 600;
       const done = i.rendered_hours || 0;
       if (i.status === 'completed' || done >= req) {
@@ -161,7 +161,7 @@ export default function OrgOJT() {
   }, [interns]);
 
   const filteredInterns = useMemo(() => {
-    return interns.filter((i) => {
+    return (interns || []).filter((i) => {
       const req = i.required_hours || i.required_ojt_hours || 600;
       const done = i.rendered_hours || 0;
       const isCompleted = i.status === 'completed' || done >= req;
@@ -194,13 +194,14 @@ export default function OrgOJT() {
   const formatPHTTime = (timeStr) => {
     if (!timeStr) return '—';
     try {
-      const clean = timeStr.slice(0, 5);
+      const str = String(timeStr);
+      const clean = str.slice(0, 5);
       const [h, m] = clean.split(':').map(Number);
       const period = h >= 12 ? 'PM' : 'AM';
       const formattedH = h % 12 || 12;
       return `${formattedH}:${String(m).padStart(2, '0')} ${period}`;
     } catch (e) {
-      return timeStr;
+      return String(timeStr);
     }
   };
 
@@ -427,7 +428,7 @@ export default function OrgOJT() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="flex items-center gap-1">
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono">
-                                In: {intern.today_time_in.slice(0, 5)}
+                                In: {formatPHTTime(intern.today_time_in)}
                               </span>
                               <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
                                 intern.today_time_in_status === 'late'
@@ -447,7 +448,7 @@ export default function OrgOJT() {
                                 <span>{intern.today_hours || 0} hrs credited</span>
                               </span>
                               <span className="text-[10px] text-on-surface-variant font-mono">
-                                ({intern.today_time_in.slice(0, 5)} - {intern.today_time_out.slice(0, 5)})
+                                ({formatPHTTime(intern.today_time_in)} - {formatPHTTime(intern.today_time_out)})
                               </span>
                             </div>
                             <div className="flex items-center gap-1 flex-wrap">
