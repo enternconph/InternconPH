@@ -14,7 +14,7 @@ import {
   UserCheck, 
   Activity, 
   Menu, 
-  UsersCog, 
+  UserCog, 
   GraduationCap, 
   Settings 
 } from 'lucide-react';
@@ -67,7 +67,7 @@ export default function MobileBottomBar() {
       case 'system_admin':
         return [
           { label: 'Home', icon: Home, path: dashboardUrl },
-          { label: 'Users', icon: UsersCog, path: '/dashboard/admin/users' },
+          { label: 'Users', icon: UserCog, path: '/dashboard/admin/users' },
           { label: 'Institutions', icon: GraduationCap, path: '/dashboard/admin/institutions' },
           { label: 'Menu', icon: Menu, path: 'MENU_TOGGLE' }
         ];

@@ -388,7 +388,7 @@ export default function Sidebar() {
                 <SidebarNavItem to="/dashboard/admin/institutions" icon={GraduationCap} label="Institutions" {...navItemProps} />
                 <SidebarNavItem to="/dashboard/admin/organizations" icon={Building2} label="Organizations" {...navItemProps} />
                 <SidebarNavItem to="/dashboard/admin/jobs" icon={Briefcase} label="Job Moderation" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/admin/users" icon={UsersCog} label="User Accounts" {...navItemProps} />
+                <SidebarNavItem to="/dashboard/admin/users" icon={UserCog} label="User Accounts" {...navItemProps} />
               </div>
 
               <div className="space-y-0.5">
