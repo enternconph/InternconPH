@@ -1,0 +1,1252 @@
+import pool from './db.js';
+
+export async function runMigrations() {
+  try {
+    console.log('[Migration] Checking and aligning database schema...');
+
+    // 1. Create access_codes table if it does not exist
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS access_codes (
+        code_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        code_hash VARCHAR(64) NOT NULL UNIQUE,
+        recipient_type ENUM('institution_staff', 'student', 'workplace_mentor') NOT NULL,
+        institution_id BIGINT UNSIGNED NULL,
+        organization_id BIGINT UNSIGNED NULL,
+        program_id BIGINT UNSIGNED NULL,
+        target_identifier VARCHAR(100) NOT NULL,
+        intended_position VARCHAR(50) NULL,
+        intended_classification VARCHAR(50) NULL,
+        intended_status VARCHAR(50) NULL,
+        intended_email VARCHAR(150) NULL,
+        assigned_permissions JSON NULL,
+        created_by BIGINT UNSIGNED NOT NULL,
+        is_used TINYINT(1) DEFAULT 0,
+        used_by_user_id BIGINT UNSIGNED NULL,
+        used_at DATETIME NULL,
+        expires_at DATETIME NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_ac_lookup (code_hash, recipient_type, is_used)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    const [acCols] = await pool.query('DESCRIBE access_codes');
+    const acColNames = acCols.map(c => c.Field);
+    if (!acColNames.includes('intended_email')) {
+      await pool.query("ALTER TABLE access_codes ADD COLUMN intended_email VARCHAR(150) NULL AFTER intended_status");
+      console.log('[Migration] Added intended_email to access_codes');
+    }
+    if (!acColNames.includes('intended_department')) {
+      await pool.query("ALTER TABLE access_codes ADD COLUMN intended_department VARCHAR(100) NULL AFTER intended_position");
+      console.log('[Migration] Added intended_department to access_codes');
+    }
+    if (!acColNames.includes('assigned_staff_id')) {
+      await pool.query('ALTER TABLE access_codes ADD COLUMN assigned_staff_id BIGINT UNSIGNED NULL AFTER program_id');
+      await pool.query('CREATE INDEX idx_access_codes_staff ON access_codes(assigned_staff_id)').catch(() => {});
+      console.log('[Migration] Added assigned_staff_id to access_codes');
+    }
+    console.log('[Migration] access_codes table ready.');
+
+    // 2. Create entity_registrations table if it does not exist
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS entity_registrations (
+        registration_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        entity_type ENUM('institution', 'hiring_organization', 'institution_staff', 'student', 'workplace_mentor') NOT NULL,
+        entity_id BIGINT UNSIGNED NOT NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        status ENUM('pending', 'verified', 'rejected') DEFAULT 'pending',
+        reviewer_user_id BIGINT UNSIGNED NULL,
+        reviewed_at DATETIME NULL,
+        rejection_reason TEXT NULL,
+        submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('[Migration] entity_registrations table ready.');
+
+    // 3. Align institution_staff columns
+    const [cols] = await pool.query('DESCRIBE institution_staff');
+    const colNames = cols.map(c => c.Field);
+
+    if (!colNames.includes('staff_number')) {
+      await pool.query('ALTER TABLE institution_staff ADD COLUMN staff_number VARCHAR(50) NULL AFTER employee_id');
+      console.log('[Migration] Added staff_number to institution_staff');
+    }
+    if (!colNames.includes('first_name')) {
+      await pool.query('ALTER TABLE institution_staff ADD COLUMN first_name VARCHAR(100) NULL AFTER staff_number');
+      console.log('[Migration] Added first_name to institution_staff');
+    }
+    if (!colNames.includes('last_name')) {
+      await pool.query('ALTER TABLE institution_staff ADD COLUMN last_name VARCHAR(100) NULL AFTER first_name');
+      console.log('[Migration] Added last_name to institution_staff');
+    }
+    if (!colNames.includes('program_id')) {
+      await pool.query('ALTER TABLE institution_staff ADD COLUMN program_id BIGINT UNSIGNED NULL AFTER institution_id');
+      console.log('[Migration] Added program_id to institution_staff');
+    }
+    if (!colNames.includes('contact_number')) {
+      await pool.query('ALTER TABLE institution_staff ADD COLUMN contact_number VARCHAR(50) NULL AFTER last_name');
+      console.log('[Migration] Added contact_number to institution_staff');
+    }
+    if (!colNames.includes('permissions')) {
+      await pool.query('ALTER TABLE institution_staff ADD COLUMN permissions JSON NULL AFTER contact_number');
+      console.log('[Migration] Added permissions to institution_staff');
+    }
+    if (!colNames.includes('is_verified')) {
+      await pool.query('ALTER TABLE institution_staff ADD COLUMN is_verified TINYINT(1) DEFAULT 0 AFTER is_active');
+      console.log('[Migration] Added is_verified to institution_staff');
+    }
+
+    await pool.query("ALTER TABLE institution_staff MODIFY COLUMN position VARCHAR(50) NOT NULL DEFAULT 'ojt_supervisor'");
+
+    // 4. Create institution_job_approvals
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS institution_job_approvals (
+        approval_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        job_id BIGINT UNSIGNED NOT NULL,
+        institution_id BIGINT UNSIGNED NOT NULL,
+        approval_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+        reviewed_by BIGINT UNSIGNED NULL,
+        reviewed_at DATETIME NULL,
+        rejection_reason TEXT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_job_inst_app (job_id, institution_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('[Migration] institution_job_approvals table ready.');
+
+    // 5. Create organization_staff table if missing (for workplace mentors)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS organization_staff (
+        org_staff_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL UNIQUE,
+        organization_id BIGINT UNSIGNED NOT NULL,
+        program_id BIGINT UNSIGNED NULL,
+        staff_number VARCHAR(50) NULL,
+        first_name VARCHAR(100) NOT NULL,
+        last_name VARCHAR(100) NOT NULL,
+        position VARCHAR(50) NOT NULL DEFAULT 'workplace_mentor',
+        department VARCHAR(100) NULL,
+        contact_number VARCHAR(50) NULL,
+        is_verified TINYINT(1) DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    const [osCols] = await pool.query('DESCRIBE organization_staff');
+    const osColNames = osCols.map(c => c.Field);
+    if (!osColNames.includes('program_id')) {
+      await pool.query('ALTER TABLE organization_staff ADD COLUMN program_id BIGINT UNSIGNED NULL AFTER organization_id');
+      console.log('[Migration] Added program_id to organization_staff');
+    }
+    console.log('[Migration] organization_staff table ready.');
+
+    // 6. Align students table columns
+    const [stuCols] = await pool.query('DESCRIBE students');
+    const stuColNames = stuCols.map(c => c.Field);
+
+    if (!stuColNames.includes('classification')) {
+      await pool.query("ALTER TABLE students ADD COLUMN classification VARCHAR(50) NOT NULL DEFAULT 'regular' AFTER category_id");
+      console.log('[Migration] Added classification to students');
+    }
+    if (!stuColNames.includes('ojt_status')) {
+      await pool.query("ALTER TABLE students ADD COLUMN ojt_status VARCHAR(50) NOT NULL DEFAULT 'starting_ojt' AFTER classification");
+      console.log('[Migration] Added ojt_status to students');
+    }
+    if (!stuColNames.includes('passcode_used')) {
+      await pool.query('ALTER TABLE students ADD COLUMN passcode_used VARCHAR(64) NULL AFTER ojt_status');
+      console.log('[Migration] Added passcode_used to students');
+    }
+    if (!stuColNames.includes('is_verified')) {
+      await pool.query('ALTER TABLE students ADD COLUMN is_verified TINYINT(1) DEFAULT 0 AFTER completed_ojt_hours');
+      console.log('[Migration] Added is_verified to students');
+    }
+    if (!stuColNames.includes('is_active')) {
+      await pool.query('ALTER TABLE students ADD COLUMN is_active TINYINT(1) DEFAULT 1 AFTER is_verified');
+      console.log('[Migration] Added is_active to students');
+    }
+
+    // 7. Purge any legacy rejected student records
+    const [rejected] = await pool.query(
+      `SELECT sr.registration_id, sr.student_id, s.user_id, s.student_number 
+       FROM student_registrations sr 
+       JOIN students s ON sr.student_id = s.student_id 
+       WHERE sr.status = 'rejected'`
+    );
+    for (const r of rejected) {
+      await pool.query('DELETE FROM student_registrations WHERE student_id = ?', [r.student_id]);
+      await pool.query("DELETE FROM entity_registrations WHERE entity_type = 'student' AND entity_id = ?", [r.student_id]);
+      await pool.query('DELETE FROM students WHERE student_id = ?', [r.student_id]);
+      await pool.query('DELETE FROM users WHERE user_id = ? AND is_verified = 0', [r.user_id]);
+    }
+
+    // 8. Align job_postings table columns
+    const [jobCols] = await pool.query('DESCRIBE job_postings');
+    const jobColNames = jobCols.map(c => c.Field);
+
+    if (!jobColNames.includes('posting_type')) {
+      await pool.query("ALTER TABLE job_postings ADD COLUMN posting_type VARCHAR(50) NOT NULL DEFAULT 'ojt' AFTER description");
+    }
+    if (!jobColNames.includes('job_type')) {
+      await pool.query("ALTER TABLE job_postings ADD COLUMN job_type VARCHAR(50) NOT NULL DEFAULT 'ojt' AFTER posting_type");
+    }
+    if (!jobColNames.includes('mentor_id')) {
+      await pool.query('ALTER TABLE job_postings ADD COLUMN mentor_id BIGINT UNSIGNED NULL AFTER organization_id');
+    }
+    if (!jobColNames.includes('finish_time')) {
+      await pool.query('ALTER TABLE job_postings ADD COLUMN finish_time VARCHAR(100) NULL AFTER location');
+    }
+    if (!jobColNames.includes('on_call_days')) {
+      await pool.query('ALTER TABLE job_postings ADD COLUMN on_call_days INT UNSIGNED NULL AFTER finish_time');
+    }
+    if (!jobColNames.includes('salary_rate')) {
+      await pool.query('ALTER TABLE job_postings ADD COLUMN salary_rate DECIMAL(10,2) NULL AFTER on_call_days');
+    }
+    if (!jobColNames.includes('salary_rate_type')) {
+      await pool.query("ALTER TABLE job_postings ADD COLUMN salary_rate_type VARCHAR(50) DEFAULT 'daily' AFTER salary_rate");
+    }
+    if (!jobColNames.includes('target_audience')) {
+      await pool.query("ALTER TABLE job_postings ADD COLUMN target_audience VARCHAR(50) DEFAULT 'ojt_students' AFTER salary_rate_type");
+    }
+    if (!jobColNames.includes('requirements')) {
+      await pool.query('ALTER TABLE job_postings ADD COLUMN requirements TEXT NULL AFTER description');
+    }
+    if (!jobColNames.includes('deliverables')) {
+      await pool.query('ALTER TABLE job_postings ADD COLUMN deliverables TEXT NULL AFTER requirements');
+    }
+    if (!jobColNames.includes('workplace_area')) {
+      await pool.query('ALTER TABLE job_postings ADD COLUMN workplace_area VARCHAR(150) NULL AFTER location');
+      console.log('[Migration] Added workplace_area to job_postings');
+    }
+
+    // 9. Align hiring_organizations
+    const [hoCols] = await pool.query('DESCRIBE hiring_organizations');
+    const hoColNames = hoCols.map(c => c.Field);
+    if (!hoColNames.includes('business_structure')) {
+      await pool.query("ALTER TABLE hiring_organizations ADD COLUMN business_structure VARCHAR(50) NOT NULL DEFAULT 'corporation' AFTER organization_name");
+    }
+    if (!hoColNames.includes('sec_dti_number')) {
+      await pool.query("ALTER TABLE hiring_organizations ADD COLUMN sec_dti_number VARCHAR(100) NULL AFTER province");
+    }
+    if (!hoColNames.includes('bir_tin')) {
+      await pool.query("ALTER TABLE hiring_organizations ADD COLUMN bir_tin VARCHAR(100) NULL AFTER sec_dti_number");
+    }
+    if (!hoColNames.includes('mayors_permit_number')) {
+      await pool.query("ALTER TABLE hiring_organizations ADD COLUMN mayors_permit_number VARCHAR(100) NULL AFTER bir_tin");
+    }
+
+    // 10. Align organization_documents
+    await pool.query("ALTER TABLE organization_documents MODIFY COLUMN document_type VARCHAR(100) NOT NULL");
+    const [docCols] = await pool.query('DESCRIBE organization_documents');
+    const docColNames = docCols.map(c => c.Field);
+    if (!docColNames.includes('document_name')) {
+      await pool.query("ALTER TABLE organization_documents ADD COLUMN document_name VARCHAR(255) NULL AFTER document_type");
+    }
+    if (!docColNames.includes('file_name')) {
+      await pool.query("ALTER TABLE organization_documents ADD COLUMN file_name VARCHAR(255) NULL AFTER file_path");
+    }
+
+    // 11. Create ojt_attendance_logs table for Daily Clock-in / Clock-out & Mentor verification
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ojt_attendance_logs (
+        attendance_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        ojt_id BIGINT UNSIGNED NOT NULL,
+        student_id BIGINT UNSIGNED NOT NULL,
+        mentor_id BIGINT UNSIGNED NULL,
+        log_date DATE NOT NULL,
+        time_in TIME NOT NULL,
+        time_out TIME NULL,
+        hours_rendered DECIMAL(5,2) DEFAULT 0.00,
+        tasks_accomplished TEXT NULL,
+        status ENUM('pending', 'verified', 'rejected') DEFAULT 'pending',
+        verified_by BIGINT UNSIGNED NULL,
+        verified_at DATETIME NULL,
+        rejection_notes TEXT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_att_ojt (ojt_id),
+        INDEX idx_att_student (student_id),
+        INDEX idx_att_date (log_date)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('[Migration] ojt_attendance_logs table ready.');
+
+    // 11b. Ensure ojt_records has mentor_id and backfill assigned mentors
+    const [ojtCols] = await pool.query('DESCRIBE ojt_records');
+    const ojtColNames = ojtCols.map(c => c.Field);
+    if (!ojtColNames.includes('mentor_id')) {
+      await pool.query('ALTER TABLE ojt_records ADD COLUMN mentor_id BIGINT UNSIGNED NULL AFTER organization_id');
+      console.log('[Migration] Added mentor_id column to ojt_records');
+    }
+    await pool.query('CREATE INDEX idx_ojt_mentor ON ojt_records(mentor_id)').catch(() => {});
+
+    // Backfill ojt_records.mentor_id from job_postings where student applied
+    await pool.query(`
+      UPDATE ojt_records o
+      JOIN job_applications ja ON o.student_id = ja.student_id
+      JOIN job_postings jp ON ja.job_id = jp.job_id AND jp.organization_id = o.organization_id
+      SET o.mentor_id = jp.mentor_id
+      WHERE o.mentor_id IS NULL AND jp.mentor_id IS NOT NULL
+    `).catch(() => {});
+
+    // Backfill ojt_records.mentor_id from supervisor_name matching organization_staff
+    await pool.query(`
+      UPDATE ojt_records o
+      JOIN organization_staff os ON o.organization_id = os.organization_id 
+        AND (o.supervisor_name = CONCAT(os.first_name, ' ', os.last_name) OR o.supervisor_name = os.first_name)
+      SET o.mentor_id = os.org_staff_id
+      WHERE o.mentor_id IS NULL
+    `).catch(() => {});
+
+    // Fallback: assign to first active workplace mentor in the organization if still null
+    await pool.query(`
+      UPDATE ojt_records o
+      JOIN (
+        SELECT organization_id, MIN(org_staff_id) as first_mentor_id
+        FROM organization_staff
+        WHERE position = 'workplace_mentor' OR position = 'mentor'
+        GROUP BY organization_id
+      ) m ON o.organization_id = m.organization_id
+      SET o.mentor_id = m.first_mentor_id
+      WHERE o.mentor_id IS NULL
+    `).catch(() => {});
+
+    // Sync supervisor_name & supervisor_contact on ojt_records from organization_staff
+    await pool.query(`
+      UPDATE ojt_records o
+      JOIN organization_staff os ON o.mentor_id = os.org_staff_id
+      SET o.supervisor_name = CONCAT(os.first_name, ' ', os.last_name),
+          o.supervisor_contact = os.contact_number
+      WHERE o.supervisor_name IS NULL OR o.supervisor_name = ''
+    `).catch(() => {});
+
+    // Backfill ojt_attendance_logs.mentor_id from ojt_records
+    await pool.query(`
+      UPDATE ojt_attendance_logs al
+      JOIN ojt_records o ON al.ojt_id = o.ojt_id
+      SET al.mentor_id = o.mentor_id
+      WHERE al.mentor_id IS NULL AND o.mentor_id IS NOT NULL
+    `).catch(() => {});
+
+    // 12. Create master_programs if missing
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS master_programs (
+        master_program_id INT AUTO_INCREMENT PRIMARY KEY,
+        program_name VARCHAR(150) NOT NULL,
+        program_code VARCHAR(30) NOT NULL,
+        discipline VARCHAR(100) NOT NULL,
+        default_ojt_hours INT UNSIGNED NOT NULL DEFAULT 486,
+        description TEXT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_master_prog (program_name, program_code)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 13. Populate CHED nationwide standard degree programs if table is empty
+    const [[{ progCount }]] = await pool.query('SELECT COUNT(*) as progCount FROM master_programs');
+    if (progCount === 0) {
+      const standardPrograms = [
+        ['BS Information Technology', 'BSIT', 'Information Technology & Computing', 486, 'Software engineering, database systems, networking, web & mobile computing.'],
+        ['BS Computer Science', 'BSCS', 'Information Technology & Computing', 486, 'Algorithms, data science, artificial intelligence, systems software architecture.'],
+        ['BS Information Systems', 'BSIS', 'Information Technology & Computing', 486, 'Enterprise architecture, business analytics, IT service management.'],
+        ['BS Civil Engineering', 'BSCE', 'Engineering & Architecture', 600, 'Structural analysis, geotechnical engineering, hydraulics, project management.'],
+        ['BS Mechanical Engineering', 'BSME', 'Engineering & Architecture', 600, 'Thermodynamics, machine design, power plant engineering, robotics.'],
+        ['BS Electrical Engineering', 'BSEE', 'Engineering & Architecture', 600, 'Power systems, electronics, electrical installation, energy conversion.'],
+        ['BS Nursing', 'BSN', 'Health & Medical Sciences', 600, 'Clinical rotations, medical-surgical nursing, community healthcare, emergency care.'],
+        ['BS Business Administration (HR Management)', 'BSBA-HRM', 'Business & Management', 600, 'Talent acquisition, organizational behavior, employee relations, labor law compliance.'],
+        ['BS Accountancy', 'BSA', 'Business & Management', 600, 'Financial accounting, auditing and assurance, Philippine tax laws, corporate finance.'],
+        ['BS Hospitality Management', 'BSHM', 'Hospitality & Tourism', 600, 'Hotel operations, food and beverage service, culinary arts, front office systems.'],
+        ['BS Tourism Management', 'BSTM', 'Hospitality & Tourism', 600, 'Travel agency management, tour guiding, airline ticketing, ecotourism development.']
+      ];
+
+      for (const prog of standardPrograms) {
+        await pool.query(
+          `INSERT INTO master_programs (program_name, program_code, discipline, default_ojt_hours, description)
+           VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE discipline = VALUES(discipline), default_ojt_hours = VALUES(default_ojt_hours), description = VALUES(description)`,
+          prog
+        );
+      }
+    }
+
+    // 14. Seed roles if missing
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS roles (
+        role_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        role_name ENUM('system_admin', 'institution', 'institution_staff', 'student', 'hiring_organization') NOT NULL UNIQUE,
+        description VARCHAR(255) NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    const defaultRoles = [
+      ['system_admin', 'System Administrator'],
+      ['institution', 'Higher Education Institution'],
+      ['institution_staff', 'Institution Staff / Coordinator / Registrar'],
+      ['student', 'Student / Trainee / Intern'],
+      ['hiring_organization', 'Host Training Establishment / Company']
+    ];
+    for (const [roleName, desc] of defaultRoles) {
+      await pool.query(
+        'INSERT IGNORE INTO roles (role_name, description) VALUES (?, ?)',
+        [roleName, desc]
+      );
+    }
+
+    // 15. Seed student_categories if missing
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS student_categories (
+        category_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        category_name VARCHAR(100) NOT NULL UNIQUE,
+        description VARCHAR(255) NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    const defaultCategories = [
+      ['Regular Student', 'Standard regular student undergoing OJT'],
+      ['Returnee (Requires Registrar Verification)', 'Returning student requiring registrar verification'],
+      ['Transferee (Requires Registrar Verification)', 'Transferee student requiring registrar verification']
+    ];
+    for (const [catName, desc] of defaultCategories) {
+      await pool.query(
+        `INSERT INTO student_categories (category_name, description) 
+         VALUES (?, ?) 
+         ON DUPLICATE KEY UPDATE description = VALUES(description)`,
+        [catName, desc]
+      );
+    }
+    console.log('[Migration] student_categories seeded.');
+
+    // 16. Seed student_statuses if missing
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS student_statuses (
+        status_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        status_name VARCHAR(50) NOT NULL UNIQUE,
+        description VARCHAR(255) NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    const defaultStatuses = [
+      ['pending', 'Pending Verification / Approval'],
+      ['active', 'Active Enrolled Student'],
+      ['ongoing_ojt', 'Ongoing OJT Placement'],
+      ['completed_ojt', 'Completed OJT Requirements'],
+      ['graduated', 'Graduated Student']
+    ];
+    for (const [statName, desc] of defaultStatuses) {
+      await pool.query(
+        `INSERT INTO student_statuses (status_name, description) 
+         VALUES (?, ?) 
+         ON DUPLICATE KEY UPDATE description = VALUES(description)`,
+        [statName, desc]
+      );
+    }
+    console.log('[Migration] student_statuses seeded.');
+
+    // 17. Seed skill_categories & complaint_categories if missing
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS skill_categories (
+        category_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        category_name VARCHAR(100) NOT NULL UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    const skillCats = ['Technical Skills', 'Soft Skills', 'Design & Creative', 'Business & Management'];
+    for (const sc of skillCats) {
+      await pool.query('INSERT IGNORE INTO skill_categories (category_name) VALUES (?)', [sc]);
+    }
+
+    // 17b. Create missing skills tables
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS skills (
+        skill_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        category_id INT UNSIGNED NULL,
+        skill_name VARCHAR(100) NOT NULL UNIQUE,
+        description TEXT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (category_id) REFERENCES skill_categories(category_id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS job_required_skills (
+        job_id BIGINT UNSIGNED NOT NULL,
+        skill_id BIGINT UNSIGNED NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (job_id, skill_id),
+        FOREIGN KEY (skill_id) REFERENCES skills(skill_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS student_skills (
+        student_id BIGINT UNSIGNED NOT NULL,
+        skill_id BIGINT UNSIGNED NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (student_id, skill_id),
+        FOREIGN KEY (skill_id) REFERENCES skills(skill_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS skill_demand_statistics (
+        stat_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        skill_id BIGINT UNSIGNED NOT NULL,
+        demand_count INT UNSIGNED DEFAULT 0,
+        last_calculated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_skill_stat (skill_id),
+        FOREIGN KEY (skill_id) REFERENCES skills(skill_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // Seed some initial skills
+    const [[{ catCount }]] = await pool.query('SELECT COUNT(*) as count FROM skill_categories');
+    if (catCount > 0) {
+      const basicSkills = [
+        ['JavaScript', 1], ['React', 1], ['Node.js', 1], ['SQL', 1],
+        ['Communication', 2], ['Leadership', 2], ['Problem Solving', 2],
+        ['UI/UX Design', 3], ['Figma', 3],
+        ['Project Management', 4], ['Data Analysis', 4]
+      ];
+      for (const [skillName, catId] of basicSkills) {
+         await pool.query('INSERT IGNORE INTO skills (skill_name, category_id) VALUES (?, ?)', [skillName, catId]);
+      }
+      
+      // Optionally seed some demand stats so the dashboard isn't completely empty
+      await pool.query(`
+        INSERT IGNORE INTO skill_demand_statistics (skill_id, demand_count)
+        SELECT skill_id, FLOOR(RAND() * 50) + 1 FROM skills
+      `);
+    }
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS complaint_categories (
+        category_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        category_name VARCHAR(100) NOT NULL UNIQUE,
+        description VARCHAR(255) NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    const complaintCats = [
+      // Student Workplace Grievance & Rights Categories
+      ['Workplace Harassment & Sexual Harassment', 'Unwelcome conduct, sexual harassment, inappropriate comments, or hostile advances in the workplace'],
+      ['Safety & Substandard Working Conditions', 'Substandard health and occupational safety, lack of PPE, hazard exposure, or unsanitary environment'],
+      ['Excessive Hours & Schedule Exploitation', 'Hours exceeding CHED (max 8 hrs/day, 40 hrs/week) or DOLE labor guidelines, or forced graveyard shifts'],
+      ['Allowance / Stipend Non-Payment & Delays', 'Delayed, reduced, or completely unpaid agreed student allowance or transport stipend'],
+      ['Task Misalignment / Training Plan Violation', 'Assigned duties outside the MOA Training Plan or menial tasks irrelevant to academic program'],
+      ['Verbal Abuse, Bullying & Intimidation', 'Hostile work environment, insults, humiliation, or psychological intimidation by mentors/colleagues'],
+      ['Breach of MOA / Internship Agreement', 'Failure to provide required mentorship, lack of equipment, or violation of institutional agreement'],
+      ['Discrimination & Unfair Workplace Treatment', 'Bias, discrimination, or exclusion based on gender, SOGIE, religion, ethnicity, or disability'],
+      ['Unfair Evaluation / Retaliatory Grading', 'Retaliatory, punitive, or biased performance evaluation due to personal disagreements'],
+      ['Unethical Demands / Coercion', 'Pressure to perform personal errands, illegal tasks, or falsification of company records'],
+      ['Other Workplace Grievance', 'General workplace grievances, administrative conflicts, or concerns not listed above'],
+
+      // General Categories (for backwards compatibility)
+      ['Workplace Harassment', 'Unsafe or inappropriate workplace conduct'],
+      ['Safety & Working Conditions', 'Substandard health and occupational safety'],
+      ['Excessive Hours / Exploitation', 'Hours exceeding CHED or MOA guidelines'],
+      ['Allowance / Stipend Issues', 'Delayed or unpaid agreed allowance'],
+      ['Other', 'General complaints and grievances'],
+
+      // Conduct Categories (Organization / Mentor reports)
+      ['General Misconduct / Unprofessional Behavior', 'Unprofessional conduct, behavioral infractions, or workplace disruption'],
+      ['Chronic Absenteeism / Unauthorized Tardiness', 'Unexcused absences, chronic lateness, or schedule abandonment'],
+      ['Safety Protocol Violation', 'Disregard of safety equipment, PPE, or operational health standards'],
+      ['Company Property Damage / Negligence', 'Negligent handling or willful damage to organization property, hardware, or facilities'],
+      ['Breach of NDA / Data Confidentiality', 'Unauthorized disclosure of proprietary data, intellectual property, or confidential client records'],
+      ['Interpersonal Conflict / Harassment', 'Verbal hostility, bullying, or conflict with colleagues or supervisors'],
+      ['Other Workplace Concern', 'General behavioral or workplace conduct matters'],
+
+      // Accident & Injury Categories
+      ['Workplace Accident & Physical Injury', 'Physical trauma, injury, or acute medical incident during work shift'],
+      ['Slip, Trip or Fall Incident', 'Slips, trips, or falls within facility premises'],
+      ['Machinery / Equipment Hazard', 'Injuries resulting from tools, machines, or laboratory apparatus'],
+      ['Chemical / Hazardous Exposure', 'Exposure to chemicals, biohazards, fumes, or toxic substances'],
+      ['Physical Strain / Ergonomic Injury', 'Acute musculoskeletal strain from heavy lifting or repetitive trauma'],
+      ['Medical Emergency / Acute Physical Trauma', 'Sudden medical event, fainting, cardiac, or respiratory distress on duty'],
+      ['Other Workplace Safety Incident', 'General workplace safety or physical hazard event']
+    ];
+    for (const [ccName, desc] of complaintCats) {
+      await pool.query(
+        `INSERT INTO complaint_categories (category_name, description) 
+         VALUES (?, ?) 
+         ON DUPLICATE KEY UPDATE description = VALUES(description)`,
+        [ccName, desc]
+      );
+    }
+
+    // Align complaints table columns for conduct & accident reporting and flexible student_status
+    try {
+      const [compCols] = await pool.query('DESCRIBE complaints');
+      const compColNames = compCols.map(c => c.Field);
+      if (compColNames.includes('student_status')) {
+        await pool.query("ALTER TABLE complaints MODIFY COLUMN student_status VARCHAR(50) DEFAULT 'ojt'");
+        console.log('[Migration] Modified complaints.student_status to VARCHAR(50)');
+      }
+      if (!compColNames.includes('incident_category')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN incident_category VARCHAR(150) NULL AFTER category_id');
+        console.log('[Migration] Added incident_category to complaints');
+      }
+      if (!compColNames.includes('evidence_url')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN evidence_url VARCHAR(500) NULL AFTER description');
+        console.log('[Migration] Added evidence_url to complaints');
+      }
+    } catch (err) {
+      console.warn('[Migration] Complaints table check skipped:', err.message);
+    }
+
+    // 18. Align institutions table
+    const [instCols] = await pool.query('DESCRIBE institutions');
+    const instColNames = instCols.map(c => c.Field);
+    if (!instColNames.includes('institution_type')) {
+      await pool.query("ALTER TABLE institutions ADD COLUMN institution_type VARCHAR(50) NOT NULL DEFAULT 'university' AFTER institution_code");
+      console.log('[Migration] Added institution_type to institutions');
+    }
+    if (!instColNames.includes('accreditation_number')) {
+      await pool.query("ALTER TABLE institutions ADD COLUMN accreditation_number VARCHAR(100) NULL AFTER contact_phone");
+      console.log('[Migration] Added accreditation_number to institutions');
+    }
+    if (!instColNames.includes('director_name')) {
+      await pool.query("ALTER TABLE institutions ADD COLUMN director_name VARCHAR(150) NULL AFTER accreditation_number");
+      console.log('[Migration] Added director_name to institutions');
+    }
+    if (!instColNames.includes('director_title')) {
+      await pool.query("ALTER TABLE institutions ADD COLUMN director_title VARCHAR(150) NULL AFTER director_name");
+      console.log('[Migration] Added director_title to institutions');
+    }
+
+    // 19. Align institution_documents table
+    const [instDocCols] = await pool.query('DESCRIBE institution_documents');
+    const instDocColNames = instDocCols.map(c => c.Field);
+    if (!instDocColNames.includes('document_name')) {
+      await pool.query("ALTER TABLE institution_documents ADD COLUMN document_name VARCHAR(255) NULL AFTER document_type");
+      console.log('[Migration] Added document_name to institution_documents');
+    }
+    if (!instDocColNames.includes('file_name')) {
+      await pool.query("ALTER TABLE institution_documents ADD COLUMN file_name VARCHAR(255) NULL AFTER file_path");
+      console.log('[Migration] Added file_name to institution_documents');
+    }
+    await pool.query("ALTER TABLE institution_documents MODIFY COLUMN document_type VARCHAR(100) NOT NULL DEFAULT 'accreditation_certificate'");
+    console.log('[Migration] institution_documents aligned.');
+
+    // 20. Align institution_staff department column
+    const [staffCols] = await pool.query('DESCRIBE institution_staff');
+    const staffColNames = staffCols.map(c => c.Field);
+    if (!staffColNames.includes('department')) {
+      await pool.query("ALTER TABLE institution_staff ADD COLUMN department VARCHAR(150) NULL AFTER program_id");
+      console.log('[Migration] Added department column to institution_staff');
+    }
+    // Backfill department from programs where applicable
+    await pool.query(`
+      UPDATE institution_staff ist
+      JOIN programs p ON ist.program_id = p.program_id
+      SET ist.department = p.department
+      WHERE (ist.department IS NULL OR ist.department = '') AND p.department IS NOT NULL
+    `);
+    console.log('[Migration] Backfilled institution_staff department from programs.');
+
+    // 21. Align portfolio_items and student_resumes for Career Portfolio & Credentials
+    const [portCols] = await pool.query('DESCRIBE portfolio_items');
+    const portColNames = portCols.map(c => c.Field);
+    await pool.query("ALTER TABLE portfolio_items MODIFY COLUMN item_type VARCHAR(50) NOT NULL DEFAULT 'academic_portfolio'");
+    if (!portColNames.includes('file_name')) {
+      await pool.query("ALTER TABLE portfolio_items ADD COLUMN file_name VARCHAR(255) NULL AFTER file_path");
+      console.log('[Migration] Added file_name to portfolio_items');
+    }
+    if (!portColNames.includes('file_size')) {
+      await pool.query("ALTER TABLE portfolio_items ADD COLUMN file_size INT UNSIGNED NULL AFTER file_name");
+      console.log('[Migration] Added file_size to portfolio_items');
+    }
+    if (!portColNames.includes('sub_category')) {
+      await pool.query("ALTER TABLE portfolio_items ADD COLUMN sub_category VARCHAR(100) NULL AFTER item_type");
+      console.log('[Migration] Added sub_category to portfolio_items');
+    }
+
+    const [resumeCols] = await pool.query('DESCRIBE student_resumes');
+    const resumeColNames = resumeCols.map(c => c.Field);
+    if (!resumeColNames.includes('file_name')) {
+      await pool.query("ALTER TABLE student_resumes ADD COLUMN file_name VARCHAR(255) NULL AFTER file_path");
+      console.log('[Migration] Added file_name to student_resumes');
+    }
+    if (!resumeColNames.includes('file_size')) {
+      await pool.query("ALTER TABLE student_resumes ADD COLUMN file_size INT UNSIGNED NULL AFTER file_name");
+      console.log('[Migration] Added file_size to student_resumes');
+    }
+    console.log('[Migration] portfolio_items and student_resumes aligned.');
+
+    // 22. Align ojt_performance_records for competency score_details
+    const [oprCols] = await pool.query('DESCRIBE ojt_performance_records');
+    const oprColNames = oprCols.map(c => c.Field);
+    if (!oprColNames.includes('score_details')) {
+      await pool.query("ALTER TABLE ojt_performance_records ADD COLUMN score_details JSON NULL AFTER comments");
+      console.log('[Migration] Added score_details JSON column to ojt_performance_records');
+    }
+    console.log('[Migration] ojt_performance_records aligned.');
+
+    // 23. Align users for avatar_url, display_name and create user_preferences table
+    const [userCols] = await pool.query('DESCRIBE users');
+    const userColNames = userCols.map(c => c.Field);
+    if (!userColNames.includes('avatar_url')) {
+      await pool.query("ALTER TABLE users ADD COLUMN avatar_url TEXT NULL AFTER email");
+      console.log('[Migration] Added avatar_url to users');
+    }
+    if (!userColNames.includes('display_name')) {
+      await pool.query("ALTER TABLE users ADD COLUMN display_name VARCHAR(150) NULL AFTER avatar_url");
+      console.log('[Migration] Added display_name to users');
+    }
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        preference_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL UNIQUE,
+        theme VARCHAR(20) DEFAULT 'light',
+        time_format VARCHAR(20) DEFAULT '24h',
+        sound_enabled TINYINT(1) DEFAULT 1,
+        email_notifications TINYINT(1) DEFAULT 1,
+        sms_alerts TINYINT(1) DEFAULT 0,
+        ojt_updates TINYINT(1) DEFAULT 1,
+        grievance_alerts TINYINT(1) DEFAULT 1,
+        marketing_emails TINYINT(1) DEFAULT 0,
+        compact_view TINYINT(1) DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        CONSTRAINT fk_user_pref_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    const [prefCols] = await pool.query('DESCRIBE user_preferences').catch(() => [[]]);
+    const prefColNames = prefCols.map(c => c.Field);
+    if (!prefColNames.includes('time_format')) {
+      await pool.query("ALTER TABLE user_preferences ADD COLUMN time_format VARCHAR(20) DEFAULT '24h' AFTER theme");
+      console.log('[Migration] Added time_format to user_preferences');
+    }
+    console.log('[Migration] user_preferences table aligned.');
+
+    // 24. Performance Indexes for High-Traffic Queries
+    await pool.query('CREATE INDEX idx_hiring_orgs_email ON hiring_organizations(contact_email)').catch(() => {});
+    await pool.query('CREATE INDEX idx_institutions_email ON institutions(contact_email)').catch(() => {});
+    await pool.query('CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id)').catch(() => {});
+    await pool.query('CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at)').catch(() => {});
+    await pool.query('CREATE INDEX idx_students_inst ON students(institution_id)').catch(() => {});
+    await pool.query('CREATE INDEX idx_students_prog ON students(program_id)').catch(() => {});
+    await pool.query('CREATE INDEX idx_ojt_org ON ojt_records(organization_id)').catch(() => {});
+    await pool.query('CREATE INDEX idx_ojt_stu ON ojt_records(student_id)').catch(() => {});
+    // Compound indexes for accelerated joins, sorting, and high-frequency filtering
+    await pool.query('CREATE INDEX idx_inst_job_app_status ON institution_job_approvals(institution_id, approval_status)').catch(() => {});
+    await pool.query('CREATE INDEX idx_jobpost_status_created ON job_postings(status, created_at)').catch(() => {});
+    await pool.query('CREATE INDEX idx_jobapp_stu_status ON job_applications(student_id, status)').catch(() => {});
+    await pool.query('CREATE INDEX idx_att_ojt_date ON ojt_attendance_logs(ojt_id, log_date)').catch(() => {});
+    await pool.query('CREATE INDEX idx_notif_user_read ON notifications(user_id, is_read, created_at)').catch(() => {});
+    console.log('[Migration] Performance and compound indexes verified.');
+
+    // 25. Secure Session Management Table (user_sessions)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        session_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        session_token_hash VARCHAR(64) NOT NULL UNIQUE,
+        user_id BIGINT UNSIGNED NOT NULL,
+        ip_address VARCHAR(45) NULL,
+        user_agent TEXT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        last_activity_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME NOT NULL,
+        absolute_expires_at DATETIME NOT NULL,
+        revoked_at DATETIME NULL,
+        revoked_reason VARCHAR(100) NULL,
+        INDEX idx_session_hash_status (session_token_hash, revoked_at, expires_at),
+        INDEX idx_session_user (user_id),
+        INDEX idx_session_last_act (last_activity_at),
+        CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('[Migration] user_sessions table aligned.');
+
+    // 26. Persistent Upload Storage (stored_uploads) for Ephemeral Server Environments
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS stored_uploads (
+        upload_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        file_path VARCHAR(255) NOT NULL UNIQUE,
+        file_name VARCHAR(255) NOT NULL,
+        mime_type VARCHAR(100) NULL,
+        file_size BIGINT UNSIGNED NOT NULL,
+        file_data LONGBLOB NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_file_path (file_path),
+        INDEX idx_file_name (file_name)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('[Migration] stored_uploads table aligned.');
+
+    // 27. Ensure accident_reports, institution_reports, complaints, and complaint_evidence are fully aligned
+    try {
+      console.log('[Migration] Aligning complaints, accident_reports, and grievance workflow tables...');
+
+      // 27a. Align complaints table
+      const [compCols] = await pool.query('DESCRIBE complaints');
+      const compColNames = compCols.map(c => c.Field);
+
+      if (!compColNames.includes('complainant_type')) {
+        await pool.query("ALTER TABLE complaints ADD COLUMN complainant_type ENUM('student', 'organization') DEFAULT 'student' AFTER student_id");
+        console.log('[Migration] Added complainant_type to complaints');
+      }
+      if (!compColNames.includes('is_accident')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN is_accident TINYINT(1) DEFAULT 0 AFTER description');
+        console.log('[Migration] Added is_accident to complaints');
+      }
+      if (!compColNames.includes('forwarded_to_org')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN forwarded_to_org TINYINT(1) DEFAULT 0 AFTER is_accident');
+        console.log('[Migration] Added forwarded_to_org to complaints');
+      }
+      if (!compColNames.includes('forwarded_to_org_at')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN forwarded_to_org_at DATETIME NULL AFTER forwarded_to_org');
+        console.log('[Migration] Added forwarded_to_org_at to complaints');
+      }
+      if (!compColNames.includes('org_notice_summary')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN org_notice_summary TEXT NULL AFTER forwarded_to_org_at');
+        console.log('[Migration] Added org_notice_summary to complaints');
+      }
+      if (!compColNames.includes('include_student_details')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN include_student_details TINYINT(1) DEFAULT 0 AFTER org_notice_summary');
+        console.log('[Migration] Added include_student_details to complaints');
+      }
+      if (!compColNames.includes('warning_note_to_student')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN warning_note_to_student TEXT NULL AFTER include_student_details');
+        console.log('[Migration] Added warning_note_to_student to complaints');
+      }
+      if (!compColNames.includes('warning_sent_at')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN warning_sent_at DATETIME NULL AFTER warning_note_to_student');
+        console.log('[Migration] Added warning_sent_at to complaints');
+      }
+      if (!compColNames.includes('incident_category')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN incident_category VARCHAR(150) NULL AFTER category_id');
+        console.log('[Migration] Added incident_category to complaints');
+      }
+      if (!compColNames.includes('evidence_url')) {
+        await pool.query('ALTER TABLE complaints ADD COLUMN evidence_url VARCHAR(500) NULL AFTER description');
+        console.log('[Migration] Added evidence_url to complaints');
+      }
+
+      // 27b. Ensure accident_reports table exists and has all columns
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS accident_reports (
+          accident_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          complaint_id BIGINT UNSIGNED NOT NULL,
+          organization_id BIGINT UNSIGNED NOT NULL,
+          student_id BIGINT UNSIGNED NOT NULL,
+          incident_datetime DATETIME NOT NULL,
+          location VARCHAR(255) NOT NULL,
+          severity ENUM('minor', 'moderate', 'severe', 'critical', 'fatal') NOT NULL DEFAULT 'moderate',
+          injury_description TEXT NOT NULL,
+          medical_attention_given TEXT,
+          witnesses TEXT,
+          immediate_action_taken TEXT,
+          preventive_measures TEXT,
+          reported_by BIGINT UNSIGNED NOT NULL,
+          admin_read_at DATETIME NULL DEFAULT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_complaint (complaint_id),
+          INDEX idx_org (organization_id),
+          INDEX idx_student (student_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
+      const [arCols] = await pool.query('DESCRIBE accident_reports');
+      const arColNames = arCols.map(c => c.Field);
+      if (!arColNames.includes('admin_read_at')) {
+        await pool.query('ALTER TABLE accident_reports ADD COLUMN admin_read_at DATETIME NULL DEFAULT NULL AFTER reported_by');
+        console.log('[Migration] Added admin_read_at to accident_reports');
+      }
+      await pool.query("ALTER TABLE accident_reports MODIFY COLUMN severity ENUM('minor', 'moderate', 'severe', 'critical', 'fatal') NOT NULL DEFAULT 'moderate'").catch(() => {});
+
+      // 27c. Ensure institution_reports table exists
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS institution_reports (
+          report_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          institution_id BIGINT UNSIGNED NOT NULL,
+          organization_id BIGINT UNSIGNED NOT NULL,
+          complaint_id BIGINT UNSIGNED NOT NULL,
+          category_id INT UNSIGNED NOT NULL,
+          title VARCHAR(200) NOT NULL,
+          findings TEXT NOT NULL,
+          recommendation TEXT NOT NULL,
+          action_taken TEXT,
+          reported_by BIGINT UNSIGNED NOT NULL,
+          status ENUM('submitted', 'under_review', 'action_taken', 'closed') DEFAULT 'submitted',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_inst (institution_id),
+          INDEX idx_org (organization_id),
+          INDEX idx_complaint (complaint_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
+      // 27d. Ensure complaint_evidence table exists
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS complaint_evidence (
+          evidence_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          complaint_id BIGINT UNSIGNED NOT NULL,
+          file_path VARCHAR(500) NOT NULL,
+          file_type VARCHAR(50) NULL,
+          description TEXT NULL,
+          uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_comp_ev (complaint_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+
+      // 27e. Align notifications table
+      const [notifCols] = await pool.query('DESCRIBE notifications');
+      const notifColNames = notifCols.map(c => c.Field);
+      if (!notifColNames.includes('sender_id')) {
+        await pool.query('ALTER TABLE notifications ADD COLUMN sender_id BIGINT UNSIGNED NULL AFTER user_id');
+      }
+      if (!notifColNames.includes('sender_name')) {
+        await pool.query('ALTER TABLE notifications ADD COLUMN sender_name VARCHAR(150) NULL AFTER sender_id');
+      }
+      if (!notifColNames.includes('link')) {
+        await pool.query('ALTER TABLE notifications ADD COLUMN link VARCHAR(255) NULL AFTER message');
+      }
+      if (!notifColNames.includes('related_type')) {
+        await pool.query('ALTER TABLE notifications ADD COLUMN related_type VARCHAR(50) NULL AFTER link');
+      }
+      if (!notifColNames.includes('related_id')) {
+        await pool.query('ALTER TABLE notifications ADD COLUMN related_id BIGINT UNSIGNED NULL AFTER related_type');
+      }
+
+      // 27f. Seed standard complaint categories if missing
+      const standardCategories = [
+        ['General Misconduct / Unprofessional Behavior', 'Unprofessional conduct, behavioral infractions, or workplace disruption'],
+        ['Chronic Absenteeism / Unauthorized Tardiness', 'Unexcused absences, chronic lateness, or schedule abandonment'],
+        ['Safety Protocol Violation', 'Disregard of safety equipment, PPE, or operational health standards'],
+        ['Company Property Damage / Negligence', 'Negligent handling or willful damage to organization property, hardware, or facilities'],
+        ['Breach of NDA / Data Confidentiality', 'Unauthorized disclosure of proprietary data, intellectual property, or confidential client records'],
+        ['Interpersonal Conflict / Harassment', 'Verbal hostility, bullying, or conflict with colleagues or supervisors'],
+        ['Other Workplace Concern', 'General behavioral or workplace conduct matters'],
+        ['Workplace Accident & Physical Injury', 'Physical trauma, injury, or acute medical incident during work shift'],
+        ['Slip, Trip or Fall Incident', 'Slips, trips, or falls within facility premises'],
+        ['Machinery / Equipment Hazard', 'Injuries resulting from tools, machines, or laboratory apparatus'],
+        ['Chemical / Hazardous Exposure', 'Exposure to chemicals, biohazards, fumes, or toxic substances'],
+        ['Physical Strain / Ergonomic Injury', 'Acute musculoskeletal strain from heavy lifting or repetitive trauma'],
+        ['Medical Emergency / Acute Physical Trauma', 'Sudden medical event, fainting, cardiac, or respiratory distress on duty'],
+        ['Other Workplace Safety Incident', 'General workplace safety or physical hazard event']
+      ];
+
+      for (const [catName, catDesc] of standardCategories) {
+        const [found] = await pool.query('SELECT category_id FROM complaint_categories WHERE category_name = ? LIMIT 1', [catName]);
+        if (found.length === 0) {
+          await pool.query('INSERT INTO complaint_categories (category_name, description) VALUES (?, ?)', [catName, catDesc]);
+        }
+      }
+
+      console.log('[Migration] Complaints, accident reports, and grievance workflow tables aligned.');
+    } catch (arErr) {
+      console.warn('[Migration Warning] Grievance workflow migration error:', arErr.message);
+    }
+
+    // 28. Add mentor_id to ojt_records and ojt_attendance_logs for mentor assignment tracking
+    try {
+      const [ojtCols] = await pool.query('DESCRIBE ojt_records');
+      const ojtColNames = ojtCols.map(c => c.Field);
+
+      if (!ojtColNames.includes('mentor_id')) {
+        await pool.query('ALTER TABLE ojt_records ADD COLUMN mentor_id BIGINT UNSIGNED NULL AFTER organization_id');
+        console.log('[Migration] Added mentor_id to ojt_records');
+      }
+
+      // Ensure supervisor_name and supervisor_contact exist for fallback
+      if (!ojtColNames.includes('supervisor_name')) {
+        await pool.query("ALTER TABLE ojt_records ADD COLUMN supervisor_name VARCHAR(150) NULL");
+        console.log('[Migration] Added supervisor_name to ojt_records');
+      }
+      if (!ojtColNames.includes('supervisor_contact')) {
+        await pool.query("ALTER TABLE ojt_records ADD COLUMN supervisor_contact VARCHAR(100) NULL");
+        console.log('[Migration] Added supervisor_contact to ojt_records');
+      }
+
+      // Create index on mentor_id
+      try {
+        await pool.query('CREATE INDEX idx_ojt_mentor ON ojt_records(mentor_id)');
+        console.log('[Migration] Created index idx_ojt_mentor');
+      } catch (_) { /* index may already exist */ }
+
+      // Add mentor_id to ojt_attendance_logs
+      const [attCols] = await pool.query('DESCRIBE ojt_attendance_logs');
+      const attColNames = attCols.map(c => c.Field);
+      if (!attColNames.includes('mentor_id')) {
+        await pool.query('ALTER TABLE ojt_attendance_logs ADD COLUMN mentor_id BIGINT UNSIGNED NULL AFTER ojt_id');
+        console.log('[Migration] Added mentor_id to ojt_attendance_logs');
+      }
+
+      // Backfill ojt_records.mentor_id from job_postings via job_applications
+      const [unassigned] = await pool.query(
+        `SELECT o.ojt_id, o.student_id, o.organization_id
+         FROM ojt_records o
+         WHERE o.mentor_id IS NULL`
+      );
+      if (unassigned.length > 0) {
+        for (const rec of unassigned) {
+          // Try to find mentor from the job posting the student applied to
+          const [jpRows] = await pool.query(
+            `SELECT jp.mentor_id
+             FROM job_applications ja
+             JOIN job_postings jp ON ja.job_id = jp.job_id
+             WHERE ja.student_id = ? AND jp.organization_id = ? AND jp.mentor_id IS NOT NULL
+             ORDER BY ja.application_id DESC LIMIT 1`,
+            [rec.student_id, rec.organization_id]
+          );
+          if (jpRows.length > 0 && jpRows[0].mentor_id) {
+            const mId = jpRows[0].mentor_id;
+            const [mRows] = await pool.query(
+              'SELECT first_name, last_name, contact_number FROM organization_staff WHERE org_staff_id = ?',
+              [mId]
+            );
+            const supName = mRows.length > 0 ? `${mRows[0].first_name} ${mRows[0].last_name}`.trim() : null;
+            const supContact = mRows.length > 0 ? mRows[0].contact_number : null;
+            await pool.query(
+              'UPDATE ojt_records SET mentor_id = ?, supervisor_name = COALESCE(supervisor_name, ?), supervisor_contact = COALESCE(supervisor_contact, ?) WHERE ojt_id = ?',
+              [mId, supName, supContact, rec.ojt_id]
+            );
+          } else {
+            // Fallback: assign the first workplace_mentor in the org
+            const [mentors] = await pool.query(
+              `SELECT org_staff_id, first_name, last_name, contact_number
+               FROM organization_staff
+               WHERE organization_id = ? AND (position = 'workplace_mentor' OR position = 'mentor')
+               ORDER BY org_staff_id ASC LIMIT 1`,
+              [rec.organization_id]
+            );
+            if (mentors.length > 0) {
+              const m = mentors[0];
+              await pool.query(
+                'UPDATE ojt_records SET mentor_id = ?, supervisor_name = COALESCE(supervisor_name, ?), supervisor_contact = COALESCE(supervisor_contact, ?) WHERE ojt_id = ?',
+                [m.org_staff_id, `${m.first_name} ${m.last_name}`.trim(), m.contact_number, rec.ojt_id]
+              );
+            }
+          }
+        }
+        console.log(`[Migration] Backfilled mentor_id for ${unassigned.length} ojt_records.`);
+      }
+
+      // Backfill ojt_attendance_logs.mentor_id from ojt_records
+      await pool.query(
+        `UPDATE ojt_attendance_logs att
+         JOIN ojt_records o ON att.ojt_id = o.ojt_id
+         SET att.mentor_id = o.mentor_id
+         WHERE att.mentor_id IS NULL AND o.mentor_id IS NOT NULL`
+      );
+      console.log('[Migration] Backfilled ojt_attendance_logs.mentor_id from ojt_records.');
+
+      console.log('[Migration] Mentor assignment tracking columns aligned.');
+    } catch (mentorErr) {
+      console.warn('[Migration Warning] Mentor assignment migration error:', mentorErr.message);
+    }
+
+    // 29. Add start_time to job_postings and time_in_status, time_out_status to ojt_attendance_logs
+    try {
+      const [jpCols] = await pool.query('DESCRIBE job_postings');
+      const jpColNames = jpCols.map(c => c.Field);
+      if (!jpColNames.includes('start_time')) {
+        await pool.query("ALTER TABLE job_postings ADD COLUMN start_time VARCHAR(100) DEFAULT '08:00' AFTER workplace_area");
+        console.log('[Migration] Added start_time to job_postings');
+      }
+      await pool.query("UPDATE job_postings SET start_time = '08:00' WHERE start_time IS NULL OR start_time = ''");
+      await pool.query("UPDATE job_postings SET finish_time = '17:00' WHERE finish_time IS NULL OR finish_time = ''");
+
+      const [attCols] = await pool.query('DESCRIBE ojt_attendance_logs');
+      const attColNames = attCols.map(c => c.Field);
+      if (!attColNames.includes('time_in_status')) {
+        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN time_in_status VARCHAR(50) DEFAULT 'on_time' AFTER time_in");
+        console.log('[Migration] Added time_in_status to ojt_attendance_logs');
+      }
+      if (!attColNames.includes('time_out_status')) {
+        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN time_out_status VARCHAR(50) NULL AFTER time_out");
+        console.log('[Migration] Added time_out_status to ojt_attendance_logs');
+      }
+
+      // Backfill time_in_status and time_out_status for existing logs
+      await pool.query(`
+        UPDATE ojt_attendance_logs 
+        SET time_in_status = CASE 
+          WHEN time_in > '08:00:00' THEN 'late' 
+          ELSE 'on_time' 
+        END
+        WHERE time_in_status IS NULL OR time_in_status = ''
+      `);
+      await pool.query(`
+        UPDATE ojt_attendance_logs 
+        SET time_out_status = CASE 
+          WHEN time_out IS NULL THEN NULL
+          WHEN time_out < '17:00:00' THEN 'early'
+          WHEN time_out > '17:00:00' THEN 'overtime'
+          ELSE 'on_time'
+        END
+        WHERE time_out IS NOT NULL AND (time_out_status IS NULL OR time_out_status = '')
+      `);
+      console.log('[Migration] Supervised intern attendance status columns aligned.');
+    } catch (schedErr) {
+      console.warn('[Migration Warning] Schedule & status migration error:', schedErr.message);
+    }
+
+    // 30. Add flyer_image_url to job_postings
+    try {
+      const [jpCols] = await pool.query('DESCRIBE job_postings');
+      const jpColNames = jpCols.map(c => c.Field);
+      if (!jpColNames.includes('flyer_image_url')) {
+        await pool.query("ALTER TABLE job_postings ADD COLUMN flyer_image_url TEXT NULL AFTER workplace_area");
+        console.log('[Migration] Added flyer_image_url to job_postings');
+      }
+    } catch (flyerErr) {
+      console.warn('[Migration Warning] Flyer image column migration error:', flyerErr.message);
+    }
+
+    // 31. Align job_applications table for feedback and rejection_reason
+    try {
+      const [jaCols] = await pool.query('DESCRIBE job_applications');
+      const jaColNames = jaCols.map(c => c.Field);
+      if (!jaColNames.includes('feedback')) {
+        await pool.query('ALTER TABLE job_applications ADD COLUMN feedback TEXT NULL AFTER updated_at');
+        console.log('[Migration] Added feedback to job_applications');
+      }
+      if (!jaColNames.includes('rejection_reason')) {
+        await pool.query('ALTER TABLE job_applications ADD COLUMN rejection_reason TEXT NULL AFTER feedback');
+        console.log('[Migration] Added rejection_reason to job_applications');
+      }
+    } catch (jaErr) {
+      console.warn('[Migration Warning] job_applications migration error:', jaErr.message);
+    }
+
+    // 32. Ensure interviews table exists
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS interviews (
+          interview_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          application_id BIGINT UNSIGNED NOT NULL,
+          schedule_at DATETIME NOT NULL,
+          mode ENUM('onsite', 'online', 'phone') NOT NULL DEFAULT 'online',
+          location_or_link VARCHAR(255) DEFAULT NULL,
+          status ENUM('scheduled', 'completed', 'cancelled', 'no_show') NOT NULL DEFAULT 'scheduled',
+          notes TEXT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_interview_app (application_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+      console.log('[Migration] interviews table ready.');
+    } catch (intErr) {
+      console.warn('[Migration Warning] interviews migration error:', intErr.message);
+    }
+
+    // 33. Ensure job_offers table exists
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS job_offers (
+          offer_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          application_id BIGINT UNSIGNED NOT NULL,
+          status ENUM('offered', 'accepted', 'declined', 'withdrawn') NOT NULL DEFAULT 'offered',
+          offered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          responded_at DATETIME DEFAULT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uq_joboffer_app (application_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+      console.log('[Migration] job_offers table ready.');
+    } catch (joErr) {
+      console.warn('[Migration Warning] job_offers migration error:', joErr.message);
+    }
+
+    // 34. Ensure ojt_deployment_offers table exists
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ojt_deployment_offers (
+          offer_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          student_id BIGINT UNSIGNED NOT NULL,
+          organization_id BIGINT UNSIGNED NOT NULL,
+          job_id BIGINT UNSIGNED DEFAULT NULL,
+          status ENUM('offered', 'accepted', 'declined', 'withdrawn') NOT NULL DEFAULT 'offered',
+          offered_by BIGINT UNSIGNED NULL,
+          offered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          responded_at DATETIME DEFAULT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_deployoffer_student (student_id),
+          INDEX idx_deployoffer_org (organization_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+      console.log('[Migration] ojt_deployment_offers table ready.');
+    } catch (odoErr) {
+      console.warn('[Migration Warning] ojt_deployment_offers migration error:', odoErr.message);
+    }
+
+    // 35. Ensure all student users have linked verified student profile & initialized application records
+    try {
+      const [studentUsers] = await pool.query(`
+        SELECT u.user_id, u.email, u.display_name
+        FROM users u
+        LEFT JOIN students s ON u.user_id = s.user_id
+        WHERE s.student_id IS NULL AND (u.role_id = 4 OR u.email LIKE '%student%' OR u.email LIKE '%catolico%' OR u.email LIKE '%rojas%')
+      `);
+
+      const [defInst] = await pool.query('SELECT institution_id FROM institutions LIMIT 1');
+      const [defProg] = await pool.query('SELECT program_id FROM programs LIMIT 1');
+      const [defCat] = await pool.query('SELECT category_id FROM student_categories LIMIT 1');
+      const [defStat] = await pool.query("SELECT status_id FROM student_statuses WHERE status_name = 'active' LIMIT 1");
+      const instId = defInst.length > 0 ? defInst[0].institution_id : 1;
+      const progId = defProg.length > 0 ? defProg[0].program_id : 1;
+      const catId = defCat.length > 0 ? defCat[0].category_id : 1;
+      const statId = defStat.length > 0 ? defStat[0].status_id : 2;
+
+      for (const u of studentUsers) {
+        const nameParts = (u.display_name || u.email.split('@')[0] || 'Student User').split(' ');
+        const fName = nameParts[0] || 'Student';
+        const lName = nameParts.slice(1).join(' ') || 'Trainee';
+        const stuNumber = `STU-2026-${String(u.user_id).slice(-4)}`;
+
+        const [newStu] = await pool.query(
+          `INSERT INTO students (user_id, institution_id, program_id, student_number, category_id, status_id, first_name, last_name, classification, ojt_status, required_ojt_hours, completed_ojt_hours, is_verified, is_active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'regular', 'starting_ojt', 600, 0, 1, 1)`,
+          [u.user_id, instId, progId, stuNumber, catId, statId, fName, lName]
+        );
+
+        await pool.query(
+          `INSERT INTO student_registrations (student_id, status, submitted_at, verified_at)
+           VALUES (?, 'verified', NOW(), NOW())`,
+          [newStu.insertId]
+        ).catch(() => {});
+
+        console.log(`[Migration] Auto-created & verified student record for user_id ${u.user_id} (${u.email})`);
+      }
+    } catch (stuLinkErr) {
+      console.warn('[Migration Warning] Student user linking error:', stuLinkErr.message);
+    }
+
+    // Interviews table: Add meeting_link and meeting_code for Google Meet integration
+    try {
+      const [intCols] = await pool.query('DESCRIBE interviews');
+      const intColNames = intCols.map(c => c.Field);
+      if (!intColNames.includes('meeting_link')) {
+        await pool.query('ALTER TABLE interviews ADD COLUMN meeting_link VARCHAR(255) NULL AFTER location_or_link');
+        console.log('[Migration] Added meeting_link to interviews');
+      }
+      if (!intColNames.includes('meeting_code')) {
+        await pool.query('ALTER TABLE interviews ADD COLUMN meeting_code VARCHAR(50) NULL AFTER meeting_link');
+        console.log('[Migration] Added meeting_code to interviews');
+      }
+      if (!intColNames.includes('reminder_sent_5m')) {
+        await pool.query('ALTER TABLE interviews ADD COLUMN reminder_sent_5m TINYINT(1) DEFAULT 0 AFTER status');
+        console.log('[Migration] Added reminder_sent_5m to interviews');
+      }
+    } catch (intMigErr) {
+      console.warn('[Migration Warning] Interviews table migration error:', intMigErr.message);
+    }
+
+    console.log('[Migration] All schema alignments completed successfully!');
+  } catch (error) {
+    console.error('[Migration Error]', error);
+  }
+}
+
