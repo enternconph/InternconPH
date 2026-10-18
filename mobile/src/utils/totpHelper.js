@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 
 const DEVICE_STORAGE_KEY = '@internconph_attendance_device_token';
 
@@ -195,8 +194,7 @@ export async function resetLocalDeviceToken() {
  * Human-readable device name for mobile
  */
 export function getDeviceName() {
-  const os = Platform.OS === 'android' ? 'Android Device' : 'iOS Device';
-  return `${os} (React Native App v1.0)`;
+  return 'Android Device (React Native App v1.0)';
 }
 
 /**

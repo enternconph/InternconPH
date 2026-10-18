@@ -1213,9 +1213,9 @@ router.delete('/attendance/:id', async (req, res) => {
   }
 });
 
-// GET /api/student/attendance/qr-credentials
+// GET /api/student/attendance/qr-credentials & /api/student/attendance/credentials
 // Fetches or securely registers student's hardware device token and TOTP cryptographic secret
-router.get('/attendance/qr-credentials', async (req, res) => {
+router.get(['/attendance/qr-credentials', '/attendance/credentials'], async (req, res) => {
   try {
     const student = await getStudentId(req.user.user_id);
     if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
@@ -1238,11 +1238,16 @@ router.get('/attendance/qr-credentials', async (req, res) => {
         success: true,
         data: {
           student_id: student.student_id,
+          studentId: student.student_id,
           student_number: student.student_number,
           full_name: `${student.first_name} ${student.last_name}`,
+          studentName: `${student.first_name} ${student.last_name}`,
           device_token: existing.device_token,
+          deviceToken: existing.device_token,
           totp_secret: existing.totp_secret,
+          qrSecret: existing.totp_secret,
           is_locked: !!existing.is_locked,
+          deviceBound: !!existing.is_locked,
           is_mismatched: isMismatched,
           registered_device_name: existing.device_name,
           registered_at: existing.registered_at
@@ -1266,11 +1271,16 @@ router.get('/attendance/qr-credentials', async (req, res) => {
       message: 'Hardware device registered and cryptographic TOTP secret locked.',
       data: {
         student_id: student.student_id,
+        studentId: student.student_id,
         student_number: student.student_number,
         full_name: `${student.first_name} ${student.last_name}`,
+        studentName: `${student.first_name} ${student.last_name}`,
         device_token: newDeviceToken,
+        deviceToken: newDeviceToken,
         totp_secret: newSecret,
+        qrSecret: newSecret,
         is_locked: true,
+        deviceBound: true,
         is_mismatched: false
       }
     });
@@ -3736,6 +3746,7 @@ router.get('/journals', async (req, res) => {
     return res.json({
       success: true,
       data: {
+        journals: entries,
         entries,
         summary: {
           totalEntries: entries.length,
@@ -3913,7 +3924,13 @@ router.get('/clearance', async (req, res) => {
     if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
 
     const [reqs] = await pool.query(
-      `SELECT r.requirement_id, r.title, r.description, r.is_mandatory, r.template_url,
+      `SELECT r.requirement_id, 
+              COALESCE(r.requirement_name, 'OJT Requirement') as title,
+              COALESCE(r.requirement_name, 'OJT Requirement') as requirement_name,
+              r.description, 
+              r.is_mandatory, 
+              COALESCE(r.document_template_url, null) as template_url,
+              COALESCE(r.document_template_url, null) as document_template_url,
               sr.id as submission_id, sr.status as submission_status, sr.file_path, sr.submitted_at, sr.verified_at,
               sr.rejection_reason
        FROM ojt_requirements r
