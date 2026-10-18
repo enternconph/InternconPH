@@ -1709,9 +1709,10 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
 
     // Step 2: Fetch student's registered device and cryptographic secret
     const [deviceRows] = await pool.query(
-      `SELECT sad.*, s.first_name, s.last_name, s.student_number, s.avatar_url, s.user_id as student_user_id
+      `SELECT sad.*, s.first_name, s.last_name, s.student_number, u.avatar_url, s.user_id as student_user_id
        FROM student_attendance_devices sad
        JOIN students s ON sad.student_id = s.student_id
+       LEFT JOIN users u ON s.user_id = u.user_id
        WHERE sad.student_id = ?`,
       [studentId]
     );
@@ -1736,10 +1737,11 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
 
     // Step 4: Verify student has an active/ongoing OJT record with THIS hiring organization
     const [ojtRows] = await pool.query(
-      `SELECT o.*, jp.scheduled_start_time, jp.scheduled_finish_time,
+      `SELECT o.*, jp.start_time as scheduled_start_time, jp.finish_time as scheduled_finish_time,
               os.first_name as mentor_first_name, os.last_name as mentor_last_name, os.user_id as mentor_user_id
        FROM ojt_records o
-       LEFT JOIN job_postings jp ON o.job_id = jp.job_id
+       LEFT JOIN job_applications ja ON o.application_id = ja.application_id
+       LEFT JOIN job_postings jp ON ja.job_id = jp.job_id
        LEFT JOIN organization_staff os ON o.mentor_id = os.org_staff_id
        WHERE o.student_id = ? AND o.organization_id = ? AND o.status = 'ongoing'
        LIMIT 1`,

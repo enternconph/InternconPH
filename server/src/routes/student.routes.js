@@ -1290,15 +1290,15 @@ router.get(['/attendance/qr-credentials', '/attendance/credentials'], async (req
   }
 });
 
-// POST /api/student/attendance/reset-device
-// Allows student to re-bind their registered device token (e.g. if they replaced phones)
-router.post('/attendance/reset-device', async (req, res) => {
+// POST /api/student/attendance/reset-device & /api/student/attendance/device
+// Allows student to register or re-bind their registered device token
+router.post(['/attendance/reset-device', '/attendance/device'], async (req, res) => {
   try {
     const student = await getStudentId(req.user.user_id);
     if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
 
-    const newDeviceToken = req.body.device_token || generateDeviceToken();
-    const clientDeviceName = req.body.device_name || req.headers['user-agent'] || 'New Device';
+    const newDeviceToken = req.body.device_token || req.body.device_hardware_token || generateDeviceToken();
+    const clientDeviceName = req.body.device_name || req.headers['user-agent'] || 'Registered Device';
     const newSecret = generateTotpSecret();
 
     await pool.query(
