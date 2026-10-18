@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl, formatFileSize, getFileIcon } from '../../utils/fileHelper';
+import StudentAttendanceQrModal from '../../components/Student/StudentAttendanceQrModal';
 
 export default function StudentOJT() {
   const [searchParams] = useSearchParams();
@@ -34,6 +35,9 @@ export default function StudentOJT() {
   // Certificate State
   const [certificates, setCertificates] = useState([]);
   const [viewCert, setViewCert] = useState(null);
+
+  // Dynamic Attendance QR Modal State
+  const [showQrModal, setShowQrModal] = useState(false);
 
   useEffect(() => {
     if (urlTab) {
@@ -439,8 +443,17 @@ export default function StudentOJT() {
                 </div>
               </div>
 
-              {/* Status Badge */}
-              <div>
+              {/* Action Buttons & Status Badge */}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setShowQrModal(true)}
+                  className="px-4 py-2 bg-gradient-to-r from-vibrant-orange to-deep-orange hover:opacity-95 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-transform active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+                  <span>My Attendance QR</span>
+                </button>
+
                 {isClockedOutToday ? (
                   <span className="px-3.5 py-1.5 bg-green-tint text-pinoy-green rounded-full text-xs font-bold flex items-center gap-1.5 border border-pinoy-green/20">
                     <span className="material-symbols-outlined text-[16px]">verified</span>
@@ -449,15 +462,36 @@ export default function StudentOJT() {
                 ) : isClockedInToday ? (
                   <span className="px-3.5 py-1.5 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-bold flex items-center gap-1.5 border border-emerald-500/20">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>On Duty • Timed-In by Mentor</span>
+                    <span>On Duty • Clocked In</span>
                   </span>
                 ) : (
                   <span className="px-3.5 py-1.5 bg-amber-500/15 text-amber-700 dark:text-amber-300 rounded-full text-xs font-bold flex items-center gap-1.5 border border-amber-500/20">
                     <span className="material-symbols-outlined text-[16px]">hourglass_top</span>
-                    <span>Awaiting Mentor Time-In</span>
+                    <span>Awaiting Time-In</span>
                   </span>
                 )}
               </div>
+            </div>
+
+            {/* Dynamic Attendance QR Prompt Banner */}
+            <div className="p-3.5 bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent border border-orange-500/25 rounded-2xl flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2.5">
+                <span className="material-symbols-outlined text-vibrant-orange text-[22px] shrink-0">lock_clock</span>
+                <div>
+                  <p className="text-xs font-bold text-on-surface">Time-Bound Dynamic QR System</p>
+                  <p className="text-[11px] text-on-surface-variant">
+                    Present your live rotating QR code to your Hiring Organization HR Scanner at the office entrance to record Time-In and Time-Out. Screenshots are strictly expired and invalid.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQrModal(true)}
+                className="px-3.5 py-1.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 shadow-xs transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]">qr_code_2</span>
+                <span>Generate Dynamic QR</span>
+              </button>
             </div>
 
             {/* DTR Details Grid */}
@@ -1231,6 +1265,15 @@ export default function StudentOJT() {
           </div>
         </div>
       )}
+
+      {/* Dynamic Attendance QR Code Modal */}
+      <StudentAttendanceQrModal
+        isOpen={showQrModal}
+        onClose={() => {
+          setShowQrModal(false);
+          fetchAllOjtData();
+        }}
+      />
     </div>
   );
 }

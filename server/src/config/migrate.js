@@ -1240,8 +1240,39 @@ export async function runMigrations() {
         await pool.query('ALTER TABLE interviews ADD COLUMN reminder_sent_5m TINYINT(1) DEFAULT 0 AFTER status');
         console.log('[Migration] Added reminder_sent_5m to interviews');
       }
-    } catch (intMigErr) {
-      console.warn('[Migration Warning] Interviews table migration error:', intMigErr.message);
+    // 32. Dynamic QR Code Cryptographic Attendance & Device Binding
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS student_attendance_devices (
+          student_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+          device_token VARCHAR(128) NOT NULL,
+          device_name VARCHAR(150) NULL,
+          totp_secret VARCHAR(64) NOT NULL,
+          is_locked TINYINT(1) DEFAULT 1,
+          registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_used_at DATETIME NULL,
+          INDEX idx_dev_token (device_token)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+      console.log('[Migration] student_attendance_devices table ready.');
+
+      const [attCols] = await pool.query('DESCRIBE ojt_attendance_logs');
+      const attColNames = attCols.map(c => c.Field);
+
+      if (!attColNames.includes('time_in_method')) {
+        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN time_in_method ENUM('qr_scan', 'manual', 'system') DEFAULT 'qr_scan' AFTER time_in_status");
+        console.log('[Migration] Added time_in_method to ojt_attendance_logs');
+      }
+      if (!attColNames.includes('time_out_method')) {
+        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN time_out_method ENUM('qr_scan', 'manual', 'system') DEFAULT 'qr_scan' AFTER time_out_status");
+        console.log('[Migration] Added time_out_method to ojt_attendance_logs');
+      }
+      if (!attColNames.includes('scanned_by_hr_id')) {
+        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN scanned_by_hr_id BIGINT UNSIGNED NULL AFTER verified_at");
+        console.log('[Migration] Added scanned_by_hr_id to ojt_attendance_logs');
+      }
+    } catch (qrMigErr) {
+      console.warn('[Migration Warning] Attendance QR migration error:', qrMigErr.message);
     }
 
     console.log('[Migration] All schema alignments completed successfully!');

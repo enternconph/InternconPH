@@ -8,6 +8,7 @@ import { isValidEmail, normalizeEmail } from '../utils/email.js';
 import multer from 'multer';
 import { getUploadStorage, processUploadedFile, formatFilePath } from '../utils/upload.helper.js';
 import { createMeetSpace, isGoogleMeetConfigured } from '../services/googleMeet.js';
+import { verifyTotpPayload } from '../utils/totp.helper.js';
 
 const router = express.Router();
 router.use(verifyToken);
@@ -1670,6 +1671,262 @@ router.get('/attendance', async (req, res) => {
   } catch (error) {
     console.error('Fetch org attendance error:', error);
     return res.status(500).json({ success: false, message: 'Could not fetch attendance logs.' });
+  }
+});
+
+// POST /api/org/attendance/scan-qr
+// HR-Exclusive Scanner: Verifies student dynamic TOTP QR code and logs Time-In or Time-Out
+router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
+  const { qr_payload } = req.body;
+
+  if (!qr_payload) {
+    return res.status(400).json({ success: false, message: 'Missing QR payload data from scanner.' });
+  }
+
+  try {
+    const org = await getOrgId(req.user.user_id);
+    if (!org) return res.status(404).json({ success: false, message: 'Hiring organization record not found.' });
+
+    // Step 1: Pre-parse to get student ID
+    let rawPayload = qr_payload;
+    let data;
+    try {
+      let jsonStr = String(rawPayload).trim();
+      if (jsonStr.startsWith('{') && jsonStr.endsWith('}')) {
+        data = JSON.parse(jsonStr);
+      } else {
+        const decoded = Buffer.from(jsonStr, 'base64').toString('utf8');
+        data = JSON.parse(decoded);
+      }
+    } catch (_) {
+      return res.status(400).json({ success: false, message: 'Invalid QR code format. Not an authentic InternConPH attendance token.' });
+    }
+
+    const studentId = parseInt(data.sid, 10);
+    if (!studentId) {
+      return res.status(400).json({ success: false, message: 'Invalid student identifier in QR payload.' });
+    }
+
+    // Step 2: Fetch student's registered device and cryptographic secret
+    const [deviceRows] = await pool.query(
+      `SELECT sad.*, s.first_name, s.last_name, s.student_number, s.avatar_url, s.user_id as student_user_id
+       FROM student_attendance_devices sad
+       JOIN students s ON sad.student_id = s.student_id
+       WHERE sad.student_id = ?`,
+      [studentId]
+    );
+
+    if (deviceRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student has not initialized attendance credentials or bound their device.'
+      });
+    }
+
+    const deviceRecord = deviceRows[0];
+
+    // Step 3: Cryptographic & Time-bound Verification (30s window + Device Token match)
+    const verification = verifyTotpPayload(qr_payload, deviceRecord.totp_secret, deviceRecord.device_token, 30);
+    if (!verification.valid) {
+      return res.status(400).json({
+        success: false,
+        message: verification.reason
+      });
+    }
+
+    // Step 4: Verify student has an active/ongoing OJT record with THIS hiring organization
+    const [ojtRows] = await pool.query(
+      `SELECT o.*, jp.scheduled_start_time, jp.scheduled_finish_time,
+              os.first_name as mentor_first_name, os.last_name as mentor_last_name, os.user_id as mentor_user_id
+       FROM ojt_records o
+       LEFT JOIN job_postings jp ON o.job_id = jp.job_id
+       LEFT JOIN organization_staff os ON o.mentor_id = os.org_staff_id
+       WHERE o.student_id = ? AND o.organization_id = ? AND o.status = 'ongoing'
+       LIMIT 1`,
+      [studentId, org.organization_id]
+    );
+
+    if (ojtRows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: `${deviceRecord.first_name} ${deviceRecord.last_name} is not currently enrolled in an ongoing OJT placement with your organization.`
+      });
+    }
+
+    const ojt = ojtRows[0];
+    const pht = getPHTNow();
+    const currentDate = pht.dateStr;
+    const currentTimeStr = pht.timeStr;
+
+    // Check today's attendance log
+    const [attLogs] = await pool.query(
+      'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND log_date = ?',
+      [ojt.ojt_id, currentDate]
+    );
+
+    // Update last used timestamp for device
+    await pool.query('UPDATE student_attendance_devices SET last_used_at = NOW() WHERE student_id = ?', [studentId]);
+
+    // CASE A: Student has NOT clocked in today -> ACTION: TIME IN
+    if (attLogs.length === 0 || !attLogs[0].time_in) {
+      const schedStartMins = parseTimeToMinutes(ojt.scheduled_start_time, '08:00');
+      const actualInMins = pht.hour * 60 + pht.minute;
+      const timeInStatus = actualInMins <= schedStartMins ? 'on_time' : 'late';
+
+      if (attLogs.length === 0) {
+        await pool.query(
+          `INSERT INTO ojt_attendance_logs (ojt_id, student_id, mentor_id, log_date, time_in, time_in_status, time_in_method, status, scanned_by_hr_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'qr_scan', 'pending', ?, NOW(), NOW())`,
+          [ojt.ojt_id, studentId, ojt.mentor_id || null, currentDate, currentTimeStr, timeInStatus, req.user.user_id]
+        );
+      } else {
+        await pool.query(
+          `UPDATE ojt_attendance_logs 
+           SET time_in = ?, time_in_status = ?, time_in_method = 'qr_scan', scanned_by_hr_id = ?, updated_at = NOW()
+           WHERE attendance_id = ?`,
+          [currentTimeStr, timeInStatus, req.user.user_id, attLogs[0].attendance_id]
+        );
+      }
+
+      emitUpdate('attendance_logged', { ojt_id: ojt.ojt_id, student_id: studentId, organization_id: org.organization_id });
+
+      const statusBadge = timeInStatus === 'on_time' ? 'On-Time' : 'Late';
+
+      // Notify Student
+      if (deviceRecord.student_user_id) {
+        await sendNotification({
+          userId: deviceRecord.student_user_id,
+          senderId: req.user.user_id,
+          senderName: org.organization_name || 'HR Attendance Desk',
+          title: `Time-In Scanned (${statusBadge})`,
+          message: `HR scanned your dynamic QR code for Time-In at ${currentTimeStr} (${statusBadge}, Philippine Time). Have a productive training shift!`,
+          type: 'ojt',
+          link: '/dashboard/student/ojt',
+          relatedType: 'attendance',
+          relatedId: ojt.ojt_id
+        });
+      }
+
+      // Notify Assigned Workplace Mentor
+      if (ojt.mentor_user_id) {
+        await sendNotification({
+          userId: ojt.mentor_user_id,
+          senderId: req.user.user_id,
+          senderName: 'HR Attendance Scanner',
+          title: `Intern Timed In: ${deviceRecord.first_name} ${deviceRecord.last_name}`,
+          message: `${deviceRecord.first_name} clocked in at ${currentTimeStr} (${statusBadge}).`,
+          type: 'ojt',
+          link: '/dashboard/organization/ojt',
+          relatedType: 'attendance',
+          relatedId: ojt.ojt_id
+        });
+      }
+
+      return res.json({
+        success: true,
+        action: 'time_in',
+        message: `Successfully Timed In ${deviceRecord.first_name} ${deviceRecord.last_name}! (${statusBadge})`,
+        data: {
+          student_id: studentId,
+          student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
+          student_number: deviceRecord.student_number,
+          avatar_url: deviceRecord.avatar_url,
+          action: 'time_in',
+          time_in: currentTimeStr,
+          time_in_status: timeInStatus,
+          mentor_name: ojt.mentor_first_name ? `${ojt.mentor_first_name} ${ojt.mentor_last_name}` : (ojt.supervisor_name || 'Assigned Mentor')
+        }
+      });
+    }
+
+    // CASE B: Student ALREADY clocked in today, but NOT clocked out -> ACTION: TIME OUT
+    const todayLog = attLogs[0];
+    if (todayLog.time_in && !todayLog.time_out) {
+      // Calculate hours rendered
+      const timeInParts = String(todayLog.time_in).split(':');
+      const inMins = parseInt(timeInParts[0], 10) * 60 + parseInt(timeInParts[1], 10);
+      const outMins = pht.hour * 60 + pht.minute;
+      const rawDiffMins = Math.max(0, outMins - inMins);
+
+      // Scheduled bounds
+      const schedFinishMins = parseTimeToMinutes(ojt.scheduled_finish_time, '17:00');
+      let timeOutStatus = 'on_time';
+      if (outMins < schedFinishMins - 15) {
+        timeOutStatus = 'early';
+      } else if (outMins > schedFinishMins + 15) {
+        timeOutStatus = 'overtime';
+      }
+
+      // Calculate hours rounded to 2 decimal places, max 12 hours
+      const calculatedHours = Math.min(12, Math.max(0.1, Math.round((rawDiffMins / 60) * 100) / 100));
+
+      await pool.query(
+        `UPDATE ojt_attendance_logs 
+         SET time_out = ?, time_out_status = ?, time_out_method = 'qr_scan', hours_rendered = ?, status = 'pending', updated_at = NOW()
+         WHERE attendance_id = ?`,
+        [currentTimeStr, timeOutStatus, calculatedHours, todayLog.attendance_id]
+      );
+
+      emitUpdate('attendance_logged', { ojt_id: ojt.ojt_id, student_id: studentId, organization_id: org.organization_id });
+
+      // Notify Student
+      if (deviceRecord.student_user_id) {
+        await sendNotification({
+          userId: deviceRecord.student_user_id,
+          senderId: req.user.user_id,
+          senderName: org.organization_name || 'HR Attendance Desk',
+          title: `Time-Out Scanned (${calculatedHours} hrs)`,
+          message: `HR scanned your dynamic QR code for Time-Out at ${currentTimeStr}. ${calculatedHours} hrs rendered. Shift is pending workplace mentor validation.`,
+          type: 'ojt',
+          link: '/dashboard/student/ojt',
+          relatedType: 'attendance',
+          relatedId: ojt.ojt_id
+        });
+      }
+
+      // Notify Workplace Mentor to VALIDATE the completed shift!
+      if (ojt.mentor_user_id) {
+        await sendNotification({
+          userId: ojt.mentor_user_id,
+          senderId: req.user.user_id,
+          senderName: 'HR Attendance Scanner',
+          title: `Action Required: Validate Shift for ${deviceRecord.first_name} ${deviceRecord.last_name}`,
+          message: `${deviceRecord.first_name} completed their shift (${todayLog.time_in.slice(0, 5)} - ${currentTimeStr.slice(0, 5)}, ${calculatedHours} hrs rendered). Please validate and certify their training record.`,
+          type: 'ojt',
+          link: '/dashboard/organization/ojt',
+          relatedType: 'attendance',
+          relatedId: ojt.ojt_id
+        });
+      }
+
+      return res.json({
+        success: true,
+        action: 'time_out',
+        message: `Successfully Timed Out ${deviceRecord.first_name} ${deviceRecord.last_name}! (${calculatedHours} hrs rendered — shift is pending mentor validation)`,
+        data: {
+          student_id: studentId,
+          student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
+          student_number: deviceRecord.student_number,
+          avatar_url: deviceRecord.avatar_url,
+          action: 'time_out',
+          time_in: todayLog.time_in,
+          time_out: currentTimeStr,
+          hours_rendered: calculatedHours,
+          time_out_status: timeOutStatus,
+          status: 'pending_validation',
+          mentor_name: ojt.mentor_first_name ? `${ojt.mentor_first_name} ${ojt.mentor_last_name}` : (ojt.supervisor_name || 'Assigned Mentor')
+        }
+      });
+    }
+
+    // CASE C: Student already clocked in AND clocked out today
+    return res.status(400).json({
+      success: false,
+      message: `${deviceRecord.first_name} ${deviceRecord.last_name} has already completed their shift today (In: ${todayLog.time_in.slice(0, 5)}, Out: ${todayLog.time_out.slice(0, 5)}, ${todayLog.hours_rendered || 0} hrs). Additional clocking is not required.`
+    });
+  } catch (error) {
+    console.error('QR Attendance Scan Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error processing QR scan: ' + error.message });
   }
 });
 

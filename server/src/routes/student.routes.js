@@ -12,6 +12,7 @@ import { generateAiSkillsRecommendations } from '../services/aiRecommendation.se
 import { PROGRAM_SKILLS_CATALOG } from '../data/programSkillsData.js';
 
 import { getUploadStorage, saveUploadedFile } from '../utils/upload.helper.js';
+import { generateTotpSecret, generateDeviceToken } from '../utils/totp.helper.js';
 
 const portfolioFileFilter = (req, file, cb) => {
   const allowedExts = /jpeg|jpg|png|webp|gif|svg|bmp|tiff|heic|heif|pdf|doc|docx|odt|rtf|pages|ppt|pptx|odp|key|xls|xlsx|csv|ods|numbers|txt|zip|rar|7z|tar|gz|json|xml|md|sql/i;
@@ -1209,6 +1210,107 @@ router.delete('/attendance/:id', async (req, res) => {
   } catch (error) {
     console.error('Delete attendance error:', error);
     return res.status(500).json({ success: false, message: 'Failed to delete attendance log.' });
+  }
+});
+
+// GET /api/student/attendance/qr-credentials
+// Fetches or securely registers student's hardware device token and TOTP cryptographic secret
+router.get('/attendance/qr-credentials', async (req, res) => {
+  try {
+    const student = await getStudentId(req.user.user_id);
+    if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
+
+    const clientDeviceToken = req.query.device_token || req.headers['x-device-token'] || null;
+    const clientDeviceName = req.query.device_name || req.headers['user-agent'] || 'Registered Device';
+
+    // Check if student already has a registered device
+    const [rows] = await pool.query(
+      'SELECT * FROM student_attendance_devices WHERE student_id = ?',
+      [student.student_id]
+    );
+
+    if (rows.length > 0) {
+      const existing = rows[0];
+      // Check if presented device matches locked device
+      const isMismatched = !!(clientDeviceToken && existing.device_token !== clientDeviceToken && existing.is_locked);
+
+      return res.json({
+        success: true,
+        data: {
+          student_id: student.student_id,
+          student_number: student.student_number,
+          full_name: `${student.first_name} ${student.last_name}`,
+          device_token: existing.device_token,
+          totp_secret: existing.totp_secret,
+          is_locked: !!existing.is_locked,
+          is_mismatched: isMismatched,
+          registered_device_name: existing.device_name,
+          registered_at: existing.registered_at
+        }
+      });
+    }
+
+    // First-time setup: Lock the hardware token and generate TOTP secret
+    const newDeviceToken = clientDeviceToken || generateDeviceToken();
+    const newSecret = generateTotpSecret();
+
+    await pool.query(
+      `INSERT INTO student_attendance_devices (student_id, device_token, device_name, totp_secret, is_locked, registered_at, last_used_at)
+       VALUES (?, ?, ?, ?, 1, NOW(), NOW())
+       ON DUPLICATE KEY UPDATE device_token = VALUES(device_token), totp_secret = VALUES(totp_secret), is_locked = 1, registered_at = NOW()`,
+      [student.student_id, newDeviceToken, clientDeviceName.slice(0, 150), newSecret]
+    );
+
+    return res.json({
+      success: true,
+      message: 'Hardware device registered and cryptographic TOTP secret locked.',
+      data: {
+        student_id: student.student_id,
+        student_number: student.student_number,
+        full_name: `${student.first_name} ${student.last_name}`,
+        device_token: newDeviceToken,
+        totp_secret: newSecret,
+        is_locked: true,
+        is_mismatched: false
+      }
+    });
+  } catch (error) {
+    console.error('Fetch QR credentials error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve attendance credentials: ' + error.message });
+  }
+});
+
+// POST /api/student/attendance/reset-device
+// Allows student to re-bind their registered device token (e.g. if they replaced phones)
+router.post('/attendance/reset-device', async (req, res) => {
+  try {
+    const student = await getStudentId(req.user.user_id);
+    if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
+
+    const newDeviceToken = req.body.device_token || generateDeviceToken();
+    const clientDeviceName = req.body.device_name || req.headers['user-agent'] || 'New Device';
+    const newSecret = generateTotpSecret();
+
+    await pool.query(
+      `INSERT INTO student_attendance_devices (student_id, device_token, device_name, totp_secret, is_locked, registered_at, last_used_at)
+       VALUES (?, ?, ?, ?, 1, NOW(), NOW())
+       ON DUPLICATE KEY UPDATE device_token = VALUES(device_token), device_name = VALUES(device_name), totp_secret = VALUES(totp_secret), is_locked = 1, registered_at = NOW()`,
+      [student.student_id, newDeviceToken, clientDeviceName.slice(0, 150), newSecret]
+    );
+
+    return res.json({
+      success: true,
+      message: 'New hardware device bound successfully. Cryptographic key updated.',
+      data: {
+        student_id: student.student_id,
+        device_token: newDeviceToken,
+        totp_secret: newSecret,
+        is_locked: true
+      }
+    });
+  } catch (err) {
+    console.error('Reset device error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to reset device.' });
   }
 });
 

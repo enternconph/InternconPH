@@ -1,14 +1,34 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, formatPortfolioTitle, formatFileSubtitle, formatCleanFileName } from '../../utils/fileHelper';
 import Pagination from '../../components/ui/Pagination';
+import HrAttendanceScannerModal from '../../components/Organization/HrAttendanceScannerModal';
 
 export default function OrgOJT() {
+  const { user } = useAuth();
+  const isHR = user?.role_name === 'hiring_organization' || user?.role_name === 'hr_staff' || user?.role_name === 'super_admin' || user?.role_name === 'org_admin';
+  const isMentor = user?.role_name === 'workplace_mentor' || user?.role_name === 'mentor';
+
   const [interns, setInterns] = useState([]);
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // View Navigation: 'interns' | 'pending_validation' | 'all_logs'
+  const [activeViewTab, setActiveViewTab] = useState('interns');
+
+  // HR QR Attendance Scanner Modal State
+  const [showScannerModal, setShowScannerModal] = useState(false);
+
+  // Mentor Shift Validation States
+  const [validatingId, setValidatingId] = useState(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectTargetLog, setRejectTargetLog] = useState(null);
+  const [rejectionNotes, setRejectionNotes] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   // Intern Search, Filter, and Pagination States
   const [internSearch, setInternSearch] = useState('');
@@ -58,9 +78,15 @@ export default function OrgOJT() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await api.get('/org/interns');
-      if (res.success && res.data) {
-        setInterns(res.data);
+      const [internsRes, attRes] = await Promise.all([
+        api.get('/org/interns'),
+        api.get('/org/attendance')
+      ]);
+      if (internsRes.success && internsRes.data) {
+        setInterns(internsRes.data);
+      }
+      if (attRes.success && attRes.data) {
+        setAttendanceLogs(attRes.data);
       }
     } catch (err) {
       console.error('Fetch Org OJT data error:', err);
@@ -165,6 +191,58 @@ export default function OrgOJT() {
     }
   };
 
+  const handleValidateShift = async (attendanceId, hours) => {
+    setActionLoading(true);
+    setValidatingId(attendanceId);
+    try {
+      const res = await api.post(`/org/attendance/${attendanceId}/verify`, {
+        action: 'verify',
+        hours_rendered: hours
+      });
+      if (res.success) {
+        showToast(res.message || 'Intern training shift successfully validated and certified!');
+        fetchData();
+      } else {
+        showToast(res.message || 'Failed to validate shift.', true);
+      }
+    } catch (err) {
+      showToast(err.message || 'Error validating shift.', true);
+    } finally {
+      setActionLoading(false);
+      setValidatingId(null);
+    }
+  };
+
+  const handleRejectShiftSubmit = async (e) => {
+    e.preventDefault();
+    if (!rejectTargetLog) return;
+    setActionLoading(true);
+    try {
+      const res = await api.post(`/org/attendance/${rejectTargetLog.attendance_id}/verify`, {
+        action: 'reject',
+        rejection_notes: rejectionNotes
+      });
+      if (res.success) {
+        showToast('Shift rejected and returned for review.');
+        setShowRejectModal(false);
+        setRejectTargetLog(null);
+        setRejectionNotes('');
+        fetchData();
+      } else {
+        showToast(res.message || 'Failed to reject shift.', true);
+      }
+    } catch (err) {
+      showToast(err.message || 'Error rejecting shift.', true);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Completed shifts pending Workplace Mentor validation
+  const pendingValidationLogs = useMemo(() => {
+    return attendanceLogs.filter((log) => log.status === 'pending' && log.time_out);
+  }, [attendanceLogs]);
+
   // Derived counts and filtered/paginated interns
   const { ongoingCount, completedCount } = useMemo(() => {
     let ongoing = 0;
@@ -238,14 +316,38 @@ export default function OrgOJT() {
             </span>
           </div>
           <p className="text-sm text-on-surface-variant mt-1">
-            Supervise active interns, record daily clock-in and clock-out with automated on-time / late and overtime capping rules.
+            {isHR 
+              ? 'Physical premises QR scanner desk for Time-In & Time-Out. Shifts are forwarded to workplace mentors for final certification.'
+              : 'Workplace Mentor Portal: Review, validate, and certify intern training shifts upon completion.'}
           </p>
         </div>
 
-        {/* Real-time Timezone Badge */}
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container rounded-xl border border-outline-variant text-xs text-on-surface self-start sm:self-auto">
-          <span className="material-symbols-outlined text-[16px] text-vibrant-orange">schedule</span>
-          <span className="font-bold">Philippine Standard Time (UTC+8)</span>
+        {/* Action Controls & Real-time Timezone Badge */}
+        <div className="flex items-center gap-3 flex-wrap self-start sm:self-auto">
+          {/* HR-Exclusive Scanner Button */}
+          {isHR && (
+            <button
+              type="button"
+              onClick={() => setShowScannerModal(true)}
+              className="px-4 py-2 bg-gradient-to-r from-vibrant-orange to-deep-orange hover:opacity-95 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-transform active:scale-95"
+            >
+              <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+              <span>QR Attendance Scanner</span>
+            </button>
+          )}
+
+          {/* Mentor Indicator */}
+          {isMentor && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300 rounded-xl text-xs font-bold">
+              <span className="material-symbols-outlined text-[16px]">verified</span>
+              <span>Workplace Mentor Certification</span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container rounded-xl border border-outline-variant text-xs text-on-surface">
+            <span className="material-symbols-outlined text-[16px] text-vibrant-orange">schedule</span>
+            <span className="font-bold">PST (UTC+8)</span>
+          </div>
         </div>
       </div>
 
@@ -263,9 +365,59 @@ export default function OrgOJT() {
         </div>
       )}
 
+      {/* Main View Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-outline-variant overflow-x-auto pb-1">
+        <button
+          type="button"
+          onClick={() => setActiveViewTab('interns')}
+          className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+            activeViewTab === 'interns'
+              ? 'bg-vibrant-orange text-white shadow-xs'
+              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px]">group</span>
+          <span>Supervised Interns ({interns.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveViewTab('pending_validation')}
+          className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+            activeViewTab === 'pending_validation'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px]">pending_actions</span>
+          <span>Pending Shift Validation</span>
+          {pendingValidationLogs.length > 0 && (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+              activeViewTab === 'pending_validation' ? 'bg-white text-amber-700' : 'bg-amber-500 text-white animate-pulse'
+            }`}>
+              {pendingValidationLogs.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveViewTab('all_logs')}
+          className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+            activeViewTab === 'all_logs'
+              ? 'bg-vibrant-orange text-white shadow-xs'
+              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px]">history</span>
+          <span>Attendance Shift Logs ({attendanceLogs.length})</span>
+        </button>
+      </div>
+
       {/* SUPERVISED INTERNS BENTO */}
-      <div className="bento-card space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant pb-3">
+      {activeViewTab === 'interns' && (
+        <div className="bento-card space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant pb-3">
           <div>
             <h2 className="text-lg font-bold text-on-surface flex items-center gap-2">
               <span className="material-symbols-outlined text-vibrant-orange">badge</span>
@@ -435,15 +587,21 @@ export default function OrgOJT() {
                           </div>
                         ) : !intern.today_time_in ? (
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-on-surface-variant font-medium">Not Timed In</span>
-                            <button
-                              onClick={() => handleQuickTimeIn(intern)}
-                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-xs"
-                              title="Time in student for today (PST)"
-                            >
-                              <span className="material-symbols-outlined text-[15px]">login</span>
-                              <span>Time In</span>
-                            </button>
+                            {isHR ? (
+                              <button
+                                type="button"
+                                onClick={() => setShowScannerModal(true)}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-xs"
+                                title="Open HR QR Attendance Scanner"
+                              >
+                                <span className="material-symbols-outlined text-[15px]">qr_code_scanner</span>
+                                <span>Scan In</span>
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-on-surface-variant italic">
+                                Awaiting entrance QR scan by HR
+                              </span>
+                            )}
                           </div>
                         ) : !intern.today_time_out ? (
                           <div className="flex items-center gap-2 flex-wrap">
@@ -459,46 +617,61 @@ export default function OrgOJT() {
                                 {intern.today_time_in_status === 'late' ? 'Late' : 'On-Time'}
                               </span>
                             </div>
-                            <button
-                              onClick={() => openTimeOutModal(intern)}
-                              className="px-2.5 py-1 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-xs"
-                              title="Time out student and credit training hours"
-                            >
-                              <span className="material-symbols-outlined text-[15px]">logout</span>
-                              <span>Time Out</span>
-                            </button>
+                            {isHR ? (
+                              <button
+                                type="button"
+                                onClick={() => setShowScannerModal(true)}
+                                className="px-2.5 py-1 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-xs"
+                                title="Scan student QR for departure clock"
+                              >
+                                <span className="material-symbols-outlined text-[15px]">qr_code_scanner</span>
+                                <span>Scan Out</span>
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span>On Duty</span>
+                              </span>
+                            )}
                           </div>
                         ) : (
-                          <div className="space-y-1">
+                          <div className="space-y-1.5">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-tint text-pinoy-green border border-pinoy-green/20 flex items-center gap-0.5">
+                              <span className="text-[10px] text-on-surface-variant font-mono font-bold">
+                                {intern.today_time_in.slice(0, 5)} - {intern.today_time_out.slice(0, 5)}
+                              </span>
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold font-mono bg-surface-container text-on-surface border border-outline-variant">
+                                {intern.today_hours || 0} hrs
+                              </span>
+                            </div>
+                            {intern.today_status === 'pending' ? (
+                              isMentor ? (
+                                <button
+                                  type="button"
+                                  disabled={actionLoading || validatingId === intern.today_attendance_id}
+                                  onClick={() => handleValidateShift(intern.today_attendance_id, intern.today_hours)}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 shadow-xs"
+                                  title="Validate and certify shift hours"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">verified</span>
+                                  <span>{validatingId === intern.today_attendance_id ? 'Validating...' : 'Validate Shift'}</span>
+                                </button>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1 w-fit">
+                                  <span className="material-symbols-outlined text-[13px]">pending</span>
+                                  <span>Pending Mentor Validation</span>
+                                </span>
+                              )
+                            ) : intern.today_status === 'verified' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-tint text-pinoy-green border border-pinoy-green/20 flex items-center gap-0.5 w-fit">
                                 <span className="material-symbols-outlined text-[13px]">verified</span>
-                                <span>{intern.today_hours || 0} hrs credited</span>
+                                <span>Certified by Mentor</span>
                               </span>
-                              <span className="text-[10px] text-on-surface-variant font-mono">
-                                ({intern.today_time_in.slice(0, 5)} - {intern.today_time_out.slice(0, 5)})
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-700 border border-rose-500/30 w-fit">
+                                Rejected / Flagged
                               </span>
-                            </div>
-                            <div className="flex items-center gap-1 flex-wrap">
-                              {/* In Status */}
-                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
-                                intern.today_time_in_status === 'late'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-emerald-100 text-emerald-800'
-                              }`}>
-                                In: {intern.today_time_in_status === 'late' ? 'Late' : 'On-Time'}
-                              </span>
-                              {/* Out Status */}
-                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
-                                intern.today_time_out_status === 'early'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : intern.today_time_out_status === 'overtime'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : 'bg-emerald-100 text-emerald-800'
-                              }`}>
-                                Out: {intern.today_time_out_status === 'early' ? 'Early' : intern.today_time_out_status === 'overtime' ? 'Overtime (Capped)' : 'On-Time'}
-                              </span>
-                            </div>
+                            )}
                           </div>
                         )}
                       </td>
@@ -543,6 +716,260 @@ export default function OrgOJT() {
           />
         )}
       </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VIEW TAB 2: PENDING SHIFT VALIDATION QUEUE (WORKPLACE MENTOR CERTIFICATION) */}
+      {/* ========================================================================= */}
+      {activeViewTab === 'pending_validation' && (
+        <div className="bento-card space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant pb-3">
+            <div>
+              <h2 className="text-lg font-bold text-on-surface flex items-center gap-2">
+                <span className="material-symbols-outlined text-amber-600">pending_actions</span>
+                <span>Pending Shift Validation Queue ({pendingValidationLogs.length})</span>
+              </h2>
+              <p className="text-xs text-on-surface-variant mt-0.5">
+                Workplace Mentors: Certify completed intern training shifts. Validated hours are directly credited toward academic OJT requirements.
+              </p>
+            </div>
+
+            {pendingValidationLogs.length > 0 && isMentor && (
+              <span className="px-3 py-1 bg-amber-500/10 text-amber-700 dark:text-amber-300 rounded-full text-xs font-bold border border-amber-500/20">
+                Action Required: {pendingValidationLogs.length} shift{pendingValidationLogs.length > 1 ? 's' : ''} awaiting certification
+              </span>
+            )}
+          </div>
+
+          {pendingValidationLogs.length === 0 ? (
+            <div className="text-center py-16 text-on-surface-variant space-y-3">
+              <span className="material-symbols-outlined text-[56px] text-emerald-500">task_alt</span>
+              <h3 className="text-base font-bold text-on-surface">All Intern Shifts Are Certified!</h3>
+              <p className="text-xs max-w-md mx-auto leading-relaxed">
+                There are no pending attendance shifts waiting for mentor validation. When interns clock out via the HR QR scanner at your office, their shift hours will queue here for your certification.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-outline-variant/70 shadow-xs">
+              <table className="w-full text-left text-sm min-w-[850px] border-collapse">
+                <thead>
+                  <tr className="bg-surface-container-low text-on-surface-variant text-[11px] uppercase tracking-wider font-extrabold border-b border-outline-variant">
+                    <th className="py-3.5 px-4 sm:px-5">Intern Details</th>
+                    <th className="py-3.5 px-4">Shift Date</th>
+                    <th className="py-3.5 px-4">Time In (PST)</th>
+                    <th className="py-3.5 px-4">Time Out (PST)</th>
+                    <th className="py-3.5 px-4 text-center">Hours Rendered</th>
+                    <th className="py-3.5 px-4">Clock Method</th>
+                    <th className="py-3.5 px-4 text-right">Mentor Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/40 bg-surface">
+                  {pendingValidationLogs.map((log) => (
+                    <tr key={log.attendance_id} className="hover:bg-surface-container-low/60 transition-colors">
+                      <td className="py-3.5 px-4 sm:px-5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-vibrant-orange/10 text-vibrant-orange font-bold flex items-center justify-center text-xs shrink-0">
+                            {log.first_name?.[0] || 'I'}
+                          </div>
+                          <div>
+                            <p className="font-bold text-xs text-on-surface">{log.first_name} {log.last_name}</p>
+                            <p className="text-[11px] text-on-surface-variant">ID #{log.student_number} • {log.program_name || 'Intern'}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-xs font-bold text-on-surface whitespace-nowrap">
+                        {new Date(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 font-mono text-xs">
+                          <span>{log.time_in ? log.time_in.slice(0, 5) : '—'}</span>
+                          {log.time_in_status && (
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                              log.time_in_status === 'late' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {log.time_in_status === 'late' ? 'Late' : 'On-Time'}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 font-mono text-xs">
+                          <span>{log.time_out ? log.time_out.slice(0, 5) : '—'}</span>
+                          {log.time_out_status && (
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                              log.time_out_status === 'early' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {log.time_out_status}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <span className="inline-block px-3 py-1 bg-surface-container font-mono font-black text-xs text-vibrant-orange rounded-xl border border-outline-variant">
+                          {log.hours_rendered ? `${parseFloat(log.hours_rendered).toFixed(2)} hrs` : '0.00 hrs'}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                          <span className="material-symbols-outlined text-[13px]">qr_code_2</span>
+                          <span>{log.time_in_method === 'qr_scan' ? 'Cryptographic QR' : 'Manual Entry'}</span>
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={actionLoading || validatingId === log.attendance_id}
+                            onClick={() => handleValidateShift(log.attendance_id, log.hours_rendered)}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1 shadow-xs"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">verified</span>
+                            <span>{validatingId === log.attendance_id ? 'Certifying...' : 'Validate Shift'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => {
+                              setRejectTargetLog(log);
+                              setRejectionNotes('');
+                              setShowRejectModal(true);
+                            }}
+                            className="px-2.5 py-1.5 bg-surface-container hover:bg-rose-50 hover:text-rose-700 text-on-surface-variant border border-outline-variant rounded-xl text-xs font-bold transition-colors"
+                            title="Reject or Flag Shift"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">close</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VIEW TAB 3: ALL ATTENDANCE SHIFT LOGS & AUDIT TRAIL */}
+      {/* ========================================================================= */}
+      {activeViewTab === 'all_logs' && (
+        <div className="bento-card space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant pb-3">
+            <div>
+              <h2 className="text-lg font-bold text-on-surface flex items-center gap-2">
+                <span className="material-symbols-outlined text-vibrant-orange">history</span>
+                <span>Attendance Shift Logs & Audit History ({attendanceLogs.length})</span>
+              </h2>
+              <p className="text-xs text-on-surface-variant mt-0.5">
+                Official audit trail of all Time-In and Time-Out timestamps recorded via physical QR desk scanner or supervisor logs.
+              </p>
+            </div>
+          </div>
+
+          {attendanceLogs.length === 0 ? (
+            <div className="text-center py-16 text-on-surface-variant space-y-2">
+              <span className="material-symbols-outlined text-[48px] text-outline">history_toggle_off</span>
+              <p className="text-sm font-bold text-on-surface">No attendance shift logs found.</p>
+              <p className="text-xs max-w-sm mx-auto">Attendance records logged by the HR QR scanner or supervisors will be displayed here.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-outline-variant/70 shadow-xs">
+              <table className="w-full text-left text-sm min-w-[850px] border-collapse">
+                <thead>
+                  <tr className="bg-surface-container-low text-on-surface-variant text-[11px] uppercase tracking-wider font-extrabold border-b border-outline-variant">
+                    <th className="py-3.5 px-4 sm:px-5">Shift Date</th>
+                    <th className="py-3.5 px-4">Intern</th>
+                    <th className="py-3.5 px-4">Time In (PST)</th>
+                    <th className="py-3.5 px-4">Time Out (PST)</th>
+                    <th className="py-3.5 px-4 text-center">Rendered Hours</th>
+                    <th className="py-3.5 px-4">Clock Method</th>
+                    <th className="py-3.5 px-4 text-center">Validation Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/40 bg-surface">
+                  {attendanceLogs.map((log) => (
+                    <tr key={log.attendance_id} className="hover:bg-surface-container-low/60 transition-colors">
+                      <td className="py-3.5 px-4 sm:px-5 font-bold text-xs text-on-surface whitespace-nowrap">
+                        {new Date(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-xs text-on-surface">{log.first_name} {log.last_name}</p>
+                          <span className="text-[10px] text-on-surface-variant">#{log.student_number}</span>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap font-mono text-xs">
+                        <div className="inline-flex items-center gap-1.5">
+                          <span>{log.time_in ? log.time_in.slice(0, 5) : '—'}</span>
+                          {log.time_in_status && (
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                              log.time_in_status === 'late' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {log.time_in_status === 'late' ? 'Late' : 'On-Time'}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap font-mono text-xs">
+                        <div className="inline-flex items-center gap-1.5">
+                          <span>{log.time_out ? log.time_out.slice(0, 5) : '—'}</span>
+                          {log.time_out_status && (
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                              log.time_out_status === 'early' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {log.time_out_status}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <span className="font-mono font-bold text-xs text-on-surface">
+                          {log.hours_rendered ? `${parseFloat(log.hours_rendered).toFixed(2)} hrs` : '0.00 hrs'}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-surface-container text-on-surface border border-outline-variant">
+                          <span className="material-symbols-outlined text-[13px] text-vibrant-orange">qr_code_scanner</span>
+                          <span>{log.time_in_method === 'qr_scan' ? 'Cryptographic QR' : 'Manual Entry'}</span>
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-extrabold capitalize ${
+                            log.status === 'verified'
+                              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                              : log.status === 'rejected'
+                              ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'
+                              : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[14px]">
+                            {log.status === 'verified' ? 'verified' : log.status === 'rejected' ? 'cancel' : 'pending'}
+                          </span>
+                          <span>{log.status === 'verified' ? 'Certified' : log.status === 'pending' ? 'Pending Mentor' : log.status}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Incident / Misconduct Report Modal */}
       {showIncidentModal && incidentStudent && (
@@ -1093,6 +1520,72 @@ export default function OrgOJT() {
           </div>
         </div>
       )}
+
+      {/* Shift Rejection / Flagging Modal */}
+      {showRejectModal && rejectTargetLog && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-outline-variant rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
+              <h3 className="font-bold text-base text-on-surface flex items-center gap-2">
+                <span className="material-symbols-outlined text-rose-600">flag</span>
+                <span>Flag / Reject Attendance Shift</span>
+              </h3>
+              <button onClick={() => setShowRejectModal(false)} className="text-on-surface-variant hover:text-on-surface">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="p-3 bg-surface-container rounded-xl text-xs space-y-1">
+              <p className="font-bold text-on-surface">
+                Intern: {rejectTargetLog.first_name} {rejectTargetLog.last_name} (#{rejectTargetLog.student_number})
+              </p>
+              <p className="text-on-surface-variant">
+                Shift: {rejectTargetLog.log_date?.slice(0, 10)} • {rejectTargetLog.time_in?.slice(0, 5)} - {rejectTargetLog.time_out?.slice(0, 5)} ({rejectTargetLog.hours_rendered} hrs)
+              </p>
+            </div>
+
+            <form onSubmit={handleRejectShiftSubmit} className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-on-surface">Feedback / Rejection Reason</label>
+                <textarea
+                  rows="3"
+                  required
+                  value={rejectionNotes}
+                  onChange={(e) => setRejectionNotes(e.target.value)}
+                  placeholder="Explain why this shift cannot be certified (e.g. unauthorized early departure, discrepancy)..."
+                  className="w-full p-3 bg-surface-container rounded-xl border border-outline-variant text-xs text-on-surface outline-none focus:ring-2 focus:ring-vibrant-orange resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-outline-variant">
+                <button
+                  type="button"
+                  onClick={() => setShowRejectModal(false)}
+                  className="px-3.5 py-2 bg-surface-container hover:bg-surface-container-high rounded-xl text-xs font-bold text-on-surface"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-md"
+                >
+                  {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* HR-Exclusive Physical Attendance Scanner Modal */}
+      <HrAttendanceScannerModal
+        isOpen={showScannerModal}
+        onClose={() => setShowScannerModal(false)}
+        onScanSuccess={() => {
+          fetchData();
+        }}
+      />
     </div>
   );
 }
