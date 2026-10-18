@@ -35,8 +35,7 @@ export const SocketProvider = ({ children }) => {
         if (!isMounted) return;
 
         // In local dev, VITE_SOCKET_URL is unset, so io(undefined) connects through Vite proxy
-        // In production on Vercel, VITE_SOCKET_URL points directly to Render backend
-        const socketUrl = import.meta.env.VITE_SOCKET_URL || undefined;
+        const socketUrl = import.meta.env.VITE_SOCKET_URL || (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app') ? 'https://internconph.onrender.com' : undefined);
 
         activeSocket = io(socketUrl, {
           transports: ['websocket'],

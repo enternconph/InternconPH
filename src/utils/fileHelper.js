@@ -4,7 +4,11 @@
 
 export function resolveFileUrl(filePath) {
   if (!filePath) return '';
-  const apiBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/+$/, '') : '';
+  const apiBase = import.meta.env.VITE_API_URL
+    ? import.meta.env.VITE_API_URL.replace(/\/+$/, '')
+    : (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+        ? 'https://internconph.onrender.com'
+        : '');
 
   if (filePath.startsWith('certificate://') || filePath.startsWith('certificate:')) {
     const code = filePath.replace(/^certificate:\/\//, '').replace(/^certificate:/, '');

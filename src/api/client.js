@@ -1,4 +1,9 @@
-const RAW_API_URL = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/+$/, '') : '';
+const FALLBACK_PROD_API = 'https://internconph.onrender.com';
+const RAW_API_URL = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace(/\/+$/, '')
+  : (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+      ? FALLBACK_PROD_API
+      : '');
 const API_BASE = RAW_API_URL ? (RAW_API_URL.endsWith('/api') ? RAW_API_URL : `${RAW_API_URL}/api`) : '/api';
 
 let isRedirectingToLogin = false;
