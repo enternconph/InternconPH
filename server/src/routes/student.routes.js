@@ -3931,13 +3931,14 @@ router.get('/clearance', async (req, res) => {
               r.is_mandatory, 
               COALESCE(r.document_template_url, null) as template_url,
               COALESCE(r.document_template_url, null) as document_template_url,
-              sr.id as submission_id, sr.status as submission_status, sr.file_path, sr.submitted_at, sr.verified_at,
-              sr.rejection_reason
+              sr.id as submission_id, sr.status as submission_status, sr.file_path, sr.submitted_at,
+              sr.updated_at as verified_at,
+              NULL as rejection_reason
        FROM ojt_requirements r
        LEFT JOIN ojt_student_requirements sr ON r.requirement_id = sr.requirement_id AND sr.ojt_id IN (
          SELECT ojt_id FROM ojt_records WHERE student_id = ?
        )
-       WHERE r.institution_id = ? AND (r.program_id IS NULL OR r.program_id = ?)
+       WHERE (r.institution_id = ? OR r.institution_id IS NULL) AND (r.program_id IS NULL OR r.program_id = ?)
        ORDER BY r.is_mandatory DESC, r.created_at ASC`,
       [student.student_id, student.institution_id, student.program_id]
     );
