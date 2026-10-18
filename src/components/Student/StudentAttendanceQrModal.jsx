@@ -30,7 +30,13 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
       if (res.success && res.data) {
         setCredentials(res.data);
       } else {
-        setError(res.message || 'Failed to initialize attendance credentials.');
+        if (res.status === 404 && res.message?.toLowerCase().includes('student profile not found')) {
+          setError('Student profile not found for this account. Please log in with a registered student intern account.');
+        } else if (res.status === 404) {
+          setError('The attendance QR backend service is currently updating on Render. Please wait ~15-30 seconds and click Retry Handshake.');
+        } else {
+          setError(res.message || 'Failed to initialize attendance credentials.');
+        }
       }
     } catch (err) {
       setError(err.message || 'Network error retrieving attendance token.');

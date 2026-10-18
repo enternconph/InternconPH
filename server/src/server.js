@@ -281,7 +281,13 @@ app.get(['/uploads/:subfolder/:filename', '/uploads/:filename'], async (req, res
 app.get('/api/health', async (req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ ok: true, status: 'ok', database: 'connected' });
+    res.json({
+      ok: true,
+      status: 'ok',
+      database: 'connected',
+      version: '1.2.0-totp-qr-certified',
+      timestamp: new Date().toISOString()
+    });
   } catch (err) {
     res.status(500).json({ ok: false, status: 'error', database: 'disconnected', error: err.message });
   }
@@ -298,6 +304,15 @@ app.use('/api/inst', instRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/certificates', certificateRoutes);
+
+// Explicit 404 JSON response for any unmatched API endpoint
+app.all('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `API endpoint not found: ${req.method} ${req.originalUrl}`,
+    status: 404
+  });
+});
 
 // Serve frontend dist with SPA routing fallback & asset caching
 const DIST_DIR = path.resolve(__dirname, '../../dist');

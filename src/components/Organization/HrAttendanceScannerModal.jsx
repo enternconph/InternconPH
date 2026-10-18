@@ -31,7 +31,12 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
         playNotificationChime();
       } catch (_) {}
 
-      if (res.success) {
+      if (res.status === 404) {
+        setScanResult({
+          type: 'error',
+          message: 'The attendance QR scanner service is currently updating on Render. Please wait ~15-30 seconds and try again.'
+        });
+      } else if (res.success) {
         setScanResult({
           type: 'success',
           action: res.action,

@@ -8,7 +8,8 @@
     "server": "npm --prefix server run dev",
     "dev:all": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run server\" \"npm run dev\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server/src/server.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",

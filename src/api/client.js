@@ -1,10 +1,26 @@
 const FALLBACK_PROD_API = 'https://internconph.onrender.com';
-const RAW_API_URL = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace(/\/+$/, '')
-  : (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
-      ? FALLBACK_PROD_API
-      : '');
-const API_BASE = RAW_API_URL ? (RAW_API_URL.endsWith('/api') ? RAW_API_URL : `${RAW_API_URL}/api`) : '/api';
+
+function resolveApiBase() {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && envUrl.trim() && !envUrl.includes('your-backend-app')) {
+    const clean = envUrl.replace(/\/+$/, '');
+    return clean.endsWith('/api') ? clean : `${clean}/api`;
+  }
+
+  if (typeof window !== 'undefined') {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    // If running under Vite dev server proxy (port 5173), use relative '/api'
+    if (isLocalhost && window.location.port === '5173') {
+      return '/api';
+    }
+    // For all deployed environments (Vercel, custom domains, or local virtual hosts like internconph.test), use live backend
+    return `${FALLBACK_PROD_API}/api`;
+  }
+
+  return `${FALLBACK_PROD_API}/api`;
+}
+
+const API_BASE = resolveApiBase();
 
 let isRedirectingToLogin = false;
 
@@ -57,7 +73,7 @@ export async function apiRequest(endpoint, options = {}) {
     if (response.status === 404) {
       return {
         success: false,
-        message: 'API endpoint not found (HTTP 404). Please verify that VITE_API_URL is configured in your deployment settings.',
+        message: `API endpoint not found (HTTP 404): ${endpoint}. Please ensure backend service is running and deployed.`,
         status: 404
       };
     }

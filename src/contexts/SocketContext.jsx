@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import api from '../api/client';
 
 const SocketContext = createContext(null);
 
@@ -25,17 +26,14 @@ export const SocketProvider = ({ children }) => {
     async function initSocketConnection() {
       try {
         // 1. Fetch cross-origin WebSocket JWT token
-        const res = await fetch('/api/auth/socket-token', {
-          credentials: 'include',
-          cache: 'no-store'
-        });
-        const data = await res.json().catch(() => ({ success: false }));
-        const token = data.success ? data.token : null;
+        const data = await api.get('/auth/socket-token');
+        const token = data?.success ? data.token : null;
 
         if (!isMounted) return;
 
-        // In local dev, VITE_SOCKET_URL is unset, so io(undefined) connects through Vite proxy
-        const socketUrl = import.meta.env.VITE_SOCKET_URL || (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app') ? 'https://internconph.onrender.com' : undefined);
+        // In local dev on Vite port 5173, VITE_SOCKET_URL is unset, so io(undefined) connects through Vite proxy
+        const isDevProxy = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '5173';
+        const socketUrl = import.meta.env.VITE_SOCKET_URL || (!isDevProxy ? 'https://internconph.onrender.com' : undefined);
 
         activeSocket = io(socketUrl, {
           transports: ['websocket'],

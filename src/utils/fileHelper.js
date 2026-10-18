@@ -4,10 +4,11 @@
 
 export function resolveFileUrl(filePath) {
   if (!filePath) return '';
-  const apiBase = import.meta.env.VITE_API_URL
+  const FALLBACK_PROD_API = 'https://internconph.onrender.com';
+  const apiBase = (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.trim() && !import.meta.env.VITE_API_URL.includes('your-backend-app'))
     ? import.meta.env.VITE_API_URL.replace(/\/+$/, '')
-    : (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
-        ? 'https://internconph.onrender.com'
+    : (typeof window !== 'undefined' && (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' || window.location.port !== '5173')
+        ? FALLBACK_PROD_API
         : '');
 
   if (filePath.startsWith('certificate://') || filePath.startsWith('certificate:')) {

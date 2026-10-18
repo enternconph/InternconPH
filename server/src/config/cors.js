@@ -18,6 +18,11 @@ export function corsOriginCallback(origin, callback) {
     return callback(null, true);
   }
 
+  // Always allow local development origins (Vite port 5173, Express port 3000, Laragon internconph.test)
+  if (/^http:\/\/(localhost|127\.0\.0\.1|internconph\.test)(:\d+)?$/i.test(origin)) {
+    return callback(null, true);
+  }
+
   // Allow all Vercel deployment domains (production and preview branches)
   if (/^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.vercel\.app$/i.test(origin)) {
     return callback(null, true);
@@ -25,6 +30,11 @@ export function corsOriginCallback(origin, callback) {
 
   // Allow Render domains
   if (/^https:\/\/[a-z0-9-]+\.onrender\.com$/i.test(origin)) {
+    return callback(null, true);
+  }
+
+  // Allow custom production domains
+  if (/^https:\/\/(www\.)?(interncon\.ph|internconph\.com)$/i.test(origin)) {
     return callback(null, true);
   }
 

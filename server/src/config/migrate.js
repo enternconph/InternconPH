@@ -1240,6 +1240,10 @@ export async function runMigrations() {
         await pool.query('ALTER TABLE interviews ADD COLUMN reminder_sent_5m TINYINT(1) DEFAULT 0 AFTER status');
         console.log('[Migration] Added reminder_sent_5m to interviews');
       }
+    } catch (intMigErr) {
+      console.warn('[Migration Warning] Interviews table migration error:', intMigErr.message);
+    }
+
     // 32. Dynamic QR Code Cryptographic Attendance & Device Binding
     try {
       await pool.query(`
