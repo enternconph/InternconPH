@@ -56,6 +56,20 @@ Added live client-side search bars with instant filtering, clear buttons, status
 - **Workplace Mentor:** `mentor@gmail.com` (also `mentor@marbelworx.com`)
 - **Student Candidate:** `student@gmail.com`
 
+### 7. Online Deployment & "Invalid response from server" Fix
+- **Enhanced Network & Cold-Start Resilience ([src/api/client.js](file:///c:/laragon/www/internconph/src/api/client.js)):**
+  - Wrapped `fetch()` with network error handling to gracefully detect when Render backend is offline or sleeping.
+  - Replaced blind `'Invalid response from server'` error with context-aware diagnostics:
+    - HTTP 502/503/504: Informs the user that Render is waking up from free-tier sleep (cold start) and prompts them to wait ~30 seconds.
+    - HTTP 404: Informs the user if `VITE_API_URL` is missing or pointing to the wrong endpoint.
+- **Dynamic CORS Origin Resolution ([server/src/config/cors.js](file:///c:/laragon/www/internconph/server/src/config/cors.js)):**
+  - Added support for `FRONTEND_URL`, `CLIENT_URL`, and `ALLOWED_ORIGINS`.
+  - Added regex pattern matching for all `*.vercel.app` (including preview branches) and `*.onrender.com` domains to prevent CORS rejections.
+- **SPA Client-Side Routing on Vercel ([vercel.json](file:///c:/laragon/www/internconph/vercel.json)):**
+  - Created `vercel.json` with rewrite rules ensuring deep route refreshes (`/login`, `/dashboard/*`) route properly to `index.html`.
+- **Environment Templates Synchronized:**
+  - Standardized `.env.example` (root for Vercel) and `server/.env.example` (for Render).
+
 ---
 
 ## Verification & Automated Test Results
@@ -80,3 +94,4 @@ Automated test suite (`server/test_full_suite.js`) executed against live MySQL a
 
 **Total: 16 PASSED, 0 FAILED**  
 **Frontend Production Build (`npm run build`): SUCCESS (0 errors)**
+

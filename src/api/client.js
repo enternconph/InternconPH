@@ -18,14 +18,51 @@ export async function apiRequest(endpoint, options = {}) {
     delete headers['Authorization'];
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    cache: 'no-store',
-    ...options,
-    credentials: 'include',
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      cache: 'no-store',
+      ...options,
+      credentials: 'include',
+      headers,
+    });
+  } catch (networkError) {
+    console.error('[API Network Error]', networkError);
+    return {
+      success: false,
+      message: 'Cannot reach the backend server. The server may be asleep (Render free-tier cold start) or starting up. Please wait 30 seconds and try again.',
+      isNetworkError: true
+    };
+  }
 
-  const data = await response.json().catch(() => ({ success: false, message: 'Invalid response from server' }));
+  let data;
+  try {
+    data = await response.json();
+  } catch (jsonParseError) {
+    console.warn(`[API Non-JSON Response] Status ${response.status}:`, jsonParseError);
+
+    if (response.status === 502 || response.status === 503 || response.status === 504) {
+      return {
+        success: false,
+        message: `Backend service is currently waking up (HTTP ${response.status} from Render). Please wait ~30 seconds for the container to start, then try again.`,
+        isColdStart: true
+      };
+    }
+
+    if (response.status === 404) {
+      return {
+        success: false,
+        message: 'API endpoint not found (HTTP 404). Please verify that VITE_API_URL is configured in your deployment settings.',
+        status: 404
+      };
+    }
+
+    return {
+      success: false,
+      message: `Invalid server response (HTTP ${response.status}). Please check your backend connection.`,
+      status: response.status
+    };
+  }
 
   if (!response.ok && response.status === 401) {
     // If unauthorized, clean up stale tokens
