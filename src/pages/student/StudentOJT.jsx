@@ -9,15 +9,28 @@ export default function StudentOJT() {
   const [searchParams] = useSearchParams();
   const urlTab = searchParams.get('tab');
   
-  // Support 'requirements', 'clearance', 'checklist', 'evaluations', 'dtr'
+  // Support 'requirements', 'clearance', 'checklist', 'evaluations', 'journal', 'dtr'
   const initialTab = (urlTab === 'requirements' || urlTab === 'clearance' || urlTab === 'checklist')
     ? 'requirements'
-    : (urlTab === 'evaluations' ? 'evaluations' : 'dtr');
+    : (urlTab === 'evaluations' ? 'evaluations' : (urlTab === 'journal' ? 'journal' : 'dtr'));
 
   const [activeTab, setActiveTab] = useState(initialTab);
   const [ojtData, setOjtData] = useState(null);
   const [attendanceData, setAttendanceData] = useState(null);
   const [requirements, setRequirements] = useState([]);
+  const [journals, setJournals] = useState([]);
+  const [journalSummary, setJournalSummary] = useState(null);
+  const [journalModalOpen, setJournalModalOpen] = useState(false);
+  const [journalSubmitting, setJournalSubmitting] = useState(false);
+  const [journalForm, setJournalForm] = useState({
+    entry_date: new Date().toISOString().split('T')[0],
+    week_number: 1,
+    title: '',
+    tasks_accomplished: '',
+    key_learnings: '',
+    challenges_and_solutions: '',
+    hours_rendered: 8
+  });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [downloadingFile, setDownloadingFile] = useState(false);
@@ -43,7 +56,7 @@ export default function StudentOJT() {
     if (urlTab) {
       if (urlTab === 'requirements' || urlTab === 'clearance' || urlTab === 'checklist') {
         setActiveTab('requirements');
-      } else if (urlTab === 'evaluations' || urlTab === 'dtr') {
+      } else if (urlTab === 'evaluations' || urlTab === 'journal' || urlTab === 'dtr') {
         setActiveTab(urlTab);
       }
     }
@@ -51,11 +64,12 @@ export default function StudentOJT() {
 
   const fetchAllOjtData = useCallback(async () => {
     try {
-      const [ojtRes, attRes, reqRes, certRes] = await Promise.all([
+      const [ojtRes, attRes, reqRes, certRes, journalRes] = await Promise.all([
         api.get('/student/ojt'),
         api.get('/student/attendance'),
         api.get('/student/requirements'),
-        api.get('/student/certificates')
+        api.get('/student/certificates'),
+        api.get('/student/journals')
       ]);
 
       if (ojtRes.success && ojtRes.data) {
@@ -69,6 +83,10 @@ export default function StudentOJT() {
       }
       if (certRes.success && certRes.data) {
         setCertificates(certRes.data);
+      }
+      if (journalRes.success && journalRes.data) {
+        setJournals(journalRes.data.journals || []);
+        setJournalSummary(journalRes.data.summary || null);
       }
     } catch (err) {
       console.error('Fetch student OJT data error:', err);
@@ -205,6 +223,42 @@ export default function StudentOJT() {
     }
   };
 
+  const handleCreateJournal = async (e) => {
+    if (e) e.preventDefault();
+    if (!journalForm.title.trim() || !journalForm.tasks_accomplished.trim() || !journalForm.key_learnings.trim()) {
+      showToast('Please complete entry title, tasks, and key learnings.', true);
+      return;
+    }
+    setJournalSubmitting(true);
+    try {
+      const res = await api.post('/student/journals', {
+        ...journalForm,
+        hours_rendered: parseFloat(journalForm.hours_rendered) || 0,
+        week_number: parseInt(journalForm.week_number) || 1
+      });
+      if (res.success) {
+        showToast('Internship journal entry successfully saved!');
+        setJournalModalOpen(false);
+        setJournalForm({
+          entry_date: new Date().toISOString().split('T')[0],
+          week_number: Math.min(16, (parseInt(journalForm.week_number) || 1) + 1),
+          title: '',
+          tasks_accomplished: '',
+          key_learnings: '',
+          challenges_and_solutions: '',
+          hours_rendered: 8
+        });
+        fetchAllOjtData();
+      } else {
+        showToast(res.message || 'Failed to save journal.', true);
+      }
+    } catch (err) {
+      showToast(err.message || 'Error saving journal.', true);
+    } finally {
+      setJournalSubmitting(false);
+    }
+  };
+
   if (loading && !ojtData) {
     return (
       <div className="p-8 flex justify-center items-center min-h-[60vh]">
@@ -282,6 +336,22 @@ export default function StudentOJT() {
           >
             <span className="material-symbols-outlined text-[18px]">timelapse</span>
             <span>Daily Time Record</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('journal')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'journal'
+                ? 'bg-surface text-vibrant-orange shadow-sm ring-1 ring-outline-variant/60 font-black'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">menu_book</span>
+            <span>Internship Journal</span>
+            {journals.length > 0 && (
+              <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-orange-tint text-vibrant-orange">
+                {journals.length}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('requirements')}
@@ -748,6 +818,169 @@ export default function StudentOJT() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: INTERNSHIP JOURNAL */}
+      {/* ========================================================================= */}
+      {activeTab === 'journal' && (
+        <div className="space-y-6">
+          {/* Journal Summary Banner */}
+          <div className="bento-card bg-gradient-to-r from-orange-500/10 via-surface to-surface border border-vibrant-orange/20 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-vibrant-orange text-2xl">menu_book</span>
+                  <h3 className="font-bold text-base sm:text-lg text-on-surface">Daily & Weekly Internship Journal</h3>
+                </div>
+                <p className="text-xs text-on-surface-variant">
+                  Record daily tasks, technical breakthroughs, practical challenges, and reflections verified by your Workplace Mentor.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4 bg-surface-container p-2.5 rounded-2xl border border-outline-variant">
+                  <div className="text-right">
+                    <span className="text-xl font-black text-vibrant-orange font-mono">
+                      {journals.length}
+                    </span>
+                    <span className="text-[10px] font-bold text-on-surface-variant block">Entries</span>
+                  </div>
+                  <div className="h-6 w-px bg-outline-variant"></div>
+                  <div className="text-right">
+                    <span className="text-xl font-black text-emerald-600 font-mono">
+                      {journalSummary?.totalHours || 0}
+                    </span>
+                    <span className="text-[10px] font-bold text-on-surface-variant block">Hrs Logged</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setJournalModalOpen(true)}
+                  className="px-4 py-2.5 bg-vibrant-orange text-white text-xs font-bold rounded-xl hover:bg-deep-orange transition-all flex items-center gap-1.5 shadow-sm shrink-0"
+                >
+                  <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                  <span>New Entry</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Journal Entries List */}
+          {journals.length === 0 ? (
+            <div className="bento-card text-center py-12 text-on-surface-variant space-y-3">
+              <span className="material-symbols-outlined text-[52px] text-outline">history_edu</span>
+              <p className="text-sm font-bold text-on-surface">No journal entries recorded yet.</p>
+              <p className="text-xs max-w-sm mx-auto">
+                Maintain an ongoing log of your daily responsibilities, learnings, and problem resolutions to document your OJT milestones.
+              </p>
+              <button
+                type="button"
+                onClick={() => setJournalModalOpen(true)}
+                className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-vibrant-orange text-white rounded-xl text-xs font-bold hover:bg-deep-orange transition-colors shadow-sm"
+              >
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                <span>Create First Journal Entry</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {journals.map((entry) => (
+                <div
+                  key={entry.journal_id}
+                  className="bento-card space-y-4 hover:border-vibrant-orange/40 transition-all border border-outline-variant"
+                >
+                  {/* Entry Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-outline-variant">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="px-2.5 py-0.5 rounded-lg text-xs font-extrabold bg-orange-tint text-vibrant-orange border border-vibrant-orange/20">
+                        Week {entry.week_number || 1}
+                      </span>
+                      <span className="text-xs font-bold text-on-surface-variant flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[15px]">calendar_today</span>
+                        {new Date(entry.entry_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-semibold bg-surface-container text-on-surface">
+                        {parseFloat(entry.hours_rendered || 0).toFixed(1)} hrs
+                      </span>
+                    </div>
+
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                      entry.status === 'reviewed'
+                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
+                        : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20'
+                    }`}>
+                      <span className="material-symbols-outlined text-[14px]">
+                        {entry.status === 'reviewed' ? 'verified' : 'schedule'}
+                      </span>
+                      {entry.status === 'reviewed' ? 'Reviewed by Mentor' : 'Submitted'}
+                    </span>
+                  </div>
+
+                  {/* Title */}
+                  <h4 className="text-base font-bold text-on-surface">{entry.title}</h4>
+
+                  {/* 3 Content Blocks */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {/* Tasks Accomplished */}
+                    <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface">
+                        <span className="material-symbols-outlined text-[16px] text-vibrant-orange">task_alt</span>
+                        <span>Tasks Accomplished</span>
+                      </div>
+                      <p className="text-xs text-on-surface-variant whitespace-pre-wrap leading-relaxed">
+                        {entry.tasks_accomplished}
+                      </p>
+                    </div>
+
+                    {/* Key Learnings */}
+                    <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface">
+                        <span className="material-symbols-outlined text-[16px] text-amber-500">lightbulb</span>
+                        <span>Key Learnings</span>
+                      </div>
+                      <p className="text-xs text-on-surface-variant whitespace-pre-wrap leading-relaxed">
+                        {entry.key_learnings}
+                      </p>
+                    </div>
+
+                    {/* Challenges & Solutions */}
+                    <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface">
+                        <span className="material-symbols-outlined text-[16px] text-blue-500">psychology</span>
+                        <span>Challenges & Solutions</span>
+                      </div>
+                      <p className="text-xs text-on-surface-variant whitespace-pre-wrap leading-relaxed">
+                        {entry.challenges_and_solutions || 'None encountered.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Mentor Feedback If Available */}
+                  {entry.mentor_feedback && (
+                    <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl space-y-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[16px]">rate_review</span>
+                          Mentor Feedback
+                        </span>
+                        {entry.mentor_rating && (
+                          <span className="font-bold text-amber-600 dark:text-amber-400">
+                            ⭐ {entry.mentor_rating} / 5.0
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-emerald-900 dark:text-emerald-200 italic">
+                        "{entry.mentor_feedback}"
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1262,6 +1495,136 @@ export default function StudentOJT() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* NEW JOURNAL ENTRY MODAL */}
+      {/* ========================================================================= */}
+      {journalModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-surface border border-outline-variant rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92dvh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-vibrant-orange text-2xl">menu_book</span>
+                <div>
+                  <h3 className="font-bold text-base text-on-surface">Record Internship Journal Entry</h3>
+                  <p className="text-xs text-on-surface-variant">Daily or weekly milestone reflection</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setJournalModalOpen(false)}
+                className="text-on-surface-variant hover:text-on-surface"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateJournal} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-on-surface mb-1">Entry Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={journalForm.entry_date}
+                    onChange={(e) => setJournalForm({ ...journalForm, entry_date: e.target.value })}
+                    className="w-full p-2.5 bg-surface-container rounded-xl border border-outline-variant text-on-surface outline-none focus:border-vibrant-orange"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-on-surface mb-1">Week Number *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="52"
+                    required
+                    value={journalForm.week_number}
+                    onChange={(e) => setJournalForm({ ...journalForm, week_number: e.target.value })}
+                    className="w-full p-2.5 bg-surface-container rounded-xl border border-outline-variant text-on-surface outline-none focus:border-vibrant-orange"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-on-surface mb-1">Hours Rendered</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="24"
+                    value={journalForm.hours_rendered}
+                    onChange={(e) => setJournalForm({ ...journalForm, hours_rendered: e.target.value })}
+                    className="w-full p-2.5 bg-surface-container rounded-xl border border-outline-variant text-on-surface outline-none focus:border-vibrant-orange"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-on-surface mb-1">Journal Entry Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g., Sprint Planning, Frontend Component Styling & Testing"
+                  value={journalForm.title}
+                  onChange={(e) => setJournalForm({ ...journalForm, title: e.target.value })}
+                  className="w-full p-2.5 bg-surface-container rounded-xl border border-outline-variant text-on-surface outline-none focus:border-vibrant-orange"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-on-surface mb-1">Tasks Accomplished *</label>
+                <textarea
+                  required
+                  rows="3"
+                  placeholder="What specific tasks, tickets, or operations did you complete during this period?"
+                  value={journalForm.tasks_accomplished}
+                  onChange={(e) => setJournalForm({ ...journalForm, tasks_accomplished: e.target.value })}
+                  className="w-full p-2.5 bg-surface-container rounded-xl border border-outline-variant text-on-surface outline-none focus:border-vibrant-orange resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-on-surface mb-1">Key Learnings & Takeaways *</label>
+                <textarea
+                  required
+                  rows="3"
+                  placeholder="What new concepts, tools, frameworks, or soft skills did you learn or apply?"
+                  value={journalForm.key_learnings}
+                  onChange={(e) => setJournalForm({ ...journalForm, key_learnings: e.target.value })}
+                  className="w-full p-2.5 bg-surface-container rounded-xl border border-outline-variant text-on-surface outline-none focus:border-vibrant-orange resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-on-surface mb-1">Challenges & Solutions (Optional)</label>
+                <textarea
+                  rows="2"
+                  placeholder="Did you encounter any bugs, blockers, or difficulties? How did you resolve them?"
+                  value={journalForm.challenges_and_solutions}
+                  onChange={(e) => setJournalForm({ ...journalForm, challenges_and_solutions: e.target.value })}
+                  className="w-full p-2.5 bg-surface-container rounded-xl border border-outline-variant text-on-surface outline-none focus:border-vibrant-orange resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-outline-variant">
+                <button
+                  type="button"
+                  onClick={() => setJournalModalOpen(false)}
+                  className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={journalSubmitting}
+                  className="px-5 py-2.5 bg-vibrant-orange text-white text-xs font-bold rounded-xl hover:bg-deep-orange transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+                >
+                  <span className="material-symbols-outlined text-[16px]">save</span>
+                  <span>{journalSubmitting ? 'Saving...' : 'Save Journal Entry'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

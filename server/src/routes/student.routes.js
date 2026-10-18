@@ -3709,6 +3709,284 @@ router.post('/requirements/:id/submit', async (req, res) => {
   }
 });
 
+// ==============================================================================
+// STUDENT OJT INTERNSHIP JOURNALS
+// ==============================================================================
+
+// GET /api/student/journals - List all journal entries for the student
+router.get('/journals', async (req, res) => {
+  try {
+    const student = await getStudentId(req.user.user_id);
+    if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+
+    const [entries] = await pool.query(
+      `SELECT j.*, DATE_FORMAT(j.entry_date, '%Y-%m-%d') as entry_date_str,
+              ho.organization_name
+       FROM ojt_daily_journals j
+       LEFT JOIN ojt_records o ON j.ojt_id = o.ojt_id
+       LEFT JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
+       WHERE j.student_id = ?
+       ORDER BY j.entry_date DESC, j.created_at DESC`,
+      [student.student_id]
+    );
+
+    const totalHours = entries.reduce((acc, curr) => acc + (parseFloat(curr.hours_rendered) || 0), 0);
+    const reviewedCount = entries.filter(e => e.status === 'reviewed').length;
+
+    return res.json({
+      success: true,
+      data: {
+        entries,
+        summary: {
+          totalEntries: entries.length,
+          totalHoursLogged: totalHours,
+          reviewedEntries: reviewedCount
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Fetch journals error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch journal entries: ' + err.message });
+  }
+});
+
+// POST /api/student/journals - Create or submit a journal entry
+router.post('/journals', async (req, res) => {
+  try {
+    const student = await getStudentId(req.user.user_id);
+    if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+
+    const {
+      entry_date,
+      week_number = 1,
+      title,
+      tasks_accomplished,
+      key_learnings,
+      challenges_and_solutions = '',
+      hours_rendered = 8.00,
+      attachment_url = null,
+      status = 'submitted'
+    } = req.body;
+
+    if (!entry_date || !title || !tasks_accomplished || !key_learnings) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide entry date, title, tasks accomplished, and key learnings.'
+      });
+    }
+
+    // Find active OJT record
+    const [ojts] = await pool.query(
+      `SELECT ojt_id, mentor_id, organization_id FROM ojt_records 
+       WHERE student_id = ? AND status IN ('ongoing', 'active') 
+       ORDER BY created_at DESC LIMIT 1`,
+      [student.student_id]
+    );
+    const ojtId = ojts.length > 0 ? ojts[0].ojt_id : null;
+
+    const [result] = await pool.query(
+      `INSERT INTO ojt_daily_journals 
+        (ojt_id, student_id, entry_date, week_number, title, tasks_accomplished, key_learnings, challenges_and_solutions, attachment_url, hours_rendered, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [
+        ojtId,
+        student.student_id,
+        entry_date,
+        week_number,
+        title,
+        tasks_accomplished,
+        key_learnings,
+        challenges_and_solutions,
+        attachment_url,
+        hours_rendered,
+        status
+      ]
+    );
+
+    emitUpdate('journal_updated', { student_id: student.student_id, journal_id: result.insertId });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Internship journal entry successfully saved.',
+      data: {
+        journal_id: result.insertId
+      }
+    });
+  } catch (err) {
+    console.error('Create journal error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to save journal entry: ' + err.message });
+  }
+});
+
+// PUT /api/student/journals/:id - Update student's journal entry
+router.put('/journals/:id', async (req, res) => {
+  try {
+    const student = await getStudentId(req.user.user_id);
+    if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+
+    const journalId = req.params.id;
+    const {
+      entry_date,
+      week_number,
+      title,
+      tasks_accomplished,
+      key_learnings,
+      challenges_and_solutions,
+      hours_rendered,
+      attachment_url,
+      status
+    } = req.body;
+
+    const [existing] = await pool.query(
+      'SELECT * FROM ojt_daily_journals WHERE journal_id = ? AND student_id = ?',
+      [journalId, student.student_id]
+    );
+    if (existing.length === 0) {
+      return res.status(404).json({ success: false, message: 'Journal entry not found or unauthorized.' });
+    }
+
+    await pool.query(
+      `UPDATE ojt_daily_journals 
+       SET entry_date = COALESCE(?, entry_date),
+           week_number = COALESCE(?, week_number),
+           title = COALESCE(?, title),
+           tasks_accomplished = COALESCE(?, tasks_accomplished),
+           key_learnings = COALESCE(?, key_learnings),
+           challenges_and_solutions = COALESCE(?, challenges_and_solutions),
+           hours_rendered = COALESCE(?, hours_rendered),
+           attachment_url = COALESCE(?, attachment_url),
+           status = COALESCE(?, status),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE journal_id = ? AND student_id = ?`,
+      [
+        entry_date,
+        week_number,
+        title,
+        tasks_accomplished,
+        key_learnings,
+        challenges_and_solutions,
+        hours_rendered,
+        attachment_url,
+        status,
+        journalId,
+        student.student_id
+      ]
+    );
+
+    emitUpdate('journal_updated', { student_id: student.student_id, journal_id: journalId });
+
+    return res.json({ success: true, message: 'Journal entry successfully updated.' });
+  } catch (err) {
+    console.error('Update journal error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to update journal entry: ' + err.message });
+  }
+});
+
+// DELETE /api/student/journals/:id - Delete journal entry
+router.delete('/journals/:id', async (req, res) => {
+  try {
+    const student = await getStudentId(req.user.user_id);
+    if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+
+    const [result] = await pool.query(
+      'DELETE FROM ojt_daily_journals WHERE journal_id = ? AND student_id = ?',
+      [req.params.id, student.student_id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Journal entry not found.' });
+    }
+
+    emitUpdate('journal_updated', { student_id: student.student_id });
+
+    return res.json({ success: true, message: 'Journal entry deleted.' });
+  } catch (err) {
+    console.error('Delete journal error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to delete journal entry.' });
+  }
+});
+
+// GET /api/student/clearance - Dedicated clearance checking endpoint
+router.get('/clearance', async (req, res) => {
+  try {
+    const student = await getStudentId(req.user.user_id);
+    if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+
+    const [reqs] = await pool.query(
+      `SELECT r.requirement_id, r.title, r.description, r.is_mandatory, r.template_url,
+              sr.id as submission_id, sr.status as submission_status, sr.file_path, sr.submitted_at, sr.verified_at,
+              sr.rejection_reason
+       FROM ojt_requirements r
+       LEFT JOIN ojt_student_requirements sr ON r.requirement_id = sr.requirement_id AND sr.ojt_id IN (
+         SELECT ojt_id FROM ojt_records WHERE student_id = ?
+       )
+       WHERE r.institution_id = ? AND (r.program_id IS NULL OR r.program_id = ?)
+       ORDER BY r.is_mandatory DESC, r.created_at ASC`,
+      [student.student_id, student.institution_id, student.program_id]
+    );
+
+    const approvedCount = reqs.filter(r => r.submission_status === 'approved').length;
+    const totalCount = reqs.length;
+    const progressPct = totalCount > 0 ? Math.round((approvedCount / totalCount) * 100) : 0;
+    const isCleared = totalCount > 0 && approvedCount === totalCount;
+
+    return res.json({
+      success: true,
+      data: {
+        requirements: reqs,
+        summary: {
+          totalCount,
+          approvedCount,
+          progressPct,
+          isCleared,
+          status: isCleared ? 'cleared' : (approvedCount > 0 ? 'in_progress' : 'pending')
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Fetch clearance error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch clearance data: ' + err.message });
+  }
+});
+
+// GET /api/student/evaluations - Dedicated workplace evaluations endpoint
+router.get('/evaluations', async (req, res) => {
+  try {
+    const student = await getStudentId(req.user.user_id);
+    if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+
+    const [evaluations] = await pool.query(
+      `SELECT r.*, u.email as evaluator_email,
+              ho.organization_name
+       FROM ojt_performance_records r
+       JOIN ojt_records o ON r.ojt_id = o.ojt_id
+       JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
+       LEFT JOIN users u ON r.evaluator_id = u.user_id
+       WHERE o.student_id = ?
+       ORDER BY r.evaluated_at DESC`,
+      [student.student_id]
+    );
+
+    const avgRating = evaluations.length > 0
+      ? (evaluations.reduce((acc, curr) => acc + (parseFloat(curr.rating) || 0), 0) / evaluations.length).toFixed(1)
+      : null;
+
+    return res.json({
+      success: true,
+      data: {
+        evaluations,
+        summary: {
+          totalEvaluations: evaluations.length,
+          averageRating: avgRating
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Fetch evaluations error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch evaluations: ' + err.message });
+  }
+});
+
 // GET /api/student/certificates - Get all earned OJT certificates
 router.get('/certificates', async (req, res) => {
   try {

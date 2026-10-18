@@ -1279,6 +1279,35 @@ export async function runMigrations() {
       console.warn('[Migration Warning] Attendance QR migration error:', qrMigErr.message);
     }
 
+    // 33. Student OJT Daily & Weekly Internship Journals
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ojt_daily_journals (
+          journal_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          ojt_id BIGINT UNSIGNED NULL,
+          student_id BIGINT UNSIGNED NOT NULL,
+          entry_date DATE NOT NULL,
+          week_number INT UNSIGNED NOT NULL DEFAULT 1,
+          title VARCHAR(200) NOT NULL,
+          tasks_accomplished TEXT NOT NULL,
+          key_learnings TEXT NOT NULL,
+          challenges_and_solutions TEXT NULL,
+          attachment_url VARCHAR(255) NULL,
+          hours_rendered DECIMAL(5,2) DEFAULT 8.00,
+          mentor_feedback TEXT NULL,
+          mentor_rating DECIMAL(3,2) NULL,
+          status ENUM('draft', 'submitted', 'reviewed') DEFAULT 'submitted',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_journal_stu (student_id, entry_date),
+          INDEX idx_journal_ojt (ojt_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+      console.log('[Migration] ojt_daily_journals table ready.');
+    } catch (journalMigErr) {
+      console.warn('[Migration Warning] Journal table migration error:', journalMigErr.message);
+    }
+
     console.log('[Migration] All schema alignments completed successfully!');
   } catch (error) {
     console.error('[Migration Error]', error);
