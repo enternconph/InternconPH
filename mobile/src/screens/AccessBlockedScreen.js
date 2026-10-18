@@ -23,62 +23,109 @@ export default function AccessBlockedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState('');
 
+  const isCompleted = ojtStatus === 'completed';
+  const isRejected = ojtStatus === 'rejected';
+
   const handleRefresh = async () => {
     setRefreshing(true);
     setNotice('');
     try {
       const result = await checkOjtStatus();
-      if (!result.active) {
-        setNotice('Status checked: Your OJT is still pending placement with your host organization.');
+      if (result.error) {
+        setNotice(result.error);
+      } else if (!result.active) {
+        if (result.status === 'completed') {
+          setNotice('Status confirmed: Your internship has been successfully completed.');
+        } else {
+          setNotice('Status checked: Your OJT is still pending placement with your host organization.');
+        }
       }
     } catch (e) {
-      setNotice('Could not connect to live servers to check status.');
+      setNotice(e.message || 'Could not connect to live servers to check status.');
     } finally {
       setRefreshing(false);
     }
   };
 
+  const studentDisplayName = user?.full_name || user?.display_name || 'Student';
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         {/* Status Icon */}
-        <View style={styles.iconCircle}>
-          <Clock size={40} color={colors.warning} />
+        <View style={[styles.iconCircle, isCompleted && styles.iconCircleCompleted]}>
+          <Clock size={40} color={isCompleted ? colors.success : colors.warning} />
         </View>
 
         {/* Title */}
-        <Text style={styles.title}>OJT Placement Pending</Text>
-        
+        <Text style={styles.title}>
+          {isCompleted
+            ? 'Internship Completed'
+            : isRejected
+            ? 'Placement Rejected'
+            : 'OJT Placement Pending'}
+        </Text>
+
         {/* Status Pill */}
-        <View style={styles.statusPill}>
-          <AlertTriangle size={14} color={colors.warningText} />
-          <Text style={styles.statusPillText}>
+        <View style={[styles.statusPill, isCompleted && styles.statusPillCompleted]}>
+          <AlertTriangle size={14} color={isCompleted ? colors.successText : colors.warningText} />
+          <Text style={[styles.statusPillText, isCompleted && styles.statusPillTextCompleted]}>
             Current Status: {ojtStatus ? ojtStatus.replace(/_/g, ' ').toUpperCase() : 'APPLICANT'}
           </Text>
         </View>
 
         {/* Description */}
         <Text style={styles.description}>
-          Hello <Text style={styles.bold}>{user?.first_name || 'Student'}</Text>, this mobile attendance app is active only for students who have officially started their On-the-Job Training.
+          {isCompleted ? (
+            <>
+              Congratulations <Text style={styles.bold}>{studentDisplayName}</Text>! You have officially completed your required internship training hours. Active attendance clock-in has concluded for this cycle.
+            </>
+          ) : (
+            <>
+              Hello <Text style={styles.bold}>{studentDisplayName}</Text>, this mobile attendance app is active for students who have an active or ongoing On-the-Job Training placement.
+            </>
+          )}
         </Text>
 
         {/* Steps Card */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>How to activate mobile access:</Text>
-          
-          <View style={styles.stepRow}>
-            <Building2 size={18} color={colors.primary} />
-            <Text style={styles.stepText}>
-              Ensure your Host Company / Organization has confirmed your internship offer.
-            </Text>
-          </View>
+          <Text style={styles.cardTitle}>
+            {isCompleted ? 'Next Steps for Program Completion:' : 'How to activate mobile access:'}
+          </Text>
 
-          <View style={styles.stepRow}>
-            <FileCheck size={18} color={colors.primary} />
-            <Text style={styles.stepText}>
-              Your Institutional OJT Coordinator will endorse your active shift record.
-            </Text>
-          </View>
+          {isCompleted ? (
+            <>
+              <View style={styles.stepRow}>
+                <FileCheck size={18} color={colors.primary} />
+                <Text style={styles.stepText}>
+                  Verify that your Institutional Clearance Checklist documents are fully signed and endorsed.
+                </Text>
+              </View>
+
+              <View style={styles.stepRow}>
+                <Building2 size={18} color={colors.primary} />
+                <Text style={styles.stepText}>
+                  Ensure your Workplace Mentor has submitted your final performance evaluation and certification.
+                </Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.stepRow}>
+                <Building2 size={18} color={colors.primary} />
+                <Text style={styles.stepText}>
+                  Ensure your Host Company / Organization has confirmed your internship offer.
+                </Text>
+              </View>
+
+              <View style={styles.stepRow}>
+                <FileCheck size={18} color={colors.primary} />
+                <Text style={styles.stepText}>
+                  Your Institutional OJT Coordinator will endorse your active shift record.
+                </Text>
+              </View>
+            </>
+          )}
         </View>
 
         {notice ? (
@@ -141,6 +188,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20
   },
+  iconCircleCompleted: {
+    backgroundColor: colors.successBg,
+    borderColor: colors.successBorder
+  },
   title: {
     fontSize: 22,
     fontWeight: '800',
@@ -160,10 +211,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 16
   },
+  statusPillCompleted: {
+    backgroundColor: colors.successBg,
+    borderColor: colors.successBorder
+  },
   statusPillText: {
     fontSize: 11,
     fontWeight: '700',
     color: colors.warningText
+  },
+  statusPillTextCompleted: {
+    color: colors.successText
   },
   description: {
     fontSize: 13,

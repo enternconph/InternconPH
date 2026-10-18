@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -22,10 +23,14 @@ import {
   TrendingUp,
   LogOut
 } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { colors } from '../utils/theme';
 import AttendanceQrModal from '../components/AttendanceQrModal';
+
+const CACHE_OJT_KEY = '@internconph_cached_ojt_data';
+const CACHE_ATT_KEY = '@internconph_cached_att_data';
 
 export default function HomeScreen({ navigation }) {
   const { user, logout } = useAuth();
@@ -34,6 +39,23 @@ export default function HomeScreen({ navigation }) {
   const [ojtData, setOjtData] = useState(null);
   const [attendanceData, setAttendanceData] = useState(null);
   const [showQrModal, setShowQrModal] = useState(false);
+
+  // Restore cached dashboard data for offline support
+  useEffect(() => {
+    async function restoreCachedData() {
+      try {
+        const [cachedOjt, cachedAtt] = await Promise.all([
+          AsyncStorage.getItem(CACHE_OJT_KEY),
+          AsyncStorage.getItem(CACHE_ATT_KEY)
+        ]);
+        if (cachedOjt) setOjtData(JSON.parse(cachedOjt));
+        if (cachedAtt) setAttendanceData(JSON.parse(cachedAtt));
+      } catch (err) {
+        console.warn('HomeScreen cache restore error:', err);
+      }
+    }
+    restoreCachedData();
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -44,12 +66,14 @@ export default function HomeScreen({ navigation }) {
 
       if (ojtRes.success && ojtRes.data) {
         setOjtData(ojtRes.data);
+        AsyncStorage.setItem(CACHE_OJT_KEY, JSON.stringify(ojtRes.data)).catch(() => {});
       }
       if (attRes.success && attRes.data) {
         setAttendanceData(attRes.data);
+        AsyncStorage.setItem(CACHE_ATT_KEY, JSON.stringify(attRes.data)).catch(() => {});
       }
     } catch (err) {
-      console.warn('HomeScreen fetch error:', err);
+      console.warn('HomeScreen fetch error (offline fallback in use):', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -91,14 +115,21 @@ export default function HomeScreen({ navigation }) {
       >
         {/* Top Bar */}
         <View style={styles.topBar}>
-          <View>
-            <Text style={styles.greetingText}>Welcome back,</Text>
-            <Text style={styles.studentName}>
-              {user?.first_name} {user?.last_name}
-            </Text>
-            <Text style={styles.studentNumber}>
-              Student #{user?.student_number || user?.user_id}
-            </Text>
+          <View style={styles.topBarLeft}>
+            <Image
+              source={require('../assets/logo.png')}
+              style={styles.headerLogo}
+              resizeMode="contain"
+            />
+            <View>
+              <Text style={styles.greetingText}>Welcome back,</Text>
+              <Text style={styles.studentName}>
+                {user?.full_name || user?.display_name || 'Student Candidate'}
+              </Text>
+              <Text style={styles.studentNumber}>
+                Student #{user?.student_number || user?.student_id || user?.user_id}
+              </Text>
+            </View>
           </View>
           <TouchableOpacity onPress={logout} style={styles.logoutBtn} activeOpacity={0.7}>
             <LogOut size={18} color={colors.textSecondary} />
@@ -211,7 +242,13 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.mentorRow}>
             <UserCheck size={16} color={colors.textSecondary} />
             <Text style={styles.mentorText}>
-              Assigned Mentor: <Text style={styles.mentorName}>{activeRecord?.mentor_name || 'Assigned Supervisor'}</Text>
+              Assigned Mentor: <Text style={styles.mentorName}>
+                {activeRecord?.mentor_name ||
+                  (activeRecord?.mentor_first_name
+                    ? `${activeRecord.mentor_first_name} ${activeRecord.mentor_last_name || ''}`.trim()
+                    : null) ||
+                  'Assigned Supervisor'}
+              </Text>
             </Text>
           </View>
         </View>
@@ -304,6 +341,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20
+  },
+  topBarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1
+  },
+  headerLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#ffffff'
   },
   greetingText: {
     fontSize: 12,

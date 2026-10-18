@@ -1737,11 +1737,9 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
 
     // Step 4: Verify student has an active/ongoing OJT record with THIS hiring organization
     const [ojtRows] = await pool.query(
-      `SELECT o.*, jp.start_time as scheduled_start_time, jp.finish_time as scheduled_finish_time,
+      `SELECT o.*,
               os.first_name as mentor_first_name, os.last_name as mentor_last_name, os.user_id as mentor_user_id
        FROM ojt_records o
-       LEFT JOIN job_applications ja ON o.application_id = ja.application_id
-       LEFT JOIN job_postings jp ON ja.job_id = jp.job_id
        LEFT JOIN organization_staff os ON o.mentor_id = os.org_staff_id
        WHERE o.student_id = ? AND o.organization_id = ? AND o.status = 'ongoing'
        LIMIT 1`,

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react-native';
 import api from '../api/client';
 import { colors } from '../utils/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getOrCreateDeviceToken,
   getDeviceName,
@@ -31,6 +32,8 @@ import {
 
 const { width } = Dimensions.get('window');
 const ROTATION_INTERVAL = 20; // 20-second TOTP rotation
+const DEVICE_STORAGE_KEY = '@internconph_attendance_device_token';
+const CREDS_CACHE_KEY = '@internconph_qr_credentials';
 
 export default function AttendanceQrModal({ visible, onClose }) {
   const [loading, setLoading] = useState(true);
@@ -43,13 +46,14 @@ export default function AttendanceQrModal({ visible, onClose }) {
   const [deviceBound, setDeviceBound] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [watermarkPst, setWatermarkPst] = useState('');
+  const [isOffline, setIsOffline] = useState(false);
 
   // Moving watermark animation
   const watermarkAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef(null);
 
-  // Initialize Credentials & Register Device
+  // Initialize Credentials & Register Device (with full offline support)
   useEffect(() => {
     if (!visible) return;
 
@@ -58,49 +62,91 @@ export default function AttendanceQrModal({ visible, onClose }) {
     async function initCredentials() {
       setLoading(true);
       setErrorMessage('');
+
+      // 1. Check local cache first for instant offline availability
+      let hasCached = false;
+      try {
+        const cachedRaw = await AsyncStorage.getItem(CREDS_CACHE_KEY);
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          if (cached.qrSecret && cached.studentId && cached.deviceToken) {
+            hasCached = true;
+            if (isMounted) {
+              setDeviceToken(cached.deviceToken);
+              setStudentId(cached.studentId);
+              setStudentName(cached.studentName || 'OJT Student');
+              setQrSecret(cached.qrSecret);
+              setDeviceBound(true);
+              setIsOffline(true);
+            }
+            const cachedPayload = await buildDynamicQrPayload(cached.qrSecret, cached.studentId, cached.deviceToken);
+            if (isMounted) {
+              setQrPayload(cachedPayload);
+              setLoading(false);
+              startCountdown();
+            }
+          }
+        }
+      } catch (cacheErr) {
+        console.warn('Cache read error:', cacheErr);
+      }
+
+      // 2. Fetch/sync fresh credentials from server when online
       try {
         const devToken = await getOrCreateDeviceToken();
         const devName = getDeviceName();
-        if (isMounted) setDeviceToken(devToken);
 
-        // Fetch credentials from deployed server
-        const res = await api.get('/student/attendance/credentials');
-        if (!res.success || !res.data) {
-          throw new Error(res.message || 'Unable to retrieve cryptographic credentials.');
-        }
+        // Fetch credentials from deployed server with device params
+        const res = await api.get(`/student/attendance/credentials?device_token=${encodeURIComponent(devToken)}&device_name=${encodeURIComponent(devName)}`);
+        if (res.success && res.data) {
+          const {
+            studentId: sId,
+            studentName: sName,
+            qrSecret: secret,
+            deviceBound: isBound,
+            deviceToken: serverDeviceToken
+          } = res.data;
 
-        const { studentId: sId, studentName: sName, qrSecret: secret, deviceBound: isBound } = res.data;
-        if (isMounted) {
-          setStudentId(sId);
-          setStudentName(sName || 'OJT Student');
-          setQrSecret(secret);
-          setDeviceBound(!!isBound);
-        }
+          // Ensure token consistency between server and device
+          const activeDevToken = serverDeviceToken || devToken;
+          if (serverDeviceToken && serverDeviceToken !== devToken) {
+            await AsyncStorage.setItem(DEVICE_STORAGE_KEY, serverDeviceToken);
+          }
 
-        // If device is not yet registered, auto-bind device
-        if (!isBound && devToken) {
-          try {
-            await api.post('/student/attendance/device', {
-              device_hardware_token: devToken,
-              device_name: devName
-            });
-            if (isMounted) setDeviceBound(true);
-          } catch (bindErr) {
-            console.warn('Device auto-binding notice:', bindErr);
+          // Persist to local cache for offline availability
+          await AsyncStorage.setItem(CREDS_CACHE_KEY, JSON.stringify({
+            studentId: sId,
+            studentName: sName || 'OJT Student',
+            qrSecret: secret,
+            deviceToken: activeDevToken,
+            deviceBound: !!isBound
+          }));
+
+          if (isMounted) {
+            setDeviceToken(activeDevToken);
+            setStudentId(sId);
+            setStudentName(sName || 'OJT Student');
+            setQrSecret(secret);
+            setDeviceBound(!!isBound);
+            setIsOffline(false);
+            setErrorMessage('');
+          }
+
+          // Generate fresh payload with activeDevToken
+          const initialPayload = await buildDynamicQrPayload(secret, sId, activeDevToken);
+          if (isMounted) {
+            setQrPayload(initialPayload);
+            setLoading(false);
+            startCountdown();
           }
         }
-
-        // Generate initial payload
-        const initialPayload = await buildDynamicQrPayload(secret, sId, devToken);
-        if (isMounted) {
-          setQrPayload(initialPayload);
-          setLoading(false);
-          startCountdown();
-        }
       } catch (err) {
-        console.error('Error initializing QR credentials:', err);
-        if (isMounted) {
-          setErrorMessage(err.message || 'Failed to initialize attendance credentials.');
+        console.warn('Online credentials fetch failed (offline fallback):', err);
+        if (!hasCached && isMounted) {
+          setErrorMessage(err.message || 'Please connect online at least once to bind your attendance device.');
+          setLoading(false);
+        } else if (isMounted) {
+          setIsOffline(true);
           setLoading(false);
         }
       }
@@ -239,10 +285,12 @@ export default function AttendanceQrModal({ visible, onClose }) {
           ) : (
             <View style={styles.body}>
               {/* Security Shield Banner */}
-              <View style={styles.securityBanner}>
-                <Lock size={14} color={colors.infoText} />
-                <Text style={styles.securityBannerText}>
-                  Valid for 20s. Screenshots expire automatically.
+              <View style={[styles.securityBanner, isOffline && styles.offlineBanner]}>
+                <Lock size={14} color={isOffline ? colors.warningText : colors.infoText} />
+                <Text style={[styles.securityBannerText, isOffline && styles.offlineBannerText]}>
+                  {isOffline
+                    ? 'Offline Mode • Live TOTP Crypto Active (Valid for 20s)'
+                    : 'Online Synced • Valid for 20s (Screenshots expire)'}
                 </Text>
               </View>
 
@@ -454,6 +502,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: colors.infoText
+  },
+  offlineBanner: {
+    backgroundColor: colors.warningBg,
+    borderColor: colors.warningBorder
+  },
+  offlineBannerText: {
+    color: colors.warningText
   },
   qrWrapper: {
     alignItems: 'center',

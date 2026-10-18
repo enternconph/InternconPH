@@ -15,12 +15,13 @@ import {
   Calendar,
   User,
   MessageSquare,
-  Sparkles
+  Sparkles,
+  ArrowLeft
 } from 'lucide-react-native';
 import api from '../api/client';
 import { colors } from '../utils/theme';
 
-export default function EvaluationScreen() {
+export default function EvaluationScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [evaluations, setEvaluations] = useState([]);
@@ -122,9 +123,20 @@ export default function EvaluationScreen() {
     <SafeAreaView style={styles.safeArea}>
       {/* Screen Header */}
       <View style={styles.screenHeader}>
-        <View>
-          <Text style={styles.screenTitle}>Workplace Evaluations</Text>
-          <Text style={styles.screenSubtitle}>Mentor Competency Scores & Feedback</Text>
+        <View style={styles.headerTitleGroup}>
+          {navigation && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Home')}
+              style={styles.backBtn}
+              activeOpacity={0.7}
+            >
+              <ArrowLeft size={20} color={colors.navy} />
+            </TouchableOpacity>
+          )}
+          <View>
+            <Text style={styles.screenTitle}>Workplace Evaluations</Text>
+            <Text style={styles.screenSubtitle}>Mentor Competency Scores & Feedback</Text>
+          </View>
         </View>
       </View>
 
@@ -197,6 +209,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12
+  },
+  headerTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surfaceLow,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border
   },
   screenTitle: {
     fontSize: 20,
