@@ -6,6 +6,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useSidebar } from './DashboardLayout';
 import { playNotificationChime } from '../../utils/audio';
 import api from '../../api/client';
+import { findActiveNav } from './navConfig';
 
 export default function DashboardHeader() {
   const { user, logout } = useAuth();
@@ -191,8 +192,14 @@ export default function DashboardHeader() {
     return true;
   });
 
+  const activeNav = findActiveNav(
+    user?.role_name || user?.role || '',
+    user?.position || user?.staff_position || '',
+    location.pathname
+  );
+
   return (
-    <header className="sticky top-0 z-30 bg-surface-container-lowest/90 backdrop-blur-md border-b border-outline-variant px-3 sm:px-4 md:px-8 py-2.5 sm:py-3 transition-colors shrink-0">
+    <header className="sticky top-0 z-30 mx-2 mt-2 lg:mx-0 lg:mt-0 lg:mb-3 bg-surface-container-lowest/90 backdrop-blur-xl border border-outline-variant/60 rounded-full shadow-soft px-3 sm:px-4 py-2 transition-colors shrink-0">
       <div className="flex items-center justify-between gap-2 sm:gap-4">
         {/* Left: Mobile Hamburger Toggle + Branding + Desktop Breadcrumbs */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -226,6 +233,13 @@ export default function DashboardHeader() {
             </span>
           </button>
 
+          {/* Current page title */}
+          {activeNav && (
+            <div className="hidden lg:flex flex-col leading-tight min-w-0">
+              <span className="eyebrow">InternconPH</span>
+              <span className="font-headline font-bold text-base text-on-surface truncate">{activeNav.label}</span>
+            </div>
+          )}
         </div>
 
         {/* Right: Actions & Controls */}

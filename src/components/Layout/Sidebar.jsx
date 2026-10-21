@@ -1,106 +1,81 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSidebar } from './DashboardLayout';
 import { resolveFileUrl } from '../../utils/fileHelper';
+import { getNavSections, getRoleLabel } from './navConfig';
 
-// Reusable Navigation Item with Icon, Badge, Tooltip & Active State
-function SidebarNavItem({
-  to,
-  end = false,
-  icon,
-  label,
-  badge,
-  badgeColor,
-  isCollapsed,
-  onClick,
-  onHover,
-  onLeave
-}) {
+/** Tracks a CSS media query (used so the collapsed "rail" only applies on desktop, never in the mobile drawer). */
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(query).matches : false
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mql = window.matchMedia(query);
+    const onChange = (e) => setMatches(e.matches);
+    setMatches(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [query]);
+
+  return matches;
+}
+
+// Navigation item: amber pill when expanded, circular icon button in the collapsed rail.
+function SidebarNavItem({ to, end = false, icon, label, badge, isCollapsed, onClick, onHover, onLeave }) {
   const handleMouseEnter = (e) => {
     if (!isCollapsed || !onHover) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    onHover({
-      label,
-      badge,
-      top: rect.top + rect.height / 2
-    });
+    onHover({ label, badge, top: rect.top + rect.height / 2 });
   };
 
   return (
-    <div className="relative flex items-center justify-center w-full">
-      <NavLink
-        to={to}
-        end={end}
-        onClick={onClick}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={onLeave}
-        className={({ isActive }) =>
-          `relative flex items-center transition-all duration-200 ${
-            isCollapsed
-              ? `w-11 h-11 justify-center rounded-xl ${
-                  isActive
-                    ? 'bg-vibrant-orange text-white shadow-md shadow-vibrant-orange/30 ring-1 ring-vibrant-orange/50'
-                    : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
-                }`
-              : `w-full gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs sm:text-sm ${
-                  isActive
-                    ? 'bg-vibrant-orange text-white font-bold shadow-sm ring-1 ring-vibrant-orange/50'
-                    : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
-                }`
-          }`
-        }
-      >
-        {({ isActive }) => (
-          <>
-            {/* Icon */}
-            <span
-              className={`material-symbols-outlined shrink-0 transition-transform duration-150 ${
-                isCollapsed ? 'text-[22px]' : 'text-[20px]'
-              }`}
-            >
-              {icon}
-            </span>
+    <NavLink
+      to={to}
+      end={end}
+      onClick={onClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={onLeave}
+      aria-label={label}
+      className={({ isActive }) => {
+        const base = 'relative flex items-center transition-all duration-200 outline-none';
+        const shape = isCollapsed
+          ? 'w-11 h-11 mx-auto justify-center rounded-full'
+          : 'w-full gap-3 px-3.5 py-2.5 rounded-full text-[13px]';
+        const state = isActive
+          ? 'bg-vibrant-orange text-accent-ink font-bold shadow-md'
+          : 'text-on-surface-variant font-semibold hover:bg-brand-mint/40 hover:text-on-surface dark:hover:bg-brand-teal/10';
+        return `${base} ${shape} ${state}`;
+      }}
+    >
+      <span className={`material-symbols-outlined shrink-0 ${isCollapsed ? 'text-[22px]' : 'text-[20px]'}`}>{icon}</span>
 
-            {/* Label (expanded mode) */}
-            {!isCollapsed && (
-              <span className="truncate flex-1 min-w-0 text-left">
-                {label}
-              </span>
-            )}
+      {!isCollapsed && <span className="truncate flex-1 min-w-0 text-left">{label}</span>}
 
-            {/* Full badge in expanded mode */}
-            {!isCollapsed && badge && (
-              <span
-                className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 capitalize ${
-                  badgeColor || 'bg-vibrant-orange/20 text-vibrant-orange dark:bg-vibrant-orange/30 dark:text-orange-300'
-                }`}
-              >
-                {badge}
-              </span>
-            )}
+      {!isCollapsed && badge && (
+        <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 bg-brand-mint text-accent-ink">
+          {badge}
+        </span>
+      )}
 
-            {/* Minimal dot badge indicator in collapsed mode */}
-            {isCollapsed && badge && (
-              <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-vibrant-orange opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-vibrant-orange ring-2 ring-surface-container-lowest"></span>
-              </span>
-            )}
-          </>
-        )}
-      </NavLink>
-    </div>
+      {isCollapsed && badge && (
+        <span className="absolute top-1 right-1 flex h-2.5 w-2.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-vibrant-orange opacity-75" />
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-vibrant-orange ring-2 ring-surface-container-lowest" />
+        </span>
+      )}
+    </NavLink>
   );
 }
 
-// Section Header / Divider
 function SidebarSectionTitle({ title, isCollapsed }) {
   if (isCollapsed) {
-    return <div className="my-2 mx-auto w-6 h-[1px] bg-outline-variant/60" />;
+    return <div className="my-2 mx-auto w-6 h-px bg-outline-variant" />;
   }
   return (
-    <span className="px-3.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 block transition-opacity duration-200">
+    <span className="px-3.5 text-[10px] font-bold uppercase tracking-[0.12em] text-on-surface-variant/70 block">
       {title}
     </span>
   );
@@ -108,21 +83,17 @@ function SidebarSectionTitle({ title, isCollapsed }) {
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
-  const {
-    sidebarOpen,
-    setSidebarOpen,
-    sidebarCollapsed,
-    toggleSidebarCollapse
-  } = useSidebar();
+  const { sidebarOpen, setSidebarOpen, sidebarCollapsed, toggleSidebarCollapse } = useSidebar();
   const navigate = useNavigate();
-
-  // Tooltip state for collapsed mode
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [hoveredItem, setHoveredItem] = useState(null);
 
   if (!user) return null;
 
   const role = user.role_name || user.role || '';
   const position = user.position || (user.details && user.details.position) || '';
+  const collapsed = sidebarCollapsed && isDesktop;
+  const sections = getNavSections(role, position);
 
   const handleLogout = async () => {
     setSidebarOpen(false);
@@ -130,285 +101,96 @@ export default function Sidebar() {
     navigate('/login', { replace: true });
   };
 
-  const getPositionLabel = () => {
-    if (position) {
-      return position.replace(/_/g, ' ');
-    }
-    if (role === 'institution') return 'Institution Director';
-    if (role === 'hiring_organization') return 'HR Administrator';
-    if (role === 'system_admin') return 'System Administrator';
-    if (role === 'workplace_mentor' || role === 'mentor') return 'Workplace Mentor';
-    return (role || '').replace(/_/g, ' ');
-  };
-
   const navItemProps = {
-    isCollapsed: sidebarCollapsed,
+    isCollapsed: collapsed,
     onClick: () => setSidebarOpen(false),
     onHover: setHoveredItem,
-    onLeave: () => setHoveredItem(null)
+    onLeave: () => setHoveredItem(null),
   };
+
+  const initial = user.full_name ? user.full_name.charAt(0).toUpperCase() : (user.email || '?').charAt(0).toUpperCase();
 
   return (
     <>
       <aside
-        className={`fixed inset-y-0 left-0 z-50 bg-surface-container-lowest border-r border-outline-variant flex flex-col h-screen h-[100dvh] max-h-screen max-h-[100dvh] transition-[width,transform] duration-300 ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:shrink-0 lg:h-full lg:shadow-none ${
-          sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
-        } ${
-          sidebarCollapsed ? 'w-[min(18rem,calc(100vw-3rem))] sm:w-64 lg:w-[76px]' : 'w-[min(18rem,calc(100vw-3rem))] sm:w-64 lg:w-64'
-        }`}
+        aria-label="Primary navigation"
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col h-[100dvh] bg-surface-container-lowest border border-outline-variant shadow-soft
+          rounded-r-[2rem] transition-[width,transform] duration-300 ease-in-out
+          lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:shrink-0 lg:h-full lg:rounded-[2rem]
+          ${sidebarOpen ? 'translate-x-0 shadow-overlay' : '-translate-x-full'}
+          w-[min(19rem,calc(100vw-3rem))] ${collapsed ? 'lg:w-[76px]' : 'lg:w-[17.5rem]'}`}
       >
-        {/* Brand Header */}
-        <div
-          className={`p-3.5 flex items-center shrink-0 bg-surface-container-lowest transition-all duration-300 ${
-            sidebarCollapsed ? 'lg:justify-center justify-between gap-3' : 'justify-between gap-3'
-          }`}
-        >
-          {/* Logo & Text */}
-          <div className="flex items-center gap-3 overflow-hidden min-w-0">
+        {/* Brand */}
+        <div className={`flex items-center shrink-0 p-4 ${collapsed ? 'justify-center' : 'justify-between gap-3'}`}>
+          <div className="flex items-center gap-3 min-w-0">
             <img
               src="/logo.png"
-              alt="internconPH Logo"
-              className="h-8 sm:h-9 w-auto object-contain shrink-0"
+              alt="InternConPH logo"
+              className="h-10 w-10 rounded-xl object-contain shrink-0 bg-white border border-black/5 shadow-sm"
               loading="lazy"
               decoding="async"
             />
-            <div className={`overflow-hidden transition-opacity duration-200 ${sidebarCollapsed ? 'lg:hidden' : 'block'}`}>
-              <span className="font-black text-lg text-vibrant-orange tracking-tight block">íntєrncσnᵖʰ</span>
-              <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider truncate block">
-                {getPositionLabel()}
-              </span>
-            </div>
+            {!collapsed && (
+              <div className="min-w-0 leading-none">
+                <span className="font-headline font-bold text-lg tracking-tight text-on-surface block">InternconPH</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-accent-text truncate block mt-1">
+                  {getRoleLabel(role, position)}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* Mobile Close Button */}
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors shrink-0"
-            aria-label="Close sidebar"
+            className="lg:hidden icon-btn !w-9 !h-9 shrink-0"
+            aria-label="Close navigation"
           >
-            <span className="material-symbols-outlined text-[20px] block">close</span>
+            <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
 
-        {/* Navigation Links */}
-        <nav
-          className={`flex-1 p-3 space-y-3 overflow-y-auto overscroll-contain min-h-0 ${
-            sidebarCollapsed ? 'lg:px-2.5' : 'lg:p-3.5'
-          }`}
-        >
-          {/* ================================================================= */}
-          {/* STUDENT NAV                                                       */}
-          {/* ================================================================= */}
-          {role === 'student' && (
-            <>
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Main" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/student" end icon="dashboard" label="Dashboard" {...navItemProps} />
-              </div>
-
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Opportunities & OJT" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/student/jobs" icon="dynamic_feed" label="Browse Jobs & Feed" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/student/applications" icon="send" label="My Applications" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/student/ojt" icon="timelapse" label="OJT Progress & DTR" {...navItemProps} />
-              </div>
-
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Skills & Career" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/student/skills" icon="psychology" label="Skills & Matches" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/student/portfolio" icon="folder_special" label="Career Portfolio" {...navItemProps} />
-              </div>
-
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Account & Support" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/student/complaints" icon="gavel" label="Grievances & Reports" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/student/profile" icon="person" label="My Profile" {...navItemProps} />
-              </div>
-            </>
-          )}
-
-          {/* ================================================================= */}
-          {/* WORKPLACE MENTOR NAV                                              */}
-          {/* ================================================================= */}
-          {(role === 'workplace_mentor' || role === 'mentor') && (
-            <>
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Overview" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/organization" end icon="dashboard" label="Mentor Dashboard" {...navItemProps} />
-              </div>
-
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Supervision" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/organization/ojt" icon="badge" label="Deployed Interns & DTR" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/evaluations" icon="rate_review" label="Student Evaluations" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/grievances" icon="report_problem" label="Grievance & Incident Reports" {...navItemProps} />
-              </div>
-            </>
-          )}
-
-          {/* ================================================================= */}
-          {/* HIRING ORGANIZATION (HR ADMIN) NAV                                */}
-          {/* ================================================================= */}
-          {(role === 'hiring_organization' || role === 'hr_staff') && (
-            <>
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Overview" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/organization" end icon="dashboard" label="Employer Dashboard" {...navItemProps} />
-              </div>
-
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Recruitment Pipeline" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/organization/jobs" icon="post_add" label="Job Postings" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/applicants" icon="group" label="Applicants & Talent" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/interviews" icon="event_available" label="Interviews" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/offers" icon="assignment_turned_in" label="Offers & Deployments" {...navItemProps} />
-              </div>
-
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Interns & Mentorship" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/organization/ojt" icon="badge" label="Deployed Interns & DTR" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/evaluations" icon="rate_review" label="Evaluations" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/grievances" icon="report_problem" label="Grievance & Incidents" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/organization/mentors" icon="supervisor_account" label="Workplace Mentors" {...navItemProps} />
-              </div>
-            </>
-          )}
-
-          {/* ================================================================= */}
-          {/* INSTITUTION DIRECTOR NAV                                          */}
-          {/* ================================================================= */}
-          {role === 'institution' && (
-            <>
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Overview" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/institution" end icon="dashboard" label="Institution Overview" {...navItemProps} />
-              </div>
-
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Students & OJT" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/institution/students" icon="verified_user" label="Student Verification" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/institution/monitoring" icon="monitoring" label="OJT Monitoring & DTR" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/institution/ojt-offers" icon="work_outline" label="Dispatched OJT Offers" {...navItemProps} />
-              </div>
-
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Academic Operations" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/institution/staff" icon="badge" label="Faculty & Coordinators" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/institution/programs" icon="menu_book" label="Degree Programs" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/institution/requirements" icon="assignment_late" label="Clearance Requirements" {...navItemProps} />
-              </div>
-            </>
-          )}
-
-          {/* ================================================================= */}
-          {/* INSTITUTION STAFF NAV                                             */}
-          {/* ================================================================= */}
-          {role === 'institution_staff' && (
-            <>
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Overview" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/institution" end icon="dashboard" label="Staff Overview" {...navItemProps} />
-              </div>
-
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Assigned Scope" isCollapsed={sidebarCollapsed} />
-                {(position === 'ojt_supervisor' || position === 'ojt_coordinator' || !position) && (
-                  <>
-                    <SidebarNavItem to="/dashboard/institution/students" icon="verified_user" label="Student Verification" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/monitoring" icon="monitoring" label="OJT Monitoring & Logs" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/ojt-offers" icon="work_outline" label="OJT Offers" {...navItemProps} />
-                  </>
-                )}
-
-                {position === 'registrar' && (
-                  <>
-                    <SidebarNavItem to="/dashboard/institution/students" icon="verified_user" label="Student Verification" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/requirements" icon="assignment_late" label="Clearance Requirements" {...navItemProps} />
-                  </>
-                )}
-
-                {position === 'guidance_counselor' && (
-                  <SidebarNavItem to="/dashboard/institution/monitoring" icon="gavel" label="Grievance Oversight" {...navItemProps} />
-                )}
-
-                {position === 'dean' && (
-                  <>
-                    <SidebarNavItem to="/dashboard/institution/students" icon="verified_user" label="Department Students" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/staff" icon="badge" label="Department Staff" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/programs" icon="menu_book" label="Department Programs" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/monitoring" icon="monitoring" label="OJT Monitoring" {...navItemProps} />
-                    <SidebarNavItem to="/dashboard/institution/ojt-offers" icon="work_outline" label="OJT & Job Offers" {...navItemProps} />
-                  </>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* ================================================================= */}
-          {/* SYSTEM ADMIN NAV                                                  */}
-          {/* ================================================================= */}
-          {role === 'system_admin' && (
-            <>
-              <div className="space-y-1">
-                <SidebarSectionTitle title="System" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/admin" end icon="admin_panel_settings" label="System Overview" {...navItemProps} />
-              </div>
-
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Platform Entities" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/admin/institutions" icon="school" label="Institutions" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/admin/organizations" icon="business" label="Organizations" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/admin/jobs" icon="work" label="Job Moderation" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/admin/users" icon="manage_accounts" label="User Accounts" {...navItemProps} />
-              </div>
-
-              <div className="space-y-1">
-                <SidebarSectionTitle title="Governance & Intelligence" isCollapsed={sidebarCollapsed} />
-                <SidebarNavItem to="/dashboard/admin/complaints" icon="gavel" label="Grievance Oversight" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/admin/analytics" icon="trending_up" label="Skill Analytics" {...navItemProps} />
-                <SidebarNavItem to="/dashboard/admin/audit-logs" icon="receipt_long" label="Audit Trail" {...navItemProps} />
-              </div>
-            </>
-          )}
-
-          {/* Mobile Quick Sign Out */}
-          <div className="pt-3 mt-3 border-t border-outline-variant/60 lg:hidden">
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-error hover:bg-error-container transition-colors cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[20px]">logout</span>
-              <span>Sign Out</span>
-            </button>
-          </div>
+        {/* Navigation */}
+        <nav className={`flex-1 overflow-y-auto overscroll-contain min-h-0 space-y-4 pb-3 ${collapsed ? 'px-2.5' : 'px-3'}`}>
+          {sections.map((section) => (
+            <div key={section.title} className="space-y-1">
+              <SidebarSectionTitle title={section.title} isCollapsed={collapsed} />
+              {section.items.map((entry) => (
+                <SidebarNavItem
+                  key={entry.to + entry.label}
+                  to={entry.to}
+                  end={entry.end}
+                  icon={entry.icon}
+                  label={entry.label}
+                  badge={entry.badge}
+                  {...navItemProps}
+                />
+              ))}
+            </div>
+          ))}
         </nav>
 
-        {/* User Profile Footer */}
-        <div className="p-3 pb-[max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))] border-t border-outline-variant bg-surface-container-low shrink-0 mt-auto">
-          {/* User Profile / Settings Row */}
-          <div
+        {/* Profile & sign out */}
+        <div className="shrink-0 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-outline-variant space-y-2">
+          <button
+            type="button"
             onClick={() => {
               setSidebarOpen(false);
               navigate('/dashboard/settings');
             }}
             onMouseEnter={(e) => {
-              if (sidebarCollapsed) {
+              if (collapsed) {
                 const rect = e.currentTarget.getBoundingClientRect();
-                setHoveredItem({
-                  label: 'Settings & Profile',
-                  top: rect.top + rect.height / 2
-                });
+                setHoveredItem({ label: 'Settings & Profile', top: rect.top + rect.height / 2 });
               }
             }}
             onMouseLeave={() => setHoveredItem(null)}
-            className={`flex items-center rounded-2xl hover:bg-surface-container transition-colors cursor-pointer group ${
-              sidebarCollapsed ? 'lg:justify-center lg:p-1.5 p-2 gap-3 mb-2' : 'gap-3 mb-2.5 p-2'
+            className={`group w-full flex items-center rounded-2xl hover:bg-surface-container transition-colors text-left ${
+              collapsed ? 'justify-center p-1.5' : 'gap-3 p-2'
             }`}
-            title="Manage Profile & Settings"
+            title="Manage profile & settings"
           >
-            <div className="w-9 h-9 rounded-full overflow-hidden bg-vibrant-orange text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+            <span className="w-9 h-9 rounded-full overflow-hidden bg-brand-mint text-accent-ink border border-brand-teal flex items-center justify-center font-bold text-xs shrink-0">
               {user.avatar_url ? (
                 <img
                   src={resolveFileUrl(user.avatar_url)}
@@ -422,80 +204,69 @@ export default function Sidebar() {
                   }}
                 />
               ) : (
-                user.full_name ? user.full_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()
+                initial
               )}
-            </div>
-
-            {/* Profile Info (hidden on collapsed desktop) */}
-            <div className={`overflow-hidden flex-1 min-w-0 ${sidebarCollapsed ? 'lg:hidden' : 'block'}`}>
-              <p className="font-bold text-xs text-on-surface truncate group-hover:text-vibrant-orange transition-colors">
-                {user.display_name || user.full_name || user.email}
-              </p>
-              <p className="text-[10px] text-on-surface-variant truncate">{user.email}</p>
-            </div>
-
-            <span className={`material-symbols-outlined text-[18px] text-on-surface-variant group-hover:text-vibrant-orange group-hover:rotate-45 transition-all ${
-              sidebarCollapsed ? 'lg:hidden' : 'block'
-            }`}>
-              settings
             </span>
-          </div>
 
-          {/* Sign Out Button */}
-          {sidebarCollapsed ? (
-            <button
-              type="button"
-              onClick={handleLogout}
-              onMouseEnter={(e) => {
+            {!collapsed && (
+              <>
+                <span className="flex-1 min-w-0">
+                  <span className="block font-bold text-xs text-on-surface truncate">
+                    {user.display_name || user.full_name || user.email}
+                  </span>
+                  <span className="block text-[10px] text-on-surface-variant truncate">{user.email}</span>
+                </span>
+                <span className="material-symbols-outlined text-[18px] text-on-surface-variant group-hover:text-accent-text group-hover:rotate-45 transition-all">
+                  settings
+                </span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            onMouseEnter={(e) => {
+              if (collapsed) {
                 const rect = e.currentTarget.getBoundingClientRect();
-                setHoveredItem({
-                  label: 'Sign Out',
-                  top: rect.top + rect.height / 2
-                });
-              }}
-              onMouseLeave={() => setHoveredItem(null)}
-              className="hidden lg:flex w-10 h-10 mx-auto items-center justify-center bg-surface-container hover:bg-error-container hover:text-error rounded-xl text-on-surface-variant transition-colors cursor-pointer"
-              aria-label="Sign Out"
-            >
-              <span className="material-symbols-outlined text-[18px]">logout</span>
-            </button>
-          ) : (
+                setHoveredItem({ label: 'Sign Out', top: rect.top + rect.height / 2 });
+              }
+            }}
+            onMouseLeave={() => setHoveredItem(null)}
+            className={`flex items-center justify-center text-on-surface-variant bg-surface-container hover:bg-error-container hover:text-error transition-colors cursor-pointer font-bold text-xs ${
+              collapsed ? 'w-11 h-11 mx-auto rounded-full' : 'w-full gap-2 py-2.5 px-3 rounded-full'
+            }`}
+            aria-label="Sign Out"
+          >
+            <span className="material-symbols-outlined text-[18px]">logout</span>
+            {!collapsed && <span>Sign Out</span>}
+          </button>
+
+          {/* Collapse control lives in the header; keep a handy hint for keyboard users */}
+          {!collapsed && isDesktop && (
             <button
               type="button"
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-surface-container hover:bg-error-container hover:text-error rounded-xl text-xs font-bold text-on-surface-variant transition-colors cursor-pointer"
+              onClick={toggleSidebarCollapse}
+              className="w-full hidden lg:flex items-center justify-center gap-1.5 text-[10px] font-semibold text-on-surface-variant/70 hover:text-on-surface py-1"
+              aria-label="Collapse sidebar"
             >
-              <span className="material-symbols-outlined text-[16px]">logout</span>
-              <span>Sign Out</span>
+              <span className="material-symbols-outlined text-[14px]">keyboard_double_arrow_left</span>
+              <span>Collapse &middot; Ctrl+B</span>
             </button>
           )}
-
-          {/* Mobile Full Sign Out Button (always visible on mobile drawer) */}
-          <div className="lg:hidden">
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-surface-container hover:bg-error-container hover:text-error rounded-xl text-xs font-bold text-on-surface-variant transition-colors cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[16px]">logout</span>
-              <span>Sign Out</span>
-            </button>
-          </div>
         </div>
       </aside>
 
-      {/* Floating Hover Tooltip in Collapsed Desktop Mode */}
-      {sidebarCollapsed && hoveredItem && (
+      {/* Floating tooltip for the collapsed rail */}
+      {collapsed && hoveredItem && (
         <div
           role="tooltip"
-          className="hidden lg:flex fixed left-[86px] z-[9999] -translate-y-1/2 px-3 py-1.5 rounded-xl bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white text-xs font-semibold shadow-2xl border border-white/10 items-center gap-2 pointer-events-none transition-all duration-150 animate-in fade-in zoom-in-95 select-none"
+          className="hidden lg:flex fixed left-[104px] z-[9999] -translate-y-1/2 items-center gap-2 px-3 py-1.5 rounded-full bg-[#132320] text-[#FBF8EF] text-xs font-semibold shadow-overlay pointer-events-none select-none animate-fade-in"
           style={{ top: `${hoveredItem.top}px` }}
         >
-          {/* Tooltip Left Arrow Pointer */}
-          <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-0 h-0 border-y-4 border-y-transparent border-r-[6px] border-r-slate-900/95 dark:border-r-slate-800/95" />
-          <span className="relative z-10">{hoveredItem.label}</span>
+          <span>{hoveredItem.label}</span>
           {hoveredItem.badge && (
-            <span className="relative z-10 px-1.5 py-0.5 text-[10px] font-bold rounded-md bg-vibrant-orange text-white shadow-xs">
+            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-vibrant-orange text-[#1C2E2B]">
               {hoveredItem.badge}
             </span>
           )}

@@ -70,7 +70,7 @@ export default function DashboardLayout() {
         toggleSidebarCollapse
       }}
     >
-      <div className="flex h-screen h-[100dvh] w-full max-w-full bg-surface-container-low text-on-surface overflow-hidden">
+      <div className="flex h-screen h-[100dvh] w-full max-w-full bg-transparent text-on-surface overflow-hidden lg:p-3 lg:gap-3">
         {/* Mobile Backdrop Overlay */}
         {sidebarOpen && (
           <div
@@ -84,12 +84,14 @@ export default function DashboardLayout() {
         <Sidebar />
 
         {/* Main Content Viewport */}
-        <div className="flex-1 flex flex-col h-screen h-[100dvh] w-full max-w-full min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col h-screen h-[100dvh] lg:h-full w-full max-w-full min-w-0 overflow-hidden">
           <DashboardHeader />
           <main className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0 w-full max-w-full relative pb-24 lg:pb-0">
-            <PageTransition>
-              <Outlet />
-            </PageTransition>
+            <div className="max-w-[1400px] mx-auto w-full">
+              <PageTransition>
+                <Outlet />
+              </PageTransition>
+            </div>
           </main>
           <MobileBottomBar />
         </div>

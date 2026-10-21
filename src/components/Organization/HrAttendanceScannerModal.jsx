@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import api from '../../api/client';
-import { playNotificationChime } from '../../utils/audio';
+import { playAttendanceSuccessChime, playAttendanceErrorChime } from '../../utils/audio';
 import { formatPHT12Hour } from '../../utils/timeFormat';
 
 export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSuccess }) {
   const [scannerActive, setScannerActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [scanResult, setScanResult] = useState(null);
+  const [scanFeedback, setScanFeedback] = useState(null);
+  const [recentScans, setRecentScans] = useState([]);
   const [loading, setLoading] = useState(false);
   const [closing, setClosing] = useState(false);
 
@@ -16,6 +18,11 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
   const isStoppingRef = useRef(false);
   const qrRegionId = 'hr-attendance-qr-reader';
 
+  // Helper to append to session activity log
+  const addRecentScan = (entry) => {
+    setRecentScans((prev) => [entry, ...prev].slice(0, 5));
+  };
+
   // Process QR Payload via backend API
   const handleProcessPayload = async (rawPayload) => {
     if (isProcessingRef.current || isStoppingRef.current) return;
@@ -23,48 +30,102 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
     setLoading(true);
     setScanResult(null);
 
+    const currentTimeLabel = new Date().toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Manila',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+
     try {
       const res = await api.post('/org/attendance/scan-qr', {
         qr_payload: rawPayload
       });
 
-      try {
-        playNotificationChime();
-      } catch (_) {}
-
       if (res.status === 404) {
+        try { playAttendanceErrorChime(); } catch (_) {}
+        const errMsg = 'The attendance QR scanner service is currently updating. Please wait ~15-30 seconds and try again.';
         setScanResult({
           type: 'error',
-          message: 'The attendance QR scanner service is currently updating. Please wait ~15-30 seconds and try again.'
+          message: errMsg
+        });
+        setScanFeedback({ status: 'failed', action: null, message: errMsg });
+        addRecentScan({
+          id: Date.now(),
+          status: 'failed',
+          action: 'error',
+          internName: 'Unknown Intern',
+          detail: 'Service updating',
+          time: currentTimeLabel
         });
       } else if (res.success) {
+        try { playAttendanceSuccessChime(); } catch (_) {}
         setScanResult({
           type: 'success',
           action: res.action,
           message: res.message,
           data: res.data
         });
+        setScanFeedback({
+          status: 'success',
+          action: res.action,
+          intern: res.data?.student_name,
+          time: res.action === 'time_in' ? formatPHT12Hour(res.data?.time_in) : formatPHT12Hour(res.data?.time_out)
+        });
+        addRecentScan({
+          id: Date.now(),
+          status: 'success',
+          action: res.action,
+          internName: res.data?.student_name,
+          studentNumber: res.data?.student_number,
+          detail: res.action === 'time_in'
+            ? `In: ${formatPHT12Hour(res.data?.time_in)} (${res.data?.time_in_status === 'late' ? 'Late' : 'On-Time'})`
+            : `Out: ${formatPHT12Hour(res.data?.time_out)} (${res.data?.hours_rendered || 0} hrs)`,
+          time: currentTimeLabel
+        });
         // Real-time automatic background refresh
         if (onScanSuccess) {
           onScanSuccess(res);
         }
       } else {
+        try { playAttendanceErrorChime(); } catch (_) {}
+        const failMsg = res.message || 'Verification failed. QR is invalid or expired.';
         setScanResult({
           type: 'error',
-          message: res.message || 'Verification failed.'
+          message: failMsg
+        });
+        setScanFeedback({ status: 'failed', action: null, message: failMsg });
+        addRecentScan({
+          id: Date.now(),
+          status: 'failed',
+          action: 'error',
+          internName: 'Verification Failed',
+          detail: failMsg,
+          time: currentTimeLabel
         });
       }
     } catch (err) {
+      try { playAttendanceErrorChime(); } catch (_) {}
+      const netMsg = err.message || 'Network error scanning QR code.';
       setScanResult({
         type: 'error',
-        message: err.message || 'Network error scanning QR code.'
+        message: netMsg
+      });
+      setScanFeedback({ status: 'failed', action: null, message: netMsg });
+      addRecentScan({
+        id: Date.now(),
+        status: 'failed',
+        action: 'error',
+        internName: 'Network Error',
+        detail: netMsg,
+        time: currentTimeLabel
       });
     } finally {
       setLoading(false);
-      // Wait 3 seconds before allowing next scan to avoid duplicate scans
+      // Wait 3.5 seconds before allowing next scan to avoid duplicate scans
       setTimeout(() => {
         isProcessingRef.current = false;
-      }, 3000);
+      }, 3500);
     }
   };
 
@@ -215,10 +276,57 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
 
         {/* Content Body */}
         <div className="p-6 space-y-4 overflow-y-auto">
-          {/* Dedicated Full Camera Scanner View */}
+          {/* Dedicated Full Camera Scanner View with Dynamic Status Glow */}
           <div className="space-y-2">
-            <div className="relative bg-black rounded-2xl overflow-hidden aspect-square max-h-[300px] mx-auto flex items-center justify-center border-2 border-dashed border-vibrant-orange/50 shadow-inner">
+            <div
+              className={`relative bg-black rounded-2xl overflow-hidden aspect-square max-h-[300px] mx-auto flex items-center justify-center border-4 transition-all duration-300 shadow-inner ${
+                scanFeedback?.status === 'success'
+                  ? 'border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.55)]'
+                  : scanFeedback?.status === 'failed'
+                  ? 'border-red-500 shadow-[0_0_25px_rgba(239,68,68,0.55)]'
+                  : 'border-dashed border-vibrant-orange/50'
+              }`}
+            >
               <div id={qrRegionId} className="w-full h-full"></div>
+
+              {/* Real-time Viewfinder Status Overlay Banner */}
+              {scanFeedback && (
+                <div
+                  className={`absolute top-3 inset-x-3 z-20 py-2 px-3 rounded-xl backdrop-blur-md text-white flex items-center justify-between shadow-lg transition-all animate-fade-in ${
+                    scanFeedback.status === 'success'
+                      ? 'bg-emerald-600/95 border border-emerald-400'
+                      : 'bg-red-600/95 border border-red-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="material-symbols-outlined text-[22px] shrink-0">
+                      {scanFeedback.status === 'success' ? 'check_circle' : 'error'}
+                    </span>
+                    <div className="text-left truncate">
+                      <p className="text-xs font-black uppercase tracking-wide">
+                        {scanFeedback.status === 'success'
+                          ? scanFeedback.action === 'time_in'
+                            ? 'Time-In Successful'
+                            : 'Time-Out Successful'
+                          : 'Attendance Scan Failed'}
+                      </p>
+                      <p className="text-[10px] text-white/90 truncate">
+                        {scanFeedback.status === 'success'
+                          ? `${scanFeedback.intern || 'Intern'} • ${scanFeedback.time || ''}`
+                          : scanFeedback.message}
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`text-[9px] font-mono uppercase font-black px-2 py-0.5 rounded-full shrink-0 ${
+                      scanFeedback.status === 'success' ? 'bg-white text-emerald-700' : 'bg-white text-red-700'
+                    }`}
+                  >
+                    {scanFeedback.status === 'success' ? 'SUCCESS' : 'FAILED'}
+                  </span>
+                </div>
+              )}
+
               {!scannerActive && !cameraError && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-white space-y-2 bg-black/60 p-4 text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-3 border-vibrant-orange border-t-transparent"></div>
@@ -246,46 +354,57 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
             </div>
           )}
 
-          {/* Scan Results Card */}
+          {/* High-Visibility Scan Results Card */}
           {scanResult && (
             <div
               className={`p-4 rounded-2xl border transition-all animate-fade-in ${
                 scanResult.type === 'success'
-                  ? 'bg-emerald-50/90 dark:bg-emerald-950/30 border-emerald-500/40 text-emerald-950 dark:text-emerald-100'
-                  : 'bg-red-50/90 dark:bg-red-950/30 border-red-500/40 text-red-950 dark:text-red-100'
+                  ? 'bg-emerald-50/95 dark:bg-emerald-950/40 border-emerald-500/50 text-emerald-950 dark:text-emerald-100 shadow-sm'
+                  : 'bg-red-50/95 dark:bg-red-950/40 border-red-500/50 text-red-950 dark:text-red-100 shadow-sm'
               }`}
             >
               <div className="flex items-start gap-3">
                 <span
-                  className={`material-symbols-outlined text-[26px] shrink-0 mt-0.5 ${
+                  className={`material-symbols-outlined text-[28px] shrink-0 mt-0.5 ${
                     scanResult.type === 'success' ? 'text-emerald-600' : 'text-red-600'
                   }`}
                 >
                   {scanResult.type === 'success' ? 'check_circle' : 'cancel'}
                 </span>
-                <div className="space-y-1 flex-1">
+                <div className="space-y-1.5 flex-1">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <h4 className="font-bold text-sm">
-                      {scanResult.type === 'success'
-                        ? scanResult.action === 'time_in'
-                          ? 'Time-In Recorded!'
-                          : 'Time-Out Recorded!'
-                        : 'Attendance Verification Failed'}
-                    </h4>
-                    {scanResult.data?.action && (
+                    <div className="flex items-center gap-1.5">
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
-                          scanResult.data.action === 'time_in'
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          scanResult.type === 'success'
                             ? 'bg-emerald-600 text-white'
-                            : 'bg-vibrant-orange text-white'
+                            : 'bg-red-600 text-white'
                         }`}
                       >
-                        {scanResult.data.action === 'time_in' ? 'CLOCK IN' : 'CLOCK OUT'}
+                        {scanResult.type === 'success' ? 'SUCCESS' : 'FAILED'}
+                      </span>
+                      <h4 className="font-bold text-sm">
+                        {scanResult.type === 'success'
+                          ? scanResult.action === 'time_in'
+                            ? 'Time-In Recorded Successfully'
+                            : 'Time-Out Recorded Successfully'
+                          : 'Attendance Verification Failed'}
+                      </h4>
+                    </div>
+                    {scanResult.data?.action && (
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase font-mono ${
+                          scanResult.data.action === 'time_in'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/60 dark:text-emerald-200'
+                            : 'bg-orange-tint text-vibrant-orange border border-vibrant-orange/30'
+                        }`}
+                      >
+                        {scanResult.data.action === 'time_in' ? 'CLOCK-IN' : 'CLOCK-OUT'}
                       </span>
                     )}
                   </div>
 
-                  <p className="text-xs leading-relaxed">{scanResult.message}</p>
+                  <p className="text-xs leading-relaxed font-medium">{scanResult.message}</p>
 
                   {scanResult.data && (
                     <div className="pt-2 mt-2 border-t border-emerald-500/20 grid grid-cols-2 gap-2 text-[11px]">
@@ -317,6 +436,55 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Session Attendance Activity Log (Last 5 scans) */}
+          {recentScans.length > 0 && (
+            <div className="p-3 bg-surface-container-low rounded-2xl border border-outline-variant space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-on-surface">
+                <span className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] text-vibrant-orange">history</span>
+                  <span>Session Scan History</span>
+                </span>
+                <span className="text-[10px] font-mono text-on-surface-variant">Last {recentScans.length} scans</span>
+              </div>
+              <div className="space-y-1.5">
+                {recentScans.map((scan) => (
+                  <div
+                    key={scan.id}
+                    className="p-2 bg-surface rounded-xl border border-outline-variant/60 flex items-center justify-between gap-2 text-[11px]"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span
+                        className={`material-symbols-outlined text-[16px] shrink-0 ${
+                          scan.status === 'success' ? 'text-emerald-600' : 'text-red-600'
+                        }`}
+                      >
+                        {scan.status === 'success' ? 'check_circle' : 'cancel'}
+                      </span>
+                      <div className="truncate">
+                        <span className="font-bold text-on-surface truncate block">{scan.internName}</span>
+                        <span className="text-[10px] text-on-surface-variant block">{scan.detail}</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase font-mono ${
+                          scan.status === 'success'
+                            ? scan.action === 'time_in'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-orange-tint text-vibrant-orange'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {scan.status === 'success' ? (scan.action === 'time_in' ? 'IN' : 'OUT') : 'FAIL'}
+                      </span>
+                      <span className="text-[9px] text-on-surface-variant block font-mono">{scan.time}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

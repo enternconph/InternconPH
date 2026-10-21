@@ -57,6 +57,24 @@
   src: url('/fonts/WorkSans-700.ttf') format('truetype');
 }
 
+/* Space Grotesk — Variable 300-700 (Headlines / numerals) */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/fonts/SpaceGrotesk-Variable.ttf') format('truetype');
+}
+
+/* Plus Jakarta Sans — Variable 200-800 (Body / UI) */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/fonts/PlusJakartaSans-Variable.ttf') format('truetype');
+}
+
 /* Material Symbols Outlined */
 @font-face {
   font-family: 'Material Symbols Outlined';

@@ -19,10 +19,13 @@ import {
   Smartphone,
   Clock,
   Sparkles,
-  Lock
+  Lock,
+  CheckCircle2,
+  Check
 } from 'lucide-react-native';
 import api from '../api/client';
 import { colors } from '../utils/theme';
+import { formatTime12 } from '../utils/timeUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getOrCreateDeviceToken,
@@ -47,11 +50,14 @@ export default function AttendanceQrModal({ visible, onClose }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [watermarkPst, setWatermarkPst] = useState('');
   const [isOffline, setIsOffline] = useState(false);
+  const [todayLog, setTodayLog] = useState(null);
+  const [scanNotice, setScanNotice] = useState(null);
 
   // Moving watermark animation
   const watermarkAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef(null);
+  const prevLogRef = useRef(null);
 
   // Initialize Credentials & Register Device (with full offline support)
   useEffect(() => {
@@ -187,6 +193,60 @@ export default function AttendanceQrModal({ visible, onClose }) {
     };
   }, [visible]);
 
+  // Live attendance polling while QR modal is visible: instantly shows scan success or failure
+  useEffect(() => {
+    if (!visible) {
+      setScanNotice(null);
+      return;
+    }
+
+    let isSubscribed = true;
+
+    const checkAttendance = async () => {
+      try {
+        const res = await api.get('/student/attendance');
+        if (res.success && res.data && isSubscribed) {
+          const fresh = res.data.todayLog;
+          const prev = prevLogRef.current;
+
+          // Transition A: Fresh Time-In logged!
+          if (fresh?.time_in && (!prev || !prev.time_in)) {
+            setScanNotice({
+              type: 'success',
+              action: 'time_in',
+              title: 'TIME-IN SUCCESSFUL!',
+              message: `You clocked in at ${formatTime12(fresh.time_in)} (${fresh.time_in_status === 'late' ? 'Late Arrival' : 'On-Time'}). Have a productive shift!`
+            });
+            prevLogRef.current = fresh;
+            setTodayLog(fresh);
+          }
+          // Transition B: Fresh Time-Out logged!
+          else if (fresh?.time_out && (!prev || !prev.time_out)) {
+            setScanNotice({
+              type: 'success',
+              action: 'time_out',
+              title: 'TIME-OUT SUCCESSFUL!',
+              message: `You clocked out at ${formatTime12(fresh.time_out)} (${fresh.hours_rendered || 0} hrs credited). Shift is complete!`
+            });
+            prevLogRef.current = fresh;
+            setTodayLog(fresh);
+          } else if (fresh) {
+            prevLogRef.current = fresh;
+            setTodayLog(fresh);
+          }
+        }
+      } catch (_) {}
+    };
+
+    checkAttendance();
+    const pollId = setInterval(checkAttendance, 2500);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(pollId);
+    };
+  }, [visible]);
+
   // Dynamic Refresh Countdown Timer
   const startCountdown = () => {
     clearInterval(timerRef.current);
@@ -284,6 +344,57 @@ export default function AttendanceQrModal({ visible, onClose }) {
             </View>
           ) : (
             <View style={styles.body}>
+              {/* Real-time Scan Confirmation Notice / Live Alert */}
+              {scanNotice && (
+                <View style={[styles.scanNoticeCard, scanNotice.type === 'success' ? styles.scanNoticeSuccess : styles.scanNoticeError]}>
+                  <View style={styles.scanNoticeRow}>
+                    <CheckCircle2 size={20} color="#ffffff" />
+                    <View style={styles.scanNoticeTextGroup}>
+                      <Text style={styles.scanNoticeTitle}>{scanNotice.title}</Text>
+                      <Text style={styles.scanNoticeMessage}>{scanNotice.message}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setScanNotice(null)} style={styles.scanNoticeCloseBtn}>
+                      <X size={16} color="#ffffff" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* Today's Shift Live Status Indicator */}
+              <View style={styles.shiftStatusContainer}>
+                {todayLog?.time_out ? (
+                  <View style={[styles.shiftStatusCard, styles.shiftCardSuccess]}>
+                    <CheckCircle2 size={16} color="#059669" />
+                    <View style={styles.shiftStatusTexts}>
+                      <Text style={[styles.shiftStatusLabel, styles.textSuccess]}>TODAY'S SHIFT COMPLETED</Text>
+                      <Text style={styles.shiftStatusDesc}>
+                        In: {formatTime12(todayLog.time_in)} • Out: {formatTime12(todayLog.time_out)} ({todayLog.hours_rendered || 0} hrs credited)
+                      </Text>
+                    </View>
+                  </View>
+                ) : todayLog?.time_in ? (
+                  <View style={[styles.shiftStatusCard, styles.shiftCardActive]}>
+                    <View style={styles.livePulseDot} />
+                    <View style={styles.shiftStatusTexts}>
+                      <Text style={[styles.shiftStatusLabel, styles.textSuccess]}>CURRENTLY TIMED-IN (ON DUTY)</Text>
+                      <Text style={styles.shiftStatusDesc}>
+                        Clocked in at {formatTime12(todayLog.time_in)} ({todayLog.time_in_status === 'late' ? 'Late' : 'On-Time'}) • Scan to Clock-Out
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={[styles.shiftStatusCard, styles.shiftCardAwaiting]}>
+                    <Clock size={16} color="#d97706" />
+                    <View style={styles.shiftStatusTexts}>
+                      <Text style={[styles.shiftStatusLabel, styles.textWarning]}>AWAITING TIME-IN</Text>
+                      <Text style={styles.shiftStatusDesc}>
+                        Present this dynamic QR to HR scanner at premises to Clock-In
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+
               {/* Security Shield Banner */}
               <View style={[styles.securityBanner, isOffline && styles.offlineBanner]}>
                 <Lock size={14} color={isOffline ? colors.warningText : colors.infoText} />
@@ -389,7 +500,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20
@@ -397,24 +508,24 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: colors.surface,
-    borderRadius: 24,
+    backgroundColor: '#122824',
+    borderRadius: 28,
     padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    elevation: 12,
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: 'rgba(255, 255, 255, 0.15)'
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: 16,
+    paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)'
   },
   headerLeft: {
     flexDirection: 'row',
@@ -433,17 +544,18 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: colors.text
+    fontWeight: '800',
+    color: '#FFFFFF'
   },
   headerSubtitle: {
     fontSize: 11,
-    color: colors.textSecondary
+    color: '#80CBC4',
+    fontWeight: '600'
   },
   closeBtn: {
     padding: 6,
     borderRadius: 12,
-    backgroundColor: colors.surfaceLow
+    backgroundColor: 'rgba(255, 255, 255, 0.08)'
   },
   loadingContainer: {
     paddingVertical: 60,
@@ -631,5 +743,89 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 16,
     marginTop: 14
+  },
+  scanNoticeCard: {
+    width: '100%',
+    padding: 12,
+    borderRadius: 14,
+    marginBottom: 12
+  },
+  scanNoticeSuccess: {
+    backgroundColor: '#059669'
+  },
+  scanNoticeError: {
+    backgroundColor: '#dc2626'
+  },
+  scanNoticeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  scanNoticeTextGroup: {
+    flex: 1
+  },
+  scanNoticeTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.5
+  },
+  scanNoticeMessage: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.92)',
+    marginTop: 2
+  },
+  scanNoticeCloseBtn: {
+    padding: 4
+  },
+  shiftStatusContainer: {
+    width: '100%',
+    marginBottom: 12
+  },
+  shiftStatusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+    borderRadius: 14,
+    borderWidth: 1
+  },
+  shiftCardSuccess: {
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderColor: 'rgba(16, 185, 129, 0.25)'
+  },
+  shiftCardActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderColor: 'rgba(16, 185, 129, 0.35)'
+  },
+  shiftCardAwaiting: {
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    borderColor: 'rgba(245, 158, 11, 0.25)'
+  },
+  shiftStatusTexts: {
+    flex: 1
+  },
+  shiftStatusLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5
+  },
+  shiftStatusDesc: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: 1
+  },
+  textSuccess: {
+    color: '#059669'
+  },
+  textWarning: {
+    color: '#d97706'
+  },
+  livePulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10b981'
   }
 });

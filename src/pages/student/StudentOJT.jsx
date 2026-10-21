@@ -525,15 +525,20 @@ export default function StudentOJT() {
                   <span>My Attendance QR</span>
                 </button>
 
-                {isClockedOutToday ? (
+                {todayLog?.status === 'rejected' ? (
+                  <span className="px-3.5 py-1.5 bg-red-500/15 text-red-700 dark:text-red-300 rounded-full text-xs font-bold flex items-center gap-1.5 border border-red-500/30">
+                    <span className="material-symbols-outlined text-[16px]">cancel</span>
+                    <span>Attendance Rejected / Failed</span>
+                  </span>
+                ) : isClockedOutToday ? (
                   <span className="px-3.5 py-1.5 bg-green-tint text-pinoy-green rounded-full text-xs font-bold flex items-center gap-1.5 border border-pinoy-green/20">
                     <span className="material-symbols-outlined text-[16px]">verified</span>
-                    <span>Shift Completed • {todayLog.hours_rendered || 0} hrs Credited</span>
+                    <span>Time-Out Successful • {todayLog.hours_rendered || 0} hrs Credited</span>
                   </span>
                 ) : isClockedInToday ? (
                   <span className="px-3.5 py-1.5 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-bold flex items-center gap-1.5 border border-emerald-500/20">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>On Duty • Clocked In</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Time-In Successful • On Duty</span>
                   </span>
                 ) : (
                   <span className="px-3.5 py-1.5 bg-amber-500/15 text-amber-700 dark:text-amber-300 rounded-full text-xs font-bold flex items-center gap-1.5 border border-amber-500/20">
@@ -544,26 +549,106 @@ export default function StudentOJT() {
               </div>
             </div>
 
-            {/* Dynamic Attendance QR Prompt Banner */}
-            <div className="p-3.5 bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent border border-orange-500/25 rounded-2xl flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-vibrant-orange text-[22px] shrink-0">lock_clock</span>
-                <div>
-                  <p className="text-xs font-bold text-on-surface">Time-Bound Dynamic QR System</p>
-                  <p className="text-[11px] text-on-surface-variant">
-                    Present your live rotating QR code to your Hiring Organization HR Scanner at the office entrance to record Time-In and Time-Out. Screenshots are strictly expired and invalid.
-                  </p>
+            {/* High-Visibility Attendance Status Indicator Banner */}
+            {todayLog?.status === 'rejected' ? (
+              <div className="p-4 bg-red-50/90 dark:bg-red-950/30 border border-red-500/30 rounded-2xl flex items-start justify-between gap-3 flex-wrap">
+                <div className="flex items-start gap-3">
+                  <span className="material-symbols-outlined text-red-600 text-[26px] shrink-0 mt-0.5">error</span>
+                  <div className="space-y-0.5">
+                    <h4 className="text-xs font-black uppercase tracking-wide text-red-900 dark:text-red-200">
+                      Attendance Verification Rejected / Failed
+                    </h4>
+                    <p className="text-xs text-red-800 dark:text-red-300">
+                      {todayLog.rejection_notes || 'Your shift log was not approved by your workplace mentor. Please consult with your supervisor.'}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowQrModal(true)}
-                className="px-3.5 py-1.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 shadow-xs transition-colors"
-              >
-                <span className="material-symbols-outlined text-[16px]">qr_code_2</span>
-                <span>Generate Dynamic QR</span>
-              </button>
-            </div>
+            ) : isClockedOutToday ? (
+              <div className="p-4 bg-emerald-50/90 dark:bg-emerald-950/30 border border-emerald-500/30 rounded-2xl flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                    <span className="material-symbols-outlined text-[24px]">verified</span>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-black uppercase tracking-wide text-emerald-900 dark:text-emerald-100">
+                        Time-Out Recorded Successfully • Shift Completed
+                      </h4>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-600 text-white">
+                        {todayLog.hours_rendered || 0} hrs
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-800 dark:text-emerald-200 mt-0.5">
+                      In: {formatPHT12Hour(todayLog.time_in)} • Out: {formatPHT12Hour(todayLog.time_out)} • {todayLog.status === 'verified' ? 'Certified by Workplace Mentor' : 'Pending Mentor Validation'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowQrModal(true)}
+                  className="px-3 py-1.5 bg-surface text-on-surface hover:bg-surface-container border border-outline-variant rounded-xl text-xs font-bold transition-colors shadow-xs"
+                >
+                  View Attendance Token
+                </button>
+              </div>
+            ) : isClockedInToday ? (
+              <div className="p-4 bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent border border-emerald-500/35 rounded-2xl flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0 relative">
+                    <span className="material-symbols-outlined text-[24px]">schedule</span>
+                    <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-black uppercase tracking-wide text-emerald-950 dark:text-emerald-100">
+                        Time-In Recorded Successfully • On Duty
+                      </h4>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase font-mono ${
+                        todayLog.time_in_status === 'late'
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                          : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                      }`}>
+                        {todayLog.time_in_status === 'late' ? 'Late Arrival' : 'On-Time Arrival'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-800 dark:text-emerald-200 mt-0.5">
+                      Clocked in at {formatPHT12Hour(todayLog.time_in)}. Shift is currently running. Present your Dynamic QR code to HR before departing to Time-Out.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowQrModal(true)}
+                  className="px-3.5 py-1.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 shadow-xs transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[16px]">logout</span>
+                  <span>Scan for Time-Out</span>
+                </button>
+              </div>
+            ) : (
+              <div className="p-4 bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent border border-orange-500/25 rounded-2xl flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-vibrant-orange text-[26px] shrink-0">lock_clock</span>
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wide text-on-surface">
+                      Awaiting Time-In • Dynamic QR Required
+                    </h4>
+                    <p className="text-[11px] text-on-surface-variant mt-0.5">
+                      Present your live rotating QR code to your Hiring Organization HR Scanner at the office entrance to record Time-In. Screenshots are strictly expired and invalid.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowQrModal(true)}
+                  className="px-3.5 py-1.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 shadow-xs transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[16px]">qr_code_2</span>
+                  <span>Generate Dynamic QR</span>
+                </button>
+              </div>
+            )}
 
             {/* DTR Details Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">

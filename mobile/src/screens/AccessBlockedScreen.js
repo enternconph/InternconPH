@@ -13,7 +13,8 @@ import {
   LogOut,
   AlertTriangle,
   Building2,
-  FileCheck
+  FileCheck,
+  ShieldAlert
 } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { colors } from '../utils/theme';
@@ -54,7 +55,7 @@ export default function AccessBlockedScreen() {
       <View style={styles.container}>
         {/* Status Icon */}
         <View style={[styles.iconCircle, isCompleted && styles.iconCircleCompleted]}>
-          <Clock size={40} color={isCompleted ? colors.success : colors.warning} />
+          <ShieldAlert size={38} color={isCompleted ? '#10B981' : '#FFB433'} />
         </View>
 
         {/* Title */}
@@ -68,9 +69,9 @@ export default function AccessBlockedScreen() {
 
         {/* Status Pill */}
         <View style={[styles.statusPill, isCompleted && styles.statusPillCompleted]}>
-          <AlertTriangle size={14} color={isCompleted ? colors.successText : colors.warningText} />
+          <AlertTriangle size={13} color={isCompleted ? '#80CBC4' : '#FFB433'} />
           <Text style={[styles.statusPillText, isCompleted && styles.statusPillTextCompleted]}>
-            Current Status: {ojtStatus ? ojtStatus.replace(/_/g, ' ').toUpperCase() : 'APPLICANT'}
+            STATUS: {ojtStatus ? ojtStatus.replace(/_/g, ' ').toUpperCase() : 'APPLICANT'}
           </Text>
         </View>
 
@@ -96,38 +97,37 @@ export default function AccessBlockedScreen() {
           {isCompleted ? (
             <>
               <View style={styles.stepRow}>
-                <FileCheck size={18} color={colors.primary} />
+                <FileCheck size={16} color="#FFB433" />
                 <Text style={styles.stepText}>
-                  Verify that your Institutional Clearance Checklist documents are fully signed and endorsed.
+                  Submit final portfolio documents to your academic coordinator.
                 </Text>
               </View>
-
               <View style={styles.stepRow}>
-                <Building2 size={18} color={colors.primary} />
+                <Building2 size={16} color="#FFB433" />
                 <Text style={styles.stepText}>
-                  Ensure your Workplace Mentor has submitted your final performance evaluation and certification.
+                  Obtain signed exit clearances and certificate of completion.
                 </Text>
               </View>
             </>
           ) : (
             <>
               <View style={styles.stepRow}>
-                <Building2 size={18} color={colors.primary} />
+                <Building2 size={16} color="#80CBC4" />
                 <Text style={styles.stepText}>
-                  Ensure your Host Company / Organization has confirmed your internship offer.
+                  Secure an OJT internship offer through the web portal.
                 </Text>
               </View>
-
               <View style={styles.stepRow}>
-                <FileCheck size={18} color={colors.primary} />
+                <FileCheck size={16} color="#80CBC4" />
                 <Text style={styles.stepText}>
-                  Your Institutional OJT Coordinator will endorse your active shift record.
+                  Wait for your institution coordinator to endorse and activate your placement.
                 </Text>
               </View>
             </>
           )}
         </View>
 
+        {/* Notice Message */}
         {notice ? (
           <View style={styles.noticeBox}>
             <Text style={styles.noticeText}>{notice}</Text>
@@ -135,19 +135,19 @@ export default function AccessBlockedScreen() {
         ) : null}
 
         {/* Action Buttons */}
-        <View style={styles.buttonGroup}>
+        <View style={styles.actionGroup}>
           <TouchableOpacity
             onPress={handleRefresh}
             disabled={refreshing}
             style={styles.refreshBtn}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
             {refreshing ? (
-              <ActivityIndicator size="small" color="#ffffff" />
+              <ActivityIndicator size="small" color="#193631" />
             ) : (
               <>
-                <RefreshCw size={18} color="#ffffff" />
-                <Text style={styles.refreshBtnText}>Check Live Status</Text>
+                <RefreshCw size={16} color="#193631" />
+                <Text style={styles.refreshBtnText}>Check Live Placement Status</Text>
               </>
             )}
           </TouchableOpacity>
@@ -157,7 +157,7 @@ export default function AccessBlockedScreen() {
             style={styles.logoutBtn}
             activeOpacity={0.7}
           >
-            <LogOut size={18} color={colors.danger} />
+            <LogOut size={16} color="#FCA5A5" />
             <Text style={styles.logoutBtnText}>Sign Out</Text>
           </TouchableOpacity>
         </View>
@@ -169,146 +169,148 @@ export default function AccessBlockedScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: '#193631'
   },
   container: {
     flex: 1,
-    padding: 24,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center'
+    paddingHorizontal: 24,
+    gap: 12
   },
   iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.warningBg,
-    borderWidth: 1.5,
-    borderColor: colors.warningBorder,
-    justifyContent: 'center',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(255, 180, 51, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 180, 51, 0.4)',
     alignItems: 'center',
-    marginBottom: 20
+    justifyContent: 'center',
+    marginBottom: 6
   },
   iconCircleCompleted: {
-    backgroundColor: colors.successBg,
-    borderColor: colors.successBorder
+    backgroundColor: 'rgba(16, 185, 129, 0.18)',
+    borderColor: 'rgba(16, 185, 129, 0.4)'
   },
   title: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.navy,
-    textAlign: 'center',
-    marginBottom: 10
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textAlign: 'center'
   },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.warningBg,
-    borderWidth: 1,
-    borderColor: colors.warningBorder,
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    marginBottom: 16
+    paddingVertical: 4,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 180, 51, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 180, 51, 0.4)'
   },
   statusPillCompleted: {
-    backgroundColor: colors.successBg,
-    borderColor: colors.successBorder
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: 'rgba(16, 185, 129, 0.4)'
   },
   statusPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.warningText
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFB433'
   },
   statusPillTextCompleted: {
-    color: colors.successText
+    color: '#80CBC4'
   },
   description: {
-    fontSize: 13,
-    color: colors.textSecondary,
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
-    lineHeight: 20,
-    maxWidth: 320,
-    marginBottom: 24
+    lineHeight: 18,
+    paddingHorizontal: 8
   },
   bold: {
-    fontWeight: '700',
-    color: colors.text
+    color: '#FFFFFF',
+    fontWeight: '700'
   },
   card: {
     width: '100%',
-    maxWidth: 360,
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 22,
+    padding: 16,
     borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 20
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    gap: 10,
+    marginTop: 6
   },
   cardTitle: {
     fontSize: 12,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 12
+    fontWeight: '800',
+    color: '#FFFFFF'
   },
   stepRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 10
+    gap: 10
   },
   stepText: {
     flex: 1,
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 17
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.75)',
+    lineHeight: 16
   },
   noticeBox: {
     width: '100%',
-    maxWidth: 360,
-    backgroundColor: colors.infoBg,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
+    backgroundColor: 'rgba(38, 166, 154, 0.18)',
+    padding: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.infoBorder
+    borderColor: 'rgba(38, 166, 154, 0.35)'
   },
   noticeText: {
-    fontSize: 12,
-    color: colors.infoText,
-    textAlign: 'center'
+    fontSize: 11,
+    color: '#80CBC4',
+    textAlign: 'center',
+    fontWeight: '600'
   },
-  buttonGroup: {
+  actionGroup: {
     width: '100%',
-    maxWidth: 360,
-    gap: 10
+    gap: 10,
+    marginTop: 8
   },
   refreshBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 16
+    backgroundColor: '#FFB433',
+    paddingVertical: 13,
+    borderRadius: 24,
+    shadowColor: '#FFB433',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4
   },
   refreshBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#ffffff'
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#193631'
   },
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.surfaceLow,
-    paddingVertical: 12,
-    borderRadius: 16
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)'
   },
   logoutBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.danger
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FCA5A5'
   }
 });

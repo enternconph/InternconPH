@@ -26,7 +26,8 @@ import {
   Star,
   X,
   Send,
-  Sparkles
+  Sparkles,
+  ChevronRight
 } from 'lucide-react-native';
 import api from '../api/client';
 import { colors } from '../utils/theme';
@@ -38,6 +39,7 @@ export default function JournalScreen() {
   const [summary, setSummary] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedJournal, setSelectedJournal] = useState(null);
 
   // Form State
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
@@ -100,317 +102,305 @@ export default function JournalScreen() {
         setWeekNumber(String(Math.min(16, (parseInt(weekNumber) || 1) + 1)));
         fetchJournals();
       } else {
-        Alert.alert('Submission Notice', res.message || 'Failed to save journal.');
+        Alert.alert('Submission Error', res.message || 'Could not save journal entry.');
       }
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to submit journal entry.');
+      Alert.alert('Error', err.message || 'An error occurred while saving.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const renderJournalItem = ({ item }) => {
-    const isReviewed = item.status === 'reviewed';
+    const isApproved = item.status === 'approved';
+    const isPending = item.status === 'submitted' || item.status === 'pending';
 
     return (
-      <View style={styles.journalCard}>
-        {/* Header */}
+      <TouchableOpacity
+        onPress={() => setSelectedJournal(item)}
+        style={styles.journalCard}
+        activeOpacity={0.85}
+      >
         <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderLeft}>
-            <View style={styles.weekBadge}>
-              <Text style={styles.weekBadgeText}>Week {item.week_number || 1}</Text>
-            </View>
-            <View style={styles.dateRow}>
-              <Calendar size={13} color={colors.textSecondary} />
-              <Text style={styles.dateText}>
-                {new Date(item.entry_date).toLocaleDateString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric'
-                })}
-              </Text>
-            </View>
+          <View style={styles.weekBadge}>
+            <Text style={styles.weekBadgeText}>WEEK {item.week_number || 1}</Text>
           </View>
 
-          <View style={[styles.statusBadge, isReviewed ? styles.statusReviewed : styles.statusSubmitted]}>
-            <Text style={[styles.statusBadgeText, isReviewed ? styles.statusReviewedText : styles.statusSubmittedText]}>
-              {isReviewed ? 'Reviewed' : 'Submitted'}
+          <View style={[styles.statusBadge, isApproved ? styles.statusApproved : styles.statusPending]}>
+            <Text style={[styles.statusBadgeText, isApproved ? styles.textApproved : styles.textPending]}>
+              {isApproved ? 'APPROVED' : 'UNDER REVIEW'}
             </Text>
           </View>
         </View>
 
-        {/* Title */}
         <Text style={styles.journalTitle}>{item.title}</Text>
 
-        {/* Hours rendered */}
-        <View style={styles.hoursRow}>
-          <Clock size={13} color={colors.primary} />
-          <Text style={styles.hoursText}>
-            {parseFloat(item.hours_rendered || 0).toFixed(1)} hours rendered this period
-          </Text>
+        <View style={styles.metaRow}>
+          <View style={styles.metaItem}>
+            <Calendar size={12} color="#80CBC4" />
+            <Text style={styles.metaText}>{item.entry_date}</Text>
+          </View>
+
+          <View style={styles.metaItem}>
+            <Clock size={12} color="#80CBC4" />
+            <Text style={styles.metaText}>{item.hours_rendered || 0} hrs logged</Text>
+          </View>
         </View>
 
-        {/* Tasks Section */}
-        <View style={styles.contentSection}>
-          <View style={styles.sectionTitleRow}>
-            <CheckCircle size={14} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Tasks Accomplished</Text>
-          </View>
-          <Text style={styles.sectionBody}>{item.tasks_accomplished}</Text>
+        <Text style={styles.previewText} numberOfLines={2}>
+          {item.tasks_accomplished}
+        </Text>
+
+        <View style={styles.viewDetailLink}>
+          <Text style={styles.viewDetailText}>View Details</Text>
+          <ChevronRight size={14} color="#FFB433" />
         </View>
-
-        {/* Learnings Section */}
-        <View style={styles.contentSection}>
-          <View style={styles.sectionTitleRow}>
-            <Lightbulb size={14} color={colors.warning} />
-            <Text style={styles.sectionTitle}>Key Learnings & Takeaways</Text>
-          </View>
-          <Text style={styles.sectionBody}>{item.key_learnings}</Text>
-        </View>
-
-        {/* Challenges Section */}
-        {item.challenges_and_solutions ? (
-          <View style={styles.contentSection}>
-            <View style={styles.sectionTitleRow}>
-              <HelpCircle size={14} color={colors.info} />
-              <Text style={styles.sectionTitle}>Challenges & Problem Solving</Text>
-            </View>
-            <Text style={styles.sectionBody}>{item.challenges_and_solutions}</Text>
-          </View>
-        ) : null}
-
-        {/* Mentor Feedback If Available */}
-        {item.mentor_feedback ? (
-          <View style={styles.feedbackCard}>
-            <View style={styles.feedbackHeader}>
-              <Text style={styles.feedbackTitle}>Mentor Evaluation & Feedback</Text>
-              {item.mentor_rating && (
-                <View style={styles.ratingRow}>
-                  <Star size={13} color="#f59e0b" fill="#f59e0b" />
-                  <Text style={styles.ratingText}>{item.mentor_rating} / 5.0</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.feedbackBody}>"{item.mentor_feedback}"</Text>
-          </View>
-        ) : null}
-      </View>
+      </TouchableOpacity>
     );
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
-      <View style={styles.screenHeader}>
-        <View>
-          <Text style={styles.screenTitle}>Internship Journal</Text>
-          <Text style={styles.screenSubtitle}>Daily Reflections & Practical Learnings</Text>
-        </View>
-        <TouchableOpacity
-          onPress={() => setModalOpen(true)}
-          style={styles.newEntryBtn}
-          activeOpacity={0.85}
-        >
-          <Plus size={16} color="#ffffff" />
-          <Text style={styles.newEntryBtnText}>New Entry</Text>
-        </TouchableOpacity>
-      </View>
+      <FlatList
+        data={journals}
+        keyExtractor={(item) => String(item.journal_id || item.id || Math.random())}
+        renderItem={renderJournalItem}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#FFB433']}
+            tintColor={'#FFB433'}
+          />
+        }
+        ListHeaderComponent={
+          <>
+            {/* Header Title & CTA Button */}
+            <View style={styles.headerRow}>
+              <View>
+                <Text style={styles.screenTitle}>Internship Journal</Text>
+                <Text style={styles.screenSubtitle}>Weekly reflection and task logs</Text>
+              </View>
 
-      {/* Summary Header */}
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryNum}>{journals.length}</Text>
-          <Text style={styles.summaryLabel}>Total Entries</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryNum}>{summary?.totalHours || 0}</Text>
-          <Text style={styles.summaryLabel}>Hours Documented</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryNum}>
-            {journals.filter(j => j.status === 'reviewed').length}
-          </Text>
-          <Text style={styles.summaryLabel}>Mentor Reviewed</Text>
-        </View>
-      </View>
+              <TouchableOpacity
+                onPress={() => setModalOpen(true)}
+                style={styles.addBtn}
+                activeOpacity={0.85}
+              >
+                <Plus size={16} color="#193631" />
+                <Text style={styles.addBtnText}>New Entry</Text>
+              </TouchableOpacity>
+            </View>
 
-      {/* List */}
-      {loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading journal reflections...</Text>
-        </View>
-      ) : journals.length === 0 ? (
-        <View style={styles.emptyBox}>
-          <BookOpen size={48} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>No journal entries recorded yet</Text>
-          <Text style={styles.emptySubtitle}>
-            Document your daily achievements, practical problem-solving, and mentor feedback.
-          </Text>
-          <TouchableOpacity
-            onPress={() => setModalOpen(true)}
-            style={styles.firstEntryBtn}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.firstEntryBtnText}>Create Your First Journal Entry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={journals}
-          keyExtractor={item => item.journal_id.toString()}
-          renderItem={renderJournalItem}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.primary]}
-            />
-          }
-        />
-      )}
+            {/* Summary Bento */}
+            <View style={styles.summaryBento}>
+              <View style={styles.bentoItem}>
+                <Text style={styles.bentoLabel}>TOTAL ENTRIES</Text>
+                <Text style={styles.bentoVal}>{summary?.totalEntries || journals.length}</Text>
+              </View>
+              <View style={styles.bentoDivider} />
+              <View style={styles.bentoItem}>
+                <Text style={styles.bentoLabel}>HOURS LOGGED</Text>
+                <Text style={styles.bentoVal}>{summary?.totalHours || 0}</Text>
+              </View>
+              <View style={styles.bentoDivider} />
+              <View style={styles.bentoItem}>
+                <Text style={styles.bentoLabel}>APPROVED</Text>
+                <Text style={[styles.bentoVal, { color: '#80CBC4' }]}>
+                  {summary?.approvedEntries || journals.filter(j => j.status === 'approved').length}
+                </Text>
+              </View>
+            </View>
+          </>
+        }
+        ListEmptyComponent={
+          !loading && (
+            <View style={styles.emptyContainer}>
+              <BookOpen size={36} color="#80CBC4" />
+              <Text style={styles.emptyTitle}>No journal entries yet</Text>
+              <Text style={styles.emptySubtitle}>
+                Document your daily accomplishments and weekly reflections.
+              </Text>
+            </View>
+          )
+        }
+        ListFooterComponent={<View style={{ height: 80 }} />}
+      />
 
       {/* New Entry Modal */}
       <Modal
         visible={modalOpen}
         animationType="slide"
-        presentationStyle="pageSheet"
+        transparent
         onRequestClose={() => setModalOpen(false)}
       >
-        <SafeAreaView style={styles.modalSafeArea}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.modalKeyboard}
-          >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalBackdrop}
+        >
+          <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <View style={styles.modalTitleGroup}>
-                <BookOpen size={20} color={colors.primary} />
-                <Text style={styles.modalTitle}>Record Journal Entry</Text>
+              <View>
+                <Text style={styles.modalTitle}>New Journal Reflection</Text>
+                <Text style={styles.modalSubtitle}>CHED CMO 104 Student Portfolio Log</Text>
               </View>
-              <TouchableOpacity
-                onPress={() => setModalOpen(false)}
-                style={styles.modalCloseBtn}
-                activeOpacity={0.7}
-              >
-                <X size={20} color={colors.textSecondary} />
+              <TouchableOpacity onPress={() => setModalOpen(false)} style={styles.closeBtn}>
+                <X size={18} color="#80CBC4" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
-              {/* Row: Date, Week, Hours */}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.formScroll}>
               <View style={styles.formRow}>
-                <View style={styles.formCol}>
-                  <Text style={styles.inputLabel}>Entry Date (YYYY-MM-DD)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={entryDate}
-                    onChangeText={setEntryDate}
-                    placeholder="2026-10-18"
-                    placeholderTextColor={colors.textMuted}
-                  />
-                </View>
-
-                <View style={styles.formCol}>
-                  <Text style={styles.inputLabel}>Week #</Text>
+                <View style={[styles.formField, { flex: 1 }]}>
+                  <Text style={styles.fieldLabel}>Week Number</Text>
                   <TextInput
                     style={styles.textInput}
                     value={weekNumber}
                     onChangeText={setWeekNumber}
                     keyboardType="numeric"
                     placeholder="1"
-                    placeholderTextColor={colors.textMuted}
+                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
                   />
                 </View>
 
-                <View style={styles.formCol}>
-                  <Text style={styles.inputLabel}>Hours Rendered</Text>
+                <View style={[styles.formField, { flex: 1 }]}>
+                  <Text style={styles.fieldLabel}>Hours Logged</Text>
                   <TextInput
                     style={styles.textInput}
                     value={hoursRendered}
                     onChangeText={setHoursRendered}
                     keyboardType="numeric"
                     placeholder="8"
-                    placeholderTextColor={colors.textMuted}
+                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
                   />
                 </View>
               </View>
 
-              {/* Title */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Entry Title *</Text>
+              <View style={styles.formField}>
+                <Text style={styles.fieldLabel}>Entry Title</Text>
                 <TextInput
                   style={styles.textInput}
                   value={title}
                   onChangeText={setTitle}
-                  placeholder="e.g. Backend API Development & Database Optimization"
-                  placeholderTextColor={colors.textMuted}
+                  placeholder="e.g. Backend API Integration & Architecture"
+                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
                 />
               </View>
 
-              {/* Tasks Accomplished */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Tasks Accomplished *</Text>
+              <View style={styles.formField}>
+                <Text style={styles.fieldLabel}>Tasks & Deliverables Accomplished</Text>
                 <TextInput
                   style={[styles.textInput, styles.textArea]}
                   value={tasksAccomplished}
                   onChangeText={setTasksAccomplished}
+                  placeholder="Detail your completed duties and assignments..."
+                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
                   multiline
-                  numberOfLines={4}
-                  placeholder="What specific tasks, tickets, or modules did you complete?"
-                  placeholderTextColor={colors.textMuted}
+                  numberOfLines={3}
                 />
               </View>
 
-              {/* Key Learnings */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Key Learnings & Takeaways *</Text>
+              <View style={styles.formField}>
+                <Text style={styles.fieldLabel}>Key Learnings & Realizations</Text>
                 <TextInput
                   style={[styles.textInput, styles.textArea]}
                   value={keyLearnings}
                   onChangeText={setKeyLearnings}
+                  placeholder="What professional or technical insights did you gain?"
+                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
                   multiline
-                  numberOfLines={4}
-                  placeholder="What new concepts, tools, or best practices did you learn?"
-                  placeholderTextColor={colors.textMuted}
+                  numberOfLines={3}
                 />
               </View>
 
-              {/* Challenges */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Challenges Encountered & Solutions</Text>
+              <View style={styles.formField}>
+                <Text style={styles.fieldLabel}>Challenges & Solutions (Optional)</Text>
                 <TextInput
                   style={[styles.textInput, styles.textArea]}
                   value={challenges}
                   onChangeText={setChallenges}
+                  placeholder="Obstacles encountered and how you addressed them..."
+                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
                   multiline
-                  numberOfLines={3}
-                  placeholder="Did you encounter any bugs, blockers, or hurdles? How did you resolve them?"
-                  placeholderTextColor={colors.textMuted}
+                  numberOfLines={2}
                 />
               </View>
 
-              {/* Submit Button */}
               <TouchableOpacity
                 onPress={handleCreateEntry}
                 disabled={submitting}
-                style={[styles.submitEntryBtn, submitting && styles.btnDisabled]}
+                style={styles.submitBtn}
                 activeOpacity={0.85}
               >
                 {submitting ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
+                  <ActivityIndicator size="small" color="#193631" />
                 ) : (
                   <>
-                    <Send size={18} color="#ffffff" />
-                    <Text style={styles.submitEntryBtnText}>Save & Submit Journal Entry</Text>
+                    <Send size={16} color="#193631" />
+                    <Text style={styles.submitBtnText}>Submit Journal Entry</Text>
                   </>
                 )}
               </TouchableOpacity>
             </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Detail Bottom Sheet Modal */}
+      <Modal
+        visible={!!selectedJournal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSelectedJournal(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { maxHeight: '85%' }]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <View style={styles.weekBadge}>
+                  <Text style={styles.weekBadgeText}>WEEK {selectedJournal?.week_number || 1}</Text>
+                </View>
+                <Text style={[styles.modalTitle, { marginTop: 4 }]}>{selectedJournal?.title}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setSelectedJournal(null)} style={styles.closeBtn}>
+                <X size={18} color="#80CBC4" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.formScroll}>
+              <View style={styles.detailMetaRow}>
+                <Text style={styles.detailMetaText}>Date: {selectedJournal?.entry_date}</Text>
+                <Text style={styles.detailMetaText}>Hours: {selectedJournal?.hours_rendered} hrs</Text>
+              </View>
+
+              <View style={styles.detailSection}>
+                <Text style={styles.detailSectionLabel}>Tasks Accomplished:</Text>
+                <Text style={styles.detailSectionBody}>{selectedJournal?.tasks_accomplished}</Text>
+              </View>
+
+              <View style={styles.detailSection}>
+                <Text style={styles.detailSectionLabel}>Key Learnings:</Text>
+                <Text style={styles.detailSectionBody}>{selectedJournal?.key_learnings}</Text>
+              </View>
+
+              {selectedJournal?.challenges_and_solutions ? (
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionLabel}>Challenges & Solutions:</Text>
+                  <Text style={styles.detailSectionBody}>{selectedJournal.challenges_and_solutions}</Text>
+                </View>
+              ) : null}
+
+              {selectedJournal?.mentor_feedback ? (
+                <View style={[styles.detailSection, styles.feedbackBox]}>
+                  <Text style={styles.feedbackLabel}>Mentor Appraisal:</Text>
+                  <Text style={styles.feedbackBody}>{selectedJournal.mentor_feedback}</Text>
+                </View>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -419,338 +409,309 @@ export default function JournalScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: '#193631'
   },
-  screenHeader: {
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 30
+  },
+  headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12
+    justifyContent: 'space-between',
+    marginBottom: 14
   },
   screenTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.navy
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.4
   },
   screenSubtitle: {
     fontSize: 11,
-    color: colors.textSecondary
+    color: '#80CBC4',
+    marginTop: 2
   },
-  newEntryBtn: {
+  addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.primary,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 14
+    borderRadius: 20,
+    backgroundColor: '#FFB433',
+    shadowColor: '#FFB433',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4
   },
-  newEntryBtnText: {
+  addBtnText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#ffffff'
+    fontWeight: '800',
+    color: '#193631'
   },
-  summaryCard: {
+  summaryBento: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
-    marginHorizontal: 20,
-    marginBottom: 16,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 20,
     padding: 14,
-    borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    marginBottom: 16
   },
-  summaryItem: {
+  bentoItem: {
     flex: 1,
     alignItems: 'center'
   },
-  summaryNum: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.primary,
-    fontFamily: 'monospace'
+  bentoDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)'
   },
-  summaryLabel: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    fontWeight: '600',
+  bentoLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#80CBC4',
+    letterSpacing: 0.5
+  },
+  bentoVal: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF',
     marginTop: 2
   },
-  summaryDivider: {
-    width: 1,
-    height: '80%',
-    backgroundColor: colors.borderLight,
-    alignSelf: 'center'
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40
-  },
   journalCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 22,
     padding: 16,
-    marginBottom: 14,
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    marginBottom: 12,
+    gap: 8
   },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10
-  },
-  cardHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
+    justifyContent: 'space-between'
   },
   weekBadge: {
-    backgroundColor: colors.primaryLight,
+    backgroundColor: 'rgba(38, 166, 154, 0.25)',
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.primaryBorder
+    borderColor: 'rgba(38, 166, 154, 0.4)'
   },
   weekBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.primaryDark
-  },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4
-  },
-  dateText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textSecondary
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#80CBC4',
+    letterSpacing: 0.5
   },
   statusBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    borderWidth: 1
+    paddingVertical: 2.5,
+    borderRadius: 10
   },
-  statusReviewed: {
-    backgroundColor: colors.successBg,
-    borderColor: colors.successBorder
+  statusApproved: {
+    backgroundColor: 'rgba(16, 185, 129, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)'
   },
-  statusSubmitted: {
-    backgroundColor: colors.warningBg,
-    borderColor: colors.warningBorder
+  statusPending: {
+    backgroundColor: 'rgba(255, 180, 51, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 180, 51, 0.4)'
   },
   statusBadgeText: {
-    fontSize: 10,
-    fontWeight: '700'
+    fontSize: 9,
+    fontWeight: '800'
   },
-  statusReviewedText: {
-    color: colors.successText
+  textApproved: {
+    color: '#80CBC4'
   },
-  statusSubmittedText: {
-    color: colors.warningText
+  textPending: {
+    color: '#FFB433'
   },
   journalTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.navy,
-    marginBottom: 6
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF'
   },
-  hoursRow: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 12
+    gap: 12
   },
-  hoursText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '500'
-  },
-  contentSection: {
-    backgroundColor: colors.surfaceLow,
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: colors.borderLight
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4
-  },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.text
-  },
-  sectionBody: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 18
-  },
-  feedbackCard: {
-    backgroundColor: colors.successBg,
-    borderRadius: 14,
-    padding: 12,
-    marginTop: 6,
-    borderWidth: 1,
-    borderColor: colors.successBorder
-  },
-  feedbackHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4
-  },
-  feedbackTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.successText
-  },
-  ratingRow: {
+  metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4
   },
-  ratingText: {
+  metaText: {
+    fontSize: 10,
+    color: '#80CBC4'
+  },
+  previewText: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#92400e'
+    color: 'rgba(255, 255, 255, 0.7)',
+    lineHeight: 16
   },
-  feedbackBody: {
-    fontSize: 12,
-    color: '#065f46',
-    fontStyle: 'italic',
-    lineHeight: 17
-  },
-  loadingBox: {
-    flex: 1,
-    justifyContent: 'center',
+  viewDetailLink: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12
+    gap: 2,
+    alignSelf: 'flex-start',
+    marginTop: 4
   },
-  loadingText: {
-    fontSize: 12,
-    color: colors.textSecondary
+  viewDetailText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFB433',
+    textDecorationLine: 'underline'
   },
-  emptyBox: {
-    flex: 1,
-    justifyContent: 'center',
+  emptyContainer: {
     alignItems: 'center',
-    padding: 30,
-    gap: 12
+    justifyContent: 'center',
+    paddingVertical: 48,
+    gap: 8
   },
   emptyTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF'
   },
   emptySubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
-    lineHeight: 18
+    paddingHorizontal: 20
   },
-  firstEntryBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 14,
-    marginTop: 6
-  },
-  firstEntryBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#ffffff'
-  },
-  modalSafeArea: {
+  modalBackdrop: {
     flex: 1,
-    backgroundColor: colors.surface
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'flex-end'
   },
-  modalKeyboard: {
-    flex: 1
+  modalCard: {
+    backgroundColor: '#122824',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 20,
+    maxHeight: '90%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)'
   },
   modalHeader: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    marginBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border
-  },
-  modalTitleGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    paddingBottom: 10
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: colors.navy
+    color: '#FFFFFF'
   },
-  modalCloseBtn: {
-    padding: 6,
-    backgroundColor: colors.surfaceLow,
-    borderRadius: 12
+  modalSubtitle: {
+    fontSize: 11,
+    color: '#80CBC4',
+    marginTop: 1
   },
-  modalBody: {
-    padding: 20,
-    paddingBottom: 40
+  closeBtn: {
+    padding: 4
+  },
+  formScroll: {
+    gap: 12,
+    paddingBottom: 24
   },
   formRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16
+    gap: 10
   },
-  formCol: {
-    flex: 1
+  formField: {
+    gap: 4
   },
-  inputGroup: {
-    marginBottom: 16
-  },
-  inputLabel: {
+  fieldLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.text,
-    marginBottom: 6
+    color: '#80CBC4'
   },
   textInput: {
-    backgroundColor: colors.surfaceLow,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 13,
-    color: colors.text
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    color: '#FFFFFF',
+    fontSize: 12
   },
   textArea: {
-    height: 90,
+    minHeight: 70,
     textAlignVertical: 'top'
   },
-  submitEntryBtn: {
+  submitBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 16,
+    backgroundColor: '#FFB433',
+    borderRadius: 22,
+    paddingVertical: 12,
     marginTop: 8
   },
-  btnDisabled: {
-    opacity: 0.6
+  submitBtnText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#193631'
   },
-  submitEntryBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#ffffff'
+  detailMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)'
+  },
+  detailMetaText: {
+    fontSize: 11,
+    color: '#80CBC4',
+    fontWeight: '600'
+  },
+  detailSection: {
+    gap: 4
+  },
+  detailSectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFB433',
+    letterSpacing: 0.5
+  },
+  detailSectionBody: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.85)',
+    lineHeight: 18
+  },
+  feedbackBox: {
+    backgroundColor: 'rgba(38, 166, 154, 0.15)',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(38, 166, 154, 0.3)'
+  },
+  feedbackLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#80CBC4'
+  },
+  feedbackBody: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    marginTop: 2
   }
 });

@@ -7,21 +7,23 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  ActivityIndicator,
   SafeAreaView
 } from 'react-native';
 import {
   QrCode,
   Building2,
-  UserCheck,
   Clock,
   CheckCircle,
+  AlertCircle,
   FileText,
   BookOpen,
   Award,
   ChevronRight,
   TrendingUp,
-  LogOut
+  LogOut,
+  ShieldCheck,
+  MapPin,
+  Calendar
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/client';
@@ -78,7 +80,6 @@ export default function HomeScreen({ navigation }) {
       setIsOnline(true);
     } catch (err) {
       console.warn('HomeScreen fetch error (offline fallback in use):', err);
-      // Mark as offline; preserve cached state and do not overwrite with null
       setIsOnline(false);
     } finally {
       if (!isSilent) {
@@ -125,12 +126,12 @@ export default function HomeScreen({ navigation }) {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
+            colors={['#FFB433']}
+            tintColor={'#FFB433'}
           />
         }
       >
-        {/* Top Bar */}
+        {/* Header Bar */}
         <View style={styles.topBar}>
           <View style={styles.topBarLeft}>
             <Image
@@ -141,29 +142,29 @@ export default function HomeScreen({ navigation }) {
             <View>
               <Text style={styles.greetingText}>Welcome back,</Text>
               <Text style={styles.studentName}>
-                {user?.full_name || user?.display_name || 'Student Candidate'}
+                {user?.full_name || user?.display_name || 'Student Intern'}
               </Text>
               <Text style={styles.studentNumber}>
-                Student #{user?.student_number || user?.student_id || user?.user_id}
+                #{user?.student_number || user?.student_id || user?.user_id || '2026-OJT'}
               </Text>
             </View>
           </View>
           <TouchableOpacity onPress={logout} style={styles.logoutBtn} activeOpacity={0.7}>
-            <LogOut size={18} color={colors.textSecondary} />
+            <LogOut size={16} color="#80CBC4" />
           </TouchableOpacity>
         </View>
 
-        {/* Network & Live DTR Status Badge */}
+        {/* Live Network & Status Badge */}
         <View style={[styles.networkBadge, isOnline ? styles.networkOnline : styles.networkOffline]}>
           <View style={[styles.networkDot, isOnline ? styles.dotOnline : styles.dotOffline]} />
           <Text style={[styles.networkText, isOnline ? styles.textOnline : styles.textOffline]}>
             {isOnline
-              ? 'Online • Real-time Attendance & DTR Synced'
-              : 'Offline Mode • Showing Cached DTR (Will sync once online)'}
+              ? 'Live Sync Active • CHED CMO 104 Biometrics'
+              : 'Offline Mode • Presenting Cached QR'}
           </Text>
         </View>
 
-        {/* PRIMARY CTA: Open Attendance QR Code */}
+        {/* PRIMARY CTA: Tactile Amber Attendance Punch Card */}
         <TouchableOpacity
           onPress={() => setShowQrModal(true)}
           style={styles.qrCtaCard}
@@ -171,7 +172,7 @@ export default function HomeScreen({ navigation }) {
         >
           <View style={styles.qrCtaContent}>
             <View style={styles.qrIconBadge}>
-              <QrCode size={32} color="#ffffff" />
+              <QrCode size={28} color="#193631" />
             </View>
             <View style={styles.qrCtaTextGroup}>
               <View style={styles.qrPill}>
@@ -181,174 +182,199 @@ export default function HomeScreen({ navigation }) {
               <Text style={styles.qrCtaTitle}>Present Attendance QR</Text>
               <Text style={styles.qrCtaSubtitle}>
                 {isClockedOut
-                  ? 'Completed today • Open to show credentials'
+                  ? 'Shift completed • Tap to show QR badge'
                   : isClockedIn
-                  ? 'Currently Time-In • Scan to Time-Out'
-                  : 'Ready for Arrival • Scan to Time-In'}
+                  ? 'Currently Time-In • Scan to Clock-Out'
+                  : 'Ready for Arrival • Scan to Clock-In'}
               </Text>
             </View>
           </View>
         </TouchableOpacity>
 
-        {/* Today's Shift Status Card */}
-        <View style={styles.todayCard}>
+        {/* Today's Shift Status Bento Card */}
+        <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <View style={styles.cardHeaderLeft}>
-              <Clock size={16} color={colors.primary} />
+              <Clock size={16} color="#FFB433" />
               <Text style={styles.cardHeaderTitle}>Today's Shift Activity</Text>
             </View>
             <Text style={styles.pstTag}>PST (UTC+8)</Text>
           </View>
 
+          {/* Shift Indicator Status */}
+          {todayLog?.status === 'rejected' ? (
+            <View style={[styles.indicatorBanner, styles.bannerRejected]}>
+              <AlertCircle size={16} color="#FCA5A5" />
+              <View style={styles.indicatorTexts}>
+                <Text style={[styles.indicatorTitle, styles.textRejected]}>ATTENDANCE REJECTED</Text>
+                <Text style={styles.indicatorSubtitle}>
+                  {todayLog.rejection_notes || 'Shift was not approved by mentor.'}
+                </Text>
+              </View>
+            </View>
+          ) : isClockedOut ? (
+            <View style={[styles.indicatorBanner, styles.bannerSuccess]}>
+              <CheckCircle size={16} color="#80CBC4" />
+              <View style={styles.indicatorTexts}>
+                <Text style={[styles.indicatorTitle, styles.textSuccess]}>SHIFT COMPLETED</Text>
+                <Text style={styles.indicatorSubtitle}>
+                  In: {formatTime12(todayLog.time_in)} • Out: {formatTime12(todayLog.time_out)} ({todayLog.hours_rendered || 0} hrs)
+                </Text>
+              </View>
+            </View>
+          ) : isClockedIn ? (
+            <View style={[styles.indicatorBanner, styles.bannerActive]}>
+              <View style={styles.pulsingIndicatorDot} />
+              <View style={styles.indicatorTexts}>
+                <Text style={[styles.indicatorTitle, styles.textSuccess]}>TIME-IN ACTIVE • ON DUTY</Text>
+                <Text style={styles.indicatorSubtitle}>
+                  Clocked in at {formatTime12(todayLog.time_in)}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.indicatorBanner, styles.bannerAwaiting]}>
+              <Clock size={16} color="#FFB433" />
+              <View style={styles.indicatorTexts}>
+                <Text style={[styles.indicatorTitle, styles.textAwaiting]}>AWAITING TIME-IN</Text>
+                <Text style={styles.indicatorSubtitle}>
+                  Present your dynamic QR code to the workplace scanner.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Time In / Out Stat Boxes */}
           <View style={styles.shiftBoxesRow}>
-            {/* Time In Box */}
             <View style={styles.shiftBox}>
               <Text style={styles.shiftBoxLabel}>TIME IN</Text>
-              <Text style={[styles.shiftBoxTime, isClockedIn && styles.timeSuccess]}>
-                {todayLog?.time_in ? formatTime12(todayLog.time_in) : '— : —'}
+              <Text style={styles.shiftBoxValue}>
+                {todayLog?.time_in ? formatTime12(todayLog.time_in) : '--:--'}
               </Text>
               <Text style={styles.shiftBoxStatus}>
-                {isClockedIn ? (todayLog.time_in_status === 'late' ? 'Late' : 'On-Time') : 'Pending Clock-in'}
+                {todayLog?.time_in ? (todayLog.time_in_status === 'late' ? 'Late' : 'On-Time') : 'Pending'}
               </Text>
             </View>
 
-            {/* Time Out Box */}
             <View style={styles.shiftBox}>
               <Text style={styles.shiftBoxLabel}>TIME OUT</Text>
-              <Text style={[styles.shiftBoxTime, isClockedOut && styles.timePrimary]}>
-                {todayLog?.time_out ? formatTime12(todayLog.time_out) : '— : —'}
+              <Text style={styles.shiftBoxValue}>
+                {todayLog?.time_out ? formatTime12(todayLog.time_out) : '--:--'}
               </Text>
               <Text style={styles.shiftBoxStatus}>
-                {isClockedOut
-                  ? `${todayLog.hours_rendered || 0} hrs credited`
-                  : isClockedIn
-                  ? 'Shift in progress'
-                  : 'Pending Departure'}
+                {todayLog?.time_out ? 'Stamped' : (isClockedIn ? 'Active' : 'Pending')}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* OJT Progress Gauge Card */}
-        <View style={styles.progressCard}>
-          <View style={styles.progressHeader}>
-            <View>
-              <Text style={styles.progressTitle}>Internship Training Progress</Text>
-              <Text style={styles.progressCompany}>
-                {activeRecord?.organization_name || 'Host Organization'}
-              </Text>
+        {/* OJT Requirement Progress Bento */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.cardHeaderLeft}>
+              <TrendingUp size={16} color="#80CBC4" />
+              <Text style={styles.cardHeaderTitle}>OJT Progress Overview</Text>
             </View>
-            <View style={styles.pctBadge}>
-              <Text style={styles.pctBadgeText}>{progressPct}%</Text>
+            <View style={styles.quotaPill}>
+              <Text style={styles.quotaPillText}>{progressPct}% Quota</Text>
             </View>
+          </View>
+
+          <View style={styles.progressRow}>
+            <Text style={styles.progressLabel}>Rendered Hours</Text>
+            <Text style={styles.progressNumbers}>
+              <Text style={styles.progressDone}>{doneHours}</Text> / {reqHours} hrs{' '}
+              <Text style={styles.progressLeft}>({remainingHours} left)</Text>
+            </Text>
           </View>
 
           {/* Progress Bar */}
-          <View style={styles.progressBarBg}>
+          <View style={styles.progressBarTrack}>
             <View style={[styles.progressBarFill, { width: `${progressPct}%` }]} />
           </View>
+        </View>
 
-          <View style={styles.progressStatsRow}>
-            <View>
-              <Text style={styles.statLabel}>Rendered Hours</Text>
-              <Text style={styles.statValueDone}>{parseFloat(doneHours).toFixed(1)} hrs</Text>
+        {/* Workplace Host Placement Card */}
+        {activeRecord && (
+          <View style={styles.card}>
+            <View style={styles.cardHeaderRow}>
+              <View style={styles.cardHeaderLeft}>
+                <Building2 size={16} color="#80CBC4" />
+                <Text style={styles.cardHeaderTitle}>Host Organization</Text>
+              </View>
             </View>
-            <View style={styles.statDivider} />
-            <View>
-              <Text style={styles.statLabel}>Remaining</Text>
-              <Text style={styles.statValueRemaining}>{parseFloat(remainingHours).toFixed(1)} hrs</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View>
-              <Text style={styles.statLabel}>Target Required</Text>
-              <Text style={styles.statValueTotal}>{reqHours} hrs</Text>
-            </View>
-          </View>
 
-          {/* Mentor Information */}
-          <View style={styles.mentorRow}>
-            <UserCheck size={16} color={colors.textSecondary} />
-            <Text style={styles.mentorText}>
-              Assigned Mentor: <Text style={styles.mentorName}>
-                {activeRecord?.mentor_name ||
-                  (activeRecord?.mentor_first_name
-                    ? `${activeRecord.mentor_first_name} ${activeRecord.mentor_last_name || ''}`.trim()
-                    : null) ||
-                  'Assigned Supervisor'}
+            <Text style={styles.orgName}>{activeRecord.organization_name || 'Placement Company'}</Text>
+            <Text style={styles.orgDept}>{activeRecord.department_name || activeRecord.job_title || 'Internship Assignment'}</Text>
+
+            <View style={styles.orgMetaRow}>
+              <MapPin size={13} color="#80CBC4" />
+              <Text style={styles.orgMetaText}>
+                {activeRecord.location || activeRecord.work_setup || 'On-site / Hybrid Placement'}
               </Text>
-            </Text>
+            </View>
           </View>
-        </View>
+        )}
 
-        {/* Quick Module Navigation Grid */}
-        <Text style={styles.sectionHeader}>OJT Specialized Modules</Text>
-
-        <View style={styles.modulesGrid}>
-          {/* Daily Time Record */}
+        {/* Quick Nav Shortcuts */}
+        <View style={styles.shortcutsGrid}>
           <TouchableOpacity
-            onPress={() => navigation.navigate('DTR')}
-            style={styles.moduleCard}
+            onPress={() => navigation?.navigate('DTR')}
+            style={styles.shortcutCard}
             activeOpacity={0.8}
           >
-            <View style={[styles.moduleIconBox, { backgroundColor: '#fff7ed' }]}>
-              <Clock size={20} color={colors.primary} />
+            <View style={[styles.shortcutIconWrap, { backgroundColor: 'rgba(255, 180, 51, 0.2)' }]}>
+              <Clock size={18} color="#FFB433" />
             </View>
-            <Text style={styles.moduleTitle}>Daily Time Record</Text>
-            <Text style={styles.moduleDesc}>Audit shift hours & logs</Text>
-            <ChevronRight size={16} color={colors.textMuted} style={styles.moduleArrow} />
+            <Text style={styles.shortcutTitle}>DTR Logs</Text>
+            <Text style={styles.shortcutDesc}>Punch history</Text>
           </TouchableOpacity>
 
-          {/* Internship Journal */}
           <TouchableOpacity
-            onPress={() => navigation.navigate('Journal')}
-            style={styles.moduleCard}
+            onPress={() => navigation?.navigate('Journal')}
+            style={styles.shortcutCard}
             activeOpacity={0.8}
           >
-            <View style={[styles.moduleIconBox, { backgroundColor: '#f0fdf4' }]}>
-              <BookOpen size={20} color={colors.success} />
+            <View style={[styles.shortcutIconWrap, { backgroundColor: 'rgba(38, 166, 154, 0.2)' }]}>
+              <BookOpen size={18} color="#80CBC4" />
             </View>
-            <Text style={styles.moduleTitle}>Internship Journal</Text>
-            <Text style={styles.moduleDesc}>Daily & weekly learnings</Text>
-            <ChevronRight size={16} color={colors.textMuted} style={styles.moduleArrow} />
+            <Text style={styles.shortcutTitle}>Weekly Journal</Text>
+            <Text style={styles.shortcutDesc}>Learnings log</Text>
           </TouchableOpacity>
 
-          {/* Clearance Checklist */}
           <TouchableOpacity
-            onPress={() => navigation.navigate('Clearance')}
-            style={styles.moduleCard}
+            onPress={() => navigation?.navigate('Clearance')}
+            style={styles.shortcutCard}
             activeOpacity={0.8}
           >
-            <View style={[styles.moduleIconBox, { backgroundColor: '#eff6ff' }]}>
-              <FileText size={20} color={colors.info} />
+            <View style={[styles.shortcutIconWrap, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
+              <FileText size={18} color="#10B981" />
             </View>
-            <Text style={styles.moduleTitle}>Clearance Checklist</Text>
-            <Text style={styles.moduleDesc}>Institutional compliance</Text>
-            <ChevronRight size={16} color={colors.textMuted} style={styles.moduleArrow} />
+            <Text style={styles.shortcutTitle}>Clearance</Text>
+            <Text style={styles.shortcutDesc}>CHED papers</Text>
           </TouchableOpacity>
 
-          {/* Evaluations */}
           <TouchableOpacity
-            onPress={() => navigation.navigate('Evaluations')}
-            style={styles.moduleCard}
+            onPress={() => navigation?.navigate('Evaluations')}
+            style={styles.shortcutCard}
             activeOpacity={0.8}
           >
-            <View style={[styles.moduleIconBox, { backgroundColor: '#faf5ff' }]}>
-              <Award size={20} color={colors.purple} />
+            <View style={[styles.shortcutIconWrap, { backgroundColor: 'rgba(167, 139, 250, 0.2)' }]}>
+              <Award size={18} color="#A78BFA" />
             </View>
-            <Text style={styles.moduleTitle}>Workplace Evaluations</Text>
-            <Text style={styles.moduleDesc}>Mentor ratings & scores</Text>
-            <ChevronRight size={16} color={colors.textMuted} style={styles.moduleArrow} />
+            <Text style={styles.shortcutTitle}>Evaluations</Text>
+            <Text style={styles.shortcutDesc}>Appraisals</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Bottom Spacer for floating nav */}
+        <View style={{ height: 80 }} />
       </ScrollView>
 
       {/* Dynamic Attendance QR Modal */}
       <AttendanceQrModal
         visible={showQrModal}
-        onClose={() => {
-          setShowQrModal(false);
-          fetchData();
-        }}
+        onClose={() => setShowQrModal(false)}
       />
     </SafeAreaView>
   );
@@ -357,119 +383,121 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: '#193631'
   },
   scrollContent: {
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingTop: 12,
     paddingBottom: 40
   },
   topBar: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12
-  },
-  networkBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginBottom: 16,
-    gap: 8,
-    borderWidth: 1
-  },
-  networkOnline: {
-    backgroundColor: '#ecfdf5',
-    borderColor: '#a7f3d0'
-  },
-  networkOffline: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#fde68a'
-  },
-  networkDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4
-  },
-  dotOnline: {
-    backgroundColor: '#059669'
-  },
-  dotOffline: {
-    backgroundColor: '#d97706'
-  },
-  networkText: {
-    fontSize: 11,
-    fontWeight: '700'
-  },
-  textOnline: {
-    color: '#065f46'
-  },
-  textOffline: {
-    color: '#92400e'
+    marginBottom: 14
   },
   topBarLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    flex: 1
+    gap: 10
   },
   headerLogo: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#ffffff'
+    width: 38,
+    height: 38
   },
   greetingText: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontSize: 11,
+    color: '#80CBC4',
     fontWeight: '500'
   },
   studentName: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '800',
-    color: colors.navy
+    color: '#FFFFFF'
   },
   studentNumber: {
-    fontSize: 11,
-    color: colors.textMuted,
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.6)',
     fontWeight: '600'
   },
   logoutBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: 'center',
-    alignItems: 'center'
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  networkBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginBottom: 14
+  },
+  networkOnline: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)'
+  },
+  networkOffline: {
+    backgroundColor: 'rgba(255, 180, 51, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 180, 51, 0.3)'
+  },
+  networkDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3
+  },
+  dotOnline: {
+    backgroundColor: '#10B981'
+  },
+  dotOffline: {
+    backgroundColor: '#FFB433'
+  },
+  networkText: {
+    fontSize: 11,
+    fontWeight: '600'
+  },
+  textOnline: {
+    color: '#80CBC4'
+  },
+  textOffline: {
+    color: '#FFB433'
   },
   qrCtaCard: {
-    backgroundColor: colors.navy,
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 20,
-    shadowColor: colors.navy,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: '#334155'
+    backgroundColor: '#FFB433',
+    borderRadius: 26,
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: '#FFB433',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8
   },
   qrCtaContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16
+    gap: 14
   },
   qrIconBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center'
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3
   },
   qrCtaTextGroup: {
     flex: 1
@@ -477,245 +505,255 @@ const styles = StyleSheet.create({
   qrPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(249, 115, 22, 0.2)',
-    alignSelf: 'flex-start',
+    gap: 4,
+    backgroundColor: 'rgba(25, 54, 49, 0.15)',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
-    marginBottom: 6
+    alignSelf: 'flex-start',
+    marginBottom: 4
   },
   livePulse: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.primary
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#193631'
   },
   qrPillText: {
     fontSize: 9,
-    fontWeight: '800',
-    color: colors.primary,
+    fontWeight: '900',
+    color: '#193631',
     letterSpacing: 0.5
   },
   qrCtaTitle: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#ffffff',
-    marginBottom: 2
+    fontWeight: '900',
+    color: '#193631',
+    letterSpacing: -0.3
   },
   qrCtaSubtitle: {
     fontSize: 11,
-    color: '#94a3b8',
-    lineHeight: 15
+    fontWeight: '600',
+    color: 'rgba(25, 54, 49, 0.85)',
+    marginTop: 2
   },
-  todayCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
+  card: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 20
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4
   },
   cardHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14
+    justifyContent: 'space-between',
+    marginBottom: 12
   },
   cardHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8
+    gap: 6
   },
   cardHeaderTitle: {
     fontSize: 13,
-    fontWeight: '700',
-    color: colors.text
+    fontWeight: '800',
+    color: '#FFFFFF'
   },
   pstTag: {
     fontSize: 10,
-    fontWeight: '700',
-    color: colors.primary,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontWeight: '600'
+  },
+  indicatorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 12
+  },
+  bannerSuccess: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.35)'
+  },
+  bannerActive: {
+    backgroundColor: 'rgba(38, 166, 154, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(38, 166, 154, 0.4)'
+  },
+  bannerAwaiting: {
+    backgroundColor: 'rgba(255, 180, 51, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 180, 51, 0.35)'
+  },
+  bannerRejected: {
+    backgroundColor: 'rgba(244, 63, 94, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.35)'
+  },
+  pulsingIndicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#80CBC4'
+  },
+  indicatorTexts: {
+    flex: 1
+  },
+  indicatorTitle: {
+    fontSize: 11,
+    fontWeight: '800'
+  },
+  textSuccess: {
+    color: '#80CBC4'
+  },
+  textAwaiting: {
+    color: '#FFB433'
+  },
+  textRejected: {
+    color: '#FCA5A5'
+  },
+  indicatorSubtitle: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.75)',
+    marginTop: 2
   },
   shiftBoxesRow: {
     flexDirection: 'row',
-    gap: 12
+    gap: 10
   },
   shiftBox: {
     flex: 1,
-    backgroundColor: colors.surfaceLow,
-    borderRadius: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: 16,
     padding: 12,
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.borderLight
+    borderColor: 'rgba(255, 255, 255, 0.08)'
   },
   shiftBoxLabel: {
     fontSize: 9,
     fontWeight: '800',
-    color: colors.textMuted,
-    letterSpacing: 0.5,
-    marginBottom: 4
+    color: '#80CBC4',
+    letterSpacing: 0.5
   },
-  shiftBoxTime: {
+  shiftBoxValue: {
     fontSize: 16,
-    fontWeight: '800',
-    color: colors.text,
-    fontFamily: 'monospace'
-  },
-  timeSuccess: {
-    color: colors.success
-  },
-  timePrimary: {
-    color: colors.primary
-  },
-  shiftBoxStatus: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    marginTop: 4
-  },
-  progressCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 24
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12
-  },
-  progressTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text
-  },
-  progressCompany: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontWeight: '900',
+    color: '#FFFFFF',
     marginTop: 2
   },
-  pctBadge: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  shiftBoxStatus: {
+    fontSize: 9,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginTop: 2
+  },
+  quotaPill: {
+    backgroundColor: 'rgba(255, 180, 51, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.primaryBorder
+    borderColor: 'rgba(255, 180, 51, 0.4)'
   },
-  pctBadgeText: {
-    fontSize: 12,
+  quotaPillText: {
+    fontSize: 10,
     fontWeight: '800',
-    color: colors.primaryDark
+    color: '#FFB433'
   },
-  progressBarBg: {
+  progressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  progressLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.65)'
+  },
+  progressNumbers: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.75)'
+  },
+  progressDone: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF'
+  },
+  progressLeft: {
+    color: '#80CBC4',
+    fontWeight: '700'
+  },
+  progressBarTrack: {
+    width: '100%',
     height: 8,
-    backgroundColor: colors.surfaceLow,
     borderRadius: 4,
-    overflow: 'hidden',
-    marginVertical: 12
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden'
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 4
+    borderRadius: 4,
+    backgroundColor: '#FFB433'
   },
-  progressStatsRow: {
+  orgName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 2
+  },
+  orgDept: {
+    fontSize: 11,
+    color: '#80CBC4',
+    fontWeight: '600',
+    marginBottom: 6
+  },
+  orgMetaRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight
+    gap: 4
   },
-  statLabel: {
+  orgMetaText: {
     fontSize: 10,
-    color: colors.textMuted,
-    fontWeight: '600'
+    color: 'rgba(255, 255, 255, 0.6)'
   },
-  statValueDone: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.primaryDark,
-    fontFamily: 'monospace'
-  },
-  statValueRemaining: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textSecondary,
-    fontFamily: 'monospace'
-  },
-  statValueTotal: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.navy,
-    fontFamily: 'monospace'
-  },
-  statDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: colors.border
-  },
-  mentorRow: {
+  shortcutsGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 12
+    flexWrap: 'wrap',
+    gap: 10
   },
-  mentorText: {
-    fontSize: 11,
-    color: colors.textSecondary
-  },
-  mentorName: {
-    fontWeight: '700',
-    color: colors.text
-  },
-  sectionHeader: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.navy,
-    marginBottom: 12
-  },
-  modulesGrid: {
-    gap: 12
-  },
-  moduleCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
+  shortcutCard: {
+    width: '48%',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 20,
     padding: 14,
-    borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    gap: 4
   },
-  moduleIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    justifyContent: 'center',
+  shortcutIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
-    marginRight: 14
+    justifyContent: 'center',
+    marginBottom: 4
   },
-  moduleTitle: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text
+  shortcutTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF'
   },
-  moduleDesc: {
-    position: 'absolute',
-    left: 72,
-    top: 32,
-    fontSize: 11,
-    color: colors.textSecondary
-  },
-  moduleArrow: {
-    marginLeft: 8
+  shortcutDesc: {
+    fontSize: 10,
+    color: '#80CBC4'
   }
 });

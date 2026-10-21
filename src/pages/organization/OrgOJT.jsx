@@ -589,8 +589,12 @@ export default function OrgOJT() {
                             </span>
                           </div>
                         ) : !intern.today_time_in ? (
-                          <div className="flex items-center gap-2">
-                            {isHR ? (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25 flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[14px]">hourglass_top</span>
+                              <span>Awaiting Time-In</span>
+                            </span>
+                            {isHR && (
                               <button
                                 type="button"
                                 onClick={() => setShowScannerModal(true)}
@@ -600,17 +604,14 @@ export default function OrgOJT() {
                                 <span className="material-symbols-outlined text-[15px]">qr_code_scanner</span>
                                 <span>Scan In</span>
                               </button>
-                            ) : (
-                              <span className="text-[11px] text-on-surface-variant italic">
-                                Awaiting entrance QR scan by HR
-                              </span>
                             )}
                           </div>
                         ) : !intern.today_time_out ? (
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="flex items-center gap-1">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse font-mono">
-                                In: {formatPHTTime(intern.today_time_in)}
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 flex items-center gap-1 font-mono">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span>Time-In: {formatPHTTime(intern.today_time_in)}</span>
                               </span>
                               <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
                                 intern.today_time_in_status === 'late'
@@ -632,7 +633,6 @@ export default function OrgOJT() {
                               </button>
                             ) : (
                               <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                 <span>On Duty</span>
                               </span>
                             )}
@@ -640,14 +640,20 @@ export default function OrgOJT() {
                         ) : (
                           <div className="space-y-1.5">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[10px] text-on-surface-variant font-mono font-bold">
-                                {formatPHTTime(intern.today_time_in)} - {formatPHTTime(intern.today_time_out)}
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200 border border-emerald-300 flex items-center gap-1 font-mono">
+                                <span className="material-symbols-outlined text-[13px] text-emerald-600">check_circle</span>
+                                <span>Time-Out: {formatPHTTime(intern.today_time_in)} - {formatPHTTime(intern.today_time_out)}</span>
                               </span>
                               <span className="px-1.5 py-0.2 rounded text-[10px] font-bold font-mono bg-surface-container text-on-surface border border-outline-variant">
                                 {intern.today_hours || 0} hrs
                               </span>
                             </div>
-                            {intern.today_status === 'pending' ? (
+                            {intern.today_status === 'rejected' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30 flex items-center gap-1 w-fit">
+                                <span className="material-symbols-outlined text-[13px]">cancel</span>
+                                <span>Shift Rejected / Failed</span>
+                              </span>
+                            ) : intern.today_status === 'pending' ? (
                               isMentor ? (
                                 <button
                                   type="button"

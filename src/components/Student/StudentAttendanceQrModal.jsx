@@ -2,12 +2,16 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
 import api from '../../api/client';
 import { getOrCreateDeviceToken, resetLocalDeviceToken, getDeviceName, buildDynamicQrPayload } from '../../utils/totpHelper';
+import { playAttendanceSuccessChime, playAttendanceErrorChime } from '../../utils/audio';
+import { formatPHT12Hour } from '../../utils/timeFormat';
 
 const TIME_STEP = 20; // QR rotates every 20 seconds
 
 export default function StudentAttendanceQrModal({ isOpen, onClose }) {
   const [loading, setLoading] = useState(true);
   const [credentials, setCredentials] = useState(null);
+  const [todayLog, setTodayLog] = useState(null);
+  const [liveAlert, setLiveAlert] = useState(null);
   const [error, setError] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(TIME_STEP);
   const [livePstTime, setLivePstTime] = useState('');
@@ -18,6 +22,7 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
   const canvasRef = useRef(null);
   const lastGeneratedTsRef = useRef(0);
   const timerRef = useRef(null);
+  const prevLogRef = useRef(null);
 
   // Fetch or register cryptographic credentials
   const fetchCredentials = useCallback(async () => {
@@ -29,6 +34,10 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
       const res = await api.get(`/student/attendance/qr-credentials?device_token=${encodeURIComponent(deviceToken)}&device_name=${encodeURIComponent(deviceName)}`);
       if (res.success && res.data) {
         setCredentials(res.data);
+        if (res.data.todayLog) {
+          setTodayLog(res.data.todayLog);
+          prevLogRef.current = res.data.todayLog;
+        }
       } else {
         if (res.status === 404 && res.message?.toLowerCase().includes('student profile not found')) {
           setError('Student profile not found for this account. Please log in with a registered student intern account.');
@@ -50,10 +59,57 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
       fetchCredentials();
     } else {
       setCredentials(null);
+      setLiveAlert(null);
       setError('');
       setIsShielded(false);
     }
   }, [isOpen, fetchCredentials]);
+
+  // Real-time live polling while modal is open: detects the exact second HR scans the intern's QR
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const pollAttendanceStatus = async () => {
+      try {
+        const res = await api.get('/student/attendance');
+        if (res.success && res.data) {
+          const freshLog = res.data.todayLog;
+          const prev = prevLogRef.current;
+
+          // Transition A: Fresh Time-In detected!
+          if (freshLog?.time_in && (!prev || !prev.time_in)) {
+            try { playAttendanceSuccessChime(); } catch (_) {}
+            setLiveAlert({
+              type: 'success',
+              action: 'time_in',
+              title: 'Time-In Recorded Successfully!',
+              message: `You clocked in at ${formatPHT12Hour(freshLog.time_in)} (${freshLog.time_in_status === 'late' ? 'Late Arrival' : 'On-Time'}). Have a productive shift!`
+            });
+            prevLogRef.current = freshLog;
+            setTodayLog(freshLog);
+          }
+          // Transition B: Fresh Time-Out detected!
+          else if (freshLog?.time_out && (!prev || !prev.time_out)) {
+            try { playAttendanceSuccessChime(); } catch (_) {}
+            setLiveAlert({
+              type: 'success',
+              action: 'time_out',
+              title: 'Time-Out Recorded Successfully!',
+              message: `You clocked out at ${formatPHT12Hour(freshLog.time_out)} (${freshLog.hours_rendered || 0} hrs credited). Training shift finalized!`
+            });
+            prevLogRef.current = freshLog;
+            setTodayLog(freshLog);
+          } else if (freshLog) {
+            prevLogRef.current = freshLog;
+            setTodayLog(freshLog);
+          }
+        }
+      } catch (_) {}
+    };
+
+    const pollInterval = setInterval(pollAttendanceStatus, 2500);
+    return () => clearInterval(pollInterval);
+  }, [isOpen]);
 
   // Anti-screenshot & Tab visibility listener: shield QR code when unfocused/switching apps
   useEffect(() => {
@@ -200,6 +256,91 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
 
         {/* Content Body */}
         <div className="p-6 flex flex-col items-center text-center space-y-4">
+          {/* Real-time Scan Confirmation Toast / Live Alert */}
+          {liveAlert && (
+            <div
+              className={`w-full p-4 rounded-2xl text-white shadow-xl animate-fade-in flex items-start justify-between gap-3 text-left ${
+                liveAlert.type === 'success'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 border border-emerald-400'
+                  : 'bg-gradient-to-r from-red-600 to-rose-600 border border-red-400'
+              }`}
+            >
+              <div className="flex items-start gap-2.5">
+                <span className="material-symbols-outlined text-[26px] shrink-0 mt-0.5">
+                  {liveAlert.type === 'success' ? 'check_circle' : 'error'}
+                </span>
+                <div className="space-y-0.5">
+                  <h4 className="font-black text-sm">{liveAlert.title}</h4>
+                  <p className="text-xs text-white/95 leading-relaxed">{liveAlert.message}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLiveAlert(null)}
+                className="w-6 h-6 rounded-full bg-black/20 hover:bg-black/30 flex items-center justify-center shrink-0 text-white"
+                title="Dismiss"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            </div>
+          )}
+
+          {/* Today's Shift Live Status Indicator */}
+          <div className="w-full">
+            {todayLog?.time_out ? (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/40 rounded-2xl flex items-center justify-between text-left shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-emerald-600 text-[24px]">verified</span>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 block">
+                      Today's Shift: Completed
+                    </span>
+                    <p className="text-xs font-bold text-emerald-950 dark:text-emerald-100">
+                      In: {formatPHT12Hour(todayLog.time_in)} • Out: {formatPHT12Hour(todayLog.time_out)}
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black font-mono bg-emerald-600 text-white">
+                  {todayLog.hours_rendered || 0} hrs
+                </span>
+              </div>
+            ) : todayLog?.time_in ? (
+              <div className="p-3 bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-500/40 rounded-2xl flex items-center justify-between text-left shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 block">
+                      Currently Timed-In (Active Shift)
+                    </span>
+                    <p className="text-xs font-bold text-emerald-950 dark:text-emerald-100">
+                      Clocked in at {formatPHT12Hour(todayLog.time_in)} ({todayLog.time_in_status === 'late' ? 'Late' : 'On-Time'})
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-vibrant-orange text-white">
+                  Scan to Out
+                </span>
+              </div>
+            ) : (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-500/40 rounded-2xl flex items-center justify-between text-left shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-amber-600 text-[22px]">schedule</span>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300 block">
+                      Awaiting Time-In
+                    </span>
+                    <p className="text-xs font-bold text-amber-950 dark:text-amber-100">
+                      Present this live QR code at the HR desk to clock in
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-600 text-white">
+                  Scan to In
+                </span>
+              </div>
+            )}
+          </div>
+
           {loading ? (
             <div className="py-16 space-y-3">
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-vibrant-orange border-t-transparent mx-auto"></div>

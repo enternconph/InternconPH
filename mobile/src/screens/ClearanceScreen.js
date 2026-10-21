@@ -18,7 +18,9 @@ import {
   FileText,
   Download,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  Award,
+  ChevronRight
 } from 'lucide-react-native';
 import api from '../api/client';
 import { colors } from '../utils/theme';
@@ -80,7 +82,6 @@ export default function ClearanceScreen() {
 
     return (
       <View style={styles.reqCard}>
-        {/* Header */}
         <View style={styles.reqHeader}>
           <View style={styles.reqHeaderLeft}>
             <Text style={styles.reqTitle}>{item.title || item.requirement_name}</Text>
@@ -91,142 +92,112 @@ export default function ClearanceScreen() {
             ) : null}
           </View>
 
-          {/* Status Badge */}
           <View style={[
             styles.statusBadge,
             isApproved ? styles.statusApproved : isPending ? styles.statusPending : isRejected ? styles.statusRejected : styles.statusMissing
           ]}>
-            {isApproved ? (
-              <CheckCircle2 size={12} color={colors.successText} />
-            ) : isPending ? (
-              <Clock size={12} color={colors.infoText} />
-            ) : isRejected ? (
-              <AlertCircle size={12} color={colors.dangerText} />
-            ) : (
-              <Clock size={12} color={colors.textSecondary} />
-            )}
             <Text style={[
               styles.statusText,
-              isApproved ? styles.statusApprovedText : isPending ? styles.statusPendingText : isRejected ? styles.statusRejectedText : styles.statusMissingText
+              isApproved ? styles.textApproved : isPending ? styles.textPending : isRejected ? styles.textRejected : styles.textMissing
             ]}>
-              {isApproved ? 'Cleared' : isPending ? 'Under Review' : isRejected ? 'Revise' : 'Pending'}
+              {isApproved ? 'APPROVED' : isPending ? 'IN REVIEW' : isRejected ? 'REJECTED' : 'PENDING'}
             </Text>
           </View>
         </View>
 
-        {/* Description */}
         {item.description ? (
           <Text style={styles.reqDesc}>{item.description}</Text>
         ) : null}
 
-        {/* Rejection notice */}
-        {item.rejection_reason ? (
-          <View style={styles.rejectionBox}>
-            <Text style={styles.rejectionTitle}>Coordinator Revision Request:</Text>
-            <Text style={styles.rejectionBody}>"{item.rejection_reason}"</Text>
-          </View>
-        ) : null}
-
-        {/* Actions Row */}
-        <View style={styles.actionsRow}>
-          {item.template_url ? (
-            <TouchableOpacity
-              onPress={() => handleOpenDoc(item.template_url)}
-              style={styles.templateBtn}
-              activeOpacity={0.7}
-            >
-              <Download size={14} color={colors.primary} />
-              <Text style={styles.templateBtnText}>Download Template (.docx)</Text>
-            </TouchableOpacity>
-          ) : null}
-
-          {item.file_path ? (
-            <TouchableOpacity
-              onPress={() => handleOpenDoc(item.file_path)}
-              style={styles.viewFileBtn}
-              activeOpacity={0.7}
-            >
-              <ExternalLink size={14} color={colors.textSecondary} />
-              <Text style={styles.viewFileBtnText}>View Uploaded File</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
+        {item.file_url ? (
+          <TouchableOpacity
+            onPress={() => handleOpenDoc(item.file_url)}
+            style={styles.docButton}
+            activeOpacity={0.8}
+          >
+            <ExternalLink size={13} color="#FFB433" />
+            <Text style={styles.docBtnText}>View Uploaded Document</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.unsubmittedNotice}>
+            Upload via student web portal to fulfill this requirement.
+          </Text>
+        )}
       </View>
     );
   };
 
-  const progress = summary?.progressPct || 0;
-  const isCleared = summary?.isCleared;
+  const progressPct = summary?.progressPct || 0;
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Screen Header */}
-      <View style={styles.screenHeader}>
-        <View>
-          <Text style={styles.screenTitle}>Clearance Checklist</Text>
-          <Text style={styles.screenSubtitle}>Institutional OJT Documentation & Approvals</Text>
-        </View>
-      </View>
-
-      {/* Clearance Progress Card */}
-      <View style={styles.progressCard}>
-        <View style={styles.progressHeaderRow}>
-          <View style={styles.progressHeaderLeft}>
-            <ShieldCheck size={20} color={isCleared ? colors.success : colors.info} />
-            <Text style={styles.progressHeaderTitle}>
-              {isCleared ? 'Official Institutional Clearance Complete' : 'Clearance Verification in Progress'}
-            </Text>
-          </View>
-          <Text style={[styles.progressPctText, isCleared && styles.clearedColor]}>
-            {progress}%
-          </Text>
-        </View>
-
-        {/* Progress Bar */}
-        <View style={styles.progressBarTrack}>
-          <View
-            style={[
-              styles.progressBarFill,
-              { width: `${progress}%` },
-              isCleared && styles.progressFillSuccess
-            ]}
+      <FlatList
+        data={requirements}
+        keyExtractor={(item) => String(item.requirement_id || item.id || Math.random())}
+        renderItem={renderReqItem}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#FFB433']}
+            tintColor={'#FFB433'}
           />
-        </View>
+        }
+        ListHeaderComponent={
+          <>
+            <View style={styles.headerSection}>
+              <View style={styles.complianceRow}>
+                <View style={styles.cmoPill}>
+                  <ShieldCheck size={12} color="#80CBC4" />
+                  <Text style={styles.cmoText}>CHED CMO 104 CLEARANCE</Text>
+                </View>
+              </View>
 
-        <Text style={styles.progressSubtitle}>
-          {summary?.approvedCount || 0} of {summary?.totalCount || 0} mandatory institutional requirements approved by your OJT Coordinator.
-        </Text>
-      </View>
+              <Text style={styles.screenTitle}>Clearance & Compliance</Text>
+              <Text style={styles.screenSubtitle}>
+                Institutional verification & exit requirement checklist
+              </Text>
+            </View>
 
-      {/* List */}
-      {loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Fetching clearance requirements...</Text>
-        </View>
-      ) : requirements.length === 0 ? (
-        <View style={styles.emptyBox}>
-          <FileCheck size={48} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>No clearance requirements found</Text>
-          <Text style={styles.emptySubtitle}>
-            Your academic institution has not published specific requirement templates for your program yet.
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={requirements}
-          keyExtractor={(item, index) => (item.requirement_id || index).toString()}
-          renderItem={renderReqItem}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.primary]}
-            />
-          }
-        />
-      )}
+            {/* Clearance Progress Bento Card */}
+            <View style={styles.progressCard}>
+              <View style={styles.progressHeader}>
+                <Text style={styles.progressTitle}>Clearance Completion</Text>
+                <View style={styles.pctPill}>
+                  <Text style={styles.pctText}>{progressPct}% Cleared</Text>
+                </View>
+              </View>
+
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
+              </View>
+
+              <View style={styles.statRow}>
+                <Text style={styles.statLabel}>
+                  Approved: <Text style={styles.statBold}>{summary?.approvedCount || 0}</Text> / {summary?.totalCount || requirements.length} requirements
+                </Text>
+                <Text style={styles.statStatus}>
+                  {summary?.isCleared ? 'Ready for Exit Endorsement' : 'Pending Approvals'}
+                </Text>
+              </View>
+            </View>
+          </>
+        }
+        ListEmptyComponent={
+          !loading && (
+            <View style={styles.emptyContainer}>
+              <FileCheck size={36} color="#80CBC4" />
+              <Text style={styles.emptyTitle}>No clearance items listed</Text>
+              <Text style={styles.emptySubtitle}>
+                Clearance documents assigned by your institution will appear here.
+              </Text>
+            </View>
+          )
+        }
+        ListFooterComponent={<View style={{ height: 80 }} />}
+      />
     </SafeAreaView>
   );
 }
@@ -234,251 +205,233 @@ export default function ClearanceScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: '#193631'
   },
-  screenHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 30
+  },
+  headerSection: {
+    marginBottom: 14
+  },
+  complianceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  cmoPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 14,
+    backgroundColor: 'rgba(38, 166, 154, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(38, 166, 154, 0.4)'
+  },
+  cmoText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#80CBC4',
+    letterSpacing: 0.5
   },
   screenTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.navy
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.4
   },
   screenSubtitle: {
     fontSize: 11,
-    color: colors.textSecondary
+    color: '#80CBC4',
+    marginTop: 2
   },
   progressCard: {
-    backgroundColor: colors.surface,
-    marginHorizontal: 20,
-    marginBottom: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 22,
     padding: 16,
-    borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    marginBottom: 16,
+    gap: 10
   },
-  progressHeaderRow: {
+  progressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  progressTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF'
+  },
+  pctPill: {
+    backgroundColor: 'rgba(255, 180, 51, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 180, 51, 0.4)'
+  },
+  pctText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFB433'
+  },
+  progressBar: {
+    width: '100%',
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden'
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: '#FFB433'
+  },
+  statRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10
+    alignItems: 'center'
   },
-  progressHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1
-  },
-  progressHeaderTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.navy,
-    flex: 1
-  },
-  progressPctText: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: colors.info,
-    fontFamily: 'monospace'
-  },
-  clearedColor: {
-    color: colors.success
-  },
-  progressBarTrack: {
-    height: 8,
-    backgroundColor: colors.surfaceLow,
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 10
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: colors.info,
-    borderRadius: 4
-  },
-  progressFillSuccess: {
-    backgroundColor: colors.success
-  },
-  progressSubtitle: {
+  statLabel: {
     fontSize: 11,
-    color: colors.textSecondary,
-    lineHeight: 16
+    color: 'rgba(255, 255, 255, 0.7)'
   },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40
+  statBold: {
+    fontWeight: '800',
+    color: '#FFFFFF'
+  },
+  statStatus: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#80CBC4'
   },
   reqCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 20,
+    padding: 14,
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    marginBottom: 10,
+    gap: 8
   },
   reqHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 6
+    justifyContent: 'space-between',
+    gap: 8
   },
   reqHeaderLeft: {
     flex: 1,
-    paddingRight: 10
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6
   },
   reqTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.navy,
-    marginBottom: 4
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF'
   },
   mandatoryPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.dangerBg,
+    backgroundColor: 'rgba(244, 63, 94, 0.2)',
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 1,
     borderRadius: 6
   },
   mandatoryText: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '800',
-    color: colors.dangerText
+    color: '#FCA5A5',
+    letterSpacing: 0.5
   },
   statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    borderWidth: 1
+    paddingVertical: 2.5,
+    borderRadius: 10
   },
   statusApproved: {
-    backgroundColor: colors.successBg,
-    borderColor: colors.successBorder
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)'
   },
   statusPending: {
-    backgroundColor: colors.infoBg,
-    borderColor: colors.infoBorder
+    backgroundColor: 'rgba(255, 180, 51, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 180, 51, 0.4)'
   },
   statusRejected: {
-    backgroundColor: colors.dangerBg,
-    borderColor: colors.dangerBorder
+    backgroundColor: 'rgba(244, 63, 94, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.4)'
   },
   statusMissing: {
-    backgroundColor: colors.surfaceLow,
-    borderColor: colors.border
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)'
   },
   statusText: {
-    fontSize: 10,
-    fontWeight: '700'
+    fontSize: 9,
+    fontWeight: '800'
   },
-  statusApprovedText: {
-    color: colors.successText
+  textApproved: {
+    color: '#80CBC4'
   },
-  statusPendingText: {
-    color: colors.infoText
+  textPending: {
+    color: '#FFB433'
   },
-  statusRejectedText: {
-    color: colors.dangerText
+  textRejected: {
+    color: '#FCA5A5'
   },
-  statusMissingText: {
-    color: colors.textSecondary
+  textMissing: {
+    color: 'rgba(255, 255, 255, 0.5)'
   },
   reqDesc: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 17,
-    marginTop: 6
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.65)',
+    lineHeight: 16
   },
-  rejectionBox: {
-    backgroundColor: colors.dangerBg,
-    padding: 10,
-    borderRadius: 10,
-    marginTop: 10,
+  docButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 180, 51, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.dangerBorder
+    borderColor: 'rgba(255, 180, 51, 0.3)'
   },
-  rejectionTitle: {
+  docBtnText: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.dangerText,
-    marginBottom: 2
+    color: '#FFB433'
   },
-  rejectionBody: {
-    fontSize: 11,
-    color: colors.dangerText,
+  unsubmittedNotice: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.4)',
     fontStyle: 'italic'
   },
-  actionsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight
-  },
-  templateBtn: {
-    flexDirection: 'row',
+  emptyContainer: {
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder
-  },
-  templateBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primaryDark
-  },
-  viewFileBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.surfaceLow,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  viewFileBtnText: {
-    fontSize: 11,
-    color: colors.text,
-    fontWeight: '600'
-  },
-  loadingBox: {
-    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12
-  },
-  loadingText: {
-    fontSize: 12,
-    color: colors.textSecondary
-  },
-  emptyBox: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 30,
-    gap: 12
+    paddingVertical: 48,
+    gap: 8
   },
   emptyTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF'
   },
   emptySubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
-    lineHeight: 18
+    paddingHorizontal: 20
   }
 });

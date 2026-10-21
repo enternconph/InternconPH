@@ -1229,6 +1229,18 @@ router.get(['/attendance/qr-credentials', '/attendance/credentials'], async (req
       [student.student_id]
     );
 
+    // Also fetch today's attendance log for instant status display
+    const [todayRows] = await pool.query(
+      `SELECT att.*,
+              DATE_FORMAT(att.log_date, '%Y-%m-%d') as log_date_str
+       FROM ojt_attendance_logs att
+       WHERE att.student_id = ? AND att.log_date = CURRENT_DATE()
+       ORDER BY att.attendance_id DESC
+       LIMIT 1`,
+      [student.student_id]
+    );
+    const todayLog = todayRows.length > 0 ? todayRows[0] : null;
+
     if (rows.length > 0) {
       const existing = rows[0];
       // Check if presented device matches locked device
@@ -1250,7 +1262,8 @@ router.get(['/attendance/qr-credentials', '/attendance/credentials'], async (req
           deviceBound: !!existing.is_locked,
           is_mismatched: isMismatched,
           registered_device_name: existing.device_name,
-          registered_at: existing.registered_at
+          registered_at: existing.registered_at,
+          todayLog
         }
       });
     }
@@ -1281,7 +1294,8 @@ router.get(['/attendance/qr-credentials', '/attendance/credentials'], async (req
         qrSecret: newSecret,
         is_locked: true,
         deviceBound: true,
-        is_mismatched: false
+        is_mismatched: false,
+        todayLog
       }
     });
   } catch (error) {

@@ -160,3 +160,83 @@ export const playMissingFieldsAlarm = (volume = 0.45) => {
     console.warn('Missing fields alarm playback failed:', err);
   }
 };
+
+/**
+ * Plays a distinct high-energy ascending arpeggio when an intern times-in or times-out successfully.
+ * Tone: C5 (523Hz) -> E5 (659Hz) -> G5 (784Hz) -> C6 (1046Hz)
+ */
+export const playAttendanceSuccessChime = (volume = 0.4) => {
+  try {
+    const soundEnabled = localStorage.getItem('interncon_sound_enabled');
+    if (soundEnabled === 'false' || soundEnabled === '0') return;
+
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(volume, now);
+    masterGain.connect(ctx.destination);
+
+    const notes = [
+      { freq: 523.25, time: 0, dur: 0.12 },
+      { freq: 659.25, time: 0.08, dur: 0.12 },
+      { freq: 783.99, time: 0.16, dur: 0.14 },
+      { freq: 1046.50, time: 0.24, dur: 0.35 }
+    ];
+
+    notes.forEach(({ freq, time, dur }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + time);
+      gain.gain.setValueAtTime(0.001, now + time);
+      gain.gain.setValueAtTime(0.5, now + time + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + time + dur);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(now + time);
+      osc.stop(now + time + dur + 0.02);
+    });
+  } catch (err) {
+    console.warn('Attendance success chime failed:', err);
+  }
+};
+
+/**
+ * Plays a low double-buzz alert when an attendance scan fails (expired QR, unauthorized, etc.)
+ */
+export const playAttendanceErrorChime = (volume = 0.45) => {
+  try {
+    const soundEnabled = localStorage.getItem('interncon_sound_enabled');
+    if (soundEnabled === 'false' || soundEnabled === '0') return;
+
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(volume, now);
+    masterGain.connect(ctx.destination);
+
+    const buzzes = [
+      { freq: 220, time: 0, dur: 0.15 },
+      { freq: 196, time: 0.18, dur: 0.25 }
+    ];
+
+    buzzes.forEach(({ freq, time, dur }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, now + time);
+      gain.gain.setValueAtTime(0.4, now + time);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + time + dur);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(now + time);
+      osc.stop(now + time + dur + 0.02);
+    });
+  } catch (err) {
+    console.warn('Attendance error chime failed:', err);
+  }
+};

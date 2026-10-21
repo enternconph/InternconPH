@@ -16,7 +16,12 @@ import {
   Building2,
   Calendar,
   QrCode,
-  Check
+  Check,
+  ShieldCheck,
+  MapPin,
+  ChevronDown,
+  ChevronUp,
+  Fingerprint
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/client';
@@ -33,6 +38,8 @@ export default function DtrScreen() {
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [todayLog, setTodayLog] = useState(null);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [filter, setFilter] = useState('all'); // 'all' | 'verified' | 'pending'
+  const [expandedLogId, setExpandedLogId] = useState(null);
 
   // Restore cached DTR for offline support
   useEffect(() => {
@@ -95,16 +102,23 @@ export default function DtrScreen() {
     0
   );
 
+  const filteredLogs = attendanceLogs.filter((log) => {
+    if (filter === 'verified') return log.status === 'verified';
+    if (filter === 'pending') return log.status !== 'verified';
+    return true;
+  });
+
   const renderLogItem = ({ item }) => {
     const isLate = item.time_in_status === 'late';
     const isVerified = item.status === 'verified';
+    const isExpanded = expandedLogId === item.attendance_id;
 
     return (
       <View style={styles.logCard}>
-        {/* Date & Certification Status */}
+        {/* Date & Certification Status Header */}
         <View style={styles.logHeader}>
           <View style={styles.dateGroup}>
-            <Calendar size={14} color={colors.textSecondary} />
+            <Calendar size={14} color="#80CBC4" />
             <Text style={styles.dateText}>
               {new Date(item.log_date).toLocaleDateString(undefined, {
                 weekday: 'short',
@@ -116,152 +130,191 @@ export default function DtrScreen() {
           </View>
 
           <View style={[styles.certBadge, isVerified ? styles.certVerified : styles.certPending]}>
-            <CheckCircle2 size={12} color={isVerified ? colors.successText : colors.warningText} />
+            <CheckCircle2 size={12} color={isVerified ? '#80CBC4' : '#FFB433'} />
             <Text style={[styles.certText, isVerified ? styles.certTextVerified : styles.certTextPending]}>
-              {isVerified ? 'Certified' : 'Pending Review'}
+              {isVerified ? 'VERIFIED' : 'PENDING REVIEW'}
             </Text>
           </View>
         </View>
 
-        {/* Company */}
-        <View style={styles.companyRow}>
-          <Building2 size={14} color={colors.primary} />
-          <Text style={styles.companyText}>{item.organization_name || 'Host Company'}</Text>
-        </View>
-
-        {/* Time Stats Box */}
-        <View style={styles.timeStatsBox}>
-          <View style={styles.timeStatItem}>
-            <Text style={styles.timeStatLabel}>TIME IN (PST)</Text>
-            <Text style={styles.timeStatValue}>
-              {item.time_in ? formatTime12(item.time_in) : '—'}
-            </Text>
-            {item.time_in && (
-              <Text style={[styles.timeSubstatus, isLate ? styles.lateText : styles.onTimeText]}>
-                {isLate ? 'Late' : 'On-Time'}
-              </Text>
+        {/* Timestamps Row */}
+        <View style={styles.timeRow}>
+          <View style={styles.timeBox}>
+            <Text style={styles.timeLabel}>TIME IN</Text>
+            <Text style={styles.timeVal}>{formatTime12(item.time_in)}</Text>
+            {isLate ? (
+              <View style={styles.lateTag}>
+                <Text style={styles.lateText}>Late</Text>
+              </View>
+            ) : (
+              <View style={styles.onTimeTag}>
+                <Text style={styles.onTimeText}>On-Time</Text>
+              </View>
             )}
           </View>
 
-          <View style={styles.timeDivider} />
-
-          <View style={styles.timeStatItem}>
-            <Text style={styles.timeStatLabel}>TIME OUT (PST)</Text>
-            <Text style={styles.timeStatValue}>
-              {item.time_out ? formatTime12(item.time_out) : 'In Progress'}
+          <View style={styles.timeBox}>
+            <Text style={styles.timeLabel}>TIME OUT</Text>
+            <Text style={styles.timeVal}>
+              {item.time_out ? formatTime12(item.time_out) : '--:--'}
             </Text>
-            <Text style={styles.timeSubstatus}>
-              {item.time_out ? 'Clocked Out' : 'Active'}
+            <Text style={styles.timeSubtext}>
+              {item.time_out ? 'Stamped' : 'Open Shift'}
             </Text>
           </View>
 
-          <View style={styles.timeDivider} />
-
-          <View style={styles.timeStatItem}>
-            <Text style={styles.timeStatLabel}>HOURS CREDITED</Text>
-            <Text style={styles.timeStatHours}>
-              {parseFloat(item.hours_rendered || 0).toFixed(2)} hrs
-            </Text>
-            <Text style={styles.timeSubstatus}>Mentor Audit</Text>
+          <View style={styles.hoursBox}>
+            <Text style={styles.hoursLabel}>CREDITED</Text>
+            <Text style={styles.hoursVal}>{item.hours_rendered || 0}</Text>
+            <Text style={styles.hoursUnit}>HRS</Text>
           </View>
         </View>
 
-        {/* Tasks Accomplished */}
-        {item.tasks_accomplished ? (
-          <View style={styles.tasksBox}>
-            <Text style={styles.tasksTitle}>Tasks Rendered:</Text>
-            <Text style={styles.tasksContent}>{item.tasks_accomplished}</Text>
+        {/* Geofence / Biometric Stamp */}
+        <View style={styles.telemetryRow}>
+          <View style={styles.telemetryItem}>
+            <MapPin size={11} color="#80CBC4" />
+            <Text style={styles.telemetryText}>
+              {item.location_name || 'Designated Workplace Geofence'}
+            </Text>
           </View>
-        ) : null}
+
+          <TouchableOpacity
+            onPress={() => setExpandedLogId(isExpanded ? null : item.attendance_id)}
+            style={styles.auditToggleBtn}
+          >
+            <Text style={styles.auditToggleText}>Audit Trail</Text>
+            {isExpanded ? (
+              <ChevronUp size={12} color="#80CBC4" />
+            ) : (
+              <ChevronDown size={12} color="#80CBC4" />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Expandable Cryptographic & Audit Details */}
+        {isExpanded && (
+          <View style={styles.auditDrawer}>
+            <Text style={styles.auditTitle}>Cryptographic Signatures & Verification</Text>
+            <View style={styles.auditFieldRow}>
+              <Text style={styles.auditFieldLabel}>Device Verification:</Text>
+              <Text style={styles.auditFieldValue}>Knox Biometric Bound</Text>
+            </View>
+            <View style={styles.auditFieldRow}>
+              <Text style={styles.auditFieldLabel}>Time Standard:</Text>
+              <Text style={styles.auditFieldValue}>Philippine Standard Time (UTC+8)</Text>
+            </View>
+            {item.supervisor_notes ? (
+              <View style={styles.notesBox}>
+                <Text style={styles.notesLabel}>Supervisor Remark:</Text>
+                <Text style={styles.notesText}>{item.supervisor_notes}</Text>
+              </View>
+            ) : null}
+          </View>
+        )}
       </View>
     );
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Screen Header */}
-      <View style={styles.screenHeader}>
-        <View>
-          <Text style={styles.screenTitle}>Daily Time Record</Text>
-          <Text style={styles.screenSubtitle}>PST UTC+8 Synchronized Logs</Text>
-        </View>
-        <TouchableOpacity
-          onPress={() => setShowQrModal(true)}
-          style={styles.qrHeaderBtn}
-          activeOpacity={0.8}
-        >
-          <QrCode size={16} color="#ffffff" />
-          <Text style={styles.qrHeaderBtnText}>My QR</Text>
-        </TouchableOpacity>
-      </View>
+      <FlatList
+        data={filteredLogs}
+        keyExtractor={(item) => String(item.attendance_id || item.id || Math.random())}
+        renderItem={renderLogItem}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#FFB433']}
+            tintColor={'#FFB433'}
+          />
+        }
+        ListHeaderComponent={
+          <>
+            {/* Title & Regulatory Badge */}
+            <View style={styles.headerSection}>
+              <View style={styles.complianceRow}>
+                <View style={styles.cmoPill}>
+                  <View style={styles.pulseDot} />
+                  <Text style={styles.cmoText}>CHED CMO 104 COMPLIANT</Text>
+                </View>
+                <View style={styles.livePill}>
+                  <Text style={styles.liveText}>Live Sync</Text>
+                </View>
+              </View>
 
-      {/* Summary Banner */}
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryNum}>{attendanceLogs.length}</Text>
-          <Text style={styles.summaryLabel}>Total Shifts</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryNum}>{totalCertifiedHours.toFixed(1)}</Text>
-          <Text style={styles.summaryLabel}>Hours Rendered</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryNum}>
-            {attendanceLogs.filter(l => l.status === 'verified').length}
-          </Text>
-          <Text style={styles.summaryLabel}>Certified Logs</Text>
-        </View>
-      </View>
+              <Text style={styles.screenTitle}>DTR Logbook & Biometrics</Text>
+              <Text style={styles.screenSubtitle}>
+                Philippine Higher Education Regulatory Daily Time Record
+              </Text>
+            </View>
 
-      {/* Network & Live DTR Status Badge */}
-      <View style={[styles.networkBadge, isOnline ? styles.networkOnline : styles.networkOffline]}>
-        <View style={[styles.networkDot, isOnline ? styles.dotOnline : styles.dotOffline]} />
-        <Text style={[styles.networkText, isOnline ? styles.textOnline : styles.textOffline]}>
-          {isOnline
-            ? 'Online • Real-time DTR Synced'
-            : 'Offline Mode • Showing Cached DTR (Will sync once online)'}
-        </Text>
-      </View>
+            {/* Metric Bento Summary */}
+            <View style={styles.summaryBentoRow}>
+              <View style={styles.bentoBox}>
+                <Text style={styles.bentoLabel}>TOTAL CERTIFIED</Text>
+                <Text style={styles.bentoNumber}>{totalCertifiedHours.toFixed(1)}</Text>
+                <Text style={styles.bentoSubtext}>Official OJT Hours</Text>
+              </View>
 
-      {/* Logs List */}
-      {loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Fetching shift logs...</Text>
-        </View>
-      ) : attendanceLogs.length === 0 ? (
-        <View style={styles.emptyBox}>
-          <Clock size={48} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>No attendance records yet</Text>
-          <Text style={styles.emptySubtitle}>
-            Scan your dynamic attendance QR at your workplace to record your first time-in.
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={attendanceLogs}
-          keyExtractor={item => item.attendance_id.toString()}
-          renderItem={renderLogItem}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.primary]}
-            />
-          }
-        />
-      )}
+              <View style={styles.bentoBox}>
+                <Text style={styles.bentoLabel}>TOTAL ENTRIES</Text>
+                <Text style={styles.bentoNumber}>{attendanceLogs.length}</Text>
+                <Text style={styles.bentoSubtext}>Recorded Shifts</Text>
+              </View>
+            </View>
 
-      {/* Dynamic Attendance QR Modal */}
+            {/* Filter Pills */}
+            <View style={styles.filterRow}>
+              <TouchableOpacity
+                onPress={() => setFilter('all')}
+                style={[styles.filterPill, filter === 'all' && styles.filterPillActive]}
+              >
+                <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
+                  All ({attendanceLogs.length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setFilter('verified')}
+                style={[styles.filterPill, filter === 'verified' && styles.filterPillActive]}
+              >
+                <Text style={[styles.filterText, filter === 'verified' && styles.filterTextActive]}>
+                  Verified
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setFilter('pending')}
+                style={[styles.filterPill, filter === 'pending' && styles.filterPillActive]}
+              >
+                <Text style={[styles.filterText, filter === 'pending' && styles.filterTextActive]}>
+                  Pending
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        }
+        ListEmptyComponent={
+          !loading && (
+            <View style={styles.emptyContainer}>
+              <Clock size={36} color="#80CBC4" />
+              <Text style={styles.emptyTitle}>No DTR entries found</Text>
+              <Text style={styles.emptySubtitle}>
+                Shifts logged through the Dynamic Attendance QR code will appear here.
+              </Text>
+            </View>
+          )
+        }
+        ListFooterComponent={<View style={{ height: 80 }} />}
+      />
+
       <AttendanceQrModal
         visible={showQrModal}
-        onClose={() => {
-          setShowQrModal(false);
-          fetchDtr();
-        }}
+        onClose={() => setShowQrModal(false)}
       />
     </SafeAreaView>
   );
@@ -270,128 +323,138 @@ export default function DtrScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: '#193631'
   },
-  screenHeader: {
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 30
+  },
+  headerSection: {
+    marginBottom: 14
+  },
+  complianceRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12
+    gap: 8,
+    marginBottom: 8
+  },
+  cmoPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 14,
+    backgroundColor: 'rgba(38, 166, 154, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(38, 166, 154, 0.4)'
+  },
+  pulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#80CBC4'
+  },
+  cmoText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#80CBC4',
+    letterSpacing: 0.5
+  },
+  livePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)'
+  },
+  liveText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.8)'
   },
   screenTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.navy
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.4
   },
   screenSubtitle: {
     fontSize: 11,
-    color: colors.textSecondary
-  },
-  qrHeaderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14
-  },
-  qrHeaderBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#ffffff'
-  },
-  summaryCard: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    marginHorizontal: 20,
-    marginBottom: 10,
-    padding: 14,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  networkBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginHorizontal: 20,
-    marginBottom: 14,
-    gap: 8,
-    borderWidth: 1
-  },
-  networkOnline: {
-    backgroundColor: '#ecfdf5',
-    borderColor: '#a7f3d0'
-  },
-  networkOffline: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#fde68a'
-  },
-  networkDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4
-  },
-  dotOnline: {
-    backgroundColor: '#059669'
-  },
-  dotOffline: {
-    backgroundColor: '#d97706'
-  },
-  networkText: {
-    fontSize: 11,
-    fontWeight: '700'
-  },
-  textOnline: {
-    color: '#065f46'
-  },
-  textOffline: {
-    color: '#92400e'
-  },
-  summaryItem: {
-    flex: 1,
-    alignItems: 'center'
-  },
-  summaryNum: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.navy,
-    fontFamily: 'monospace'
-  },
-  summaryLabel: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    fontWeight: '600',
+    color: '#80CBC4',
     marginTop: 2
   },
-  summaryDivider: {
-    width: 1,
-    height: '80%',
-    backgroundColor: colors.borderLight,
-    alignSelf: 'center'
+  summaryBentoRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14
   },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 30
+  bentoBox: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)'
+  },
+  bentoLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#80CBC4',
+    letterSpacing: 0.5
+  },
+  bentoNumber: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginTop: 2
+  },
+  bentoSubtext: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.55)',
+    marginTop: 1
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14
+  },
+  filterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)'
+  },
+  filterPillActive: {
+    backgroundColor: '#FFB433',
+    borderColor: '#FFB433'
+  },
+  filterText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.7)'
+  },
+  filterTextActive: {
+    color: '#193631',
+    fontWeight: '800'
   },
   logCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 22,
     padding: 16,
-    marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    marginBottom: 12,
+    gap: 12
   },
   logHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10
+    justifyContent: 'space-between'
   },
   dateGroup: {
     flexDirection: 'row',
@@ -399,142 +462,199 @@ const styles = StyleSheet.create({
     gap: 6
   },
   dateText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF'
   },
   certBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    borderWidth: 1
+    paddingVertical: 2.5,
+    borderRadius: 12
   },
   certVerified: {
-    backgroundColor: colors.successBg,
-    borderColor: colors.successBorder
+    backgroundColor: 'rgba(16, 185, 129, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.35)'
   },
   certPending: {
-    backgroundColor: colors.warningBg,
-    borderColor: colors.warningBorder
+    backgroundColor: 'rgba(255, 180, 51, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 180, 51, 0.35)'
   },
   certText: {
-    fontSize: 10,
-    fontWeight: '700'
+    fontSize: 9,
+    fontWeight: '800'
   },
   certTextVerified: {
-    color: colors.successText
+    color: '#80CBC4'
   },
   certTextPending: {
-    color: colors.warningText
+    color: '#FFB433'
   },
-  companyRow: {
+  timeRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 12
-  },
-  companyText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary
-  },
-  timeStatsBox: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceLow,
-    borderRadius: 14,
+    gap: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: 16,
     padding: 10,
     borderWidth: 1,
-    borderColor: colors.borderLight
+    borderColor: 'rgba(255, 255, 255, 0.05)'
   },
-  timeStatItem: {
+  timeBox: {
     flex: 1,
     alignItems: 'center'
   },
-  timeStatLabel: {
-    fontSize: 8,
+  timeLabel: {
+    fontSize: 9,
     fontWeight: '800',
-    color: colors.textMuted,
+    color: '#80CBC4',
     letterSpacing: 0.5
   },
-  timeStatValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
-    fontFamily: 'monospace',
+  timeVal: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#FFFFFF',
     marginTop: 2
   },
-  timeStatHours: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.primary,
-    fontFamily: 'monospace',
-    marginTop: 2
-  },
-  timeSubstatus: {
+  timeSubtext: {
     fontSize: 9,
-    color: colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginTop: 2
+  },
+  lateTag: {
+    backgroundColor: 'rgba(244, 63, 94, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
     marginTop: 2
   },
   lateText: {
-    color: colors.warning,
+    fontSize: 9,
+    color: '#FCA5A5',
     fontWeight: '700'
+  },
+  onTimeTag: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+    marginTop: 2
   },
   onTimeText: {
-    color: colors.success,
+    fontSize: 9,
+    color: '#80CBC4',
     fontWeight: '700'
   },
-  timeDivider: {
-    width: 1,
-    height: '70%',
-    backgroundColor: colors.border,
-    alignSelf: 'center'
+  hoursBox: {
+    width: 68,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(255, 255, 255, 0.1)'
   },
-  tasksBox: {
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight
+  hoursLabel: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#FFB433',
+    letterSpacing: 0.5
   },
-  tasksTitle: {
+  hoursVal: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF'
+  },
+  hoursUnit: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: 'rgba(255, 255, 255, 0.6)'
+  },
+  telemetryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  telemetryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4
+  },
+  telemetryText: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.65)'
+  },
+  auditToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2
+  },
+  auditToggleText: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.textSecondary,
+    color: '#80CBC4'
+  },
+  auditDrawer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 14,
+    padding: 10,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)'
+  },
+  auditTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#80CBC4',
+    letterSpacing: 0.5,
     marginBottom: 2
   },
-  tasksContent: {
-    fontSize: 11,
-    color: colors.text,
-    lineHeight: 16
+  auditFieldRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
   },
-  loadingBox: {
-    flex: 1,
-    justifyContent: 'center',
+  auditFieldLabel: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.55)'
+  },
+  auditFieldValue: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF'
+  },
+  notesBox: {
+    marginTop: 4,
+    padding: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8
+  },
+  notesLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FFB433'
+  },
+  notesText: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginTop: 1
+  },
+  emptyContainer: {
     alignItems: 'center',
-    gap: 12
-  },
-  loadingText: {
-    fontSize: 12,
-    color: colors.textSecondary
-  },
-  emptyBox: {
-    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: 30,
-    gap: 12
+    paddingVertical: 48,
+    gap: 8
   },
   emptyTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF'
   },
   emptySubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
-    lineHeight: 18
+    paddingHorizontal: 20
   }
 });

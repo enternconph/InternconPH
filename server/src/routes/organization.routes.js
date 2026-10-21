@@ -1729,6 +1729,16 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
     // Step 3: Cryptographic & Time-bound Verification (30s window + Device Token match)
     const verification = verifyTotpPayload(qr_payload, deviceRecord.totp_secret, deviceRecord.device_token, 30);
     if (!verification.valid) {
+      if (deviceRecord.student_user_id) {
+        emitUpdate('attendance_failed', {
+          student_id: studentId,
+          user_id: deviceRecord.student_user_id,
+          organization_id: org.organization_id,
+          action: 'scan_failed',
+          status: 'failed',
+          message: verification.reason || 'Attendance verification failed.'
+        });
+      }
       return res.status(400).json({
         success: false,
         message: verification.reason
@@ -1747,6 +1757,16 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
     );
 
     if (ojtRows.length === 0) {
+      if (deviceRecord.student_user_id) {
+        emitUpdate('attendance_failed', {
+          student_id: studentId,
+          user_id: deviceRecord.student_user_id,
+          organization_id: org.organization_id,
+          action: 'not_enrolled',
+          status: 'failed',
+          message: `${deviceRecord.first_name} ${deviceRecord.last_name} is not enrolled in an active OJT placement with this organization.`
+        });
+      }
       return res.status(403).json({
         success: false,
         message: `${deviceRecord.first_name} ${deviceRecord.last_name} is not currently enrolled in an ongoing OJT placement with your organization.`
@@ -1788,9 +1808,22 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
         );
       }
 
-      emitUpdate('attendance_logged', { ojt_id: ojt.ojt_id, student_id: studentId, organization_id: org.organization_id });
-
       const statusBadge = timeInStatus === 'on_time' ? 'On-Time' : 'Late';
+
+      emitUpdate('attendance_logged', {
+        ojt_id: ojt.ojt_id,
+        student_id: studentId,
+        user_id: deviceRecord.student_user_id,
+        organization_id: org.organization_id,
+        action: 'time_in',
+        status: 'success',
+        time_in: currentTimeStr,
+        time_in_status: timeInStatus,
+        status_badge: statusBadge,
+        student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
+        student_number: deviceRecord.student_number,
+        message: `Time-In recorded at ${currentTimeStr} (${statusBadge})`
+      });
 
       // Notify Student
       if (deviceRecord.student_user_id) {
@@ -1867,7 +1900,21 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
         [currentTimeStr, timeOutStatus, calculatedHours, todayLog.attendance_id]
       );
 
-      emitUpdate('attendance_logged', { ojt_id: ojt.ojt_id, student_id: studentId, organization_id: org.organization_id });
+      emitUpdate('attendance_logged', {
+        ojt_id: ojt.ojt_id,
+        student_id: studentId,
+        user_id: deviceRecord.student_user_id,
+        organization_id: org.organization_id,
+        action: 'time_out',
+        status: 'success',
+        time_in: todayLog.time_in,
+        time_out: currentTimeStr,
+        time_out_status: timeOutStatus,
+        hours_rendered: calculatedHours,
+        student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
+        student_number: deviceRecord.student_number,
+        message: `Time-Out recorded at ${currentTimeStr} (${calculatedHours} hrs rendered)`
+      });
 
       // Notify Student
       if (deviceRecord.student_user_id) {
@@ -1920,6 +1967,16 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
     }
 
     // CASE C: Student already clocked in AND clocked out today
+    if (deviceRecord.student_user_id) {
+      emitUpdate('attendance_failed', {
+        student_id: studentId,
+        user_id: deviceRecord.student_user_id,
+        organization_id: org.organization_id,
+        action: 'already_completed',
+        status: 'failed',
+        message: `${deviceRecord.first_name} ${deviceRecord.last_name} has already completed their shift today.`
+      });
+    }
     return res.status(400).json({
       success: false,
       message: `${deviceRecord.first_name} ${deviceRecord.last_name} has already completed their shift today (In: ${todayLog.time_in.slice(0, 5)}, Out: ${todayLog.time_out.slice(0, 5)}, ${todayLog.hours_rendered || 0} hrs). Additional clocking is not required.`
