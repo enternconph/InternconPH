@@ -512,10 +512,9 @@ export default function OrgOJT() {
             <table className="w-full text-left text-sm min-w-[760px]">
               <thead>
                 <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
-                  <th className="py-3 px-4">Intern</th>
-                  <th className="py-3 px-4">Position & School</th>
-                  <th className="py-3 px-4">Progress</th>
-                  <th className="py-3 px-4">Today's Attendance</th>
+                  <th className="py-3 px-4">Intern & Role</th>
+                  <th className="py-3 px-4">Institution & Mentor</th>
+                  <th className="py-3 px-4">Progress & Attendance</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -530,7 +529,7 @@ export default function OrgOJT() {
 
                   return (
                     <tr key={intern.ojt_id} className="hover:bg-surface-container-low transition-colors">
-                      {/* Intern Name & Quick Detail Link */}
+                      {/* Intern Name, ID & Role */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-full bg-vibrant-orange/10 text-vibrant-orange font-bold flex items-center justify-center text-xs shrink-0">
@@ -538,22 +537,30 @@ export default function OrgOJT() {
                           </div>
                           <div>
                             <p className="font-bold text-on-surface text-xs leading-tight">{intern.first_name} {intern.last_name}</p>
-                            <p className="text-[11px] text-on-surface-variant font-mono">ID #{intern.student_number}</p>
-                            <DetailLink onClick={() => setSelectedInternForDetail(intern)}>
-                              View Details
-                            </DetailLink>
+                            <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant mt-0.5">
+                              <span className="font-semibold text-on-surface">{intern.position_title || intern.job_title || 'Intern'}</span>
+                              <span>•</span>
+                              <span className="font-mono">#{intern.student_number}</span>
+                            </div>
+                            <div className="mt-1">
+                              <DetailLink onClick={() => setSelectedInternForDetail(intern)}>
+                                View Details
+                              </DetailLink>
+                            </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* Position & School */}
+                      {/* Institution & Mentor */}
                       <td className="py-3 px-4 text-xs">
-                        <p className="font-bold text-on-surface leading-tight">{intern.position_title || intern.job_title || 'Intern'}</p>
-                        <p className="text-[11px] text-on-surface-variant line-clamp-1" title={`${intern.institution_name} • ${intern.program_name}`}>
+                        <p className="font-medium text-on-surface leading-tight line-clamp-1" title={`${intern.institution_name} • ${intern.program_name}`}>
                           {intern.institution_name}
                         </p>
+                        <p className="text-[11px] text-on-surface-variant line-clamp-1 mt-0.5">
+                          {intern.program_name || 'Academic Degree'}
+                        </p>
                         {(intern.mentor_first_name || intern.supervisor_name) && (
-                          <span className="text-[10px] text-primary dark:text-primary-container font-medium mt-0.5 inline-flex items-center gap-0.5">
+                          <span className="text-[10px] text-primary dark:text-primary-container font-medium mt-1 inline-flex items-center gap-0.5">
                             <span className="material-symbols-outlined text-[11px]">person_check</span>
                             <span className="truncate max-w-[150px]">
                               {intern.mentor_first_name ? `${intern.mentor_first_name} ${intern.mentor_last_name}` : intern.supervisor_name}
@@ -562,9 +569,9 @@ export default function OrgOJT() {
                         )}
                       </td>
 
-                      {/* Rendered / Required Progress */}
+                      {/* Progress & Attendance */}
                       <td className="py-3 px-4">
-                        <div className="space-y-1 min-w-[110px]">
+                        <div className="space-y-1.5 min-w-[140px]">
                           <div className="flex justify-between text-xs font-bold">
                             <span>{done}/{req}h</span>
                             <span className={isCompleted ? 'text-pinoy-green font-black' : 'text-vibrant-orange'}>
@@ -577,96 +584,77 @@ export default function OrgOJT() {
                               style={{ width: `${pct}%` }}
                             ></div>
                           </div>
-                        </div>
-                      </td>
 
-                      {/* Today's Attendance Cell */}
-                      <td className="py-3 px-4">
-                        {isCompleted ? (
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[14px]">verified</span>
-                            <span>Completed</span>
-                          </span>
-                        ) : !intern.today_time_in ? (
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25 inline-flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[13px]">hourglass_top</span>
-                              <span>Awaiting In</span>
-                            </span>
-                            {isHR && (
-                              <button
-                                type="button"
-                                onClick={() => setShowScannerModal(true)}
-                                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[11px] font-bold transition-colors inline-flex items-center gap-1 shadow-xs"
-                                title="Open HR QR Attendance Scanner"
-                              >
-                                <span className="material-symbols-outlined text-[13px]">qr_code_scanner</span>
-                                <span>Scan In</span>
-                              </button>
-                            )}
-                          </div>
-                        ) : !intern.today_time_out ? (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 inline-flex items-center gap-1 font-mono">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                              <span>In: {formatPHTTime(intern.today_time_in)}</span>
-                            </span>
-                            {isHR ? (
-                              <button
-                                type="button"
-                                onClick={() => setShowScannerModal(true)}
-                                className="px-2 py-0.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded-md text-[11px] font-bold transition-colors inline-flex items-center gap-1 shadow-xs"
-                                title="Scan student QR for departure clock"
-                              >
-                                <span className="material-symbols-outlined text-[13px]">qr_code_scanner</span>
-                                <span>Scan Out</span>
-                              </button>
-                            ) : (
-                              <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-bold">On Duty</span>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1 flex-wrap">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200 border border-emerald-300 inline-flex items-center gap-1 font-mono">
-                                <span className="material-symbols-outlined text-[12px] text-emerald-600">check_circle</span>
-                                <span>{intern.today_hours || 0} hrs</span>
-                              </span>
-                            </div>
-                            {intern.today_status === 'rejected' ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30 inline-flex items-center gap-1">
-                                <span className="material-symbols-outlined text-[12px]">cancel</span>
-                                <span>Flagged</span>
-                              </span>
-                            ) : intern.today_status === 'pending' ? (
-                              isMentor ? (
-                                <button
-                                  type="button"
-                                  disabled={actionLoading || validatingId === intern.today_attendance_id}
-                                  onClick={() => handleValidateShift(intern.today_attendance_id, intern.today_hours)}
-                                  className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold transition-colors inline-flex items-center gap-1 shadow-xs"
-                                  title="Validate and certify shift hours"
-                                >
-                                  <span className="material-symbols-outlined text-[12px]">verified</span>
-                                  <span>{validatingId === intern.today_attendance_id ? 'Validating...' : 'Validate'}</span>
-                                </button>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 inline-flex items-center gap-1">
-                                  <span>Pending</span>
-                                </span>
-                              )
-                            ) : intern.today_status === 'verified' ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-tint text-pinoy-green border border-pinoy-green/20 inline-flex items-center gap-0.5">
+                          {/* Today's Attendance Badge */}
+                          <div className="pt-0.5">
+                            {isCompleted ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
                                 <span className="material-symbols-outlined text-[12px]">verified</span>
-                                <span>Certified</span>
+                                <span>Completed</span>
                               </span>
+                            ) : !intern.today_time_in ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25 inline-flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-[11px]">hourglass_top</span>
+                                  <span>Awaiting In</span>
+                                </span>
+                                {isHR && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowScannerModal(true)}
+                                    className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition-colors inline-flex items-center gap-1 shadow-xs"
+                                    title="Open HR QR Attendance Scanner"
+                                  >
+                                    <span className="material-symbols-outlined text-[11px]">qr_code_scanner</span>
+                                    <span>Scan</span>
+                                  </button>
+                                )}
+                              </div>
+                            ) : !intern.today_time_out ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 inline-flex items-center gap-1 font-mono">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                  <span>In: {formatPHTTime(intern.today_time_in)}</span>
+                                </span>
+                                {isHR ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowScannerModal(true)}
+                                    className="px-2 py-0.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded text-[10px] font-bold transition-colors inline-flex items-center gap-1 shadow-xs"
+                                    title="Scan student QR for departure clock"
+                                  >
+                                    <span className="material-symbols-outlined text-[11px]">qr_code_scanner</span>
+                                    <span>Out</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">On Duty</span>
+                                )}
+                              </div>
                             ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-700 border border-rose-500/30">
-                                Flagged
-                              </span>
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200 border border-emerald-300 inline-flex items-center gap-1 font-mono">
+                                  <span className="material-symbols-outlined text-[11px] text-emerald-600">check_circle</span>
+                                  <span>{intern.today_hours || 0} hrs</span>
+                                </span>
+                                {intern.today_status === 'pending' && isMentor ? (
+                                  <button
+                                    type="button"
+                                    disabled={actionLoading || validatingId === intern.today_attendance_id}
+                                    onClick={() => handleValidateShift(intern.today_attendance_id, intern.today_hours)}
+                                    className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition-colors inline-flex items-center gap-0.5 shadow-xs"
+                                  >
+                                    <span className="material-symbols-outlined text-[11px]">verified</span>
+                                    <span>Validate</span>
+                                  </button>
+                                ) : intern.today_status === 'verified' ? (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-green-tint text-pinoy-green">Certified</span>
+                                ) : (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-800">Pending</span>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
+                        </div>
                       </td>
 
                       {/* Actions */}
@@ -757,17 +745,15 @@ export default function OrgOJT() {
                 <thead>
                   <tr className="bg-surface-container-low text-on-surface-variant text-[11px] uppercase tracking-wider font-extrabold border-b border-outline-variant">
                     <th className="py-3.5 px-4 sm:px-5">Intern Details</th>
-                    <th className="py-3.5 px-4">Shift Date</th>
-                    <th className="py-3.5 px-4">Time In (PST)</th>
-                    <th className="py-3.5 px-4">Time Out (PST)</th>
-                    <th className="py-3.5 px-4 text-center">Hours Rendered</th>
-                    <th className="py-3.5 px-4">Clock Method</th>
+                    <th className="py-3.5 px-4">Shift Date & Times</th>
+                    <th className="py-3.5 px-4">Hours & Clock Method</th>
                     <th className="py-3.5 px-4 text-right">Mentor Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/40 bg-surface">
                   {pendingValidationLogs.map((log) => (
                     <tr key={log.attendance_id} className="hover:bg-surface-container-low/60 transition-colors">
+                      {/* Intern Details */}
                       <td className="py-3.5 px-4 sm:px-5">
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-full bg-vibrant-orange/10 text-vibrant-orange font-bold flex items-center justify-center text-xs shrink-0">
@@ -780,49 +766,30 @@ export default function OrgOJT() {
                         </div>
                       </td>
 
+                      {/* Shift Date & Times */}
                       <td className="py-3.5 px-4 text-xs font-bold text-on-surface whitespace-nowrap">
-                        {new Date(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </td>
-
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5 font-mono text-xs">
-                          <span>{formatPHTTime(log.time_in)}</span>
-                          {log.time_in_status && (
-                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
-                              log.time_in_status === 'late' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                            }`}>
-                              {log.time_in_status === 'late' ? 'Late' : 'On-Time'}
-                            </span>
-                          )}
+                        <div>{new Date(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                        <div className="flex items-center gap-2 text-[11px] font-mono text-on-surface-variant font-normal mt-0.5">
+                          <span>In: {formatPHTTime(log.time_in)}</span>
+                          <span>•</span>
+                          <span>Out: {formatPHTTime(log.time_out)}</span>
                         </div>
                       </td>
 
+                      {/* Hours & Clock Method */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5 font-mono text-xs">
-                          <span>{formatPHTTime(log.time_out)}</span>
-                          {log.time_out_status && (
-                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
-                              log.time_out_status === 'early' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                            }`}>
-                              {log.time_out_status}
-                            </span>
-                          )}
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block px-2.5 py-0.5 bg-surface-container font-mono font-black text-xs text-vibrant-orange rounded-lg border border-outline-variant">
+                            {log.hours_rendered ? `${parseFloat(log.hours_rendered).toFixed(2)} hrs` : '0.00 hrs'}
+                          </span>
+                          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                            <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
+                            <span>{log.time_in_method === 'qr_scan' ? 'QR' : 'Manual'}</span>
+                          </span>
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <span className="inline-block px-3 py-1 bg-surface-container font-mono font-black text-xs text-vibrant-orange rounded-xl border border-outline-variant">
-                          {log.hours_rendered ? `${parseFloat(log.hours_rendered).toFixed(2)} hrs` : '0.00 hrs'}
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                          <span className="material-symbols-outlined text-[13px]">qr_code_2</span>
-                          <span>{log.time_in_method === 'qr_scan' ? 'Cryptographic QR' : 'Manual Entry'}</span>
-                        </span>
-                      </td>
-
+                      {/* Mentor Action */}
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5">
                           <button
@@ -832,7 +799,7 @@ export default function OrgOJT() {
                             className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1 shadow-xs"
                           >
                             <span className="material-symbols-outlined text-[15px]">verified</span>
-                            <span>{validatingId === log.attendance_id ? 'Certifying...' : 'Validate Shift'}</span>
+                            <span>{validatingId === log.attendance_id ? 'Certifying...' : 'Validate'}</span>
                           </button>
                           <button
                             type="button"
@@ -886,32 +853,29 @@ export default function OrgOJT() {
               <table className="w-full text-left text-sm min-w-[850px] border-collapse">
                 <thead>
                   <tr className="bg-surface-container-low text-on-surface-variant text-[11px] uppercase tracking-wider font-extrabold border-b border-outline-variant">
-                    <th className="py-3.5 px-4 sm:px-5">Shift Date</th>
-                    <th className="py-3.5 px-4">Intern</th>
-                    <th className="py-3.5 px-4">Time In (PST)</th>
-                    <th className="py-3.5 px-4">Time Out (PST)</th>
-                    <th className="py-3.5 px-4 text-center">Rendered Hours</th>
-                    <th className="py-3.5 px-4">Clock Method</th>
+                    <th className="py-3.5 px-4 sm:px-5">Intern & Shift Date</th>
+                    <th className="py-3.5 px-4">Shift Timing</th>
+                    <th className="py-3.5 px-4">Rendered & Method</th>
                     <th className="py-3.5 px-4 text-center">Validation Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/40 bg-surface">
                   {attendanceLogs.map((log) => (
                     <tr key={log.attendance_id} className="hover:bg-surface-container-low/60 transition-colors">
-                      <td className="py-3.5 px-4 sm:px-5 font-bold text-xs text-on-surface whitespace-nowrap">
-                        {new Date(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2">
-                          <p className="font-bold text-xs text-on-surface">{log.first_name} {log.last_name}</p>
-                          <span className="text-[10px] text-on-surface-variant">#{log.student_number}</span>
+                      {/* Intern & Shift Date */}
+                      <td className="py-3.5 px-4 sm:px-5">
+                        <p className="font-bold text-xs text-on-surface leading-tight">{log.first_name} {log.last_name}</p>
+                        <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant mt-0.5">
+                          <span className="font-medium">{new Date(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                          <span>•</span>
+                          <span className="font-mono">#{log.student_number}</span>
                         </div>
                       </td>
 
+                      {/* Shift Timing */}
                       <td className="py-3.5 px-4 whitespace-nowrap font-mono text-xs">
-                        <div className="inline-flex items-center gap-1.5">
-                          <span>{formatPHTTime(log.time_in)}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span>In: {formatPHTTime(log.time_in)}</span>
                           {log.time_in_status && (
                             <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
                               log.time_in_status === 'late' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
@@ -920,11 +884,8 @@ export default function OrgOJT() {
                             </span>
                           )}
                         </div>
-                      </td>
-
-                      <td className="py-3.5 px-4 whitespace-nowrap font-mono text-xs">
-                        <div className="inline-flex items-center gap-1.5">
-                          <span>{formatPHTTime(log.time_out)}</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span>Out: {formatPHTTime(log.time_out)}</span>
                           {log.time_out_status && (
                             <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
                               log.time_out_status === 'early' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
@@ -935,19 +896,20 @@ export default function OrgOJT() {
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <span className="font-mono font-bold text-xs text-on-surface">
-                          {log.hours_rendered ? `${parseFloat(log.hours_rendered).toFixed(2)} hrs` : '0.00 hrs'}
-                        </span>
-                      </td>
-
+                      {/* Rendered & Method */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-surface-container text-on-surface border border-outline-variant">
-                          <span className="material-symbols-outlined text-[13px] text-vibrant-orange">qr_code_scanner</span>
-                          <span>{log.time_in_method === 'qr_scan' ? 'Cryptographic QR' : 'Manual Entry'}</span>
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-on-surface">
+                            {log.hours_rendered ? `${parseFloat(log.hours_rendered).toFixed(2)} hrs` : '0.00 hrs'}
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-container text-on-surface border border-outline-variant">
+                            <span className="material-symbols-outlined text-[12px] text-vibrant-orange">qr_code_scanner</span>
+                            <span>{log.time_in_method === 'qr_scan' ? 'QR' : 'Manual'}</span>
+                          </span>
+                        </div>
                       </td>
 
+                      {/* Validation Status */}
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
                         <span
                           className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-extrabold capitalize ${

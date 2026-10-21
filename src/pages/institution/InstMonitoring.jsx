@@ -24,6 +24,7 @@ export default function InstMonitoring() {
   const [escalateModal, setEscalateModal] = useState(null);
   const [escalateForm, setEscalateForm] = useState({ report_title: '', findings: '', recommendations: '' });
   const [certModal, setCertModal] = useState(null);
+  const [viewReportModal, setViewReportModal] = useState(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get('tab');
@@ -359,12 +360,10 @@ export default function InstMonitoring() {
               <table className="w-full text-left text-sm min-w-[700px]">
                 <thead>
                   <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
-                    <th className="py-2.5 px-3">Student</th>
-                    <th className="py-2.5 px-3">Course</th>
+                    <th className="py-2.5 px-3">Student Intern</th>
                     <th className="py-2.5 px-3">Host Company</th>
-                    <th className="py-2.5 px-3">Hours Rendered</th>
-                    <th className="py-2.5 px-3">Status</th>
-                    <th className="py-2.5 px-3">Certificate</th>
+                    <th className="py-2.5 px-3">Progress & Status</th>
+                    <th className="py-2.5 px-3 text-right">Certificate</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-container">
@@ -377,36 +376,37 @@ export default function InstMonitoring() {
                       <tr key={d.ojt_id} className="hover:bg-surface-container-low transition-colors">
                         <td className="py-2.5 px-3">
                           <p className="font-bold text-on-surface">{d.first_name} {d.last_name}</p>
-                          <p className="text-xs text-on-surface-variant">ID #{d.student_number}</p>
+                          <div className="flex items-center gap-2 mt-0.5 text-xs text-on-surface-variant">
+                            <span>ID #{d.student_number}</span>
+                            <span>•</span>
+                            <span>{d.program_name || 'General Academic'}</span>
+                          </div>
                         </td>
-                        <td className="py-2.5 px-3 text-xs text-on-surface-variant">{d.program_name || 'General Academic'}</td>
                         <td className="py-2.5 px-3">
                           <p className="font-bold text-xs text-on-surface">{d.organization_name}</p>
                           <p className="text-[11px] text-on-surface-variant">{d.org_email}</p>
                         </td>
                         <td className="py-2.5 px-3">
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs font-bold">
+                          <div className="space-y-1.5 max-w-[200px]">
+                            <div className="flex items-center justify-between text-xs font-bold">
                               <span>{done} / {req} hrs</span>
                               <span className="text-vibrant-orange">{pct}%</span>
                             </div>
-                            <div className="w-32 bg-surface-container h-2 rounded-full overflow-hidden">
+                            <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
                               <div className="bg-vibrant-orange h-full rounded-full transition-all" style={{ width: `${pct}%` }}></div>
                             </div>
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
+                              d.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-green-tint text-pinoy-green'
+                            }`}>
+                              {d.status || 'ongoing'}
+                            </span>
                           </div>
                         </td>
-                        <td className="py-2.5 px-3">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold capitalize ${
-                            d.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-green-tint text-pinoy-green'
-                          }`}>
-                            {d.status || 'ongoing'}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3">
+                        <td className="py-2.5 px-3 text-right">
                           {d.certificate_id ? (
                             <button
                               onClick={() => setCertModal(d)}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm"
                               title={`Certificate Code: ${d.certificate_code}`}
                             >
                               <span className="material-symbols-outlined text-[15px]">workspace_premium</span>
@@ -414,7 +414,7 @@ export default function InstMonitoring() {
                             </button>
                           ) : d.status === 'completed' ? (
                             <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                              {d.evaluation_id ? 'Completed (Generating)' : 'Awaiting Org Eval'}
+                              {d.evaluation_id ? 'Completed' : 'Awaiting Eval'}
                             </span>
                           ) : (
                             <span className="text-xs text-on-surface-variant italic">In Progress</span>
@@ -829,41 +829,49 @@ export default function InstMonitoring() {
               <table className="w-full text-left text-sm min-w-[650px]">
                 <thead>
                   <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
-                    <th className="py-3 px-3">Report Title</th>
-                    <th className="py-3 px-3">Intern Involved</th>
-                    <th className="py-3 px-3">Organization</th>
-                    <th className="py-3 px-3">Findings</th>
-                    <th className="py-3 px-3">Status</th>
-                    <th className="py-3 px-3">Filed</th>
+                    <th className="py-3 px-3">Report Title & Intern</th>
+                    <th className="py-3 px-3">Host Organization</th>
+                    <th className="py-3 px-3">Findings & Status</th>
+                    <th className="py-3 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/40">
                   {data.institutionReports.map((r) => (
                     <tr key={r.report_id} className="hover:bg-surface-container-low transition-colors">
-                      <td className="py-3 px-3 font-semibold text-on-surface text-xs">{r.report_title || r.title}</td>
-                      <td className="py-3 px-3 text-xs">
+                      <td className="py-3 px-3">
+                        <p className="font-semibold text-on-surface text-xs">{r.report_title || r.title}</p>
                         {r.student_name ? (
-                          <div>
-                            <p className="font-bold text-on-surface">{r.student_name}</p>
-                            {r.student_number && <p className="text-[11px] text-on-surface-variant">ID #{r.student_number}</p>}
-                          </div>
+                          <p className="text-[11px] text-on-surface-variant mt-0.5">
+                            {r.student_name} {r.student_number && `(ID #${r.student_number})`}
+                          </p>
                         ) : (
-                          <span className="text-on-surface-variant italic">Institution-level</span>
+                          <span className="text-[11px] text-on-surface-variant italic">Institution-level</span>
                         )}
                       </td>
-                      <td className="py-3 px-3 text-xs text-on-surface-variant">{r.organization_name}</td>
-                      <td className="py-3 px-3 text-xs text-on-surface-variant max-w-xs truncate">{r.findings}</td>
-                      <td className="py-3 px-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                      <td className="py-3 px-3 text-xs">
+                        <p className="font-medium text-on-surface">{r.organization_name}</p>
+                        <p className="text-[11px] text-on-surface-variant mt-0.5">
+                          Filed {new Date(r.created_at).toLocaleDateString()}
+                        </p>
+                      </td>
+                      <td className="py-3 px-3 text-xs">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase mb-1 ${
                           r.admin_action === 'resolved' || r.status === 'closed' ? 'bg-emerald-50 text-emerald-700' :
                           r.admin_action === 'action_taken' ? 'bg-purple-50 text-purple-700' :
                           r.admin_action === 'under_review' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
                         }`}>
                           {r.admin_action?.replace(/_/g, ' ') || r.status?.replace(/_/g, ' ') || 'Pending Review'}
                         </span>
+                        <p className="text-on-surface-variant text-[11px] max-w-xs truncate">{r.findings}</p>
                       </td>
-                      <td className="py-3 px-3 text-xs text-on-surface-variant">
-                        {new Date(r.created_at).toLocaleDateString()}
+                      <td className="py-3 px-3 text-right">
+                        <button
+                          onClick={() => setViewReportModal(r)}
+                          className="px-2.5 py-1.5 rounded-lg bg-vibrant-orange/10 text-vibrant-orange hover:bg-vibrant-orange/20 transition-colors text-xs font-bold inline-flex items-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">visibility</span>
+                          View Detail
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1426,6 +1434,76 @@ export default function InstMonitoring() {
                   <span>Escalate to Admin</span>
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Escalated Report Detail Modal */}
+      {viewReportModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-outline-variant rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
+              <div>
+                <h3 className="font-bold text-base text-on-surface">Escalated Report Dossier</h3>
+                <p className="text-xs text-on-surface-variant font-mono">Report ID #{viewReportModal.report_id}</p>
+              </div>
+              <button onClick={() => setViewReportModal(null)} className="text-on-surface-variant hover:text-on-surface">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 bg-surface-container rounded-xl space-y-1.5">
+                <p className="text-[10px] uppercase font-bold text-on-surface-variant">Title</p>
+                <p className="font-bold text-sm text-on-surface">{viewReportModal.report_title || viewReportModal.title}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-surface-container rounded-xl space-y-1">
+                  <p className="text-[10px] uppercase font-bold text-on-surface-variant">Intern Involved</p>
+                  <p className="font-bold text-on-surface">{viewReportModal.student_name || 'Institution-wide'}</p>
+                  {viewReportModal.student_number && <p className="text-on-surface-variant">ID #{viewReportModal.student_number}</p>}
+                </div>
+                <div className="p-3 bg-surface-container rounded-xl space-y-1">
+                  <p className="text-[10px] uppercase font-bold text-on-surface-variant">Host Organization</p>
+                  <p className="font-bold text-on-surface">{viewReportModal.organization_name}</p>
+                  <p className="text-on-surface-variant">Filed: {new Date(viewReportModal.created_at).toLocaleDateString()}</p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-surface-container rounded-xl space-y-1">
+                <p className="text-[10px] uppercase font-bold text-on-surface-variant">Investigation Findings</p>
+                <p className="text-on-surface whitespace-pre-wrap">{viewReportModal.findings || 'No detailed findings recorded.'}</p>
+              </div>
+
+              {viewReportModal.recommendations && (
+                <div className="p-3 bg-surface-container rounded-xl space-y-1">
+                  <p className="text-[10px] uppercase font-bold text-on-surface-variant">Institution Recommendations</p>
+                  <p className="text-on-surface whitespace-pre-wrap">{viewReportModal.recommendations}</p>
+                </div>
+              )}
+
+              <div className="p-3 bg-surface-container rounded-xl space-y-1">
+                <p className="text-[10px] uppercase font-bold text-on-surface-variant">Current Resolution Status</p>
+                <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold uppercase ${
+                  viewReportModal.admin_action === 'resolved' || viewReportModal.status === 'closed' ? 'bg-emerald-50 text-emerald-700' :
+                  viewReportModal.admin_action === 'action_taken' ? 'bg-purple-50 text-purple-700' :
+                  viewReportModal.admin_action === 'under_review' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
+                }`}>
+                  {viewReportModal.admin_action?.replace(/_/g, ' ') || viewReportModal.status?.replace(/_/g, ' ') || 'Pending Review'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-outline-variant">
+              <button
+                type="button"
+                onClick={() => setViewReportModal(null)}
+                className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high transition-colors"
+              >
+                Close Dossier
+              </button>
             </div>
           </div>
         </div>

@@ -398,14 +398,12 @@ export default function OrgMentors() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm min-w-[780px]">
+              <table className="w-full text-left text-sm min-w-[700px]">
                 <thead>
                   <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
                     <th className="py-3 px-4">Mentor Name & ID</th>
-                    <th className="py-3 px-4">Job Title & Department</th>
-                    <th className="py-3 px-4">Contact Info</th>
-                    <th className="py-3 px-4">Passcode Used</th>
-                    <th className="py-3 px-4">Submitted</th>
+                    <th className="py-3 px-4">Role & Department</th>
+                    <th className="py-3 px-4">Contact & Passcode</th>
                     <th className="py-3 px-4 text-right">Verification Actions</th>
                   </tr>
                 </thead>
@@ -457,13 +455,17 @@ export default function OrgMentors() {
                             {hasMismatch && (
                               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-600 flex items-center gap-1 border border-red-500/30 animate-pulse">
                                 <span className="material-symbols-outlined text-[13px]">warning</span>
-                                <span>⚠️ Unmatched Info</span>
+                                <span>⚠️ Unmatched</span>
                               </span>
                             )}
                           </div>
-                          <p className={`text-xs ${isEmpIdMismatch || isIdMismatch ? 'text-red-600 font-bold' : 'text-on-surface-variant'}`}>
-                            Emp ID: <span className="font-mono">{mentor.staff_number ? `#${mentor.staff_number}` : 'N/A'}</span>
-                          </p>
+                          <div className="flex items-center gap-2 text-xs mt-0.5 text-on-surface-variant">
+                            <span className={isEmpIdMismatch || isIdMismatch ? 'text-red-600 font-bold' : ''}>
+                              Emp ID: #{mentor.staff_number || 'N/A'}
+                            </span>
+                            <span>•</span>
+                            <span>{mentor.created_at ? new Date(mentor.created_at).toLocaleDateString() : 'Recent'}</span>
+                          </div>
                         </td>
 
                         {/* Job Title & Department */}
@@ -480,28 +482,23 @@ export default function OrgMentors() {
                           )}
                         </td>
 
-                        {/* Contact Info */}
-                        <td className="py-3 px-4 text-xs text-on-surface-variant">
+                        {/* Contact & Passcode */}
+                        <td className="py-3 px-4 text-xs">
                           <p className={`font-medium ${isEmailMismatch ? 'text-red-600 font-bold' : 'text-on-surface'}`}>
                             {mentor.email}
                           </p>
-                          <p>{mentor.contact_number || 'No contact number'}</p>
-                        </td>
-
-                        {/* Passcode Used */}
-                        <td className="py-3 px-4 text-xs">
-                          <span className={`px-2 py-0.5 rounded font-mono font-bold ${
-                            hasMismatch
-                              ? 'bg-red-500/15 text-red-700 border border-red-500/30'
-                              : 'bg-surface-container text-on-surface'
-                          }`}>
-                            {mentor.passcode_used || 'DIRECT'}
-                          </span>
-                        </td>
-
-                        {/* Submitted Date */}
-                        <td className="py-3 px-4 text-xs text-on-surface-variant">
-                          {mentor.created_at ? new Date(mentor.created_at).toLocaleDateString() : 'Recent'}
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`px-1.5 py-0.2 rounded font-mono font-bold text-[10.5px] ${
+                              hasMismatch
+                                ? 'bg-red-500/15 text-red-700 border border-red-500/30'
+                                : 'bg-surface-container text-on-surface'
+                            }`}>
+                              Code: {mentor.passcode_used || 'DIRECT'}
+                            </span>
+                            {mentor.contact_number && (
+                              <span className="text-[11px] text-on-surface-variant">{mentor.contact_number}</span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Actions */}
@@ -575,14 +572,12 @@ export default function OrgMentors() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm min-w-[780px]">
+              <table className="w-full text-left text-sm min-w-[700px]">
                 <thead>
                   <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
                     <th className="py-3 px-4">Workplace Mentor</th>
                     <th className="py-3 px-4">Role & Department</th>
-                    <th className="py-3 px-4">Contact Details</th>
-                    <th className="py-3 px-4">Active Interns</th>
-                    <th className="py-3 px-4">Last Active</th>
+                    <th className="py-3 px-4">Active Interns & Contact</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -613,23 +608,20 @@ export default function OrgMentors() {
                         )}
                       </td>
 
-                      {/* Contact */}
-                      <td className="py-3 px-4 text-xs text-on-surface-variant">
-                        <p className="font-medium text-on-surface">{mentor.email}</p>
-                        <p>{mentor.contact_number || 'No phone recorded'}</p>
-                      </td>
-
-                      {/* Active Interns */}
-                      <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-xs font-bold">
-                          <span className="material-symbols-outlined text-[13px]">badge</span>
-                          <span>{mentor.active_interns_count || 0} active</span>
-                        </span>
-                      </td>
-
-                      {/* Last Login */}
-                      <td className="py-3 px-4 text-xs text-on-surface-variant">
-                        {mentor.last_login_at ? new Date(mentor.last_login_at).toLocaleDateString() : 'Never logged in'}
+                      {/* Active Interns & Contact */}
+                      <td className="py-3 px-4 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-[11px] font-bold">
+                            <span className="material-symbols-outlined text-[13px]">badge</span>
+                            <span>{mentor.active_interns_count || 0} active</span>
+                          </span>
+                        </div>
+                        <div className="text-on-surface font-medium text-[11px] mt-1 truncate max-w-[200px]">
+                          {mentor.email}
+                        </div>
+                        {mentor.contact_number && (
+                          <div className="text-[10px] text-on-surface-variant">{mentor.contact_number}</div>
+                        )}
                       </td>
 
                       {/* Actions */}
@@ -677,15 +669,12 @@ export default function OrgMentors() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm min-w-[850px]">
+              <table className="w-full text-left text-sm min-w-[700px]">
                 <thead>
                   <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
-                    <th className="py-3 px-4">Passcode</th>
-                    <th className="py-3 px-4">Target Employee ID / Email</th>
-                    <th className="py-3 px-4">Target Department</th>
-                    <th className="py-3 px-4">Target Role</th>
-                    <th className="py-3 px-4">Status & Used By</th>
-                    <th className="py-3 px-4">Expires At</th>
+                    <th className="py-3 px-4">Passcode & Target ID</th>
+                    <th className="py-3 px-4">Role & Department</th>
+                    <th className="py-3 px-4">Status & Expiration</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -696,47 +685,55 @@ export default function OrgMentors() {
 
                     return (
                       <tr key={code.code_id} className="hover:bg-surface-container-low transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-on-surface text-sm">
-                          {code.code_hash}
-                        </td>
-
-                        <td className="py-3 px-4 text-xs font-bold text-on-surface">
-                          {code.target_identifier}
-                        </td>
-
-                        <td className="py-3 px-4 text-xs text-on-surface-variant">
-                          {code.intended_department || 'Any Department'}
-                        </td>
-
-                        <td className="py-3 px-4 text-xs capitalize text-on-surface-variant">
-                          {code.intended_position?.replace('_', ' ') || 'Workplace Mentor'}
-                        </td>
-
                         <td className="py-3 px-4">
+                          <span className="font-mono font-bold text-vibrant-orange text-sm block">
+                            {code.code_hash}
+                          </span>
+                          <p className="text-[11px] text-on-surface-variant font-mono mt-0.5">
+                            Target: <strong className="text-on-surface">{code.target_identifier}</strong>
+                          </p>
+                        </td>
+
+                        <td className="py-3 px-4 text-xs">
+                          <p className="font-bold text-on-surface capitalize">
+                            {code.intended_position?.replace('_', ' ') || 'Workplace Mentor'}
+                          </p>
+                          <p className="text-on-surface-variant text-[11px]">
+                            {code.intended_department || 'Any Department'}
+                          </p>
+                        </td>
+
+                        <td className="py-3 px-4 text-xs">
                           {isUsed ? (
                             <div>
                               <span className="px-2 py-0.5 rounded-full bg-green-tint text-pinoy-green text-[10px] font-bold">
-                                Used
+                                Claimed / Used
                               </span>
                               {code.used_by_first_name && (
                                 <p className="text-[11px] text-on-surface-variant mt-0.5">
-                                  {code.used_by_first_name} {code.used_by_last_name} ({code.used_by_email})
+                                  {code.used_by_first_name} {code.used_by_last_name}
                                 </p>
                               )}
                             </div>
                           ) : isExpired ? (
-                            <span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[10px] font-bold">
-                              Expired
-                            </span>
+                            <div>
+                              <span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[10px] font-bold">
+                                Expired
+                              </span>
+                              <p className="text-[10px] text-on-surface-variant mt-0.5">
+                                Exp: {new Date(code.expires_at).toLocaleDateString()}
+                              </p>
+                            </div>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full bg-orange-tint text-vibrant-orange text-[10px] font-bold">
-                              Active / Unused
-                            </span>
+                            <div>
+                              <span className="px-2 py-0.5 rounded-full bg-orange-tint text-vibrant-orange text-[10px] font-bold">
+                                Active / Unused
+                              </span>
+                              <p className="text-[10px] text-on-surface-variant mt-0.5">
+                                Exp: {new Date(code.expires_at).toLocaleDateString()}
+                              </p>
+                            </div>
                           )}
-                        </td>
-
-                        <td className="py-3 px-4 text-xs text-on-surface-variant">
-                          {new Date(code.expires_at).toLocaleDateString()}
                         </td>
 
                         <td className="py-3 px-4 text-right">
@@ -746,9 +743,10 @@ export default function OrgMentors() {
                                 navigator.clipboard.writeText(code.code_hash);
                                 setMessage(`Passcode [${code.code_hash}] copied to clipboard!`);
                               }}
-                              className="px-2.5 py-1 bg-surface-container hover:bg-surface-container-high rounded text-xs font-bold text-on-surface transition-colors"
+                              className="px-2.5 py-1 bg-surface-container hover:bg-surface-container-high rounded text-xs font-bold text-on-surface transition-colors inline-flex items-center gap-1"
                             >
-                              Copy
+                              <span className="material-symbols-outlined text-[14px]">content_copy</span>
+                              <span>Copy</span>
                             </button>
                           )}
                         </td>

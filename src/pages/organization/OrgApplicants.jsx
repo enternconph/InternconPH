@@ -322,10 +322,9 @@ export default function OrgApplicants() {
               <table className="w-full text-left text-sm min-w-[760px]">
                 <thead>
                   <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
-                    <th className="py-3 px-4">Candidate</th>
-                    <th className="py-3 px-4">Applied Opportunity</th>
-                    <th className="py-3 px-4">University & Standing</th>
-                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Candidate & School</th>
+                    <th className="py-3 px-4">Position Applied</th>
+                    <th className="py-3 px-4">Status & Standing</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -336,7 +335,7 @@ export default function OrgApplicants() {
 
                     return (
                       <tr key={app.application_id} className="hover:bg-surface-container-low transition-colors">
-                        {/* Candidate Name & Detail Link */}
+                        {/* Candidate Name & School */}
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-full bg-vibrant-orange/10 text-vibrant-orange font-bold flex items-center justify-center text-xs shrink-0">
@@ -344,10 +343,16 @@ export default function OrgApplicants() {
                             </div>
                             <div>
                               <p className="font-bold text-on-surface text-xs leading-tight">{app.first_name} {app.last_name}</p>
-                              <p className="text-[11px] text-on-surface-variant font-mono">ID #{app.student_number || 'N/A'}</p>
-                              <DetailLink onClick={() => handleInspectCandidate(app.application_id)}>
-                                View Details
-                              </DetailLink>
+                              <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant mt-0.5">
+                                <span className="truncate max-w-[170px]" title={app.institution_name}>{app.institution_name || 'Academic Institution'}</span>
+                                <span>•</span>
+                                <span className="font-mono">#{app.student_number || 'N/A'}</span>
+                              </div>
+                              <div className="mt-1">
+                                <DetailLink onClick={() => handleInspectCandidate(app.application_id)}>
+                                  View Details
+                                </DetailLink>
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -367,12 +372,17 @@ export default function OrgApplicants() {
                           </span>
                         </td>
 
-                        {/* University & Standing */}
-                        <td className="py-3 px-4 text-xs">
-                          <p className="font-medium text-xs text-on-surface leading-tight truncate max-w-[200px]" title={`${app.institution_name} • ${app.program_name}`}>
-                            {app.institution_name || 'Academic Institution'}
-                          </p>
-                          <div className="mt-1">
+                        {/* Status & Standing */}
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              app.status === 'accepted' ? 'bg-green-tint text-pinoy-green' :
+                              app.status === 'rejected' ? 'bg-red-500/10 text-red-500' :
+                              app.status === 'under_review' ? 'bg-blue-500/10 text-blue-500' :
+                              'bg-vibrant-orange/10 text-vibrant-orange'
+                            }`}>
+                              {app.status?.replace('_', ' ') || 'Applied'}
+                            </span>
                             <span className={`inline-flex items-center gap-1 px-2 py-0.2 rounded text-[10px] font-bold ${
                               app.is_graduated || app.ojt_status === 'graduated'
                                 ? 'bg-purple-100 text-purple-800'
@@ -387,18 +397,6 @@ export default function OrgApplicants() {
                                 : 'OJT Student'}
                             </span>
                           </div>
-                        </td>
-
-                        {/* Status Badge */}
-                        <td className="py-3 px-4">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            app.status === 'accepted' ? 'bg-green-tint text-pinoy-green' :
-                            app.status === 'rejected' ? 'bg-red-500/10 text-red-500' :
-                            app.status === 'under_review' ? 'bg-blue-500/10 text-blue-500' :
-                            'bg-vibrant-orange/10 text-vibrant-orange'
-                          }`}>
-                            {app.status?.replace('_', ' ') || 'Applied'}
-                          </span>
                         </td>
 
                         {/* Actions */}

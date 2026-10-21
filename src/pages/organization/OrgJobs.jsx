@@ -518,9 +518,8 @@ export default function OrgJobs() {
               <thead>
                 <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
                   <th className="py-3 px-4">Opportunity</th>
-                  <th className="py-3 px-4">Type</th>
-                  <th className="py-3 px-4">Approvals & Candidates</th>
-                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Setup & Slots</th>
+                  <th className="py-3 px-4">Status & Approvals</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -533,7 +532,7 @@ export default function OrgJobs() {
 
                   return (
                     <tr key={job.job_id} className="hover:bg-surface-container-low transition-colors">
-                      {/* Title & Setup */}
+                      {/* Title & Type */}
                       <td className="py-3 px-4">
                         <div className="flex items-start gap-3">
                           {job.flyer_image_url && (
@@ -549,19 +548,20 @@ export default function OrgJobs() {
                             />
                           )}
                           <div className="min-w-0">
-                            <p className="font-bold text-on-surface text-sm truncate">{job.title}</p>
-                            <div className="text-xs text-on-surface-variant flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              <span className="capitalize">{job.work_setup || 'On-site'}</span>
-                              {job.workplace_area && (
-                                <>
-                                  <span>•</span>
-                                  <span className="inline-flex items-center gap-0.5 font-semibold text-vibrant-orange text-[11px]">
-                                    Area: {job.workplace_area}
-                                  </span>
-                                </>
-                              )}
-                              <span>•</span>
-                              <span>{job.slots_available || 1} slots</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-bold text-on-surface text-sm truncate">{job.title}</p>
+                              <span className={`inline-flex items-center gap-0.5 px-2 py-0.2 rounded-full text-[10px] font-bold capitalize ${
+                                pType === 'ojt'
+                                  ? 'bg-blue-500/10 text-blue-600'
+                                  : pType === 'on_call'
+                                  ? 'bg-amber-500/10 text-amber-700'
+                                  : 'bg-green-tint text-pinoy-green'
+                              }`}>
+                                <span className="material-symbols-outlined text-[11px]">
+                                  {pType === 'ojt' ? 'badge' : pType === 'on_call' ? 'bolt' : 'work'}
+                                </span>
+                                {pType === 'ojt' ? 'OJT' : pType === 'on_call' ? 'On-Call' : 'Career'}
+                              </span>
                             </div>
                             <div className="mt-1">
                               <DetailLink onClick={() => setSelectedJobForDetail(job)}>
@@ -572,51 +572,42 @@ export default function OrgJobs() {
                         </div>
                       </td>
 
-                      {/* Type */}
-                      <td className="py-3 px-4">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
-                          pType === 'ojt'
-                            ? 'bg-blue-500/10 text-blue-600'
-                            : pType === 'on_call'
-                            ? 'bg-amber-500/10 text-amber-700'
-                            : 'bg-green-tint text-pinoy-green'
-                        }`}>
-                          <span className="material-symbols-outlined text-[13px]">
-                            {pType === 'ojt' ? 'badge' : pType === 'on_call' ? 'bolt' : 'work'}
-                          </span>
-                          {pType === 'ojt' ? 'OJT' : pType === 'on_call' ? 'On-Call' : 'Career'}
-                        </span>
-                      </td>
-
-                      {/* Approvals & Candidates */}
+                      {/* Setup & Slots */}
                       <td className="py-3 px-4 text-xs">
-                        <div className="space-y-1">
-                          <div>
-                            {totalApprovals === 0 ? (
-                              <span className="text-[11px] text-on-surface-variant">Global (All)</span>
-                            ) : (
-                              <button
-                                onClick={() => setShowApprovalsModal(job)}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-[11px] font-bold hover:bg-surface-container-high border border-outline-variant transition-colors"
-                              >
-                                <span className="material-symbols-outlined text-[13px] text-pinoy-green">verified</span>
-                                <span>{approvedCount}/{totalApprovals} Approved</span>
-                              </button>
-                            )}
-                          </div>
-                          <p className="text-[11px] font-semibold text-on-surface">
-                            {job.applicant_count || 0} candidate(s)
-                          </p>
+                        <div className="font-semibold text-on-surface capitalize">{job.work_setup || 'On-site'}</div>
+                        <div className="text-[11px] text-on-surface-variant flex items-center gap-1 mt-0.5 flex-wrap">
+                          {job.workplace_area && (
+                            <span className="font-semibold text-vibrant-orange">Area: {job.workplace_area} • </span>
+                          )}
+                          <span>{job.slots_available || 1} slot(s)</span>
                         </div>
                       </td>
 
-                      {/* Status */}
-                      <td className="py-3 px-4">
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
-                          job.status === 'active' ? 'bg-green-tint text-pinoy-green' : 'bg-surface-container text-on-surface-variant'
-                        }`}>
-                          {job.status}
-                        </span>
+                      {/* Status & Approvals */}
+                      <td className="py-3 px-4 text-xs">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            job.status === 'active' ? 'bg-green-tint text-pinoy-green' : 'bg-surface-container text-on-surface-variant'
+                          }`}>
+                            {job.status}
+                          </span>
+                          <span className="text-[11px] font-medium text-on-surface">
+                            {job.applicant_count || 0} candidate(s)
+                          </span>
+                        </div>
+                        <div className="mt-1">
+                          {totalApprovals === 0 ? (
+                            <span className="text-[10px] text-on-surface-variant">Global Approvals</span>
+                          ) : (
+                            <button
+                              onClick={() => setShowApprovalsModal(job)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-[10px] font-bold hover:bg-surface-container-high border border-outline-variant transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[12px] text-pinoy-green">verified</span>
+                              <span>{approvedCount}/{totalApprovals} Approved</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
 
                       {/* Actions */}

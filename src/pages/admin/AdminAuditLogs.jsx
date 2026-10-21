@@ -404,17 +404,13 @@ export default function AdminAuditLogs() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs min-w-[760px]">
+                <table className="w-full text-left text-xs min-w-[720px]">
                   <thead>
                     <tr className="border-b border-outline-variant text-on-surface-variant font-bold whitespace-nowrap">
-                      <th className="py-3 px-3 w-8"></th>
-                      <th className="py-3 px-3">ID</th>
-                      <th className="py-3 px-3">Timestamp</th>
-                      <th className="py-3 px-3">Event</th>
-                      <th className="py-3 px-3">Target</th>
-                      <th className="py-3 px-3">User</th>
-                      <th className="py-3 px-3">Status</th>
-                      <th className="py-3 px-3">IP</th>
+                      <th className="py-3 px-3">Event & Timestamp</th>
+                      <th className="py-3 px-3">Target & Record</th>
+                      <th className="py-3 px-3">User & Status</th>
+                      <th className="py-3 px-3">IP & Audit Details</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-container">
@@ -428,25 +424,25 @@ export default function AdminAuditLogs() {
                             onClick={() => hasDetails && toggleRow(log.log_id)}
                           >
                             <td className="py-2.5 px-3">
-                              {hasDetails && (
-                                <span className={`material-symbols-outlined text-[14px] text-on-surface-variant transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
-                                  chevron_right
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 font-bold text-on-surface font-mono">#{log.log_id}</td>
-                            <td className="py-2.5 px-3 text-on-surface-variant whitespace-nowrap">
-                              <div>{new Date(log.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-                              <div className="text-[10px]">{new Date(log.created_at).toLocaleTimeString()}</div>
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${getActionColor(log.action)}`}>
-                                {getActionLabel(log.action)}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                {hasDetails && (
+                                  <span className={`material-symbols-outlined text-[14px] text-on-surface-variant transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
+                                    chevron_right
+                                  </span>
+                                )}
+                                <div>
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${getActionColor(log.action)}`}>
+                                    {getActionLabel(log.action)}
+                                  </span>
+                                  <div className="text-[11px] text-on-surface-variant mt-1">
+                                    {new Date(log.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                </div>
+                              </div>
                             </td>
                             <td className="py-2.5 px-3 text-on-surface">
                               <span className="font-bold">{log.table_name || '—'}</span>
-                              {log.record_id && <span className="text-on-surface-variant ml-1">#{log.record_id}</span>}
+                              {log.record_id && <span className="text-on-surface-variant ml-1 font-mono text-[11px]">#{log.record_id}</span>}
                             </td>
                             <td className="py-2.5 px-3">
                               {log.user_email ? (
@@ -461,26 +457,32 @@ export default function AdminAuditLogs() {
                                     <span className="text-[10px] text-on-surface-variant">{log.user_email}</span>
                                     <span className="px-1.5 py-0 rounded text-[9px] font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30 capitalize">{log.role_name}</span>
                                   </div>
+                                  {log.user_is_active !== undefined && (
+                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold border mt-1 ${
+                                      log.user_is_active ? 'bg-green-500/15 text-green-400 border-green-500/30' : 'bg-red-500/15 text-red-400 border-red-500/30'
+                                    }`}>
+                                      <span className={`w-1 h-1 rounded-full ${log.user_is_active ? 'bg-green-400' : 'bg-red-400'}`} />
+                                      {log.user_is_active ? 'Active' : 'Inactive'}
+                                    </span>
+                                  )}
                                 </div>
                               ) : (
                                 <span className="text-on-surface-variant italic">System</span>
                               )}
                             </td>
                             <td className="py-2.5 px-3">
-                              {log.user_is_active !== undefined && (
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${
-                                  log.user_is_active ? 'bg-green-500/15 text-green-400 border-green-500/30' : 'bg-red-500/15 text-red-400 border-red-500/30'
-                                }`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${log.user_is_active ? 'bg-green-400' : 'bg-red-400'}`} />
-                                  {log.user_is_active ? 'Active' : 'Inactive'}
+                              <div className="text-[11px] font-mono text-on-surface-variant">{log.ip_address || '—'}</div>
+                              <div className="text-[10px] text-on-surface-variant font-mono mt-0.5">Log #{log.log_id}</div>
+                              {hasDetails && (
+                                <span className="text-[10px] text-vibrant-orange font-bold hover:underline cursor-pointer inline-block mt-0.5">
+                                  {isExpanded ? 'Hide changes' : 'View changes'}
                                 </span>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 text-on-surface-variant font-mono text-[11px]">{log.ip_address || '—'}</td>
                           </tr>
                           {isExpanded && (
                             <tr>
-                              <td colSpan={8} className="p-0">
+                              <td colSpan={4} className="p-0">
                                 <div className="px-8 py-3 bg-surface-container-low border-l-2 border-vibrant-orange">
                                   <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-2">Change Details</p>
                                   <ChangeDetails oldValues={log.old_values} newValues={log.new_values} />
@@ -552,20 +554,13 @@ export default function AdminAuditLogs() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs min-w-[900px]">
+                <table className="w-full text-left text-xs min-w-[720px]">
                   <thead>
                     <tr className="border-b border-outline-variant text-on-surface-variant font-bold whitespace-nowrap">
-                      <th className="py-3 px-3">User</th>
-                      <th className="py-3 px-3">Role</th>
-                      <th className="py-3 px-3">Status</th>
-                      <th className="py-3 px-3">Total Logins</th>
-                      <th className="py-3 px-3">First Login</th>
-                      <th className="py-3 px-3">Latest Login</th>
-                      <th className="py-3 px-3">Total Actions</th>
-                      <th className="py-3 px-3">Last Action</th>
-                      <th className="py-3 px-3">Last IP</th>
-                      <th className="py-3 px-3">Registered</th>
-                      <th className="py-3 px-3"></th>
+                      <th className="py-3 px-3">User Account</th>
+                      <th className="py-3 px-3">Status & Logins</th>
+                      <th className="py-3 px-3">Latest Activity</th>
+                      <th className="py-3 px-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-container">
@@ -578,36 +573,46 @@ export default function AdminAuditLogs() {
                           <td className="py-2.5 px-3">
                             <div>
                               {name && <p className="font-bold text-on-surface">{name}</p>}
-                              <p className="text-on-surface-variant">{s.email}</p>
+                              <p className="text-on-surface-variant text-[11px]">{s.email}</p>
+                              <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30 capitalize whitespace-nowrap">
+                                {s.role_name}
+                              </span>
                             </div>
                           </td>
                           <td className="py-2.5 px-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30 capitalize whitespace-nowrap">
-                              {s.role_name}
-                            </span>
+                            <div className="space-y-1">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                s.is_active ? 'bg-green-500/15 text-green-400 border-green-500/30' : 'bg-red-500/15 text-red-400 border-red-500/30'
+                              }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${s.is_active ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
+                                {s.is_active ? 'Active' : 'Inactive'}
+                              </span>
+                              <div className="text-[10px] text-on-surface-variant">
+                                <span className="font-bold text-on-surface">{s.total_logins || 0}</span> logins • <span className="font-bold text-on-surface">{s.total_actions || 0}</span> actions
+                              </div>
+                            </div>
                           </td>
                           <td className="py-2.5 px-3">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${
-                              s.is_active ? 'bg-green-500/15 text-green-400 border-green-500/30' : 'bg-red-500/15 text-red-400 border-red-500/30'
-                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${s.is_active ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-                              {s.is_active ? 'Active' : 'Inactive'}
-                            </span>
+                            <div className="text-on-surface font-medium text-[11px] whitespace-nowrap">
+                              Latest: {formatTimestamp(s.latest_login_at)}
+                            </div>
+                            <div className="text-[10px] text-on-surface-variant whitespace-nowrap mt-0.5">
+                              Registered: {formatTimestamp(s.registered_at)}
+                            </div>
+                            {s.last_ip_address && (
+                              <div className="text-[10px] font-mono text-on-surface-variant">
+                                IP: {s.last_ip_address}
+                              </div>
+                            )}
                           </td>
-                          <td className="py-2.5 px-3 font-bold text-on-surface text-center">{s.total_logins || 0}</td>
-                          <td className="py-2.5 px-3 text-on-surface-variant whitespace-nowrap">{formatTimestamp(s.first_login_at)}</td>
-                          <td className="py-2.5 px-3 text-on-surface whitespace-nowrap font-bold">{formatTimestamp(s.latest_login_at)}</td>
-                          <td className="py-2.5 px-3 font-bold text-on-surface text-center">{s.total_actions || 0}</td>
-                          <td className="py-2.5 px-3 text-on-surface-variant whitespace-nowrap">{formatTimestamp(s.last_action_at)}</td>
-                          <td className="py-2.5 px-3 text-on-surface-variant font-mono text-[11px]">{s.last_ip_address || '—'}</td>
-                          <td className="py-2.5 px-3 text-on-surface-variant whitespace-nowrap">{formatTimestamp(s.registered_at)}</td>
-                          <td className="py-2.5 px-3">
+                          <td className="py-2.5 px-3 text-right">
                             <button
                               onClick={() => setSelectedUserId(s.user_id)}
-                              className="p-1.5 rounded-lg bg-vibrant-orange/10 text-vibrant-orange hover:bg-vibrant-orange/20 transition-colors"
+                              className="px-2.5 py-1.5 rounded-lg bg-vibrant-orange/10 text-vibrant-orange hover:bg-vibrant-orange/20 transition-colors text-[11px] font-bold inline-flex items-center gap-1"
                               title="View full activity"
                             >
-                              <span className="material-symbols-outlined text-[16px]">visibility</span>
+                              <span className="material-symbols-outlined text-[15px]">visibility</span>
+                              View Detail
                             </button>
                           </td>
                         </tr>

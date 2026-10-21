@@ -393,51 +393,51 @@ export default function OrgEvaluations() {
           <p className="text-xs text-on-surface-variant text-center py-4">No evaluations submitted yet.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm min-w-[700px]">
+            <table className="w-full text-left text-sm min-w-[650px]">
               <thead>
                 <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
-                  <th className="py-2.5 px-3">Student</th>
-                  <th className="py-2.5 px-3">Status</th>
-                  <th className="py-2.5 px-3">Milestone</th>
-                  <th className="py-2.5 px-3">Overall Rating</th>
-                  <th className="py-2.5 px-3">7 Competencies</th>
-                  <th className="py-2.5 px-3">Comments</th>
-                  <th className="py-2.5 px-3">Date</th>
+                  <th className="py-2.5 px-3">Student & Period</th>
+                  <th className="py-2.5 px-3">Rating & Status</th>
+                  <th className="py-2.5 px-3">Date & Comments</th>
+                  <th className="py-2.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container">
                 {data.evaluations?.map((ev) => (
                   <tr key={ev.record_id} className="hover:bg-surface-container-low transition-colors">
-                    <td className="py-2.5 px-3 font-bold text-on-surface">
-                      <div>{ev.first_name} {ev.last_name}</div>
-                      <div className="text-[10px] text-on-surface-variant font-normal">{ev.student_number}</div>
+                    <td className="py-2.5 px-3">
+                      <div className="font-bold text-on-surface">{ev.first_name} {ev.last_name}</div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] text-on-surface-variant">ID #{ev.student_number}</span>
+                        <span>•</span>
+                        <span className="px-1.5 py-0.2 rounded-full bg-orange-tint text-vibrant-orange font-bold text-[10px] capitalize">
+                          {ev.evaluation_period}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-2.5 px-3">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-[10px] font-bold">
-                        <span className="material-symbols-outlined text-[12px]">lock</span>
+                      <div className="font-bold text-pinoy-green text-xs">
+                        ⭐ {ev.rating} / 5.0
+                      </div>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-[9px] font-bold mt-1">
+                        <span className="material-symbols-outlined text-[11px]">lock</span>
                         Finalized
                       </span>
                     </td>
-                    <td className="py-2.5 px-3 capitalize text-xs">
-                      <span className="px-2 py-0.5 rounded-full bg-orange-tint text-vibrant-orange font-bold text-[11px]">
-                        {ev.evaluation_period}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 font-bold text-pinoy-green text-xs">
-                      ⭐ {ev.rating} / 5.0
-                    </td>
                     <td className="py-2.5 px-3 text-xs">
+                      <div className="text-on-surface-variant text-[11px] font-medium">{new Date(ev.evaluated_at).toLocaleDateString()}</div>
+                      <div className="text-on-surface-variant text-[11px] max-w-xs truncate mt-0.5">{ev.comments || 'No remarks provided'}</div>
+                    </td>
+                    <td className="py-2.5 px-3 text-right">
                       <button
                         type="button"
                         onClick={() => setSelectedEvaluation(ev)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-surface-container hover:bg-orange-tint hover:text-vibrant-orange text-on-surface text-[11px] font-bold transition-colors border border-outline-variant"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-vibrant-orange/10 hover:bg-vibrant-orange/20 text-vibrant-orange text-xs font-bold transition-colors"
                       >
-                        <span className="material-symbols-outlined text-[14px]">analytics</span>
+                        <span className="material-symbols-outlined text-[15px]">analytics</span>
                         <span>View Breakdown</span>
                       </button>
                     </td>
-                    <td className="py-2.5 px-3 text-xs text-on-surface-variant max-w-xs truncate">{ev.comments || 'N/A'}</td>
-                    <td className="py-2.5 px-3 text-xs text-on-surface-variant">{new Date(ev.evaluated_at).toLocaleDateString()}</td>
                   </tr>
                 ))}
               </tbody>

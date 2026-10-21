@@ -944,14 +944,12 @@ export default function InstitutionDashboard() {
           <>
             {/* Desktop Table View */}
             <div className="hidden md:block overflow-x-auto rounded-xl border border-outline-variant w-full max-w-full">
-              <table className="w-full text-xs min-w-[700px]">
+              <table className="w-full text-xs min-w-[650px]">
                 <thead className="bg-surface-container-low whitespace-nowrap">
                   <tr>
-                    <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Student</th>
-                    <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Program</th>
-                    <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">OJT Status</th>
-                    <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Hours</th>
-                    <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Portfolio</th>
+                    <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Student & Program</th>
+                    <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Status & Portfolio</th>
+                    <th className="px-3 py-2.5 text-left font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Rendered Hours</th>
                     <th className="px-3 py-2.5 text-right font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">Action</th>
                   </tr>
                 </thead>
@@ -960,23 +958,24 @@ export default function InstitutionDashboard() {
                     <tr key={stu.student_id} className="hover:bg-surface-container-low/60 transition-colors">
                       <td className="px-3 py-2.5">
                         <p className="font-bold text-on-surface">{stu.last_name}, {stu.first_name}</p>
-                        <p className="text-on-surface-variant">{stu.student_number}</p>
+                        <div className="flex items-center gap-1.5 text-on-surface-variant text-[11px] mt-0.5">
+                          <span>{stu.student_number}</span>
+                          <span>•</span>
+                          <span className="font-medium text-on-surface">{stu.program_code || stu.program_name || 'General'}</span>
+                        </div>
                       </td>
                       <td className="px-3 py-2.5">
-                        <p className="font-medium text-on-surface">{stu.program_code || '—'}</p>
-                        <p className="text-on-surface-variant line-clamp-1">{stu.program_name || '—'}</p>
+                        <div className="flex items-center gap-2">
+                          {ojtBadge(stu.ojt_status)}
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            (stu.portfolio_count || 0) > 0 ? 'bg-blue-50 text-blue-700' : 'bg-surface-container text-on-surface-variant'
+                          }`}>
+                            {stu.portfolio_count || 0} item{(stu.portfolio_count || 0) !== 1 ? 's' : ''}
+                          </span>
+                        </div>
                       </td>
-                      <td className="px-3 py-2.5">{ojtBadge(stu.ojt_status)}</td>
                       <td className="px-3 py-2.5">
-                        <p className="font-medium text-on-surface">{stu.completed_ojt_hours || 0} / {stu.required_ojt_hours || '—'}</p>
-                        <p className="text-on-surface-variant">hrs</p>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          (stu.portfolio_count || 0) > 0 ? 'bg-blue-50 text-blue-700' : 'bg-surface-container text-on-surface-variant'
-                        }`}>
-                          {stu.portfolio_count || 0} item{(stu.portfolio_count || 0) !== 1 ? 's' : ''}
-                        </span>
+                        <p className="font-bold text-on-surface">{stu.completed_ojt_hours || 0} / {stu.required_ojt_hours || '—'} hrs</p>
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <button

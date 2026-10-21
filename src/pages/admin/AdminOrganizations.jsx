@@ -206,23 +206,22 @@ export default function AdminOrganizations() {
 
       <div className="bento-card space-y-4">
         {loading ? (
-          <TableSkeleton rows={8} cols={6} />
+          <TableSkeleton rows={8} cols={4} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[700px] text-left text-sm">
               <thead>
                 <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
-                  <th className="py-3 px-4">Organization Name</th>
+                  <th className="py-3 px-4">Organization</th>
                   <th className="py-3 px-4">Structure & Industry</th>
-                  <th className="py-3 px-4">Contact</th>
-                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Status & Contact</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container">
                 {paginatedOrgs.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-xs text-on-surface-variant">
+                    <td colSpan={4} className="py-8 text-center text-xs text-on-surface-variant">
                       No employer organizations found.
                     </td>
                   </tr>
@@ -235,9 +234,11 @@ export default function AdminOrganizations() {
                         {/* Organization Name & Detail Link */}
                         <td className="py-3 px-4">
                           <p className="font-bold text-on-surface text-xs leading-tight">{org.organization_name}</p>
-                          <DetailLink onClick={() => handleOpenInspection(org)}>
-                            View Details & Softcopies
-                          </DetailLink>
+                          <div className="mt-1">
+                            <DetailLink onClick={() => handleOpenInspection(org)}>
+                              View Details & Softcopies
+                            </DetailLink>
+                          </div>
                         </td>
 
                         {/* Structure & Industry */}
@@ -248,16 +249,10 @@ export default function AdminOrganizations() {
                           <span className="text-[11px] text-on-surface-variant">{org.industry || 'General Industry'}</span>
                         </td>
 
-                        {/* Contact */}
-                        <td className="py-3 px-4 text-xs text-on-surface-variant">
-                          <p className="font-medium text-on-surface">{org.contact_email}</p>
-                          <p className="text-[11px]">{org.contact_phone || 'N/A'}</p>
-                        </td>
-
-                        {/* Status */}
-                        <td className="py-3 px-4">
+                        {/* Status & Contact */}
+                        <td className="py-3 px-4 text-xs">
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider inline-block ${
                               isPending
                                 ? 'bg-amber-500/10 text-amber-600'
                                 : org.status === 'rejected'
@@ -269,6 +264,7 @@ export default function AdminOrganizations() {
                           >
                             {org.status === 'active' ? 'Verified' : org.status}
                           </span>
+                          <p className="font-medium text-on-surface mt-1 truncate max-w-[170px]">{org.contact_email}</p>
                         </td>
 
                         {/* Actions */}

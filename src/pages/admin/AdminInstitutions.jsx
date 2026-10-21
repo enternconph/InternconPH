@@ -206,23 +206,22 @@ export default function AdminInstitutions() {
 
       <div className="bento-card space-y-4">
         {loading ? (
-          <TableSkeleton rows={8} cols={6} />
+          <TableSkeleton rows={8} cols={4} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[700px] text-left text-sm">
               <thead>
                 <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
-                  <th className="py-3 px-4">Institution Name</th>
-                  <th className="py-3 px-4">Classification & Code</th>
-                  <th className="py-3 px-4">Director / Contact</th>
-                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Institution</th>
+                  <th className="py-3 px-4">Classification & Director</th>
+                  <th className="py-3 px-4">Status & Contact</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container">
                 {paginatedInstitutions.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-xs text-on-surface-variant">
+                    <td colSpan={4} className="py-8 text-center text-xs text-on-surface-variant">
                       No educational institutions found.
                     </td>
                   </tr>
@@ -235,29 +234,28 @@ export default function AdminInstitutions() {
                         {/* Institution Name & Detail Link */}
                         <td className="py-3 px-4">
                           <p className="font-bold text-on-surface text-xs leading-tight">{inst.institution_name}</p>
-                          <DetailLink onClick={() => handleOpenInspection(inst)}>
-                            View Details & Softcopies
-                          </DetailLink>
+                          <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant mt-0.5">
+                            <span className="font-mono font-bold text-vibrant-orange">{inst.institution_code}</span>
+                          </div>
+                          <div className="mt-1">
+                            <DetailLink onClick={() => handleOpenInspection(inst)}>
+                              View Details & Softcopies
+                            </DetailLink>
+                          </div>
                         </td>
 
-                        {/* Classification & Code */}
-                        <td className="py-3 px-4">
-                          <span className="font-mono text-xs font-bold text-vibrant-orange block">{inst.institution_code}</span>
-                          <span className="text-[11px] text-on-surface-variant capitalize">
-                            {(inst.institution_type || 'university').replace('_', ' ')}
-                          </span>
-                        </td>
-
-                        {/* Director / Contact */}
-                        <td className="py-3 px-4 text-xs text-on-surface-variant">
+                        {/* Classification & Director */}
+                        <td className="py-3 px-4 text-xs">
                           <p className="font-medium text-on-surface">{inst.director_name || 'Director / President'}</p>
-                          <p className="text-[11px] truncate max-w-[170px]">{inst.contact_email || 'N/A'}</p>
+                          <p className="text-[11px] text-on-surface-variant capitalize mt-0.5">
+                            {(inst.institution_type || 'university').replace('_', ' ')}
+                          </p>
                         </td>
 
-                        {/* Status */}
-                        <td className="py-3 px-4">
+                        {/* Status & Contact */}
+                        <td className="py-3 px-4 text-xs">
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider inline-block ${
                               isPending
                                 ? 'bg-amber-500/10 text-amber-600'
                                 : inst.status === 'rejected'
@@ -269,6 +267,7 @@ export default function AdminInstitutions() {
                           >
                             {inst.status === 'active' ? 'Verified' : inst.status}
                           </span>
+                          <p className="text-[11px] text-on-surface-variant truncate max-w-[170px] mt-1">{inst.contact_email || 'N/A'}</p>
                         </td>
 
                         {/* Actions */}

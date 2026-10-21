@@ -1192,8 +1192,7 @@ export default function InstStaff() {
                         <tr className="border-b border-outline-variant bg-surface-container-low text-on-surface-variant whitespace-nowrap font-bold">
                           <th className="py-3 px-3.5">Passcode & Target ID</th>
                           <th className="py-3 px-3.5">Assigned Role & Scope</th>
-                          <th className="py-3 px-3.5">Email Restriction / Claim</th>
-                          <th className="py-3 px-3.5">Status & Expiration</th>
+                          <th className="py-3 px-3.5">Claim Status & Expiration</th>
                           <th className="py-3 px-3.5 text-right">Actions</th>
                         </tr>
                       </thead>
@@ -1259,36 +1258,30 @@ export default function InstStaff() {
                                 </div>
                               </td>
 
-                              {/* Email & Claim Details */}
+                              {/* Claim Status & Expiry */}
                               <td className="py-3 px-3.5">
                                 <div className="space-y-1">
-                                  {c.is_used ? (
-                                    <div className="flex items-center gap-1 text-pinoy-green text-[11px] font-bold">
-                                      <span className="material-symbols-outlined text-[14px]">account_circle</span>
-                                      <span className="truncate max-w-[180px]">{c.used_by_email || 'Registered coordinator'}</span>
-                                    </div>
-                                  ) : c.intended_email ? (
-                                    <div className="flex items-center gap-1 text-on-surface text-[11px]">
-                                      <span className="material-symbols-outlined text-[14px] text-on-surface-variant">mail</span>
-                                      <span className="truncate max-w-[180px] font-medium">{c.intended_email}</span>
-                                    </div>
-                                  ) : (
-                                    <span className="text-on-surface-variant text-[11px] italic">Any institution email</span>
-                                  )}
-                                  <div className="text-[10px] text-on-surface-variant">
-                                    Created: {new Date(c.created_at).toLocaleDateString()}
+                                  <div className="flex items-center gap-2">
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${expInfo.badge}`}>
+                                      <span className="material-symbols-outlined text-[12px]">{expInfo.icon}</span>
+                                      <span>{expInfo.label}</span>
+                                    </span>
                                   </div>
-                                </div>
-                              </td>
-
-                              {/* Status & Expiration */}
-                              <td className="py-3 px-3.5">
-                                <div className="space-y-1">
-                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${expInfo.badge}`}>
-                                    <span className="material-symbols-outlined text-[12px]">{expInfo.icon}</span>
-                                    <span>{expInfo.label}</span>
-                                  </span>
-                                  <div className="text-[11px] text-on-surface-variant font-medium">
+                                  <div className="text-[11px] text-on-surface-variant">
+                                    {c.is_used ? (
+                                      <span className="text-pinoy-green font-bold flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[13px]">account_circle</span>
+                                        <span className="truncate max-w-[180px]">{c.used_by_email || 'Registered coordinator'}</span>
+                                      </span>
+                                    ) : c.intended_email ? (
+                                      <span className="text-on-surface font-medium truncate max-w-[180px] block">
+                                        For: {c.intended_email}
+                                      </span>
+                                    ) : (
+                                      <span className="italic text-[10.5px]">Open to any institutional email</span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] text-on-surface-variant">
                                     {expInfo.sub}
                                   </div>
                                 </div>
@@ -1318,10 +1311,9 @@ export default function InstStaff() {
                                       disabled={actionLoading}
                                       onClick={() => setConfirmModal({ isOpen: true, type: 'deactivate', code: c })}
                                       title="Deactivate passcode immediately"
-                                      className="px-2.5 py-1.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 disabled:opacity-50"
+                                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 border border-outline-variant hover:border-rose-300 transition-colors"
                                     >
-                                      <span className="material-symbols-outlined text-[14px]">block</span>
-                                      <span>Deactivate</span>
+                                      <span className="material-symbols-outlined text-[16px]">block</span>
                                     </button>
                                   )}
 
@@ -1330,10 +1322,9 @@ export default function InstStaff() {
                                     disabled={actionLoading}
                                     onClick={() => setConfirmModal({ isOpen: true, type: 'delete', code: c })}
                                     title="Delete passcode and free Staff ID"
-                                    className="px-2.5 py-1.5 bg-red-500/10 text-red-600 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 disabled:opacity-50"
+                                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 border border-outline-variant hover:border-red-300 transition-colors"
                                   >
-                                    <span className="material-symbols-outlined text-[14px]">delete</span>
-                                    <span>Delete</span>
+                                    <span className="material-symbols-outlined text-[16px]">delete</span>
                                   </button>
                                 </div>
                               </td>

@@ -152,7 +152,7 @@ export default function AdminJobs() {
 
       <div className="bento-card space-y-4">
         {loading ? (
-          <TableSkeleton rows={6} cols={5} />
+          <TableSkeleton rows={6} cols={4} />
         ) : filteredJobs.length === 0 ? (
           <p className="text-xs text-on-surface-variant text-center py-6">No matching job postings found.</p>
         ) : (
@@ -162,8 +162,7 @@ export default function AdminJobs() {
                 <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
                   <th className="py-3 px-4">Opportunity</th>
                   <th className="py-3 px-4">Company & Location</th>
-                  <th className="py-3 px-4">Slots & Applicants</th>
-                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Status & Capacity</th>
                   <th className="py-3 px-4 text-right">Moderation</th>
                 </tr>
               </thead>
@@ -184,21 +183,19 @@ export default function AdminJobs() {
                       <p className="text-[11px] truncate max-w-[160px]">{j.location || 'Flexible'}</p>
                     </td>
 
-                    {/* Capacity */}
-                    <td className="py-3 px-4 text-xs">
-                      <span className="font-bold text-on-surface">{j.slots_available || 1} slot(s)</span>
-                      <p className="text-[11px] text-on-surface-variant">{j.applicant_count || 0} candidate(s)</p>
-                    </td>
-
-                    {/* Status */}
+                    {/* Status & Capacity */}
                     <td className="py-3 px-4">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        j.status === 'active' ? 'bg-green-tint text-pinoy-green' :
-                        j.status === 'pending_review' ? 'bg-orange-tint text-vibrant-orange' :
-                        'bg-surface-container text-on-surface-variant'
-                      }`}>
-                        {j.status?.replace('_', ' ')}
-                      </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          j.status === 'active' ? 'bg-green-tint text-pinoy-green' :
+                          j.status === 'pending_review' ? 'bg-orange-tint text-vibrant-orange' :
+                          'bg-surface-container text-on-surface-variant'
+                        }`}>
+                          {j.status?.replace('_', ' ')}
+                        </span>
+                        <span className="font-semibold text-xs text-on-surface">{j.slots_available || 1} slot(s)</span>
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant mt-0.5">{j.applicant_count || 0} candidate(s)</p>
                     </td>
 
                     {/* Moderation Actions */}

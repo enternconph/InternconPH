@@ -845,16 +845,12 @@ export default function InstStudents() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs min-w-[800px]">
+                <table className="w-full text-left text-xs min-w-[700px]">
                   <thead>
                     <tr className="border-b border-outline-variant text-on-surface-variant whitespace-nowrap">
                       <th className="py-2.5 px-3">Access Code</th>
-                      <th className="py-2.5 px-3">Academic Program</th>
-                      <th className="py-2.5 px-3">Target Scope</th>
-                      <th className="py-2.5 px-3">Enrolled Students</th>
-                      <th className="py-2.5 px-3">Status</th>
-                      <th className="py-2.5 px-3">Expires At</th>
-                      <th className="py-2.5 px-3">Created</th>
+                      <th className="py-2.5 px-3">Academic Program & Adviser</th>
+                      <th className="py-2.5 px-3">Status & Registrations</th>
                       <th className="py-2.5 px-3 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -866,13 +862,22 @@ export default function InstStudents() {
 
                       return (
                         <tr key={c.code_id} className="hover:bg-surface-container-low transition-colors">
-                          <td className="py-2.5 px-3 font-mono font-bold text-vibrant-orange text-sm">
-                            <span className="cursor-pointer hover:underline" onClick={() => {
-                              navigator.clipboard.writeText(c.code_hash);
-                              showToast(`Passcode ${c.code_hash} copied!`);
-                            }}>
+                          <td className="py-2.5 px-3">
+                            <span 
+                              className="font-mono font-bold text-vibrant-orange text-sm cursor-pointer hover:underline block"
+                              onClick={() => {
+                                navigator.clipboard.writeText(c.code_hash);
+                                showToast(`Passcode ${c.code_hash} copied!`);
+                              }}
+                              title="Click to copy"
+                            >
                               {c.code_hash}
                             </span>
+                            <div className="flex items-center gap-1.5 mt-1 text-[10px] text-on-surface-variant">
+                              <span className="font-mono bg-surface-container px-1 rounded">{c.target_identifier || 'STUDENTS'}</span>
+                              <span>•</span>
+                              <span>Created {new Date(c.created_at).toLocaleDateString()}</span>
+                            </div>
                           </td>
                           <td className="py-2.5 px-3">
                             <div className="font-semibold text-on-surface">
@@ -889,44 +894,31 @@ export default function InstStudents() {
                             )}
                           </td>
                           <td className="py-2.5 px-3">
-                            <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-surface-container text-on-surface">
-                              {c.target_identifier || 'PROGRAM_STUDENTS'}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-container text-on-surface font-semibold text-[11px]">
-                              <span className="material-symbols-outlined text-[13px] text-on-surface-variant">group</span>
-                              <span>{c.registered_count || 0} registered</span>
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-3">
-                            {isActive ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-emerald-600 border border-emerald-500/20">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                Active
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {isActive ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-emerald-600 border border-emerald-500/20">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                  Active
+                                </span>
+                              ) : isExpired ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">
+                                  <span className="material-symbols-outlined text-[12px]">timer_off</span>
+                                  Expired
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                  <span className="material-symbols-outlined text-[12px]">sync</span>
+                                  Superseded
+                                </span>
+                              )}
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-on-surface font-semibold text-[10px]">
+                                <span className="material-symbols-outlined text-[12px] text-on-surface-variant">group</span>
+                                <span>{c.registered_count || 0} registered</span>
                               </span>
-                            ) : isExpired ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">
-                                <span className="material-symbols-outlined text-[12px]">timer_off</span>
-                                Expired
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
-                                <span className="material-symbols-outlined text-[12px]">sync</span>
-                                Superseded
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-3 text-on-surface-variant">
-                            <div className={`font-medium ${isExpired ? 'text-red-500 font-bold' : ''}`}>
-                              {new Date(c.expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                             </div>
-                            <div className="text-[10px] text-on-surface-variant">
-                              {new Date(c.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            <div className={`text-[10px] text-on-surface-variant mt-1 ${isExpired ? 'text-red-500 font-semibold' : ''}`}>
+                              Expires: {new Date(c.expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(c.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </div>
-                          </td>
-                          <td className="py-2.5 px-3 text-on-surface-variant text-[11px]">
-                            {new Date(c.created_at).toLocaleDateString()}
                           </td>
                           <td className="py-2.5 px-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
@@ -948,7 +940,7 @@ export default function InstStudents() {
                                 title="Generate new access code for late registrations or renewal"
                               >
                                 <span className="material-symbols-outlined text-[14px]">autorenew</span>
-                                <span>New / Late Code</span>
+                                <span>New Code</span>
                               </button>
                             </div>
                           </td>

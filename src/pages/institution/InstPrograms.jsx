@@ -572,13 +572,12 @@ export default function InstPrograms() {
 
                   {/* Table of courses in this department */}
                   <div className="overflow-x-auto pt-2">
-                    <table className="w-full text-left text-xs min-w-[700px]">
+                    <table className="w-full text-left text-xs min-w-[650px]">
                       <thead>
                         <tr className="border-b border-outline-variant text-on-surface-variant font-bold uppercase text-[10px] tracking-wider whitespace-nowrap">
                           <th className="py-2.5 px-3">Degree Program / Course</th>
                           <th className="py-2.5 px-3">Code</th>
-                          <th className="py-2.5 px-3 text-center">Required Training Hours</th>
-                          <th className="py-2.5 px-3 text-center">Enrolled Interns</th>
+                          <th className="py-2.5 px-3">Hours & Enrolled</th>
                           <th className="py-2.5 px-3 text-right">Actions</th>
                         </tr>
                       </thead>
@@ -596,17 +595,17 @@ export default function InstPrograms() {
                                 {p.program_code}
                               </span>
                             </td>
-                            <td className="py-3 px-3 text-center">
-                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full font-bold bg-orange-tint/40 text-vibrant-orange border border-vibrant-orange/20">
-                                <span className="material-symbols-outlined text-[14px]">timer</span>
-                                <span>{p.required_ojt_hours} hrs</span>
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 text-center font-bold text-on-surface">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface">
-                                <span className="material-symbols-outlined text-[13px] text-on-surface-variant">person</span>
-                                <span>{p.student_count || 0}</span>
-                              </span>
+                            <td className="py-3 px-3">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[11px] bg-orange-tint/40 text-vibrant-orange border border-vibrant-orange/20">
+                                  <span className="material-symbols-outlined text-[13px]">timer</span>
+                                  <span>{p.required_ojt_hours} hrs</span>
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-surface-container text-on-surface">
+                                  <span className="material-symbols-outlined text-[12px] text-on-surface-variant">person</span>
+                                  <span>{p.student_count || 0} enrolled</span>
+                                </span>
+                              </div>
                             </td>
                             <td className="py-3 px-3 text-right">
                               <div className="inline-flex items-center gap-1.5">
@@ -643,14 +642,12 @@ export default function InstPrograms() {
         ) : (
           /* FLAT TABLE VIEW */
           <div className="bento-card overflow-x-auto p-0 animate-fade-in">
-            <table className="w-full text-left text-xs min-w-[750px]">
+            <table className="w-full text-left text-xs min-w-[700px]">
               <thead>
                 <tr className="border-b border-outline-variant bg-surface-container-low text-on-surface-variant font-bold uppercase text-[10px] tracking-wider whitespace-nowrap">
-                  <th className="py-3.5 px-4">Degree Program / Course</th>
-                  <th className="py-3.5 px-4">Code</th>
+                  <th className="py-3.5 px-4">Degree Program & Code</th>
                   <th className="py-3.5 px-4">Department / College</th>
-                  <th className="py-3.5 px-4 text-center">Required Hours</th>
-                  <th className="py-3.5 px-4 text-center">Enrolled</th>
+                  <th className="py-3.5 px-4">Hours & Enrolled</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -658,15 +655,15 @@ export default function InstPrograms() {
                 {filteredPrograms.map((p) => (
                   <tr key={p.program_id} className="hover:bg-surface-container-low transition-colors">
                     <td className="py-3 px-4">
-                      <p className="font-bold text-on-surface text-sm">{p.program_name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-on-surface text-sm">{p.program_name}</p>
+                        <span className="px-2 py-0.5 rounded-full font-mono text-[10.5px] font-bold bg-surface-container text-on-surface border border-outline-variant/60">
+                          {p.program_code}
+                        </span>
+                      </div>
                       {p.description && (
                         <p className="text-[11px] text-on-surface-variant line-clamp-1 mt-0.5">{p.description}</p>
                       )}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded-full font-mono text-[11px] font-bold bg-surface-container text-on-surface border border-outline-variant/60">
-                        {p.program_code}
-                      </span>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1.5">
@@ -678,17 +675,17 @@ export default function InstPrograms() {
                         </span>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full font-bold bg-orange-tint/40 text-vibrant-orange border border-vibrant-orange/20">
-                        <span className="material-symbols-outlined text-[14px]">timer</span>
-                        <span>{p.required_ojt_hours} hrs</span>
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-on-surface">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface">
-                        <span className="material-symbols-outlined text-[13px] text-on-surface-variant">person</span>
-                        <span>{p.student_count || 0}</span>
-                      </span>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full font-bold bg-orange-tint/40 text-vibrant-orange border border-vibrant-orange/20">
+                          <span className="material-symbols-outlined text-[14px]">timer</span>
+                          <span>{p.required_ojt_hours} hrs</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface text-[11px]">
+                          <span className="material-symbols-outlined text-[13px] text-on-surface-variant">person</span>
+                          <span>{p.student_count || 0} enrolled</span>
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="inline-flex items-center gap-1.5">

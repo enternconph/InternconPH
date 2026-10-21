@@ -52,6 +52,7 @@ export default function StudentOJT() {
 
   // Dynamic Attendance QR Modal State
   const [showQrModal, setShowQrModal] = useState(false);
+  const [viewJournalEntry, setViewJournalEntry] = useState(null);
 
   useEffect(() => {
     if (urlTab) {
@@ -791,42 +792,37 @@ export default function StudentOJT() {
               </div>
             ) : (
               <div className="overflow-x-auto rounded-2xl border border-outline-variant/70 shadow-xs">
-                <table className="w-full min-w-[780px] text-left text-sm border-collapse">
+                <table className="w-full min-w-[700px] text-left text-sm border-collapse">
                   <thead>
                     <tr className="bg-surface-container-low text-on-surface-variant text-[11px] uppercase tracking-wider font-extrabold border-b border-outline-variant">
-                      <th className="py-3.5 px-4 sm:px-5">Date</th>
-                      <th className="py-3.5 px-4">Host Company</th>
-                      <th className="py-3.5 px-4 whitespace-nowrap">Time In (PST)</th>
-                      <th className="py-3.5 px-4 whitespace-nowrap">Time Out (PST)</th>
-                      <th className="py-3.5 px-4 text-center whitespace-nowrap">Hours Credited</th>
+                      <th className="py-3.5 px-4 sm:px-5">Date & Host</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap">Shift Timing (PST)</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap">Rendered & Status</th>
                       <th className="py-3.5 px-4">Tasks Accomplished</th>
-                      <th className="py-3.5 px-4 text-center whitespace-nowrap">Mentor Verification</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/40 bg-surface">
                     {filteredDtrLogs.map((log) => (
                       <tr key={log.attendance_id} className="hover:bg-surface-container-low/60 transition-colors">
-                        {/* Date */}
-                        <td className="py-3.5 px-4 sm:px-5 font-bold text-xs text-on-surface whitespace-nowrap">
-                          {new Date(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </td>
-
-                        {/* Host Company */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-1.5 font-bold text-xs text-on-surface whitespace-nowrap">
-                            <span className="material-symbols-outlined text-[16px] text-vibrant-orange shrink-0">apartment</span>
-                            <span className="truncate max-w-[180px]" title={log.organization_name}>{log.organization_name}</span>
+                        {/* Date & Host */}
+                        <td className="py-3.5 px-4 sm:px-5">
+                          <p className="font-bold text-xs text-on-surface whitespace-nowrap">
+                            {new Date(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                          <div className="flex items-center gap-1.5 font-medium text-[11px] text-on-surface-variant whitespace-nowrap mt-0.5">
+                            <span className="material-symbols-outlined text-[14px] text-vibrant-orange shrink-0">apartment</span>
+                            <span className="truncate max-w-[170px]" title={log.organization_name}>{log.organization_name}</span>
                           </div>
                         </td>
 
-                        {/* Time In */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="inline-flex items-center gap-1.5">
-                            <span className="font-mono text-xs font-semibold text-on-surface">
-                              {log.time_in ? formatPHT12Hour(log.time_in) : '—'}
+                        {/* Shift Timing */}
+                        <td className="py-3.5 px-4 text-xs whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-semibold text-on-surface">
+                              In: {log.time_in ? formatPHT12Hour(log.time_in) : '—'}
                             </span>
                             {log.time_in && (
-                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${
+                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase ${
                                 log.time_in_status === 'late'
                                   ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/20'
                                   : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
@@ -835,41 +831,42 @@ export default function StudentOJT() {
                               </span>
                             )}
                           </div>
-                        </td>
-
-                        {/* Time Out */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="inline-flex items-center gap-1.5">
-                            {log.time_out ? (
-                              <>
-                                <span className="font-mono text-xs font-semibold text-on-surface">
-                                  {formatPHT12Hour(log.time_out)}
-                                </span>
-                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${
-                                  log.time_out_status === 'early'
-                                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/20'
-                                    : log.time_out_status === 'overtime'
-                                    ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/20'
-                                    : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
-                                }`}>
-                                  {log.time_out_status === 'early' ? 'Early' : log.time_out_status === 'overtime' ? 'Overtime (Capped)' : 'On-Time'}
-                                </span>
-                              </>
-                            ) : log.time_in ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[11px] font-bold border border-amber-500/20">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                In Progress
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="font-mono text-on-surface-variant text-[11px]">
+                              Out: {log.time_out ? formatPHT12Hour(log.time_out) : log.time_in ? 'In Progress...' : '—'}
+                            </span>
+                            {log.time_out && (
+                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase ${
+                                log.time_out_status === 'early'
+                                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/20'
+                                  : log.time_out_status === 'overtime'
+                                  ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/20'
+                                  : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
+                              }`}>
+                                {log.time_out_status === 'early' ? 'Early' : log.time_out_status === 'overtime' ? 'OT' : 'On-Time'}
                               </span>
-                            ) : (
-                              <span className="font-mono text-xs text-on-surface-variant">—</span>
                             )}
                           </div>
                         </td>
 
-                        {/* Hours Credited */}
-                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                          <span className="inline-block px-2.5 py-1 rounded-xl bg-surface-container-low font-mono font-extrabold text-xs text-on-surface border border-outline-variant/60">
+                        {/* Hours & Status */}
+                        <td className="py-3.5 px-4 whitespace-nowrap text-xs">
+                          <div className="font-mono font-extrabold text-on-surface mb-1">
                             {log.hours_rendered ? `${parseFloat(log.hours_rendered).toFixed(2)} hrs` : '0.00 hrs'}
+                          </div>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-extrabold capitalize ${
+                              log.status === 'verified'
+                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                                : log.status === 'rejected'
+                                ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'
+                                : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-[13px]">
+                              {log.status === 'verified' ? 'verified' : log.status === 'rejected' ? 'cancel' : 'pending'}
+                            </span>
+                            <span>{log.status === 'verified' ? 'Certified' : log.status}</span>
                           </span>
                         </td>
 
@@ -878,24 +875,6 @@ export default function StudentOJT() {
                           <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-2" title={log.tasks_accomplished || ''}>
                             {log.tasks_accomplished || 'Daily internship tasks completed.'}
                           </p>
-                        </td>
-
-                        {/* Mentor Certification */}
-                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-extrabold capitalize ${
-                              log.status === 'verified'
-                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
-                                : log.status === 'rejected'
-                                ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'
-                                : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
-                            }`}
-                          >
-                            <span className="material-symbols-outlined text-[15px]">
-                              {log.status === 'verified' ? 'verified' : log.status === 'rejected' ? 'cancel' : 'pending'}
-                            </span>
-                            <span>{log.status === 'verified' ? 'Certified' : log.status}</span>
-                          </span>
                         </td>
                       </tr>
                     ))}
@@ -972,97 +951,60 @@ export default function StudentOJT() {
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {journals.map((entry) => (
                 <div
                   key={entry.journal_id}
-                  className="bento-card space-y-4 hover:border-vibrant-orange/40 transition-all border border-outline-variant"
+                  className="bento-card p-4 hover:border-vibrant-orange/40 transition-all border border-outline-variant flex flex-col justify-between gap-3"
                 >
-                  {/* Entry Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-outline-variant">
-                    <div className="flex items-center gap-2.5 flex-wrap">
+                  {/* Item 1: Week & Date */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
                       <span className="px-2.5 py-0.5 rounded-lg text-xs font-extrabold bg-orange-tint text-vibrant-orange border border-vibrant-orange/20">
                         Week {entry.week_number || 1}
                       </span>
-                      <span className="text-xs font-bold text-on-surface-variant flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[15px]">calendar_today</span>
-                        {new Date(entry.entry_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-semibold bg-surface-container text-on-surface">
-                        {parseFloat(entry.hours_rendered || 0).toFixed(1)} hrs
+                      <span className="text-xs font-medium text-on-surface-variant flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">calendar_today</span>
+                        {new Date(entry.entry_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>
                     </div>
 
+                    {/* Item 2: Status Badge */}
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                       entry.status === 'reviewed'
                         ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
                         : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20'
                     }`}>
-                      <span className="material-symbols-outlined text-[14px]">
+                      <span className="material-symbols-outlined text-[13px]">
                         {entry.status === 'reviewed' ? 'verified' : 'schedule'}
                       </span>
-                      {entry.status === 'reviewed' ? 'Reviewed by Mentor' : 'Submitted'}
+                      {entry.status === 'reviewed' ? 'Reviewed' : 'Submitted'}
                     </span>
                   </div>
 
-                  {/* Title */}
-                  <h4 className="text-base font-bold text-on-surface">{entry.title}</h4>
-
-                  {/* 3 Content Blocks */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {/* Tasks Accomplished */}
-                    <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface">
-                        <span className="material-symbols-outlined text-[16px] text-vibrant-orange">task_alt</span>
-                        <span>Tasks Accomplished</span>
-                      </div>
-                      <p className="text-xs text-on-surface-variant whitespace-pre-wrap leading-relaxed">
-                        {entry.tasks_accomplished}
-                      </p>
-                    </div>
-
-                    {/* Key Learnings */}
-                    <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface">
-                        <span className="material-symbols-outlined text-[16px] text-amber-500">lightbulb</span>
-                        <span>Key Learnings</span>
-                      </div>
-                      <p className="text-xs text-on-surface-variant whitespace-pre-wrap leading-relaxed">
-                        {entry.key_learnings}
-                      </p>
-                    </div>
-
-                    {/* Challenges & Solutions */}
-                    <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface">
-                        <span className="material-symbols-outlined text-[16px] text-blue-500">psychology</span>
-                        <span>Challenges & Solutions</span>
-                      </div>
-                      <p className="text-xs text-on-surface-variant whitespace-pre-wrap leading-relaxed">
-                        {entry.challenges_and_solutions || 'None encountered.'}
-                      </p>
-                    </div>
+                  {/* Item 3: Title & Tasks Excerpt */}
+                  <div>
+                    <h4 className="text-sm font-bold text-on-surface line-clamp-1">{entry.title}</h4>
+                    <p className="text-xs text-on-surface-variant line-clamp-2 mt-1 leading-relaxed">
+                      {entry.tasks_accomplished || entry.key_learnings || 'No task descriptions recorded.'}
+                    </p>
                   </div>
 
-                  {/* Mentor Feedback If Available */}
-                  {entry.mentor_feedback && (
-                    <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl space-y-1 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-[16px]">rate_review</span>
-                          Mentor Feedback
-                        </span>
-                        {entry.mentor_rating && (
-                          <span className="font-bold text-amber-600 dark:text-amber-400">
-                            ⭐ {entry.mentor_rating} / 5.0
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-emerald-900 dark:text-emerald-200 italic">
-                        "{entry.mentor_feedback}"
-                      </p>
-                    </div>
-                  )}
+                  {/* Item 4: Hours Rendered & View Detail Action */}
+                  <div className="flex items-center justify-between pt-2.5 border-t border-outline-variant/50">
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-semibold bg-surface-container text-on-surface">
+                      {parseFloat(entry.hours_rendered || 0).toFixed(1)} hrs rendered
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => setViewJournalEntry(entry)}
+                      className="px-2.5 py-1.5 rounded-lg bg-vibrant-orange/10 hover:bg-vibrant-orange/20 text-vibrant-orange text-xs font-bold transition-colors inline-flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">visibility</span>
+                      <span>View Detail</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1723,6 +1665,114 @@ export default function StudentOJT() {
           fetchAllOjtData();
         }}
       />
+
+      {/* Journal Entry Detail Inspection Modal */}
+      {viewJournalEntry && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-outline-variant rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-lg text-xs font-extrabold bg-orange-tint text-vibrant-orange border border-vibrant-orange/20">
+                    Week {viewJournalEntry.week_number || 1}
+                  </span>
+                  <span className="text-xs text-on-surface-variant font-medium">
+                    {new Date(viewJournalEntry.entry_date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-on-surface mt-1">{viewJournalEntry.title}</h3>
+              </div>
+              <button onClick={() => setViewJournalEntry(null)} className="text-on-surface-variant hover:text-on-surface">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="flex items-center justify-between p-3 bg-surface-container rounded-xl">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-on-surface-variant block">Credited Shift Hours</span>
+                  <span className="font-mono font-bold text-sm text-on-surface">{parseFloat(viewJournalEntry.hours_rendered || 0).toFixed(1)} hrs</span>
+                </div>
+                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
+                  viewJournalEntry.status === 'reviewed'
+                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
+                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20'
+                }`}>
+                  <span className="material-symbols-outlined text-[14px]">
+                    {viewJournalEntry.status === 'reviewed' ? 'verified' : 'schedule'}
+                  </span>
+                  {viewJournalEntry.status === 'reviewed' ? 'Reviewed by Mentor' : 'Submitted (Pending Review)'}
+                </span>
+              </div>
+
+              {/* Tasks Accomplished */}
+              <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface">
+                  <span className="material-symbols-outlined text-[16px] text-vibrant-orange">task_alt</span>
+                  <span>Tasks Accomplished</span>
+                </div>
+                <p className="text-xs text-on-surface whitespace-pre-wrap leading-relaxed">
+                  {viewJournalEntry.tasks_accomplished}
+                </p>
+              </div>
+
+              {/* Key Learnings */}
+              <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface">
+                  <span className="material-symbols-outlined text-[16px] text-amber-500">lightbulb</span>
+                  <span>Key Learnings</span>
+                </div>
+                <p className="text-xs text-on-surface whitespace-pre-wrap leading-relaxed">
+                  {viewJournalEntry.key_learnings}
+                </p>
+              </div>
+
+              {/* Challenges & Solutions */}
+              {viewJournalEntry.challenges_and_solutions && (
+                <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface">
+                    <span className="material-symbols-outlined text-[16px] text-blue-500">psychology</span>
+                    <span>Challenges & Solutions</span>
+                  </div>
+                  <p className="text-xs text-on-surface whitespace-pre-wrap leading-relaxed">
+                    {viewJournalEntry.challenges_and_solutions}
+                  </p>
+                </div>
+              )}
+
+              {/* Mentor Feedback If Available */}
+              {viewJournalEntry.mentor_feedback && (
+                <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px]">rate_review</span>
+                      Mentor Feedback
+                    </span>
+                    {viewJournalEntry.mentor_rating && (
+                      <span className="font-bold text-amber-600 dark:text-amber-400">
+                        ⭐ {viewJournalEntry.mentor_rating} / 5.0
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-emerald-900 dark:text-emerald-200 italic">
+                    "{viewJournalEntry.mentor_feedback}"
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-outline-variant">
+              <button
+                type="button"
+                onClick={() => setViewJournalEntry(null)}
+                className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high transition-colors"
+              >
+                Close Journal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

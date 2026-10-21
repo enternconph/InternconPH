@@ -792,8 +792,7 @@ export default function OrgGrievances() {
                   <tr className="border-b border-outline-variant bg-surface-container-low/60 text-on-surface-variant text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
                     <th className="py-3 px-3.5">Intern & Institution</th>
                     <th className="py-3 px-3.5">Incident & Category</th>
-                    <th className="py-3 px-3.5">Type & Severity</th>
-                    <th className="py-3 px-3.5">Status & Action</th>
+                    <th className="py-3 px-3.5">Status & Severity</th>
                     <th className="py-3 px-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -836,28 +835,9 @@ export default function OrgGrievances() {
                           </div>
                         </td>
                         <td className="py-3 px-3.5 whitespace-nowrap">
-                          {isAccident ? (
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
-                              c.accident_severity === 'critical' || c.accident_severity === 'fatal'
-                                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                                : c.accident_severity === 'severe'
-                                ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
-                                : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                            }`}>
-                              <span className="material-symbols-outlined text-[13px]">emergency</span>
-                              Accident ({c.accident_severity || 'Reported'})
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant/60 text-[11px] font-medium">
-                              <span className="material-symbols-outlined text-[13px]">gavel</span>
-                              Conduct Report
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-3.5 whitespace-nowrap">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span
-                              className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wider border ${
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
                                 c.status === 'resolved'
                                   ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                                   : c.status === 'under_investigation'
@@ -869,12 +849,23 @@ export default function OrgGrievances() {
                             >
                               {c.status?.replace(/_/g, ' ').toUpperCase()}
                             </span>
-                            {c.warning_note_to_student && (
+                            {isAccident ? (
+                              <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                c.accident_severity === 'critical' || c.accident_severity === 'fatal'
+                                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                  : c.accident_severity === 'severe'
+                                  ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                                  : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                              }`}>
+                                <span className="material-symbols-outlined text-[11px]">emergency</span>
+                                {c.accident_severity || 'Accident'}
+                              </span>
+                            ) : c.warning_note_to_student ? (
                               <span className="inline-flex items-center gap-0.5 text-emerald-400 font-bold text-[10px] bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
                                 <span className="material-symbols-outlined text-[11px]">task_alt</span>
                                 Warning
                               </span>
-                            )}
+                            ) : null}
                           </div>
                         </td>
                         <td className="py-3 px-3.5 text-right whitespace-nowrap">
@@ -921,13 +912,12 @@ export default function OrgGrievances() {
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-outline-variant/60">
-              <table className="w-full min-w-[900px] text-left text-sm">
+              <table className="w-full min-w-[760px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-outline-variant bg-surface-container-low/60 text-on-surface-variant text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
-                    <th className="py-3 px-3.5 min-w-[130px]">Date Forwarded</th>
+                    <th className="py-3 px-3.5 min-w-[220px]">Notice & Date</th>
                     <th className="py-3 px-3.5 min-w-[200px]">Originating Institution</th>
-                    <th className="py-3 px-3.5 min-w-[250px]">Notice / Subject</th>
-                    <th className="py-3 px-3.5 min-w-[180px]">Complainant</th>
+                    <th className="py-3 px-3.5 min-w-[150px]">Complainant</th>
                     <th className="py-3 px-3.5 min-w-[100px] text-right">Actions</th>
                   </tr>
                 </thead>
@@ -938,23 +928,28 @@ export default function OrgGrievances() {
 
                     return (
                       <tr key={notice.complaint_id} className="hover:bg-surface-container-low/70 transition-colors text-xs group">
-                        <td className="py-3.5 px-3.5 text-on-surface-variant whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-container-high text-on-surface border border-outline-variant/60 font-semibold text-[11px] shadow-xs">
-                            <span className="material-symbols-outlined text-[13px] text-on-surface-variant">calendar_today</span>
-                            {new Date(notice.forwarded_to_org_at || notice.created_at || notice.filed_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-3.5 font-bold text-sm text-on-surface whitespace-nowrap">
-                          {notice.institution_name || 'Academic Institution'}
-                        </td>
+                        {/* Notice & Date */}
                         <td className="py-3.5 px-3.5 max-w-[250px]">
                           <DetailLink onClick={() => setSelectedItem({ type: 'notice', data: { ...notice, title: noticeTitle, student_name: complainantName } })}>
                             {noticeTitle}
                           </DetailLink>
+                          <div className="text-[10px] text-on-surface-variant flex items-center gap-1 mt-1 font-medium">
+                            <span className="material-symbols-outlined text-[12px]">calendar_today</span>
+                            <span>{new Date(notice.forwarded_to_org_at || notice.created_at || notice.filed_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                          </div>
                         </td>
+
+                        {/* Originating Institution */}
+                        <td className="py-3.5 px-3.5 font-bold text-sm text-on-surface whitespace-nowrap">
+                          {notice.institution_name || 'Academic Institution'}
+                        </td>
+
+                        {/* Complainant */}
                         <td className="py-3.5 px-3.5 text-xs text-on-surface-variant font-medium">
                           {complainantName}
                         </td>
+
+                        {/* Actions */}
                         <td className="py-3.5 px-3.5 text-right whitespace-nowrap">
                           <button
                             onClick={() => setSelectedItem({ type: 'notice', data: { ...notice, title: noticeTitle, student_name: complainantName } })}

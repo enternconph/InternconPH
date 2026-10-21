@@ -176,16 +176,14 @@ export default function AdminUsers() {
       {/* Users Table */}
       <div className="bento-card space-y-4">
         {loading ? (
-          <TableSkeleton rows={8} cols={5} />
+          <TableSkeleton rows={8} cols={4} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] text-left text-sm">
               <thead>
                 <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
-                  <th className="py-3 px-4">ID</th>
-                  <th className="py-3 px-4">Email</th>
-                  <th className="py-3 px-4">Role</th>
-                  <th className="py-3 px-4">Registered Date</th>
+                  <th className="py-3 px-4">User Account</th>
+                  <th className="py-3 px-4">Role & Registered</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Account Control</th>
                 </tr>
@@ -193,7 +191,7 @@ export default function AdminUsers() {
               <tbody className="divide-y divide-surface-container">
                 {paginatedUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-xs text-on-surface-variant">
+                    <td colSpan={4} className="py-8 text-center text-xs text-on-surface-variant">
                       No matching user accounts found.
                     </td>
                   </tr>
@@ -203,24 +201,26 @@ export default function AdminUsers() {
 
                     return (
                       <tr key={u.user_id} className="hover:bg-surface-container-low transition-colors">
-                        <td className="py-3 px-4 font-mono text-xs text-on-surface-variant">#{u.user_id}</td>
-                        <td className="py-3 px-4 font-bold text-on-surface">
-                          {u.email}
-                        {isSelf && <span className="ml-1 text-xs text-vibrant-orange font-normal">(You)</span>}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-surface-container text-on-surface-variant capitalize">
-                          {u.role_name?.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-xs text-on-surface-variant">{new Date(u.created_at).toLocaleDateString()}</td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                          u.is_active ? 'bg-green-tint text-pinoy-green' : 'bg-error-container text-error'
-                        }`}>
-                          {u.is_active ? 'Active' : 'Suspended'}
-                        </span>
-                      </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-on-surface text-xs">{u.email}</span>
+                            {isSelf && <span className="text-[10px] bg-orange-tint text-vibrant-orange font-bold px-1.5 py-0.2 rounded">(You)</span>}
+                          </div>
+                          <span className="font-mono text-[11px] text-on-surface-variant block mt-0.5">ID #{u.user_id}</span>
+                        </td>
+                        <td className="py-3 px-4 text-xs">
+                          <span className="px-2 py-0.5 rounded-full font-bold bg-surface-container text-on-surface-variant capitalize inline-block text-[11px]">
+                            {u.role_name?.replace('_', ' ')}
+                          </span>
+                          <span className="text-[11px] text-on-surface-variant block mt-0.5">{new Date(u.created_at).toLocaleDateString()}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            u.is_active ? 'bg-green-tint text-pinoy-green' : 'bg-error-container text-error'
+                          }`}>
+                            {u.is_active ? 'Active' : 'Suspended'}
+                          </span>
+                        </td>
                       <td className="py-3 px-4 text-right">
                         {!isSelf ? (
                           <button

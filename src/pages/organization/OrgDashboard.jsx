@@ -189,8 +189,7 @@ export default function OrgDashboard() {
                   <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
                     <th className="py-3 px-3">Student Intern</th>
                     <th className="py-3 px-3">Institution & Program</th>
-                    <th className="py-3 px-3">Rendered Hours Progress</th>
-                    <th className="py-3 px-3">OJT Status</th>
+                    <th className="py-3 px-3">Progress & Status</th>
                     <th className="py-3 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -227,18 +226,16 @@ export default function OrgDashboard() {
                         </td>
                         <td className="py-3 px-3 text-xs">
                           <div className="flex items-center justify-between text-[11px] mb-1 font-bold">
-                            <span className="text-on-surface">{completed} hrs</span>
-                            <span className="text-on-surface-variant">{required} hrs ({pct}%)</span>
+                            <span className="text-on-surface">{completed} / {required} hrs</span>
+                            <span className="text-vibrant-orange">{pct}%</span>
                           </div>
-                          <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
+                          <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden mb-1.5">
                             <div
                               className="bg-vibrant-orange h-full rounded-full transition-all duration-300"
                               style={{ width: `${pct}%` }}
                             />
                           </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold capitalize ${
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
                             intern.status === 'ongoing' ? 'bg-orange-tint text-vibrant-orange' : 'bg-green-tint text-pinoy-green'
                           }`}>
                             {intern.status || 'ongoing'}
@@ -445,15 +442,12 @@ export default function OrgDashboard() {
 
         {data?.jobs?.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-outline-variant/60">
-            <table className="w-full text-left text-sm min-w-[780px]">
+            <table className="w-full text-left text-sm min-w-[720px]">
               <thead>
                 <tr className="border-b border-outline-variant bg-surface-container-low/60 text-on-surface-variant text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
                   <th className="py-3 px-3.5">Opportunity Details</th>
-                  <th className="py-3 px-3.5">Type & Audience</th>
-                  <th className="py-3 px-3.5">Target Programs</th>
-                  <th className="py-3 px-3.5">University Approvals</th>
-                  <th className="py-3 px-3.5">Applicants</th>
-                  <th className="py-3 px-3.5">Status</th>
+                  <th className="py-3 px-3.5">Target Programs & Audience</th>
+                  <th className="py-3 px-3.5">Status & Approvals</th>
                   <th className="py-3 px-3.5 text-right">Action</th>
                 </tr>
               </thead>
@@ -468,7 +462,18 @@ export default function OrgDashboard() {
                   return (
                     <tr key={job.job_id} className="hover:bg-surface-container-low/70 transition-colors text-xs group">
                       <td className="py-3.5 px-3.5">
-                        <p className="font-bold text-sm text-on-surface group-hover:text-vibrant-orange transition-colors">{job.title}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-sm text-on-surface group-hover:text-vibrant-orange transition-colors">{job.title}</p>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-semibold capitalize ${
+                            pType === 'ojt'
+                              ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                              : pType === 'on_call'
+                              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                          }`}>
+                            {pType === 'ojt' ? 'OJT' : pType === 'on_call' ? 'On-Call' : 'Career'}
+                          </span>
+                        </div>
                         <div className="text-[11px] text-on-surface-variant flex items-center flex-wrap gap-1.5 mt-1 font-medium">
                           <span className="inline-flex items-center gap-0.5 text-on-surface-variant">
                             <span className="material-symbols-outlined text-[13px] text-vibrant-orange">location_on</span>
@@ -488,21 +493,6 @@ export default function OrgDashboard() {
                           <span className="text-outline-variant">•</span>
                           <span>{job.slots_available || 1} {job.slots_available === 1 ? 'slot' : 'slots'}</span>
                         </div>
-                      </td>
-
-                      <td className="py-3.5 px-3.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${
-                          pType === 'ojt'
-                            ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                            : pType === 'on_call'
-                            ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                            : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                        }`}>
-                          <span className="material-symbols-outlined text-[13px]">
-                            {pType === 'ojt' ? 'badge' : pType === 'on_call' ? 'bolt' : 'work'}
-                          </span>
-                          {pType === 'ojt' ? 'OJT Internship' : pType === 'on_call' ? 'On-Call' : 'Career Job'}
-                        </span>
                       </td>
 
                       <td className="py-3.5 px-3.5">
@@ -532,51 +522,45 @@ export default function OrgDashboard() {
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] text-on-surface-variant italic">
                             <span className="material-symbols-outlined text-[13px] not-italic opacity-60">all_inclusive</span>
-                            All Programs
+                            All Academic Programs
                           </span>
                         )}
                       </td>
 
-                      <td className="py-3.5 px-3.5 whitespace-nowrap">
-                        {totalApprovals > 0 ? (
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
-                            approvedCount === totalApprovals
+                      <td className="py-3.5 px-3.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            (job.status || 'active').toLowerCase() === 'active'
                               ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                              : approvedCount > 0
-                              ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                              : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                              : 'bg-surface-container text-on-surface-variant border border-outline-variant'
                           }`}>
-                            <span className="material-symbols-outlined text-[13px]">
-                              {approvedCount === totalApprovals ? 'verified' : approvedCount > 0 ? 'rule' : 'hourglass_top'}
-                            </span>
-                            <span>{approvedCount}/{totalApprovals} Approved</span>
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              (job.status || 'active').toLowerCase() === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'
+                            }`} />
+                            {job.status || 'Active'}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-on-surface-variant bg-surface-container border border-outline-variant/40">
-                            <span className="material-symbols-outlined text-[12px]">public</span>
-                            General
+                          <span className="text-[11px] text-on-surface-variant font-medium">
+                            <strong className="text-on-surface">{job.applicant_count || 0}</strong> applicants
                           </span>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-sm text-on-surface">{job.applicant_count || 0}</span>
-                          <span className="text-[11px] text-on-surface-variant font-medium">candidates</span>
                         </div>
-                      </td>
-
-                      <td className="py-3.5 px-3.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wider ${
-                          (job.status || 'active').toLowerCase() === 'active'
-                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-surface-container text-on-surface-variant border border-outline-variant'
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${
-                            (job.status || 'active').toLowerCase() === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'
-                          }`} />
-                          {job.status || 'Active'}
-                        </span>
+                        <div className="mt-1">
+                          {totalApprovals > 0 ? (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-semibold ${
+                              approvedCount === totalApprovals
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                : approvedCount > 0
+                                ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                                : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                            }`}>
+                              <span className="material-symbols-outlined text-[12px]">
+                                {approvedCount === totalApprovals ? 'verified' : approvedCount > 0 ? 'rule' : 'hourglass_top'}
+                              </span>
+                              <span>{approvedCount}/{totalApprovals} Approved</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-on-surface-variant">General Access</span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="py-3.5 px-3.5 text-right whitespace-nowrap">
