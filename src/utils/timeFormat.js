@@ -1,22 +1,26 @@
 /**
  * System-wide Time & Date Formatting Utility for InternConPH
- * Defaults to 24-Hour Clock (Military Time: 00:00 - 23:59)
+ * Universal Standard: 12-Hour Clock (Standard AM/PM)
  */
 
-export const DEFAULT_TIME_FORMAT = '24h'; // '24h' (Military) | '12h' (Standard AM/PM)
+export const DEFAULT_TIME_FORMAT = '12h'; // 12-Hour Clock (Standard AM/PM)
 
 export function getTimeFormatPreference() {
   if (typeof window === 'undefined') return DEFAULT_TIME_FORMAT;
-  return localStorage.getItem('interncon_time_format') || DEFAULT_TIME_FORMAT;
+  // Always enforce 12-hour AM/PM standard
+  const stored = localStorage.getItem('interncon_time_format');
+  if (stored === '24h') {
+    localStorage.setItem('interncon_time_format', '12h');
+  }
+  return '12h';
 }
 
-export function setTimeFormatPreference(format) {
-  const resolved = format === '12h' ? '12h' : '24h';
+export function setTimeFormatPreference(format = '12h') {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('interncon_time_format', resolved);
-    window.dispatchEvent(new CustomEvent('interncon_time_format_changed', { detail: { format: resolved } }));
+    localStorage.setItem('interncon_time_format', '12h');
+    window.dispatchEvent(new CustomEvent('interncon_time_format_changed', { detail: { format: '12h' } }));
   }
-  return resolved;
+  return '12h';
 }
 
 export function parseDateSafe(dateInput) {
@@ -25,6 +29,15 @@ export function parseDateSafe(dateInput) {
   if (typeof dateInput === 'number') return new Date(dateInput);
 
   const s = String(dateInput).trim();
+
+  // Support standalone time strings e.g. "14:30", "08:15:00", "8:00"
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(s)) {
+    const parts = s.split(':').map(Number);
+    const d = new Date();
+    d.setHours(parts[0], parts[1], parts[2] || 0, 0);
+    return d;
+  }
+
   if (s.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(s)) {
     const parsed = new Date(s);
     if (!isNaN(parsed.getTime())) return parsed;
@@ -36,45 +49,37 @@ export function parseDateSafe(dateInput) {
 }
 
 /**
- * Format time with the user's preferred format (24h default)
+ * Format time to 12-Hour Clock (Standard AM/PM)
  * @param {Date|string|number} dateInput 
  * @param {Object} [options]
  * @param {boolean} [options.showSeconds=false]
- * @param {string} [options.format] Force '24h' or '12h'
- * @returns {string} Formatted time string, e.g. "14:30:00" or "02:30:00 PM"
+ * @returns {string} Formatted time string, e.g. "02:30 PM" or "08:15 AM"
  */
 export function formatTime(dateInput, options = {}) {
   const d = parseDateSafe(dateInput);
   if (!d || isNaN(d.getTime())) return '';
 
-  const format = options.format || getTimeFormatPreference();
-  const is24h = format === '24h';
   const showSeconds = options.showSeconds !== undefined ? options.showSeconds : false;
-
   const hours = d.getHours();
   const minutes = String(d.getMinutes()).padStart(2, '0');
   const seconds = String(d.getSeconds()).padStart(2, '0');
 
-  if (is24h) {
-    const hours24 = String(hours).padStart(2, '0');
-    return showSeconds ? `${hours24}:${minutes}:${seconds}` : `${hours24}:${minutes}`;
-  } else {
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const hours12 = hours % 12 || 12;
-    const paddedHours12 = String(hours12).padStart(2, '0');
-    return showSeconds
-      ? `${paddedHours12}:${minutes}:${seconds} ${period}`
-      : `${paddedHours12}:${minutes} ${period}`;
-  }
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hours12 = hours % 12 || 12;
+  const paddedHours12 = String(hours12).padStart(2, '0');
+
+  return showSeconds
+    ? `${paddedHours12}:${minutes}:${seconds} ${period}`
+    : `${paddedHours12}:${minutes} ${period}`;
 }
 
 /**
- * Format full Date & Time with the user's preferred format (24h default)
+ * Format full Date & Time in 12-Hour format (Standard AM/PM)
  * @param {Date|string|number} dateInput 
  * @param {Object} [options]
  * @param {boolean} [options.showSeconds=false]
  * @param {string} [options.dateStyle='short'|'medium'|'full']
- * @returns {string} Formatted date & time, e.g. "Sep 25, 2026, 14:30"
+ * @returns {string} Formatted date & time, e.g. "Oct 22, 2026, 02:30 PM"
  */
 export function formatDateTime(dateInput, options = {}) {
   const d = parseDateSafe(dateInput);
@@ -93,17 +98,11 @@ export function formatDateTime(dateInput, options = {}) {
 }
 
 /**
- * Format timestamp for live clocks or military display tags
- * @param {Date|string|number} dateInput
- * @returns {string} e.g. "1430H" or "14:30:00"
+ * Standalone 12-Hour time string formatter for table displays and chips
+ * @param {string|Date} timeInput e.g. "14:30:00" -> "02:30 PM"
  */
-export function formatMilitaryTimeTag(dateInput, withSeconds = true) {
-  const d = parseDateSafe(dateInput);
-  if (!d || isNaN(d.getTime())) return '';
-
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  const seconds = String(d.getSeconds()).padStart(2, '0');
-
-  return withSeconds ? `${hours}:${minutes}:${seconds}` : `${hours}${minutes}H`;
+export function formatPHT12Hour(timeInput) {
+  if (!timeInput) return '—';
+  const formatted = formatTime(timeInput);
+  return formatted || String(timeInput);
 }

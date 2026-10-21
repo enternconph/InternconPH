@@ -24,7 +24,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags "-D_LIBCPP_ENABLE_CXX20_REMOVED_CHAR_TRAITS"
+                cppFlags "-include ${projectDir.toString().replace('\\', '/')}/char_traits_compat.h"
             }
         }
     }

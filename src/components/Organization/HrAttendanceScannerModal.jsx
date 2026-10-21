@@ -1,23 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import api from '../../api/client';
 import { playNotificationChime } from '../../utils/audio';
+import { formatPHT12Hour } from '../../utils/timeFormat';
 
 export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSuccess }) {
   const [scannerActive, setScannerActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [scanResult, setScanResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [manualCode, setManualCode] = useState('');
-  const [useManualInput, setUseManualInput] = useState(false);
+  const [closing, setClosing] = useState(false);
 
   const scannerRef = useRef(null);
   const isProcessingRef = useRef(false);
+  const isStoppingRef = useRef(false);
   const qrRegionId = 'hr-attendance-qr-reader';
 
   // Process QR Payload via backend API
   const handleProcessPayload = async (rawPayload) => {
-    if (isProcessingRef.current) return;
+    if (isProcessingRef.current || isStoppingRef.current) return;
     isProcessingRef.current = true;
     setLoading(true);
     setScanResult(null);
@@ -34,7 +35,7 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
       if (res.status === 404) {
         setScanResult({
           type: 'error',
-          message: 'The attendance QR scanner service is currently updating on Render. Please wait ~15-30 seconds and try again.'
+          message: 'The attendance QR scanner service is currently updating. Please wait ~15-30 seconds and try again.'
         });
       } else if (res.success) {
         setScanResult({
@@ -43,6 +44,7 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
           message: res.message,
           data: res.data
         });
+        // Real-time automatic background refresh
         if (onScanSuccess) {
           onScanSuccess(res);
         }
@@ -66,26 +68,67 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
     }
   };
 
+  // Safely stop camera hardware and detach Html5Qrcode
+  const stopScannerSafely = useCallback(async () => {
+    if (isStoppingRef.current) return;
+    isStoppingRef.current = true;
+
+    // 1. Explicitly stop media tracks on any active video elements
+    try {
+      const container = document.getElementById(qrRegionId);
+      if (container) {
+        const videos = container.getElementsByTagName('video');
+        for (let i = 0; i < videos.length; i++) {
+          if (videos[i].srcObject) {
+            const stream = videos[i].srcObject;
+            stream.getTracks().forEach((track) => {
+              try { track.stop(); } catch (_) {}
+            });
+            videos[i].srcObject = null;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2. Stop and clear Html5Qrcode instance
+    if (scannerRef.current) {
+      const instance = scannerRef.current;
+      scannerRef.current = null;
+      try {
+        if (instance.isScanning) {
+          await instance.stop();
+        }
+      } catch (e) {
+        // Silent ignore stopping error
+      }
+      try {
+        instance.clear();
+      } catch (e) {
+        // Silent ignore clear error
+      }
+    }
+
+    setScannerActive(false);
+    isStoppingRef.current = false;
+  }, [qrRegionId]);
+
   // Start Camera QR Scanner
   useEffect(() => {
-    if (!isOpen || useManualInput) {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {}).finally(() => {
-          scannerRef.current = null;
-          setScannerActive(false);
-        });
-      }
+    if (!isOpen) {
+      stopScannerSafely();
       return;
     }
 
     setCameraError('');
+    setClosing(false);
+    isProcessingRef.current = false;
     let isMounted = true;
 
     const startScanner = async () => {
       try {
         // Wait for DOM element to exist
-        await new Promise((r) => setTimeout(r, 150));
-        if (!document.getElementById(qrRegionId)) return;
+        await new Promise((r) => setTimeout(r, 180));
+        if (!isMounted || !document.getElementById(qrRegionId)) return;
 
         const html5QrCode = new Html5Qrcode(qrRegionId);
         scannerRef.current = html5QrCode;
@@ -100,7 +143,7 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
           { facingMode: 'environment' },
           config,
           (decodedText) => {
-            if (!isProcessingRef.current) {
+            if (!isProcessingRef.current && isMounted) {
               handleProcessPayload(decodedText);
             }
           },
@@ -113,8 +156,7 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
       } catch (err) {
         console.warn('Camera scanner startup warning:', err);
         if (isMounted) {
-          setCameraError(err.message || 'Unable to access camera. Please allow camera permissions or use manual scanner.');
-          setUseManualInput(true);
+          setCameraError(err.message || 'Unable to access camera. Please allow camera permissions in your browser.');
         }
       }
     };
@@ -123,31 +165,18 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
 
     return () => {
       isMounted = false;
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {}).finally(() => {
-          scannerRef.current = null;
-        });
-      }
+      stopScannerSafely();
     };
-  }, [isOpen, useManualInput]);
+  }, [isOpen, stopScannerSafely]);
 
   // Clean state on modal close
-  const handleClose = () => {
-    if (scannerRef.current) {
-      scannerRef.current.stop().catch(() => {}).finally(() => {
-        scannerRef.current = null;
-      });
-    }
+  const handleClose = async () => {
+    if (closing) return;
+    setClosing(true);
+    await stopScannerSafely();
     setScanResult(null);
-    setManualCode('');
     onClose();
-  };
-
-  const handleManualSubmit = (e) => {
-    e.preventDefault();
-    if (!manualCode.trim()) return;
-    handleProcessPayload(manualCode.trim());
-    setManualCode('');
+    setClosing(false);
   };
 
   if (!isOpen) return null;
@@ -176,7 +205,9 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
           <button
             type="button"
             onClick={handleClose}
-            className="w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors"
+            disabled={closing}
+            className="w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors disabled:opacity-50"
+            title="Close scanner"
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
@@ -184,104 +215,34 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
 
         {/* Content Body */}
         <div className="p-6 space-y-4 overflow-y-auto">
-          {/* Mode Switcher: Camera vs Manual Gun */}
-          <div className="flex items-center justify-between text-xs font-bold bg-surface-container p-1 rounded-2xl border border-outline-variant">
-            <button
-              type="button"
-              onClick={() => { setUseManualInput(false); setCameraError(''); }}
-              className={`flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-colors ${
-                !useManualInput
-                  ? 'bg-surface text-vibrant-orange shadow-xs'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">videocam</span>
-              <span>Camera Scanner</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setUseManualInput(true)}
-              className={`flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-colors ${
-                useManualInput
-                  ? 'bg-surface text-vibrant-orange shadow-xs'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">barcode_scanner</span>
-              <span>Scanner Gun / Payload</span>
-            </button>
+          {/* Dedicated Full Camera Scanner View */}
+          <div className="space-y-2">
+            <div className="relative bg-black rounded-2xl overflow-hidden aspect-square max-h-[300px] mx-auto flex items-center justify-center border-2 border-dashed border-vibrant-orange/50 shadow-inner">
+              <div id={qrRegionId} className="w-full h-full"></div>
+              {!scannerActive && !cameraError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-white space-y-2 bg-black/60 p-4 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-3 border-vibrant-orange border-t-transparent"></div>
+                  <p className="text-xs font-bold">Activating Camera Stream...</p>
+                </div>
+              )}
+              {cameraError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-error space-y-2 bg-black/90 p-4 text-center">
+                  <span className="material-symbols-outlined text-3xl">no_photography</span>
+                  <p className="text-xs font-bold">{cameraError}</p>
+                  <p className="text-[11px] text-white/70">Please check browser camera permissions.</p>
+                </div>
+              )}
+            </div>
+            <p className="text-center text-[11px] text-on-surface-variant">
+              Position intern's live dynamic QR code within the camera frame. Attendance logs automatically.
+            </p>
           </div>
 
-          {/* Scanner View Area */}
-          {!useManualInput ? (
-            <div className="space-y-2">
-              <div className="relative bg-black rounded-2xl overflow-hidden aspect-square max-h-[300px] mx-auto flex items-center justify-center border-2 border-dashed border-vibrant-orange/50 shadow-inner">
-                <div id={qrRegionId} className="w-full h-full"></div>
-                {!scannerActive && !cameraError && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white space-y-2 bg-black/60 p-4 text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-3 border-vibrant-orange border-t-transparent"></div>
-                    <p className="text-xs font-bold">Activating Camera Stream...</p>
-                  </div>
-                )}
-                {cameraError && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-error space-y-2 bg-black/90 p-4 text-center">
-                    <span className="material-symbols-outlined text-3xl">no_photography</span>
-                    <p className="text-xs font-bold">{cameraError}</p>
-                    <button
-                      type="button"
-                      onClick={() => setUseManualInput(true)}
-                      className="mt-2 px-3 py-1.5 bg-surface-container rounded-xl text-xs font-bold text-on-surface"
-                    >
-                      Use Manual Input
-                    </button>
-                  </div>
-                )}
-              </div>
-              <p className="text-center text-[11px] text-on-surface-variant">
-                Position intern's live dynamic QR code within the camera frame.
-              </p>
-            </div>
-          ) : (
-            <form onSubmit={handleManualSubmit} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-on-surface flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[16px] text-vibrant-orange">qr_code</span>
-                  <span>Scanner Gun Input / Cryptographic Payload</span>
-                </label>
-                <textarea
-                  rows="3"
-                  value={manualCode}
-                  onChange={(e) => setManualCode(e.target.value)}
-                  placeholder="Paste payload or scan with USB handheld barcode gun..."
-                  className="w-full p-3 bg-surface-container rounded-xl border border-outline-variant text-xs text-on-surface font-mono outline-none focus:ring-2 focus:ring-vibrant-orange resize-none"
-                  autoFocus
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading || !manualCode.trim()}
-                className="w-full py-2.5 bg-vibrant-orange hover:bg-deep-orange disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition-colors"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                    <span>Verifying Cryptographic Payload...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[16px]">verified</span>
-                    <span>Process Attendance Scan</span>
-                  </>
-                )}
-              </button>
-            </form>
-          )}
-
           {/* Loading Indicator during camera scan verification */}
-          {loading && !useManualInput && (
+          {loading && (
             <div className="p-3 bg-surface-container rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-vibrant-orange animate-pulse">
               <div className="animate-spin rounded-full h-4 w-4 border-2 border-vibrant-orange border-t-transparent"></div>
-              <span>Verifying TOTP signature and locking attendance...</span>
+              <span>Verifying TOTP signature and recording attendance...</span>
             </div>
           )}
 
@@ -339,7 +300,7 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
                         </span>
                         <span className="font-bold font-mono">
                           {scanResult.data.action === 'time_in'
-                            ? scanResult.data.time_in?.slice(0, 5)
+                            ? formatPHT12Hour(scanResult.data.time_in)
                             : `${scanResult.data.hours_rendered} hrs`}
                         </span>
                         <span className="text-[10px] text-on-surface-variant block">
@@ -375,14 +336,22 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
         {/* Footer */}
         <div className="p-4 bg-surface-container-low border-t border-outline-variant flex items-center justify-between">
           <span className="text-[11px] text-on-surface-variant">
-            {scannerActive ? '🟢 Scanner ready for next intern' : 'Scanner inactive'}
+            {closing ? 'Stopping camera...' : scannerActive ? '🟢 Scanner ready for next intern' : 'Scanner inactive'}
           </span>
           <button
             type="button"
             onClick={handleClose}
-            className="px-4 py-2 bg-surface hover:bg-surface-container-high border border-outline-variant rounded-xl text-xs font-bold text-on-surface transition-colors"
+            disabled={closing}
+            className="px-5 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
           >
-            Done
+            {closing ? (
+              <>
+                <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent"></div>
+                <span>Closing...</span>
+              </>
+            ) : (
+              <span>Done</span>
+            )}
           </button>
         </div>
       </div>

@@ -8,8 +8,8 @@ import {
 } from '../utils/timeFormat';
 
 const TimeContext = createContext({
-  timeFormat: DEFAULT_TIME_FORMAT,
-  is24Hour: true,
+  timeFormat: '12h',
+  is24Hour: false,
   setTimeFormat: () => {},
   formatTime: () => '',
   formatDateTime: () => '',
@@ -23,13 +23,13 @@ export function TimeProvider({ children }) {
   // Listen for storage or custom events
   useEffect(() => {
     const handleFormatChange = (e) => {
-      const newFmt = e.detail?.format || getTimeFormatPreference();
+      const newFmt = e.detail?.format || '12h';
       setTimeFormatState(newFmt);
     };
 
     const handleStorage = (e) => {
       if (e.key === 'interncon_time_format') {
-        setTimeFormatState(e.newValue || DEFAULT_TIME_FORMAT);
+        setTimeFormatState('12h');
       }
     };
 
@@ -49,29 +49,29 @@ export function TimeProvider({ children }) {
     return () => clearInterval(interval);
   }, []);
 
-  const setTimeFormat = useCallback((format) => {
-    const resolved = persistTimeFormat(format);
+  const setTimeFormat = useCallback((format = '12h') => {
+    const resolved = persistTimeFormat('12h');
     setTimeFormatState(resolved);
   }, []);
 
   const formatTime = useCallback(
     (dateInput, options = {}) => {
-      return formatTimeUtil(dateInput, { format: timeFormat, ...options });
+      return formatTimeUtil(dateInput, { ...options, format: '12h' });
     },
-    [timeFormat]
+    []
   );
 
   const formatDateTime = useCallback(
     (dateInput, options = {}) => {
-      return formatDateTimeUtil(dateInput, { format: timeFormat, ...options });
+      return formatDateTimeUtil(dateInput, { ...options, format: '12h' });
     },
-    [timeFormat]
+    []
   );
 
-  const is24Hour = timeFormat === '24h';
+  const is24Hour = false;
 
   const value = {
-    timeFormat,
+    timeFormat: '12h',
     is24Hour,
     setTimeFormat,
     formatTime,
@@ -86,8 +86,8 @@ export function useTimeFormat() {
   const context = useContext(TimeContext);
   if (!context) {
     return {
-      timeFormat: getTimeFormatPreference(),
-      is24Hour: getTimeFormatPreference() === '24h',
+      timeFormat: '12h',
+      is24Hour: false,
       setTimeFormat: persistTimeFormat,
       formatTime: formatTimeUtil,
       formatDateTime: formatDateTimeUtil,

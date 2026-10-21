@@ -35,3 +35,4 @@ server/uploads/vendor/
 ui-audit/
 email-cleanup.sql
 scratch/
+*.apk

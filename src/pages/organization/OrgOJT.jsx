@@ -289,17 +289,20 @@ export default function OrgOJT() {
     return filteredInterns.slice(start, start + internPageSize);
   }, [filteredInterns, internPage, internPageSize]);
 
-  // Helper to format Philippine Time display
+  // Helper to format Philippine Time display in 12-Hour Clock (Standard AM/PM)
   const formatPHTTime = (timeStr) => {
     if (!timeStr) return '—';
     try {
-      const clean = timeStr.slice(0, 5);
-      const [h, m] = clean.split(':').map(Number);
+      const clean = String(timeStr).trim();
+      const [hStr, mStr] = clean.split(':');
+      let h = parseInt(hStr, 10);
+      const m = parseInt(mStr || '0', 10);
+      if (isNaN(h)) return clean;
       const period = h >= 12 ? 'PM' : 'AM';
       const formattedH = h % 12 || 12;
       return `${formattedH}:${String(m).padStart(2, '0')} ${period}`;
-    } catch (e) {
-      return timeStr;
+    } catch (_) {
+      return String(timeStr);
     }
   };
 
@@ -607,7 +610,7 @@ export default function OrgOJT() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="flex items-center gap-1">
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse font-mono">
-                                In: {intern.today_time_in.slice(0, 5)}
+                                In: {formatPHTTime(intern.today_time_in)}
                               </span>
                               <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
                                 intern.today_time_in_status === 'late'
@@ -638,7 +641,7 @@ export default function OrgOJT() {
                           <div className="space-y-1.5">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[10px] text-on-surface-variant font-mono font-bold">
-                                {intern.today_time_in.slice(0, 5)} - {intern.today_time_out.slice(0, 5)}
+                                {formatPHTTime(intern.today_time_in)} - {formatPHTTime(intern.today_time_out)}
                               </span>
                               <span className="px-1.5 py-0.2 rounded text-[10px] font-bold font-mono bg-surface-container text-on-surface border border-outline-variant">
                                 {intern.today_hours || 0} hrs
@@ -784,7 +787,7 @@ export default function OrgOJT() {
 
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5 font-mono text-xs">
-                          <span>{log.time_in ? log.time_in.slice(0, 5) : '—'}</span>
+                          <span>{formatPHTTime(log.time_in)}</span>
                           {log.time_in_status && (
                             <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
                               log.time_in_status === 'late' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
@@ -797,7 +800,7 @@ export default function OrgOJT() {
 
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5 font-mono text-xs">
-                          <span>{log.time_out ? log.time_out.slice(0, 5) : '—'}</span>
+                          <span>{formatPHTTime(log.time_out)}</span>
                           {log.time_out_status && (
                             <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
                               log.time_out_status === 'early' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
@@ -909,7 +912,7 @@ export default function OrgOJT() {
 
                       <td className="py-3.5 px-4 whitespace-nowrap font-mono text-xs">
                         <div className="inline-flex items-center gap-1.5">
-                          <span>{log.time_in ? log.time_in.slice(0, 5) : '—'}</span>
+                          <span>{formatPHTTime(log.time_in)}</span>
                           {log.time_in_status && (
                             <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
                               log.time_in_status === 'late' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
@@ -922,7 +925,7 @@ export default function OrgOJT() {
 
                       <td className="py-3.5 px-4 whitespace-nowrap font-mono text-xs">
                         <div className="inline-flex items-center gap-1.5">
-                          <span>{log.time_out ? log.time_out.slice(0, 5) : '—'}</span>
+                          <span>{formatPHTTime(log.time_out)}</span>
                           {log.time_out_status && (
                             <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
                               log.time_out_status === 'early' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
@@ -1540,7 +1543,7 @@ export default function OrgOJT() {
                 Intern: {rejectTargetLog.first_name} {rejectTargetLog.last_name} (#{rejectTargetLog.student_number})
               </p>
               <p className="text-on-surface-variant">
-                Shift: {rejectTargetLog.log_date?.slice(0, 10)} • {rejectTargetLog.time_in?.slice(0, 5)} - {rejectTargetLog.time_out?.slice(0, 5)} ({rejectTargetLog.hours_rendered} hrs)
+                Shift: {rejectTargetLog.log_date?.slice(0, 10)} • {formatPHTTime(rejectTargetLog.time_in)} - {formatPHTTime(rejectTargetLog.time_out)} ({rejectTargetLog.hours_rendered} hrs)
               </p>
             </div>
 
@@ -1581,7 +1584,10 @@ export default function OrgOJT() {
       {/* HR-Exclusive Physical Attendance Scanner Modal */}
       <HrAttendanceScannerModal
         isOpen={showScannerModal}
-        onClose={() => setShowScannerModal(false)}
+        onClose={() => {
+          setShowScannerModal(false);
+          fetchData();
+        }}
         onScanSuccess={() => {
           fetchData();
         }}

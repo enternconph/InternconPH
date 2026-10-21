@@ -10,6 +10,7 @@ import { TimeProvider } from './contexts/TimeContext';
 import DashboardLayout from './components/Layout/DashboardLayout';
 import ProtectedRoute from './components/Layout/ProtectedRoute';
 import { DashboardSkeleton } from './components/ui/Skeleton';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 // Public Pages (Lazy Loaded)
 const LandingPage = lazy(() => import('./pages/public/LandingPage'));
@@ -170,7 +171,9 @@ export default function App() {
         <AuthProvider>
           <SocketProvider>
             <BrowserRouter>
-              <AnimatedRoutes />
+              <ErrorBoundary>
+                <AnimatedRoutes />
+              </ErrorBoundary>
             </BrowserRouter>
           </SocketProvider>
         </AuthProvider>

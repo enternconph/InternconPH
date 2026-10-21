@@ -200,12 +200,12 @@ export default function AttendanceQrModal({ visible, onClose }) {
     }).start();
 
     timerRef.current = setInterval(async () => {
-      // Update PST watermark
+      // Update PST watermark in 12-Hour standard
       const now = new Date();
       const pstStr = now.toLocaleTimeString('en-US', {
         timeZone: 'Asia/Manila',
-        hour12: false,
-        hour: '2-digit',
+        hour12: true,
+        hour: 'numeric',
         minute: '2-digit',
         second: '2-digit'
       });

@@ -28,6 +28,7 @@ import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { colors } from '../utils/theme';
 import AttendanceQrModal from '../components/AttendanceQrModal';
+import { formatTime12 } from '../utils/timeUtils';
 
 const CACHE_OJT_KEY = '@internconph_cached_ojt_data';
 const CACHE_ATT_KEY = '@internconph_cached_att_data';
@@ -36,6 +37,7 @@ export default function HomeScreen({ navigation }) {
   const { user, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
   const [ojtData, setOjtData] = useState(null);
   const [attendanceData, setAttendanceData] = useState(null);
   const [showQrModal, setShowQrModal] = useState(false);
@@ -57,7 +59,8 @@ export default function HomeScreen({ navigation }) {
     restoreCachedData();
   }, []);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const [ojtRes, attRes] = await Promise.all([
         api.get('/student/ojt'),
@@ -72,21 +75,35 @@ export default function HomeScreen({ navigation }) {
         setAttendanceData(attRes.data);
         AsyncStorage.setItem(CACHE_ATT_KEY, JSON.stringify(attRes.data)).catch(() => {});
       }
+      setIsOnline(true);
     } catch (err) {
       console.warn('HomeScreen fetch error (offline fallback in use):', err);
+      // Mark as offline; preserve cached state and do not overwrite with null
+      setIsOnline(false);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!isSilent) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
+    fetchData(false);
+  }, [fetchData]);
+
+  // Real-time synchronization while online (polling every 5 seconds)
+  useEffect(() => {
+    const pollTimer = setInterval(() => {
+      fetchData(true);
+    }, 5000);
+
+    return () => clearInterval(pollTimer);
   }, [fetchData]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchData();
+    fetchData(false);
   };
 
   const activeRecord = ojtData?.records?.find(r => r.status === 'ongoing' || r.status === 'active') || ojtData?.records?.[0];
@@ -136,6 +153,16 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
+        {/* Network & Live DTR Status Badge */}
+        <View style={[styles.networkBadge, isOnline ? styles.networkOnline : styles.networkOffline]}>
+          <View style={[styles.networkDot, isOnline ? styles.dotOnline : styles.dotOffline]} />
+          <Text style={[styles.networkText, isOnline ? styles.textOnline : styles.textOffline]}>
+            {isOnline
+              ? 'Online • Real-time Attendance & DTR Synced'
+              : 'Offline Mode • Showing Cached DTR (Will sync once online)'}
+          </Text>
+        </View>
+
         {/* PRIMARY CTA: Open Attendance QR Code */}
         <TouchableOpacity
           onPress={() => setShowQrModal(true)}
@@ -178,7 +205,7 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.shiftBox}>
               <Text style={styles.shiftBoxLabel}>TIME IN</Text>
               <Text style={[styles.shiftBoxTime, isClockedIn && styles.timeSuccess]}>
-                {todayLog?.time_in ? todayLog.time_in.slice(0, 5) : '— : —'}
+                {todayLog?.time_in ? formatTime12(todayLog.time_in) : '— : —'}
               </Text>
               <Text style={styles.shiftBoxStatus}>
                 {isClockedIn ? (todayLog.time_in_status === 'late' ? 'Late' : 'On-Time') : 'Pending Clock-in'}
@@ -189,7 +216,7 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.shiftBox}>
               <Text style={styles.shiftBoxLabel}>TIME OUT</Text>
               <Text style={[styles.shiftBoxTime, isClockedOut && styles.timePrimary]}>
-                {todayLog?.time_out ? todayLog.time_out.slice(0, 5) : '— : —'}
+                {todayLog?.time_out ? formatTime12(todayLog.time_out) : '— : —'}
               </Text>
               <Text style={styles.shiftBoxStatus}>
                 {isClockedOut
@@ -340,7 +367,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20
+    marginBottom: 12
+  },
+  networkBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    gap: 8,
+    borderWidth: 1
+  },
+  networkOnline: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0'
+  },
+  networkOffline: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#fde68a'
+  },
+  networkDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4
+  },
+  dotOnline: {
+    backgroundColor: '#059669'
+  },
+  dotOffline: {
+    backgroundColor: '#d97706'
+  },
+  networkText: {
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  textOnline: {
+    color: '#065f46'
+  },
+  textOffline: {
+    color: '#92400e'
   },
   topBarLeft: {
     flexDirection: 'row',

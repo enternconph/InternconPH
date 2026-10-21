@@ -23,7 +23,10 @@ class ApiClient {
   }
 
   async setBaseUrl(newUrl) {
-    const formatted = (newUrl || DEFAULT_API_BASE_URL).trim().replace(/\/+$/, '');
+    let formatted = (newUrl || DEFAULT_API_BASE_URL).trim().replace(/\/+$/, '');
+    if (!formatted.endsWith('/api')) {
+      formatted = `${formatted}/api`;
+    }
     this.cachedBaseUrl = formatted;
     await AsyncStorage.setItem(SERVER_URL_STORAGE_KEY, formatted);
     return formatted;

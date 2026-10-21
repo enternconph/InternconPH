@@ -18,39 +18,76 @@ import {
   QrCode,
   Check
 } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/client';
 import { colors } from '../utils/theme';
 import AttendanceQrModal from '../components/AttendanceQrModal';
+import { formatTime12 } from '../utils/timeUtils';
+
+const CACHE_DTR_KEY = '@internconph_cached_dtr_logs';
 
 export default function DtrScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [todayLog, setTodayLog] = useState(null);
   const [showQrModal, setShowQrModal] = useState(false);
 
-  const fetchDtr = useCallback(async () => {
+  // Restore cached DTR for offline support
+  useEffect(() => {
+    async function restoreCachedDtr() {
+      try {
+        const cached = await AsyncStorage.getItem(CACHE_DTR_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed.logs) setAttendanceLogs(parsed.logs);
+          if (parsed.todayLog) setTodayLog(parsed.todayLog);
+        }
+      } catch (err) {
+        console.warn('DTR cache restore error:', err);
+      }
+    }
+    restoreCachedDtr();
+  }, []);
+
+  const fetchDtr = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const res = await api.get('/student/attendance');
       if (res.success && res.data) {
         setAttendanceLogs(res.data.logs || []);
         setTodayLog(res.data.todayLog || null);
+        setIsOnline(true);
+        AsyncStorage.setItem(CACHE_DTR_KEY, JSON.stringify(res.data)).catch(() => {});
       }
     } catch (e) {
-      console.warn('DTR fetch error:', e);
+      console.warn('DTR fetch error (offline fallback in use):', e);
+      setIsOnline(false);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!isSilent) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    fetchDtr();
+    fetchDtr(false);
+  }, [fetchDtr]);
+
+  // Real-time synchronization while online (poll every 6 seconds)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      fetchDtr(true);
+    }, 6000);
+
+    return () => clearInterval(timer);
   }, [fetchDtr]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchDtr();
+    fetchDtr(false);
   };
 
   const totalCertifiedHours = attendanceLogs.reduce(
@@ -97,7 +134,7 @@ export default function DtrScreen() {
           <View style={styles.timeStatItem}>
             <Text style={styles.timeStatLabel}>TIME IN (PST)</Text>
             <Text style={styles.timeStatValue}>
-              {item.time_in ? item.time_in.slice(0, 5) : '—'}
+              {item.time_in ? formatTime12(item.time_in) : '—'}
             </Text>
             {item.time_in && (
               <Text style={[styles.timeSubstatus, isLate ? styles.lateText : styles.onTimeText]}>
@@ -111,7 +148,7 @@ export default function DtrScreen() {
           <View style={styles.timeStatItem}>
             <Text style={styles.timeStatLabel}>TIME OUT (PST)</Text>
             <Text style={styles.timeStatValue}>
-              {item.time_out ? item.time_out.slice(0, 5) : 'In Progress'}
+              {item.time_out ? formatTime12(item.time_out) : 'In Progress'}
             </Text>
             <Text style={styles.timeSubstatus}>
               {item.time_out ? 'Clocked Out' : 'Active'}
@@ -176,6 +213,16 @@ export default function DtrScreen() {
           </Text>
           <Text style={styles.summaryLabel}>Certified Logs</Text>
         </View>
+      </View>
+
+      {/* Network & Live DTR Status Badge */}
+      <View style={[styles.networkBadge, isOnline ? styles.networkOnline : styles.networkOffline]}>
+        <View style={[styles.networkDot, isOnline ? styles.dotOnline : styles.dotOffline]} />
+        <Text style={[styles.networkText, isOnline ? styles.textOnline : styles.textOffline]}>
+          {isOnline
+            ? 'Online • Real-time DTR Synced'
+            : 'Offline Mode • Showing Cached DTR (Will sync once online)'}
+        </Text>
       </View>
 
       {/* Logs List */}
@@ -260,11 +307,51 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.surface,
     marginHorizontal: 20,
-    marginBottom: 16,
+    marginBottom: 10,
     padding: 14,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border
+  },
+  networkBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 14,
+    gap: 8,
+    borderWidth: 1
+  },
+  networkOnline: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0'
+  },
+  networkOffline: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#fde68a'
+  },
+  networkDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4
+  },
+  dotOnline: {
+    backgroundColor: '#059669'
+  },
+  dotOffline: {
+    backgroundColor: '#d97706'
+  },
+  networkText: {
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  textOnline: {
+    color: '#065f46'
+  },
+  textOffline: {
+    color: '#92400e'
   },
   summaryItem: {
     flex: 1,

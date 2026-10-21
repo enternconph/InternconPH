@@ -4,6 +4,7 @@ import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl, formatFileSize, getFileIcon } from '../../utils/fileHelper';
 import StudentAttendanceQrModal from '../../components/Student/StudentAttendanceQrModal';
+import { formatPHT12Hour } from '../../utils/timeFormat';
 
 export default function StudentOJT() {
   const [searchParams] = useSearchParams();
@@ -605,11 +606,11 @@ export default function StudentOJT() {
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-emerald-600 text-[18px]">login</span>
                   <span className="text-base font-bold font-mono text-emerald-700 dark:text-emerald-400">
-                    {todayLog?.time_in ? todayLog.time_in.slice(0, 5) : '—'}
+                    {todayLog?.time_in ? formatPHT12Hour(todayLog.time_in) : '—'}
                   </span>
                 </div>
                 <p className="text-[11px] text-on-surface-variant">
-                  {todayLog?.time_in ? `Recorded at ${todayLog.time_in.slice(0, 5)}` : 'Pending arrival clock'}
+                  {todayLog?.time_in ? `Recorded at ${formatPHT12Hour(todayLog.time_in)}` : 'Pending arrival clock'}
                 </p>
               </div>
 
@@ -634,7 +635,7 @@ export default function StudentOJT() {
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-vibrant-orange text-[18px]">logout</span>
                   <span className="text-base font-bold font-mono text-vibrant-orange">
-                    {todayLog?.time_out ? todayLog.time_out.slice(0, 5) : (isClockedInToday ? 'In Progress' : '—')}
+                    {todayLog?.time_out ? formatPHT12Hour(todayLog.time_out) : (isClockedInToday ? 'In Progress' : '—')}
                   </span>
                 </div>
                 <p className="text-[11px] text-on-surface-variant">
@@ -737,7 +738,7 @@ export default function StudentOJT() {
                         <td className="py-3.5 px-4 whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5">
                             <span className="font-mono text-xs font-semibold text-on-surface">
-                              {log.time_in ? log.time_in.slice(0, 5) : '—'}
+                              {log.time_in ? formatPHT12Hour(log.time_in) : '—'}
                             </span>
                             {log.time_in && (
                               <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${
@@ -757,7 +758,7 @@ export default function StudentOJT() {
                             {log.time_out ? (
                               <>
                                 <span className="font-mono text-xs font-semibold text-on-surface">
-                                  {log.time_out.slice(0, 5)}
+                                  {formatPHT12Hour(log.time_out)}
                                 </span>
                                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${
                                   log.time_out_status === 'early'

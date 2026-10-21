@@ -8,6 +8,7 @@ yarn-error.log*
 android/.gradle
 android/build
 android/app/build
+android/app/.cxx
 android/.idea
 android/*.iml
 android/app/*.iml

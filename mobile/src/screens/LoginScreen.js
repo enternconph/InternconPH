@@ -336,30 +336,30 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => handleApplyServerUrl('http://10.0.2.2:5000/api')}
+              onPress={() => handleApplyServerUrl('http://10.0.2.2:3000/api')}
               style={[
                 styles.serverPresetBtn,
-                currentServerUrl === 'http://10.0.2.2:5000/api' && styles.serverPresetBtnActive
+                currentServerUrl === 'http://10.0.2.2:3000/api' && styles.serverPresetBtnActive
               ]}
               activeOpacity={0.7}
             >
               <View style={styles.presetTextGroup}>
                 <Text style={styles.presetTitle}>Android Emulator Localhost</Text>
-                <Text style={styles.presetUrl}>http://10.0.2.2:5000/api</Text>
+                <Text style={styles.presetUrl}>http://10.0.2.2:3000/api</Text>
               </View>
-              {currentServerUrl === 'http://10.0.2.2:5000/api' && (
+              {currentServerUrl === 'http://10.0.2.2:3000/api' && (
                 <Check size={18} color={colors.primary} />
               )}
             </TouchableOpacity>
 
             {/* Custom URL Input */}
             <View style={styles.customUrlGroup}>
-              <Text style={styles.inputLabel}>Custom API Base URL:</Text>
+              <Text style={styles.inputLabel}>Custom API Base URL (Wi-Fi / Local PC):</Text>
               <TextInput
                 style={styles.customInput}
                 value={customUrlInput}
                 onChangeText={setCustomUrlInput}
-                placeholder="http://192.168.1.X:5000/api"
+                placeholder="http://192.168.X.X:3000/api"
                 placeholderTextColor={colors.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}

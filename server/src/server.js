@@ -76,6 +76,11 @@ app.use(cookieParser());
 
 import pool from './config/db.js';
 
+// Health check endpoints for mobile app and uptime monitoring
+app.get(['/health', '/api/health'], (req, res) => {
+  res.status(200).json({ success: true, status: 'ok', timestamp: new Date().toISOString() });
+});
+
 import certificateRoutes from './routes/certificate.routes.js';
 
 // Dynamic Certificate Route Handler for direct uploads/portfolio/certificate links
