@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
+import { DetailLink } from '../../components/ui/kit';
 
 export const CONDUCT_CATEGORIES = [
   { value: 'misconduct', label: 'General Misconduct / Unprofessional Behavior' },
@@ -786,17 +787,14 @@ export default function OrgGrievances() {
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-outline-variant/60">
-              <table className="w-full min-w-[1000px] text-left text-sm">
+              <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-outline-variant bg-surface-container-low/60 text-on-surface-variant text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
-                    <th className="py-3 px-3.5 min-w-[140px]">Intern Name</th>
-                    <th className="py-3 px-3.5 min-w-[160px]">Institution</th>
-                    <th className="py-3 px-3.5 min-w-[170px]">Category</th>
-                    <th className="py-3 px-3.5 min-w-[180px]">Incident Title</th>
-                    <th className="py-3 px-3.5 min-w-[130px]">Type</th>
-                    <th className="py-3 px-3.5 min-w-[130px]">Institution Status</th>
-                    <th className="py-3 px-3.5 min-w-[130px]">Warning to Student</th>
-                    <th className="py-3 px-3.5 min-w-[100px] text-right">Actions</th>
+                    <th className="py-3 px-3.5">Intern & Institution</th>
+                    <th className="py-3 px-3.5">Incident & Category</th>
+                    <th className="py-3 px-3.5">Type & Severity</th>
+                    <th className="py-3 px-3.5">Status & Action</th>
+                    <th className="py-3 px-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/40">
@@ -806,44 +804,28 @@ export default function OrgGrievances() {
                     const categoryText = getCleanCategoryName(c);
                     const isAccident = Boolean(c.is_accident || c.accident_id);
 
+                    const openDetail = () => setSelectedItem({
+                      type: 'complaint',
+                      data: { ...c, category_name: categoryText, incident_category: categoryText }
+                    });
+
                     return (
                       <tr key={c.complaint_id} className="hover:bg-surface-container-low/70 transition-colors text-xs group">
-                        <td className="py-3.5 px-3.5 font-bold text-sm text-on-surface whitespace-nowrap">
-                          <div>{internName}</div>
-                          {c.course && (
-                            <div className="text-[11px] font-normal text-on-surface-variant truncate max-w-[160px]">
-                              {c.course}
-                            </div>
-                          )}
+                        <td className="py-3 px-3.5">
+                          <DetailLink onClick={openDetail}>
+                            {internName}
+                          </DetailLink>
+                          <div className="text-[11px] text-on-surface-variant truncate max-w-xs mt-0.5">
+                            {c.course ? `${c.course} • ` : ''}{c.institution_name || 'Academic Institution'}
+                          </div>
                         </td>
-                        <td className="py-3.5 px-3.5 text-xs text-on-surface-variant max-w-[180px] truncate font-medium" title={c.institution_name}>
-                          {c.institution_name || 'Academic Institution'}
-                        </td>
-                        <td className="py-3.5 px-3.5 text-xs">
-                          {isAccident ? (
-                            <span
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/10 text-rose-400 border border-rose-500/30 font-semibold text-[11px] whitespace-nowrap max-w-[200px] truncate shadow-xs"
-                              title={categoryText}
-                            >
-                              <span className="material-symbols-outlined text-[13px] text-rose-400 shrink-0">medical_services</span>
-                              <span className="truncate">{categoryText}</span>
-                            </span>
-                          ) : (
-                            <span
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/30 font-semibold text-[11px] whitespace-nowrap max-w-[200px] truncate shadow-xs"
-                              title={categoryText}
-                            >
-                              <span className="material-symbols-outlined text-[13px] text-amber-400 shrink-0">gavel</span>
-                              <span className="truncate">{categoryText}</span>
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-3.5 text-xs max-w-[220px]">
+                        <td className="py-3 px-3.5 max-w-[260px]">
                           <div className="font-semibold text-on-surface truncate" title={incidentTitle}>
                             {incidentTitle}
                           </div>
-                          <div className="text-[10px] text-on-surface-variant flex items-center gap-1 mt-0.5">
-                            <span className="material-symbols-outlined text-[11px]">event</span>
+                          <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-on-surface-variant mt-0.5">
+                            <span className="font-medium text-vibrant-orange">{categoryText}</span>
+                            <span>•</span>
                             <span>
                               {c.incident_datetime
                                 ? new Date(c.incident_datetime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -851,15 +833,9 @@ export default function OrgGrievances() {
                                 ? new Date(c.filed_at || c.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
                                 : 'Recent'}
                             </span>
-                            {c.accident_location && (
-                              <>
-                                <span>•</span>
-                                <span className="truncate max-w-[100px]" title={c.accident_location}>{c.accident_location}</span>
-                              </>
-                            )}
                           </div>
                         </td>
-                        <td className="py-3.5 px-3.5 text-xs whitespace-nowrap">
+                        <td className="py-3 px-3.5 whitespace-nowrap">
                           {isAccident ? (
                             <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
                               c.accident_severity === 'critical' || c.accident_severity === 'fatal'
@@ -878,43 +854,35 @@ export default function OrgGrievances() {
                             </span>
                           )}
                         </td>
-                        <td className="py-3.5 px-3.5 text-xs whitespace-nowrap">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wider border ${
-                              c.status === 'resolved'
-                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                : c.status === 'under_investigation'
-                                ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                                : c.status === 'admin_review'
-                                ? 'bg-purple-500/15 text-purple-400 border-purple-500/30'
-                                : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                            }`}
-                          >
-                            {c.status?.replace(/_/g, ' ').toUpperCase()}
-                          </span>
+                        <td className="py-3 px-3.5 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wider border ${
+                                c.status === 'resolved'
+                                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                  : c.status === 'under_investigation'
+                                  ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                                  : c.status === 'admin_review'
+                                  ? 'bg-purple-500/15 text-purple-400 border-purple-500/30'
+                                  : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                              }`}
+                            >
+                              {c.status?.replace(/_/g, ' ').toUpperCase()}
+                            </span>
+                            {c.warning_note_to_student && (
+                              <span className="inline-flex items-center gap-0.5 text-emerald-400 font-bold text-[10px] bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                                <span className="material-symbols-outlined text-[11px]">task_alt</span>
+                                Warning
+                              </span>
+                            )}
+                          </div>
                         </td>
-                        <td className="py-3.5 px-3.5 text-xs whitespace-nowrap">
-                          {c.warning_note_to_student ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-400 font-bold text-[11px] bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                              <span className="material-symbols-outlined text-[13px]">task_alt</span>
-                              Warning Sent
-                            </span>
-                          ) : isAccident ? (
-                            <span className="text-on-surface-variant text-[11px] px-2.5 py-0.5 rounded-full bg-surface-container border border-outline-variant/40 italic">
-                              N/A (Accident)
-                            </span>
-                          ) : (
-                            <span className="text-on-surface-variant text-[11px] px-2.5 py-0.5 rounded-full bg-surface-container border border-outline-variant/40">
-                              Pending Review
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-3.5 text-right whitespace-nowrap">
+                        <td className="py-3 px-3.5 text-right whitespace-nowrap">
                           <button
-                            onClick={() => setSelectedItem({ type: 'complaint', data: { ...c, category_name: categoryText, incident_category: categoryText } })}
+                            onClick={openDetail}
                             className="px-3 py-1.5 bg-surface-container text-on-surface hover:bg-vibrant-orange hover:text-white rounded-lg text-xs font-bold transition-all border border-outline-variant hover:border-vibrant-orange inline-flex items-center gap-1 shadow-xs"
                           >
-                            <span>View Details</span>
+                            <span>Details</span>
                             <span className="material-symbols-outlined text-[14px]">open_in_new</span>
                           </button>
                         </td>
@@ -979,8 +947,10 @@ export default function OrgGrievances() {
                         <td className="py-3.5 px-3.5 font-bold text-sm text-on-surface whitespace-nowrap">
                           {notice.institution_name || 'Academic Institution'}
                         </td>
-                        <td className="py-3.5 px-3.5 font-medium text-xs text-on-surface max-w-[250px] truncate" title={noticeTitle}>
-                          {noticeTitle}
+                        <td className="py-3.5 px-3.5 max-w-[250px]">
+                          <DetailLink onClick={() => setSelectedItem({ type: 'notice', data: { ...notice, title: noticeTitle, student_name: complainantName } })}>
+                            {noticeTitle}
+                          </DetailLink>
                         </td>
                         <td className="py-3.5 px-3.5 text-xs text-on-surface-variant font-medium">
                           {complainantName}

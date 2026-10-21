@@ -5,6 +5,7 @@ import Pagination from '../../components/ui/Pagination';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { TableSkeleton } from '../../components/ui/Skeleton';
 import useDebounce from '../../hooks/useDebounce';
+import { DetailLink } from '../../components/ui';
 
 export default function AdminOrganizations() {
   const [orgs, setOrgs] = useState([]);
@@ -208,21 +209,20 @@ export default function AdminOrganizations() {
           <TableSkeleton rows={8} cols={6} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[850px] text-left text-sm">
+            <table className="w-full min-w-[700px] text-left text-sm">
               <thead>
                 <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
                   <th className="py-3 px-4">Organization Name</th>
                   <th className="py-3 px-4">Structure & Industry</th>
                   <th className="py-3 px-4">Contact</th>
-                  <th className="py-3 px-4">Legal Softcopies</th>
                   <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Moderation Actions</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container">
                 {paginatedOrgs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-xs text-on-surface-variant">
+                    <td colSpan={5} className="py-8 text-center text-xs text-on-surface-variant">
                       No employer organizations found.
                     </td>
                   </tr>
@@ -232,32 +232,32 @@ export default function AdminOrganizations() {
 
                     return (
                       <tr key={org.organization_id} className="hover:bg-surface-container-low transition-colors">
+                        {/* Organization Name & Detail Link */}
                         <td className="py-3 px-4">
-                          <p className="font-bold text-on-surface">{org.organization_name}</p>
-                          <p className="text-xs text-on-surface-variant">{parseAddress(org.address)}</p>
+                          <p className="font-bold text-on-surface text-xs leading-tight">{org.organization_name}</p>
+                          <DetailLink onClick={() => handleOpenInspection(org)}>
+                            View Details & Softcopies
+                          </DetailLink>
                         </td>
+
+                        {/* Structure & Industry */}
                         <td className="py-3 px-4">
                           <span className="text-xs font-bold text-on-surface block capitalize">
                             {(org.business_structure || 'corporation').replace('_', ' ')}
                           </span>
                           <span className="text-[11px] text-on-surface-variant">{org.industry || 'General Industry'}</span>
                         </td>
+
+                        {/* Contact */}
                         <td className="py-3 px-4 text-xs text-on-surface-variant">
                           <p className="font-medium text-on-surface">{org.contact_email}</p>
                           <p className="text-[11px]">{org.contact_phone || 'N/A'}</p>
                         </td>
-                        <td className="py-3 px-4">
-                          <button
-                            onClick={() => handleOpenInspection(org)}
-                            className="px-2.5 py-1.5 bg-surface-container text-xs font-bold text-vibrant-orange rounded-lg border border-outline-variant hover:bg-surface-container-high transition-colors flex items-center gap-1.5 shadow-sm"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">policy</span>
-                            <span>Inspect Softcopies ({org.doc_count || 0})</span>
-                          </button>
-                        </td>
+
+                        {/* Status */}
                         <td className="py-3 px-4">
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                               isPending
                                 ? 'bg-amber-500/10 text-amber-600'
                                 : org.status === 'rejected'
@@ -270,27 +270,37 @@ export default function AdminOrganizations() {
                             {org.status === 'active' ? 'Verified' : org.status}
                           </span>
                         </td>
+
+                        {/* Actions */}
                         <td className="py-3 px-4 text-right">
-                          {isPending ? (
-                            <div className="inline-flex gap-2">
-                              <button
-                                onClick={() => handleStatus(org.organization_id, 'approve')}
-                                className="px-3 py-1 bg-pinoy-green text-white rounded-lg text-xs font-bold hover:opacity-90 shadow-sm transition-opacity"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => handleStatus(org.organization_id, 'reject')}
-                                className="px-3 py-1 bg-error text-white rounded-lg text-xs font-bold hover:opacity-90 shadow-sm transition-opacity"
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-xs font-bold text-pinoy-green inline-flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[16px]">verified</span> Verified
-                            </span>
-                          )}
+                          <div className="inline-flex items-center gap-1.5 justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenInspection(org)}
+                              className="px-2.5 py-1 bg-surface-container hover:bg-surface-container-high rounded-lg text-xs font-bold text-on-surface transition-colors border border-outline-variant inline-flex items-center gap-1"
+                              title="Inspect Legal Softcopies & Accreditation"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">visibility</span>
+                              <span>Inspect</span>
+                            </button>
+
+                            {isPending && (
+                              <>
+                                <button
+                                  onClick={() => handleStatus(org.organization_id, 'approve')}
+                                  className="px-2.5 py-1 bg-pinoy-green text-white rounded-lg text-xs font-bold hover:opacity-90 shadow-sm transition-opacity"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => handleStatus(org.organization_id, 'reject')}
+                                  className="px-2.5 py-1 bg-error text-white rounded-lg text-xs font-bold hover:opacity-90 shadow-sm transition-opacity"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

@@ -4,6 +4,7 @@ import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import PhAddressSelector from '../../components/ui/PhAddressSelector';
 import { resolveFileUrl } from '../../utils/fileHelper';
+import { DetailDrawer, DetailRow, DetailLink } from '../../components/ui';
 
 export default function OrgJobs() {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ export default function OrgJobs() {
   const [submitting, setSubmitting] = useState(false);
   const [programSearch, setProgramSearch] = useState('');
   const [flyerUploading, setFlyerUploading] = useState(false);
+  const [selectedJobForDetail, setSelectedJobForDetail] = useState(null);
 
   const initialAddress = {
     region: '', regionCode: '',
@@ -512,14 +514,12 @@ export default function OrgJobs() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm min-w-[850px]">
+            <table className="w-full text-left text-sm min-w-[700px]">
               <thead>
                 <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
-                  <th className="py-3 px-4">Opportunity & Details</th>
-                  <th className="py-3 px-4">Type & Target Audience</th>
-                  <th className="py-3 px-4">Mentor / On-Call Specs</th>
-                  <th className="py-3 px-4">Institution Approvals</th>
-                  <th className="py-3 px-4">Applicants</th>
+                  <th className="py-3 px-4">Opportunity</th>
+                  <th className="py-3 px-4">Type</th>
+                  <th className="py-3 px-4">Approvals & Candidates</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
@@ -540,7 +540,7 @@ export default function OrgJobs() {
                             <img
                               src={resolveFileUrl(job.flyer_image_url)}
                               alt="Flyer thumbnail"
-                              className="w-12 h-12 object-cover rounded-lg border border-outline-variant shrink-0"
+                              className="w-10 h-10 object-cover rounded-xl border border-outline-variant shrink-0"
                               loading="lazy"
                               decoding="async"
                               onError={(e) => {
@@ -548,32 +548,31 @@ export default function OrgJobs() {
                               }}
                             />
                           )}
-                          <div>
-                            <p className="font-bold text-on-surface">{job.title}</p>
+                          <div className="min-w-0">
+                            <p className="font-bold text-on-surface text-sm truncate">{job.title}</p>
                             <div className="text-xs text-on-surface-variant flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              <span className="flex items-center gap-0.5">
-                                <span className="material-symbols-outlined text-[14px]">location_on</span>
-                                <span>{job.location || 'On-site / Hybrid'}</span>
-                              </span>
+                              <span className="capitalize">{job.work_setup || 'On-site'}</span>
                               {job.workplace_area && (
                                 <>
                                   <span>•</span>
-                                  <span className="inline-flex items-center gap-1 font-semibold text-on-surface px-1.5 py-0.5 rounded bg-orange-tint/40 text-vibrant-orange border border-vibrant-orange/20 text-[11px]">
-                                    <span className="material-symbols-outlined text-[12px]">meeting_room</span>
-                                    <span>Area: {job.workplace_area}</span>
+                                  <span className="inline-flex items-center gap-0.5 font-semibold text-vibrant-orange text-[11px]">
+                                    Area: {job.workplace_area}
                                   </span>
                                 </>
                               )}
                               <span>•</span>
-                              <span className="capitalize">{job.work_setup}</span>
-                              <span>•</span>
                               <span>{job.slots_available || 1} slots</span>
+                            </div>
+                            <div className="mt-1">
+                              <DetailLink onClick={() => setSelectedJobForDetail(job)}>
+                                View Details
+                              </DetailLink>
                             </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* Type & Audience */}
+                      {/* Type */}
                       <td className="py-3 px-4">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
                           pType === 'ojt'
@@ -585,77 +584,30 @@ export default function OrgJobs() {
                           <span className="material-symbols-outlined text-[13px]">
                             {pType === 'ojt' ? 'badge' : pType === 'on_call' ? 'bolt' : 'work'}
                           </span>
-                          {pType === 'ojt' ? 'OJT Internship' : pType === 'on_call' ? 'On-Call' : 'Career Job'}
+                          {pType === 'ojt' ? 'OJT' : pType === 'on_call' ? 'On-Call' : 'Career'}
                         </span>
-                        <p className="text-[11px] text-on-surface-variant mt-1">
-                          {pType === 'ojt'
-                            ? 'OJT Undergrads'
-                            : pType === 'on_call'
-                            ? 'OJT Completers / Alumni'
-                            : 'Graduated Alumni Only'}
-                        </p>
                       </td>
 
-                      {/* Mentor / On-Call Specs */}
+                      {/* Approvals & Candidates */}
                       <td className="py-3 px-4 text-xs">
-                        {pType === 'ojt' ? (
-                          job.mentor_first_name ? (
-                            <div>
-                              <p className="font-bold text-on-surface flex items-center gap-1">
-                                <span className="material-symbols-outlined text-[14px] text-vibrant-orange">supervisor_account</span>
-                                {job.mentor_first_name} {job.mentor_last_name}
-                              </p>
-                              <p className="text-[11px] text-on-surface-variant">{job.mentor_department || 'Supervisor'}</p>
-                              <p className="text-[10px] text-on-surface-variant flex items-center gap-1 mt-1 font-medium bg-slate-100 px-1.5 py-0.5 rounded w-fit">
-                                <span className="material-symbols-outlined text-[12px] text-vibrant-orange">schedule</span>
-                                <span>{job.start_time || '08:00'} - {job.finish_time || '17:00'} (PST)</span>
-                              </p>
-                            </div>
-                          ) : (
-                            <div>
-                              <span className="text-[11px] text-error font-medium flex items-center gap-1">
-                                <span className="material-symbols-outlined text-[14px]">warning</span>
-                                No Mentor Assigned
-                              </span>
-                              <p className="text-[10px] text-on-surface-variant flex items-center gap-1 mt-1 font-medium bg-slate-100 px-1.5 py-0.5 rounded w-fit">
-                                <span className="material-symbols-outlined text-[12px] text-vibrant-orange">schedule</span>
-                                <span>{job.start_time || '08:00'} - {job.finish_time || '17:00'} (PST)</span>
-                              </p>
-                            </div>
-                          )
-                        ) : pType === 'on_call' ? (
-                          <div className="space-y-0.5">
-                            <p className="font-bold text-on-surface">
-                              ₱{job.salary_rate ? parseFloat(job.salary_rate).toLocaleString() : '0'}{' '}
-                              <span className="text-[10px] font-normal text-on-surface-variant">/{job.salary_rate_type || 'day'}</span>
-                            </p>
-                            <p className="text-[11px] text-on-surface-variant">
-                              {job.on_call_days || 1} day(s) on-call • {job.finish_time || 'Flexible'}
-                            </p>
+                        <div className="space-y-1">
+                          <div>
+                            {totalApprovals === 0 ? (
+                              <span className="text-[11px] text-on-surface-variant">Global (All)</span>
+                            ) : (
+                              <button
+                                onClick={() => setShowApprovalsModal(job)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-[11px] font-bold hover:bg-surface-container-high border border-outline-variant transition-colors"
+                              >
+                                <span className="material-symbols-outlined text-[13px] text-pinoy-green">verified</span>
+                                <span>{approvedCount}/{totalApprovals} Approved</span>
+                              </button>
+                            )}
                           </div>
-                        ) : (
-                          <span className="text-on-surface-variant">Standard Career Role</span>
-                        )}
-                      </td>
-
-                      {/* Institution Approvals */}
-                      <td className="py-3 px-4">
-                        {totalApprovals === 0 ? (
-                          <span className="text-xs text-on-surface-variant">Global (All)</span>
-                        ) : (
-                          <button
-                            onClick={() => setShowApprovalsModal(job)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container text-xs font-bold hover:bg-surface-container-high border border-outline-variant transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-[15px] text-pinoy-green">verified</span>
-                            <span>{approvedCount}/{totalApprovals} Approved</span>
-                          </button>
-                        )}
-                      </td>
-
-                      {/* Applicants */}
-                      <td className="py-3 px-4 font-bold text-xs text-on-surface">
-                        {job.applicant_count || 0} candidate(s)
+                          <p className="text-[11px] font-semibold text-on-surface">
+                            {job.applicant_count || 0} candidate(s)
+                          </p>
+                        </div>
                       </td>
 
                       {/* Status */}
@@ -670,6 +622,14 @@ export default function OrgJobs() {
                       {/* Actions */}
                       <td className="py-3 px-4 text-right">
                         <div className="inline-flex items-center gap-1.5">
+                          <button
+                            onClick={() => setSelectedJobForDetail(job)}
+                            title="View all details"
+                            className="p-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">visibility</span>
+                          </button>
+
                           <button
                             onClick={() => handleOpenEdit(job)}
                             title="Edit opportunity details"
@@ -709,6 +669,158 @@ export default function OrgJobs() {
           </div>
         )}
       </div>
+
+      {/* VIEW DETAILS DRAWER */}
+      <DetailDrawer
+        open={!!selectedJobForDetail}
+        onClose={() => setSelectedJobForDetail(null)}
+        title={selectedJobForDetail?.title || 'Opportunity Details'}
+        subtitle="Opportunity & Placement Specs"
+        footer={
+          selectedJobForDetail && (
+            <div className="flex items-center gap-2 w-full justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  handleDeleteJob(selectedJobForDetail.job_id);
+                  setSelectedJobForDetail(null);
+                }}
+                className="btn btn-danger btn-sm"
+              >
+                <span className="material-symbols-outlined text-[16px]">delete</span>
+                <span>Delete</span>
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const j = selectedJobForDetail;
+                    setSelectedJobForDetail(null);
+                    handleOpenEdit(j);
+                  }}
+                  className="btn btn-soft btn-sm"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                  <span>Edit</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedJobForDetail(null)}
+                  className="btn btn-primary btn-sm"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          )
+        }
+      >
+        {selectedJobForDetail && (
+          <div className="space-y-4">
+            {selectedJobForDetail.flyer_image_url && (
+              <div className="rounded-2xl overflow-hidden border border-outline-variant max-h-48 bg-surface-container">
+                <img
+                  src={resolveFileUrl(selectedJobForDetail.flyer_image_url)}
+                  alt="Flyer"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+
+            <div className="card-inset p-4 space-y-2">
+              <DetailRow label="Opportunity Type">
+                <span className="capitalize font-bold text-on-surface">
+                  {selectedJobForDetail.posting_type === 'ojt' ? 'OJT Internship' : selectedJobForDetail.posting_type === 'on_call' ? 'On-Call Opportunity' : 'Career Job'}
+                </span>
+              </DetailRow>
+              <DetailRow label="Status">
+                <span className={`chip ${selectedJobForDetail.status === 'active' ? 'chip-success' : 'chip-neutral'}`}>
+                  {selectedJobForDetail.status}
+                </span>
+              </DetailRow>
+              <DetailRow label="Slots Available">
+                <span>{selectedJobForDetail.slots_available || 1} slot(s)</span>
+              </DetailRow>
+              <DetailRow label="Candidates">
+                <span>{selectedJobForDetail.applicant_count || 0} applicant(s)</span>
+              </DetailRow>
+              <DetailRow label="Work Setup">
+                <span className="capitalize">{selectedJobForDetail.work_setup || 'On-Site'}</span>
+              </DetailRow>
+              {selectedJobForDetail.workplace_area && (
+                <DetailRow label="Workplace Area">
+                  <span>{selectedJobForDetail.workplace_area}</span>
+                </DetailRow>
+              )}
+            </div>
+
+            <div className="card-inset p-4 space-y-1">
+              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Workplace Address</p>
+              <p className="text-sm font-semibold text-on-surface">
+                {selectedJobForDetail.location || 'On-site / Hybrid arrangement'}
+              </p>
+            </div>
+
+            <div className="card-inset p-4 space-y-2">
+              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Supervision & Shift</p>
+              <DetailRow label="Assigned Mentor">
+                {selectedJobForDetail.mentor_first_name ? (
+                  <span className="font-bold text-on-surface">
+                    {selectedJobForDetail.mentor_first_name} {selectedJobForDetail.mentor_last_name}
+                    {selectedJobForDetail.mentor_department && ` (${selectedJobForDetail.mentor_department})`}
+                  </span>
+                ) : (
+                  <span className="text-error font-semibold">No Mentor Assigned</span>
+                )}
+              </DetailRow>
+              <DetailRow label="Shift Hours (PST)">
+                <span>{selectedJobForDetail.start_time || '08:00'} - {selectedJobForDetail.finish_time || '17:00'}</span>
+              </DetailRow>
+            </div>
+
+            <div className="card-inset p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Institution Approvals</p>
+                <span className="text-xs font-bold text-pinoy-green">
+                  {(selectedJobForDetail.institution_approvals || []).filter(a => a.approval_status === 'approved').length}/{(selectedJobForDetail.institution_approvals || []).length} Approved
+                </span>
+              </div>
+              {(selectedJobForDetail.institution_approvals || []).length > 0 ? (
+                <div className="space-y-1.5 pt-1">
+                  {selectedJobForDetail.institution_approvals.map((app, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-outline-variant/30 last:border-0">
+                      <span className="font-medium text-on-surface">{app.institution_name}</span>
+                      <span className={`chip chip-sm ${app.approval_status === 'approved' ? 'chip-success' : 'chip-warning'}`}>
+                        {app.approval_status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-on-surface-variant">Global posting accessible by all partner institutions.</p>
+              )}
+            </div>
+
+            {selectedJobForDetail.description && (
+              <div className="card-inset p-4 space-y-1">
+                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Description</p>
+                <p className="text-xs text-on-surface-variant whitespace-pre-wrap leading-relaxed">
+                  {selectedJobForDetail.description}
+                </p>
+              </div>
+            )}
+
+            {selectedJobForDetail.requirements && (
+              <div className="card-inset p-4 space-y-1">
+                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Requirements</p>
+                <p className="text-xs text-on-surface-variant whitespace-pre-wrap leading-relaxed">
+                  {selectedJobForDetail.requirements}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </DetailDrawer>
 
       {/* INSTITUTION APPROVALS MODAL */}
       {showApprovalsModal && (

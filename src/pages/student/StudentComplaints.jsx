@@ -4,6 +4,7 @@ import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { useTimeFormat } from '../../contexts/TimeContext';
 import Pagination from '../../components/ui/Pagination';
+import { DetailLink } from '../../components/ui/kit';
 
 export const DEFAULT_STUDENT_VIOLATION_CATEGORIES = [
   {
@@ -124,6 +125,7 @@ export default function StudentComplaints() {
   const [showManualSelect, setShowManualSelect] = useState(false);
   const [subject, setSubject] = useState('');
   const [desc, setDesc] = useState('');
+  const [selectedComplaintModal, setSelectedComplaintModal] = useState(null);
 
   // Search, filter, and pagination states
   const [searchQuery, setSearchQuery] = useState('');
@@ -1088,7 +1090,12 @@ export default function StudentComplaints() {
 
                       {/* Incident Subject & Metadata */}
                       <div>
-                        <h3 className="text-sm font-bold text-on-surface">{c.subject}</h3>
+                        <DetailLink
+                          onClick={() => setSelectedComplaintModal(c)}
+                          className="text-sm font-bold text-on-surface hover:text-vibrant-orange block"
+                        >
+                          {c.subject}
+                        </DetailLink>
                         <div className="flex items-center gap-2 flex-wrap text-[11px] text-on-surface-variant mt-0.5">
                           <span>Category: <strong className="text-on-surface">{c.category_name}</strong></span>
                           {c.student_status && (
@@ -1102,37 +1109,23 @@ export default function StudentComplaints() {
                         </div>
                       </div>
 
-                      {/* Incident Description */}
-                      {c.description && (
-                        <div className="p-3 rounded-lg bg-surface-container-low/80 dark:bg-surface-container-lowest border border-outline-variant/50 text-xs text-on-surface space-y-1">
-                          <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">Incident Description</span>
-                          <p className="text-xs text-on-surface-variant leading-relaxed">{c.description}</p>
-                        </div>
-                      )}
-
-                      {/* Coordinator Warning Directive Callout */}
-                      {c.warning_note_to_student && (
-                        <div className="p-3.5 bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/40 rounded-xl space-y-2 shadow-xs">
-                          <div className="flex items-center justify-between gap-2 flex-wrap text-amber-900 dark:text-amber-200">
-                            <div className="flex items-center gap-1.5 font-bold text-xs">
-                              <span className="material-symbols-outlined text-[18px] text-amber-600">rate_review</span>
-                              <span className="uppercase tracking-wider">Coordinator Official Warning Directive</span>
-                            </div>
-                            {c.warning_sent_at && (
-                              <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300">
-                                Issued {safeFormatDateTime(c.warning_sent_at)}
-                              </span>
-                            )}
+                      {/* Compact Teaser / Summary */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs bg-surface-container p-2.5 rounded-lg border border-outline-variant/40">
+                        {hasWarning ? (
+                          <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+                            <span className="material-symbols-outlined text-[16px] text-amber-600">rate_review</span>
+                            <span className="font-semibold text-xs">Official Coordinator Warning Issued</span>
                           </div>
-                          <div className="p-2.5 rounded-lg bg-surface/90 dark:bg-surface-container-lowest border border-amber-300/40 text-xs font-medium text-amber-950 dark:text-amber-100 italic leading-relaxed shadow-2xs">
-                            "{c.warning_note_to_student}"
+                        ) : (
+                          <div className="flex items-center gap-2 text-on-surface-variant truncate max-w-md">
+                            <span className="material-symbols-outlined text-[16px]">info</span>
+                            <span className="truncate">{c.description || 'Grievance record filed and logged'}</span>
                           </div>
-                          <p className="text-[10px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[13px]">school</span>
-                            Disciplinary notice recorded on your official university file by Institution Administration
-                          </p>
-                        </div>
-                      )}
+                        )}
+                        <DetailLink onClick={() => setSelectedComplaintModal(c)}>
+                          View Full Record
+                        </DetailLink>
+                      </div>
                     </div>
                   );
                 })}
@@ -1147,6 +1140,93 @@ export default function StudentComplaints() {
           )}
         </div>
       </div>
+
+      {/* Complaint / Warning Record Details Modal */}
+      {selectedComplaintModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-outline-variant rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-outline-variant pb-3">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                    selectedComplaintModal.status === 'resolved' ? 'bg-green-tint text-pinoy-green' :
+                    selectedComplaintModal.status === 'dismissed' ? 'bg-surface-container-high text-on-surface-variant' :
+                    'bg-orange-tint text-vibrant-orange'
+                  }`}>
+                    {selectedComplaintModal.status.replace(/_/g, ' ')}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-surface-container-high text-on-surface-variant">
+                    {selectedComplaintModal.category_name}
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-on-surface mt-1.5">{selectedComplaintModal.subject}</h3>
+                <p className="text-xs text-on-surface-variant">
+                  {selectedComplaintModal.complainant_type === 'organization' ? 'Reported by' : 'Filed against'}: <strong>{selectedComplaintModal.organization_name}</strong>
+                </p>
+              </div>
+              <button onClick={() => setSelectedComplaintModal(null)} className="text-on-surface-variant hover:text-on-surface p-1 rounded-lg">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              {/* Metadata info */}
+              <div className="grid grid-cols-2 gap-2 p-3 bg-surface-container rounded-xl text-xs">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-on-surface-variant block">Date Logged</span>
+                  <span className="font-semibold text-on-surface">{safeFormatDateTime(selectedComplaintModal.filed_at || selectedComplaintModal.created_at)}</span>
+                </div>
+                {selectedComplaintModal.student_status && (
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-on-surface-variant block">Placement Status</span>
+                    <span className="font-semibold text-vibrant-orange capitalize">{selectedComplaintModal.student_status.replace(/_/g, ' ')}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Incident Description */}
+              {selectedComplaintModal.description && (
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">Detailed Incident Statement</span>
+                  <div className="p-3.5 rounded-xl bg-surface-container-low border border-outline-variant/60 text-xs text-on-surface leading-relaxed whitespace-pre-wrap">
+                    {selectedComplaintModal.description}
+                  </div>
+                </div>
+              )}
+
+              {/* Coordinator Warning Callout */}
+              {selectedComplaintModal.warning_note_to_student && (
+                <div className="p-3.5 bg-amber-500/10 border border-amber-500/40 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap text-amber-900 dark:text-amber-200">
+                    <div className="flex items-center gap-1.5 font-bold text-xs">
+                      <span className="material-symbols-outlined text-[18px] text-amber-600">rate_review</span>
+                      <span className="uppercase tracking-wider">Official University Warning Directive</span>
+                    </div>
+                    {selectedComplaintModal.warning_sent_at && (
+                      <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300">
+                        Issued {safeFormatDateTime(selectedComplaintModal.warning_sent_at)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-surface border border-amber-300/40 text-xs font-medium text-amber-950 dark:text-amber-100 italic leading-relaxed">
+                    "{selectedComplaintModal.warning_note_to_student}"
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-outline-variant">
+              <button
+                type="button"
+                onClick={() => setSelectedComplaintModal(null)}
+                className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high transition-colors"
+              >
+                Close Record
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

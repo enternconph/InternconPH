@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl } from '../../utils/fileHelper';
+import { DetailLink } from '../../components/ui/kit';
 
 export default function StudentApplications() {
   const [applications, setApplications] = useState([]);
@@ -829,114 +830,67 @@ export default function StudentApplications() {
                     )}
                   </div>
 
-                  {/* REJECTION REASON & CONSTRUCTIVE FEEDBACK DISPLAY */}
+                  {/* COMPACT DECISION & INTERVIEW TEASERS (Full details in modal) */}
                   {isRejected && (
-                    <div className="p-3.5 bg-red-500/10 border border-red-500/25 rounded-xl space-y-1.5 text-xs mt-2 shadow-2xs">
-                      <div className="flex items-center gap-1.5 font-bold text-red-700 dark:text-red-400">
-                        <span className="material-symbols-outlined text-[16px]">cancel</span>
-                        <span>Application Decision & Feedback:</span>
+                    <div className="flex items-center justify-between gap-3 p-2.5 bg-red-500/10 border border-red-500/25 rounded-xl text-xs text-red-700 dark:text-red-400 mt-2">
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="material-symbols-outlined text-[16px] shrink-0">cancel</span>
+                        <span className="truncate font-semibold">
+                          Not Selected • {app.rejection_reason || 'Employer review concluded'}
+                        </span>
                       </div>
-                      {app.rejection_reason && (
-                        <p className="text-on-surface text-[11px] pl-5 leading-snug">
-                          <strong className="text-red-600 dark:text-red-400">Reason: </strong>
-                          {app.rejection_reason}
-                        </p>
-                      )}
-                      {app.feedback && (
-                        <p className="text-on-surface-variant text-[11px] pl-5 leading-relaxed">
-                          <strong>Remarks: </strong>
-                          {app.feedback}
-                        </p>
-                      )}
-                      {!app.rejection_reason && !app.feedback && (
-                        <p className="text-on-surface-variant leading-relaxed text-[11px] pl-5">
-                          The organization has reviewed your profile and moved forward with other applicants for this position.
-                        </p>
-                      )}
+                      <DetailLink onClick={() => setDetailModalApp(app)}>
+                        View Feedback
+                      </DetailLink>
                     </div>
                   )}
 
-                  {/* INTERVIEW SCHEDULE DETAILS */}
                   {isInterview && (
-                    <div className={`p-3.5 rounded-xl space-y-1.5 text-xs mt-2 shadow-2xs ${
+                    <div className={`flex items-center justify-between gap-3 p-2.5 rounded-xl text-xs mt-2 ${
                       isInterviewCompleted
-                        ? 'bg-emerald-500/10 border border-emerald-500/30'
-                        : 'bg-blue-500/10 border border-blue-500/30'
+                        ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                        : 'bg-blue-500/10 border border-blue-500/30 text-blue-800 dark:text-blue-300'
                     }`}>
-                      <div className="flex items-center justify-between">
-                        <span className={`font-bold flex items-center gap-1.5 ${
-                          isInterviewCompleted
-                            ? 'text-emerald-800 dark:text-emerald-300'
-                            : 'text-blue-800 dark:text-blue-300'
-                        }`}>
-                          <span className="material-symbols-outlined text-[16px]">
-                            {isInterviewCompleted ? 'task_alt' : 'calendar_month'}
-                          </span>
-                          <span>{isInterviewCompleted ? 'Interview Completed / Done:' : 'Interview Scheduled by Employer:'}</span>
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="material-symbols-outlined text-[16px] shrink-0">
+                          {isInterviewCompleted ? 'task_alt' : 'calendar_month'}
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                          isInterviewCompleted
-                            ? 'bg-pinoy-green text-white'
-                            : 'bg-blue-600 text-white'
-                        }`}>
-                          {isInterviewCompleted ? 'Done' : (app.interview_mode === 'in_person' || app.interview_mode === 'onsite' ? 'On-Site' : 'Online')}
+                        <span className="truncate font-semibold">
+                          {isInterviewCompleted
+                            ? 'Interview Completed & Evaluated'
+                            : `Interview: ${app.interview_schedule_at ? new Date(app.interview_schedule_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Scheduled'} (${app.interview_mode === 'in_person' || app.interview_mode === 'onsite' ? 'On-Site' : 'Online'})`}
                         </span>
                       </div>
-                      <p className="text-on-surface font-semibold text-[11px] pl-5">
-                        📅 {app.interview_schedule_at
-                          ? new Date(app.interview_schedule_at).toLocaleString(undefined, {
-                              dateStyle: 'medium',
-                              timeStyle: 'short'
-                            })
-                          : 'Schedule set'}
-                      </p>
-                      {isInterviewCompleted && (
-                        <p className="text-pinoy-green font-bold text-[11px] pl-5 flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                          <span>Marked as Done by employer. Meeting room is closed.</span>
-                        </p>
-                      )}
-                      {app.interview_notes && (
-                        <p className="text-on-surface-variant text-[11px] pl-5">
-                          <strong>Notes: </strong> {app.interview_notes}
-                        </p>
-                      )}
+                      <DetailLink onClick={() => setDetailModalApp(app)}>
+                        View Details
+                      </DetailLink>
                     </div>
                   )}
 
-                  {/* OFFICIAL OFFER DETAILS */}
                   {isOffered && (
-                    <div className="p-3.5 bg-vibrant-orange/10 border border-vibrant-orange/30 rounded-xl space-y-1.5 text-xs mt-2 shadow-2xs">
-                      <div className="flex items-center gap-1.5 font-bold text-vibrant-orange">
-                        <span className="material-symbols-outlined text-[18px]">assignment_turned_in</span>
-                        <span>Official Placement Offer Issued:</span>
+                    <div className="flex items-center justify-between gap-3 p-2.5 bg-vibrant-orange/10 border border-vibrant-orange/30 rounded-xl text-xs text-vibrant-orange mt-2">
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="material-symbols-outlined text-[18px] shrink-0">assignment_turned_in</span>
+                        <span className="truncate font-semibold">Official Placement Offer Issued</span>
                       </div>
-                      <p className="text-on-surface text-[11px] pl-5">
-                        The organization has extended an official placement offer for this position. Please approve or decline below.
-                      </p>
+                      <DetailLink onClick={() => setDetailModalApp(app)}>
+                        Review Terms
+                      </DetailLink>
                     </div>
                   )}
 
-                  {/* PLACED / ACCEPTED CONFIRMATION */}
                   {isAccepted && (
-                    <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/25 rounded-xl space-y-2 text-xs mt-2.5 shadow-2xs">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-1.5 font-bold text-pinoy-green text-xs sm:text-sm">
-                          <span className="material-symbols-outlined text-[18px]">verified</span>
-                          <span>Placement Confirmed & Active</span>
-                        </div>
-                        <Link
-                          to="/dashboard/student/ojt"
-                          className="inline-flex items-center gap-1 px-3 py-1 bg-pinoy-green hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
-                        >
-                          <span className="material-symbols-outlined text-[15px]">schedule</span>
-                          <span>Open OJT Module</span>
-                          <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-                        </Link>
+                    <div className="flex items-center justify-between gap-3 p-2.5 bg-emerald-500/10 border border-emerald-500/25 rounded-xl text-xs text-pinoy-green mt-2">
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="material-symbols-outlined text-[16px] shrink-0">verified</span>
+                        <span className="truncate font-semibold">Placement Confirmed & Training Agreement Active</span>
                       </div>
-                      <p className="text-on-surface-variant text-[11px] leading-relaxed pl-6">
-                        {app.feedback || 'Training agreement approved. You can track your daily hours and DTR in the OJT module.'}
-                      </p>
+                      <Link
+                        to="/dashboard/student/ojt"
+                        className="text-xs font-bold underline shrink-0 hover:opacity-80"
+                      >
+                        Open DTR →
+                      </Link>
                     </div>
                   )}
                 </div>

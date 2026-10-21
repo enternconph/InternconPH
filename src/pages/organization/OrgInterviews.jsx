@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
+import { DetailLink } from '../../components/ui/kit';
 
 export default function OrgInterviews() {
   const location = useLocation();
@@ -20,6 +21,7 @@ export default function OrgInterviews() {
   const [isGeneratingMeet, setIsGeneratingMeet] = useState(false);
   const [meetConfigured, setMeetConfigured] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [selectedInterviewModal, setSelectedInterviewModal] = useState(null);
 
   const fetchInterviews = async () => {
     setLoading(true);
@@ -418,7 +420,9 @@ export default function OrgInterviews() {
                   <div key={item.interview_id} className="p-4 bg-surface-container-low rounded-xl border border-outline-variant flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="space-y-1.5 min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-bold text-sm text-on-surface">{item.first_name} {item.last_name}</span>
+                        <DetailLink onClick={() => setSelectedInterviewModal(item)} className="font-bold text-sm text-on-surface hover:text-vibrant-orange">
+                          {item.first_name} {item.last_name}
+                        </DetailLink>
                         {item.student_number && (
                           <span className="text-xs text-on-surface-variant">({item.student_number})</span>
                         )}
@@ -434,12 +438,6 @@ export default function OrgInterviews() {
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-tint text-pinoy-green">
                             <span className="material-symbols-outlined text-[12px]">videocam</span>
                             Google Meet
-                          </span>
-                        )}
-
-                        {item.meeting_code && (
-                          <span className="px-1.5 py-0.5 rounded bg-surface-container font-mono text-[10px] text-on-surface-variant font-medium">
-                            {item.meeting_code}
                           </span>
                         )}
                       </div>
@@ -458,71 +456,40 @@ export default function OrgInterviews() {
                         </span>
                       </div>
 
-                      {/* Location / Meeting Link */}
+                      {/* Quick Action & Details Link */}
                       <div className="flex flex-wrap items-center gap-2 pt-1">
-                        {item.status === 'completed' ? (
-                          <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface-variant font-bold text-xs border border-outline-variant opacity-75">
-                              <span className="material-symbols-outlined text-[15px] text-pinoy-green">check_circle</span>
-                              <span>Interview Completed</span>
+                        {isLink && item.status !== 'completed' && (
+                          <a
+                            href={meetUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-vibrant-orange/10 hover:bg-vibrant-orange text-vibrant-orange hover:text-white font-bold text-xs transition-colors shadow-xs"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">
+                              {isMeet ? 'video_call' : 'open_in_new'}
                             </span>
-                            {isLink && (
-                              <button
-                                type="button"
-                                onClick={() => handleCopyLink(meetUrl, item.interview_id)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-outline-variant bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-semibold text-xs transition-colors cursor-pointer"
-                                title="Copy Meeting URL"
-                              >
-                                <span className="material-symbols-outlined text-[14px]">
-                                  {copiedId === item.interview_id ? 'check' : 'content_copy'}
-                                </span>
-                                <span>{copiedId === item.interview_id ? 'Copied' : 'Copy'}</span>
-                              </button>
-                            )}
-                          </div>
-                        ) : isLink ? (
-                          <>
-                            <a
-                              href={meetUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-vibrant-orange/10 hover:bg-vibrant-orange text-vibrant-orange hover:text-white font-bold text-xs transition-colors shadow-xs"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">
-                                {isMeet ? 'video_call' : 'open_in_new'}
-                              </span>
-                              <span>Join {isMeet ? 'Google Meet' : 'Meeting'}</span>
-                            </a>
-                            <button
-                              type="button"
-                              onClick={() => handleCopyLink(meetUrl, item.interview_id)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-outline-variant bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-semibold text-xs transition-colors cursor-pointer"
-                              title="Copy Meeting URL"
-                            >
-                              <span className="material-symbols-outlined text-[14px]">
-                                {copiedId === item.interview_id ? 'check' : 'content_copy'}
-                              </span>
-                              <span>{copiedId === item.interview_id ? 'Copied' : 'Copy'}</span>
-                            </button>
-                            <span className="text-[11px] text-on-surface-variant truncate max-w-xs opacity-75">
-                              {meetUrl}
-                            </span>
-                          </>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-xs text-on-surface-variant">
-                            <span className="material-symbols-outlined text-[16px] text-vibrant-orange">
-                              {item.mode === 'phone' ? 'phone_in_talk' : 'location_on'}
-                            </span>
-                            <span className="font-medium">{item.location_or_link || 'No specific location indicated'}</span>
-                          </div>
+                            <span>Join {isMeet ? 'Google Meet' : 'Meeting'}</span>
+                          </a>
                         )}
-                      </div>
 
-                      {item.notes && (
-                        <p className="text-[11px] text-on-surface-variant italic pt-0.5">
-                          Note: "{item.notes}"
-                        </p>
-                      )}
+                        {isLink && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopyLink(meetUrl, item.interview_id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-outline-variant bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-semibold text-xs transition-colors cursor-pointer"
+                            title="Copy Meeting URL"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">
+                              {copiedId === item.interview_id ? 'check' : 'content_copy'}
+                            </span>
+                            <span>{copiedId === item.interview_id ? 'Copied' : 'Copy'}</span>
+                          </button>
+                        )}
+
+                        <DetailLink onClick={() => setSelectedInterviewModal(item)}>
+                          View Details & Notes
+                        </DetailLink>
+                      </div>
                     </div>
 
                     <div className="flex sm:flex-col gap-2 shrink-0">
@@ -544,6 +511,125 @@ export default function OrgInterviews() {
           )}
         </div>
       </div>
+
+      {/* Interview Inspection Modal */}
+      {selectedInterviewModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-outline-variant rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-outline-variant pb-3">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
+                    selectedInterviewModal.status === 'completed' ? 'bg-green-tint text-pinoy-green' :
+                    selectedInterviewModal.status === 'cancelled' ? 'bg-surface-container-high text-error' :
+                    'bg-orange-tint text-vibrant-orange'
+                  }`}>
+                    {selectedInterviewModal.status}
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-bold uppercase text-[10px]">
+                    {selectedInterviewModal.mode} Mode
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-on-surface mt-1.5">
+                  {selectedInterviewModal.first_name} {selectedInterviewModal.last_name}
+                </h3>
+                <p className="text-xs text-on-surface-variant">
+                  Candidate for <strong>{selectedInterviewModal.job_title}</strong> • {selectedInterviewModal.institution_name}
+                </p>
+              </div>
+              <button onClick={() => setSelectedInterviewModal(null)} className="text-on-surface-variant hover:text-on-surface p-1 rounded-lg">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              {/* Schedule date & student ID */}
+              <div className="grid grid-cols-2 gap-2 p-3 bg-surface-container rounded-xl text-xs">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-on-surface-variant block">Scheduled Date & Time</span>
+                  <span className="font-semibold text-vibrant-orange">{new Date(selectedInterviewModal.schedule_at).toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-on-surface-variant block">Student Number</span>
+                  <span className="font-semibold text-on-surface">{selectedInterviewModal.student_number || 'N/A'}</span>
+                </div>
+              </div>
+
+              {/* Meeting Link or Physical Location */}
+              <div className="p-3.5 rounded-xl bg-surface-container-low border border-outline-variant/60 space-y-2">
+                <span className="text-[10px] uppercase font-bold text-on-surface-variant block">
+                  {selectedInterviewModal.mode === 'online' ? 'Online Meeting Link' : selectedInterviewModal.mode === 'phone' ? 'Phone Interview Details' : 'On-Site Location'}
+                </span>
+                <p className="font-medium text-xs text-on-surface break-all">
+                  {selectedInterviewModal.meeting_link || selectedInterviewModal.location_or_link || 'No specific location provided'}
+                </p>
+
+                {(selectedInterviewModal.meeting_link || selectedInterviewModal.location_or_link)?.startsWith('http') && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <a
+                      href={selectedInterviewModal.meeting_link || selectedInterviewModal.location_or_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-vibrant-orange text-white font-bold rounded-lg text-xs hover:bg-deep-orange transition-colors flex items-center gap-1.5 shadow-sm"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                      <span>Open Meeting Room</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLink(selectedInterviewModal.meeting_link || selectedInterviewModal.location_or_link, selectedInterviewModal.interview_id)}
+                      className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high border border-outline-variant rounded-lg font-bold text-xs text-on-surface transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">
+                        {copiedId === selectedInterviewModal.interview_id ? 'check' : 'content_copy'}
+                      </span>
+                      <span>{copiedId === selectedInterviewModal.interview_id ? 'Copied' : 'Copy Link'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Agenda / Instructions Notes */}
+              {selectedInterviewModal.notes && (
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-on-surface-variant block">Agenda Notes / Instructions</span>
+                  <div className="p-3 rounded-xl bg-surface-container-low border border-outline-variant/40 text-on-surface leading-relaxed whitespace-pre-wrap">
+                    {selectedInterviewModal.notes}
+                  </div>
+                </div>
+              )}
+
+              {/* Quick status updater in modal */}
+              <div className="pt-2 flex items-center justify-between border-t border-outline-variant">
+                <span className="text-xs text-on-surface-variant">Update Status:</span>
+                <select
+                  value={selectedInterviewModal.status}
+                  onChange={(e) => {
+                    handleUpdateStatus(selectedInterviewModal.interview_id, e.target.value);
+                    setSelectedInterviewModal(prev => ({ ...prev, status: e.target.value }));
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-outline-variant bg-surface-container text-xs font-bold"
+                >
+                  <option value="scheduled">Scheduled</option>
+                  <option value="completed">Mark Completed</option>
+                  <option value="cancelled">Cancel</option>
+                  <option value="no_show">No Show</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-outline-variant">
+              <button
+                type="button"
+                onClick={() => setSelectedInterviewModal(null)}
+                className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

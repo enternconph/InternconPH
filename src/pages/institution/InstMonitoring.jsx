@@ -3,11 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import Pagination from '../../components/ui/Pagination';
+import { DetailLink } from '../../components/ui/kit';
 
 export default function InstMonitoring() {
   const [data, setData] = useState({ deployments: [], complaints: [], employerComplaints: [], institutionReports: [] });
   const [loading, setLoading] = useState(true);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
+  const [viewAccidentModal, setViewAccidentModal] = useState(null);
   const [reviewForm, setReviewForm] = useState({ findings: '', recommendation: '', action_taken: '' });
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState('');
@@ -736,61 +738,22 @@ export default function InstMonitoring() {
                         <strong className="text-on-surface">{c.student_name || (c.first_name ? `${c.first_name} ${c.last_name}` : 'Student')}</strong>{' '}
                         {c.student_number && <span className="text-outline">({c.student_number})</span>}
                       </span>
-                      <h4 className="font-bold text-sm text-on-surface">{c.title || c.subject}</h4>
-                      <p className="text-xs text-on-surface-variant leading-relaxed">{c.description}</p>
+                      <DetailLink onClick={() => setViewAccidentModal(c)} className="font-bold text-sm text-on-surface block hover:text-vibrant-orange">
+                        {c.title || c.subject}
+                      </DetailLink>
                     </div>
                   </div>
 
-                  {/* Accident Details Grid */}
-                  <div className="p-3.5 bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-xl text-xs space-y-2">
-                    <h5 className="font-bold text-rose-900 dark:text-rose-200 flex items-center gap-1.5 text-xs">
-                      <span className="material-symbols-outlined text-[16px] text-rose-600 dark:text-rose-400">medical_services</span>
-                      Accident & Injury Details
-                    </h5>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                      {(c.incident_location || c.accident_location) && (
-                        <div>
-                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Facility Location:</strong>{' '}
-                          <span className="text-slate-800 dark:text-slate-200 font-medium">{c.incident_location || c.accident_location}</span>
-                        </div>
-                      )}
-                      {(c.incident_datetime) && (
-                        <div>
-                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Incident Date/Time:</strong>{' '}
-                          <span className="text-slate-800 dark:text-slate-200 font-medium">{new Date(c.incident_datetime).toLocaleString()}</span>
-                        </div>
-                      )}
-                      {(c.injuries_sustained || c.injury_description) && (
-                        <div className="col-span-1 sm:col-span-2">
-                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Injuries Sustained:</strong>{' '}
-                          <span className="text-slate-800 dark:text-slate-200 font-medium">{c.injuries_sustained || c.injury_description}</span>
-                        </div>
-                      )}
-                      {c.medical_attention_given && (
-                        <div className="col-span-1 sm:col-span-2">
-                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Medical Attention Provided:</strong>{' '}
-                          <span className="text-slate-800 dark:text-slate-200 font-medium">{c.medical_attention_given}</span>
-                        </div>
-                      )}
-                      {(c.emergency_actions_taken || c.immediate_action_taken) && (
-                        <div className="col-span-1 sm:col-span-2">
-                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Immediate Action Taken:</strong>{' '}
-                          <span className="text-slate-800 dark:text-slate-200 font-medium">{c.emergency_actions_taken || c.immediate_action_taken}</span>
-                        </div>
-                      )}
-                      {c.preventive_measures && (
-                        <div className="col-span-1 sm:col-span-2">
-                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Preventive Measures:</strong>{' '}
-                          <span className="text-slate-800 dark:text-slate-200 font-medium">{c.preventive_measures}</span>
-                        </div>
-                      )}
-                      {c.witnesses && (
-                        <div className="col-span-1 sm:col-span-2">
-                          <strong className="text-rose-800 dark:text-rose-300 font-semibold">Witnesses:</strong>{' '}
-                          <span className="text-slate-800 dark:text-slate-200 font-medium">{c.witnesses}</span>
-                        </div>
-                      )}
+                  {/* Compact Location & Teaser */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs bg-rose-50/50 dark:bg-rose-950/20 p-2.5 rounded-xl border border-rose-200/50">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[16px] text-rose-600">location_on</span>
+                      <span className="text-on-surface-variant">Location: </span>
+                      <span className="font-semibold text-on-surface">{c.incident_location || c.accident_location || 'Workplace Site'}</span>
                     </div>
+                    <DetailLink onClick={() => setViewAccidentModal(c)}>
+                      View Full Accident & Medical Report
+                    </DetailLink>
                   </div>
 
                   {/* Actions for Accident Reports */}
@@ -823,13 +786,9 @@ export default function InstMonitoring() {
                       </button>
                     )}
 
-                    <span
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-on-surface-variant bg-surface-container border border-outline-variant/40 ml-auto"
-                      title="Disciplinary warnings cannot be issued for workplace accidents or injuries"
-                    >
-                      <span className="material-symbols-outlined text-[15px] text-on-surface-variant">health_and_safety</span>
-                      Disciplinary Warning Not Applicable
-                    </span>
+                    <DetailLink onClick={() => setViewAccidentModal(c)} className="ml-auto">
+                      Inspect Complete Dossier
+                    </DetailLink>
                   </div>
                 </div>
               ))}
@@ -1341,6 +1300,132 @@ export default function InstMonitoring() {
                   Print / Save Certificate
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Workplace Accident & Medical Report Inspection Modal */}
+      {viewAccidentModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-outline-variant rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                    viewAccidentModal.accident_severity === 'fatal' || viewAccidentModal.accident_severity === 'critical' ? 'bg-rose-100 text-rose-800 border-rose-300' :
+                    viewAccidentModal.accident_severity === 'severe' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                    'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}>
+                    Severity: {viewAccidentModal.accident_severity || 'Reported'}
+                  </span>
+                  {viewAccidentModal.medical_attention_required && (
+                    <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
+                      Medical Attention Required
+                    </span>
+                  )}
+                </div>
+                <h3 className="font-bold text-base text-on-surface mt-1.5">
+                  {viewAccidentModal.title || viewAccidentModal.subject || 'Workplace Accident Report'}
+                </h3>
+                <p className="text-xs text-on-surface-variant">
+                  Involving <strong>{viewAccidentModal.student_name || `${viewAccidentModal.first_name || ''} ${viewAccidentModal.last_name || ''}`}</strong> at <strong>{viewAccidentModal.organization_name}</strong>
+                </p>
+              </div>
+              <button onClick={() => setViewAccidentModal(null)} className="text-on-surface-variant hover:text-on-surface p-1 rounded-lg">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              {/* Incident Summary */}
+              {viewAccidentModal.description && (
+                <div className="bg-surface-container p-3 rounded-xl border border-outline-variant/30 space-y-1.5">
+                  <span className="text-[10px] font-black uppercase text-on-surface-variant">General Description</span>
+                  <p className="text-on-surface leading-relaxed">{viewAccidentModal.description}</p>
+                </div>
+              )}
+
+              {/* 7-Point Details Grid */}
+              <div className="p-4 bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-xl space-y-3">
+                <h4 className="font-bold text-rose-900 dark:text-rose-200 flex items-center gap-1.5 text-xs">
+                  <span className="material-symbols-outlined text-[16px] text-rose-600">medical_services</span>
+                  Accident & Injury Findings
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {(viewAccidentModal.incident_location || viewAccidentModal.accident_location) && (
+                    <div>
+                      <strong className="text-rose-800 dark:text-rose-300 font-semibold block text-[11px]">Facility Location:</strong>
+                      <span className="text-slate-800 dark:text-slate-200 font-medium">{viewAccidentModal.incident_location || viewAccidentModal.accident_location}</span>
+                    </div>
+                  )}
+                  {viewAccidentModal.incident_datetime && (
+                    <div>
+                      <strong className="text-rose-800 dark:text-rose-300 font-semibold block text-[11px]">Incident Date/Time:</strong>
+                      <span className="text-slate-800 dark:text-slate-200 font-medium">{new Date(viewAccidentModal.incident_datetime).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {(viewAccidentModal.injuries_sustained || viewAccidentModal.injury_description) && (
+                    <div className="col-span-1 sm:col-span-2">
+                      <strong className="text-rose-800 dark:text-rose-300 font-semibold block text-[11px]">Injuries Sustained:</strong>
+                      <span className="text-slate-800 dark:text-slate-200 font-medium">{viewAccidentModal.injuries_sustained || viewAccidentModal.injury_description}</span>
+                    </div>
+                  )}
+                  {viewAccidentModal.medical_attention_given && (
+                    <div className="col-span-1 sm:col-span-2">
+                      <strong className="text-rose-800 dark:text-rose-300 font-semibold block text-[11px]">Medical Attention Provided:</strong>
+                      <span className="text-slate-800 dark:text-slate-200 font-medium">{viewAccidentModal.medical_attention_given}</span>
+                    </div>
+                  )}
+                  {(viewAccidentModal.emergency_actions_taken || viewAccidentModal.immediate_action_taken) && (
+                    <div className="col-span-1 sm:col-span-2">
+                      <strong className="text-rose-800 dark:text-rose-300 font-semibold block text-[11px]">Immediate Action Taken:</strong>
+                      <span className="text-slate-800 dark:text-slate-200 font-medium">{viewAccidentModal.emergency_actions_taken || viewAccidentModal.immediate_action_taken}</span>
+                    </div>
+                  )}
+                  {viewAccidentModal.preventive_measures && (
+                    <div className="col-span-1 sm:col-span-2">
+                      <strong className="text-rose-800 dark:text-rose-300 font-semibold block text-[11px]">Preventive Measures:</strong>
+                      <span className="text-slate-800 dark:text-slate-200 font-medium">{viewAccidentModal.preventive_measures}</span>
+                    </div>
+                  )}
+                  {viewAccidentModal.witnesses && (
+                    <div className="col-span-1 sm:col-span-2">
+                      <strong className="text-rose-800 dark:text-rose-300 font-semibold block text-[11px]">Witnesses:</strong>
+                      <span className="text-slate-800 dark:text-slate-200 font-medium">{viewAccidentModal.witnesses}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-outline-variant">
+              <button
+                type="button"
+                onClick={() => setViewAccidentModal(null)}
+                className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high transition-colors"
+              >
+                Close Report
+              </button>
+              {!(Boolean(viewAccidentModal.is_escalated_to_admin > 0 || viewAccidentModal.status === 'admin_review')) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentAcc = viewAccidentModal;
+                    setViewAccidentModal(null);
+                    setEscalateModal(currentAcc);
+                    setEscalateForm({
+                      report_title: `Safety Incident Escalation: ${currentAcc.title || currentAcc.subject || 'Workplace Accident'}`,
+                      findings: currentAcc.injuries_sustained || currentAcc.injury_description || currentAcc.description || '',
+                      recommendations: currentAcc.preventive_measures || ''
+                    });
+                  }}
+                  className="px-4 py-2 bg-rose-600 text-white text-xs font-bold rounded-xl hover:bg-rose-700 transition-colors flex items-center gap-1.5 shadow-sm"
+                >
+                  <span className="material-symbols-outlined text-[16px]">shield</span>
+                  <span>Escalate to Admin</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

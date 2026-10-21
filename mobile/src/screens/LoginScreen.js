@@ -14,7 +14,6 @@ import {
   Modal
 } from 'react-native';
 import {
-  GraduationCap,
   Mail,
   Lock,
   Eye,
@@ -26,8 +25,6 @@ import {
   Check,
   RotateCcw,
   Sparkles,
-  Building2,
-  Briefcase,
   Info
 } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,7 +38,6 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [selectedRole, setSelectedRole] = useState('student');
 
   // Server Switcher State
   const [currentServerUrl, setCurrentServerUrl] = useState(DEFAULT_API_BASE_URL);
@@ -177,45 +173,6 @@ export default function LoginScreen() {
               </View>
             </View>
             <Text style={styles.subtitleText}>Sign in to your Philippine OJT mobile portal</Text>
-          </View>
-
-          {/* Role Access Selector Pills */}
-          <View style={styles.roleContainer}>
-            <Text style={styles.roleLabel}>PORTAL ROLE</Text>
-            <View style={styles.rolePillsRow}>
-              <TouchableOpacity
-                onPress={() => setSelectedRole('student')}
-                style={[styles.rolePill, selectedRole === 'student' && styles.rolePillActive]}
-                activeOpacity={0.8}
-              >
-                <GraduationCap size={14} color={selectedRole === 'student' ? '#193631' : '#80CBC4'} />
-                <Text style={[styles.rolePillText, selectedRole === 'student' && styles.rolePillTextActive]}>
-                  Intern
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setSelectedRole('mentor')}
-                style={[styles.rolePill, selectedRole === 'mentor' && styles.rolePillActive]}
-                activeOpacity={0.8}
-              >
-                <Building2 size={14} color={selectedRole === 'mentor' ? '#193631' : '#80CBC4'} />
-                <Text style={[styles.rolePillText, selectedRole === 'mentor' && styles.rolePillTextActive]}>
-                  Mentor
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setSelectedRole('coordinator')}
-                style={[styles.rolePill, selectedRole === 'coordinator' && styles.rolePillActive]}
-                activeOpacity={0.8}
-              >
-                <Briefcase size={14} color={selectedRole === 'coordinator' ? '#193631' : '#80CBC4'} />
-                <Text style={[styles.rolePillText, selectedRole === 'coordinator' && styles.rolePillTextActive]}>
-                  Adviser
-                </Text>
-              </TouchableOpacity>
-            </View>
           </View>
 
           {/* Frosted Glass Login Card */}
@@ -366,35 +323,37 @@ const styles = StyleSheet.create({
   },
   glowBlobTeal: {
     position: 'absolute',
-    top: -50,
-    left: -40,
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    backgroundColor: 'rgba(38, 166, 154, 0.22)'
+    top: -80,
+    left: -80,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: 'rgba(38, 166, 154, 0.15)'
   },
   glowBlobAmber: {
     position: 'absolute',
-    top: 200,
-    right: -50,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(255, 180, 51, 0.14)'
+    bottom: -60,
+    right: -60,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(255, 180, 51, 0.08)'
   },
   keyboardView: {
     flex: 1
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 36
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 28
   },
   topHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 24
+    marginBottom: 32
   },
   brandRow: {
     flexDirection: 'row',
@@ -452,7 +411,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.12)'
   },
   titleSection: {
-    marginBottom: 20
+    marginBottom: 24
   },
   welcomeRow: {
     flexDirection: 'row',
@@ -479,58 +438,18 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '500'
   },
-  roleContainer: {
-    marginBottom: 16
-  },
-  roleLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: 'rgba(255, 255, 255, 0.6)',
-    letterSpacing: 1,
-    marginBottom: 8
-  },
-  rolePillsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    padding: 4,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)'
-  },
-  rolePill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    borderRadius: 12
-  },
-  rolePillActive: {
-    backgroundColor: '#FFB433'
-  },
-  rolePillText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#80CBC4'
-  },
-  rolePillTextActive: {
-    color: '#193631',
-    fontWeight: '800'
-  },
   glassCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 28,
-    padding: 20,
+    borderRadius: 24,
+    padding: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: 'rgba(255, 255, 255, 0.14)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 8,
-    gap: 16
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 6,
+    gap: 18
   },
   errorBox: {
     flexDirection: 'row',
@@ -554,7 +473,7 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.8)'
+    color: 'rgba(255, 255, 255, 0.85)'
   },
   passwordHeader: {
     flexDirection: 'row',
@@ -562,19 +481,19 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   forgotText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#80CBC4',
     fontWeight: '600'
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 12,
-    height: 48
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    paddingHorizontal: 14,
+    height: 52
   },
   inputIcon: {
     marginRight: 8

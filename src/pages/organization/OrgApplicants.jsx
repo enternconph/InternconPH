@@ -4,6 +4,7 @@ import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, isPdfFile, formatPortfolioTitle, formatFileSubtitle, formatCleanFileName, formatAddress } from '../../utils/fileHelper';
 import Pagination from '../../components/ui/Pagination';
+import { DetailLink } from '../../components/ui';
 
 export default function OrgApplicants() {
   const navigate = useNavigate();
@@ -318,14 +319,13 @@ export default function OrgApplicants() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm min-w-[850px]">
+              <table className="w-full text-left text-sm min-w-[760px]">
                 <thead>
                   <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
-                    <th className="py-3 px-4">Candidate & Contact</th>
-                    <th className="py-3 px-4">University & Course</th>
+                    <th className="py-3 px-4">Candidate</th>
                     <th className="py-3 px-4">Applied Opportunity</th>
-                    <th className="py-3 px-4">Student Standing</th>
-                    <th className="py-3 px-4">Application Status</th>
+                    <th className="py-3 px-4">University & Standing</th>
+                    <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -336,22 +336,25 @@ export default function OrgApplicants() {
 
                     return (
                       <tr key={app.application_id} className="hover:bg-surface-container-low transition-colors">
-                        {/* Candidate Name & Contact */}
+                        {/* Candidate Name & Detail Link */}
                         <td className="py-3 px-4">
-                          <p className="font-bold text-on-surface">{app.first_name} {app.last_name}</p>
-                          <p className="text-xs text-on-surface-variant">ID #{app.student_number || 'N/A'}</p>
-                          <p className="text-[11px] text-on-surface-variant">{app.contact_number || 'No phone recorded'}</p>
-                        </td>
-
-                        {/* University & Program */}
-                        <td className="py-3 px-4">
-                          <p className="font-medium text-xs text-on-surface">{app.institution_name || 'Academic Institution'}</p>
-                          <p className="text-[11px] text-on-surface-variant">{app.program_name || 'Degree Program'}</p>
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-vibrant-orange/10 text-vibrant-orange font-bold flex items-center justify-center text-xs shrink-0">
+                              {app.first_name?.[0] || 'A'}
+                            </div>
+                            <div>
+                              <p className="font-bold text-on-surface text-xs leading-tight">{app.first_name} {app.last_name}</p>
+                              <p className="text-[11px] text-on-surface-variant font-mono">ID #{app.student_number || 'N/A'}</p>
+                              <DetailLink onClick={() => handleInspectCandidate(app.application_id)}>
+                                View Details
+                              </DetailLink>
+                            </div>
+                          </div>
                         </td>
 
                         {/* Job Position */}
-                        <td className="py-3 px-4">
-                          <p className="font-bold text-xs text-on-surface">{app.job_title}</p>
+                        <td className="py-3 px-4 text-xs">
+                          <p className="font-bold text-on-surface leading-tight">{app.job_title}</p>
                           <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 ${
                             isOnCall ? 'bg-amber-100 text-amber-800' :
                             pType === 'career_job' ? 'bg-blue-100 text-blue-800' :
@@ -360,46 +363,35 @@ export default function OrgApplicants() {
                             <span className="material-symbols-outlined text-[12px]">
                               {isOnCall ? 'bolt' : pType === 'career_job' ? 'work' : 'school'}
                             </span>
-                            {isOnCall ? 'On-Call Gigs' : pType === 'career_job' ? 'Career Job' : 'OJT Training'}
+                            {isOnCall ? 'On-Call' : pType === 'career_job' ? 'Career Job' : 'OJT Training'}
                           </span>
                         </td>
 
-                        {/* Student Standing */}
-                        <td className="py-3 px-4">
-                          <div className="space-y-1">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-bold ${
+                        {/* University & Standing */}
+                        <td className="py-3 px-4 text-xs">
+                          <p className="font-medium text-xs text-on-surface leading-tight truncate max-w-[200px]" title={`${app.institution_name} • ${app.program_name}`}>
+                            {app.institution_name || 'Academic Institution'}
+                          </p>
+                          <div className="mt-1">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.2 rounded text-[10px] font-bold ${
                               app.is_graduated || app.ojt_status === 'graduated'
-                                ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                ? 'bg-purple-100 text-purple-800'
                                 : app.is_ojt_completer || app.ojt_status === 'completed' || app.ojt_status === 'completed_ojt'
-                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-blue-100 text-blue-800'
                             }`}>
-                              <span className="material-symbols-outlined text-[13px]">
-                                {app.is_graduated || app.ojt_status === 'graduated'
-                                  ? 'school'
-                                  : app.is_ojt_completer || app.ojt_status === 'completed' || app.ojt_status === 'completed_ojt'
-                                  ? 'workspace_premium'
-                                  : 'person'}
-                              </span>
-                              <span>
-                                {app.is_graduated || app.ojt_status === 'graduated'
-                                  ? 'Graduated student'
-                                  : app.is_ojt_completer || app.ojt_status === 'completed' || app.ojt_status === 'completed_ojt'
-                                  ? 'OJT Accomplish'
-                                  : 'OJT Student'}
-                              </span>
+                              {app.is_graduated || app.ojt_status === 'graduated'
+                                ? 'Graduated'
+                                : app.is_ojt_completer || app.ojt_status === 'completed' || app.ojt_status === 'completed_ojt'
+                                ? 'OJT Completer'
+                                : 'OJT Student'}
                             </span>
-                            {(app.completed_ojt_hours > 0 || app.rendered_hours > 0) && (
-                              <p className="text-[10px] text-on-surface-variant font-mono">
-                                {app.completed_ojt_hours || app.rendered_hours} hrs completed
-                              </p>
-                            )}
                           </div>
                         </td>
 
                         {/* Status Badge */}
                         <td className="py-3 px-4">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                             app.status === 'accepted' ? 'bg-green-tint text-pinoy-green' :
                             app.status === 'rejected' ? 'bg-red-500/10 text-red-500' :
                             app.status === 'under_review' ? 'bg-blue-500/10 text-blue-500' :
@@ -411,33 +403,34 @@ export default function OrgApplicants() {
 
                         {/* Actions */}
                         <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2 flex-wrap">
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
                             <button
                               onClick={() => handleInspectCandidate(app.application_id)}
-                              className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high rounded-lg text-xs font-bold transition-colors border border-outline-variant flex items-center gap-1"
+                              className="px-2.5 py-1 bg-surface-container hover:bg-surface-container-high rounded-lg text-xs font-bold transition-colors border border-outline-variant flex items-center gap-1"
+                              title="View Full Profile Details"
                             >
-                              <span className="material-symbols-outlined text-[15px]">visibility</span>
-                              <span>Inspect</span>
+                              <span className="material-symbols-outlined text-[14px]">info</span>
+                              <span>Details</span>
                             </button>
 
                             {app.status !== 'accepted' && app.status !== 'rejected' && (
                               <button
                                 onClick={() => handleRequestInterview(app)}
-                                className="px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors border border-blue-200 flex items-center gap-1 shrink-0 cursor-pointer"
+                                className="px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors border border-blue-200 flex items-center gap-1 shrink-0 cursor-pointer"
                                 title="Go to Interviews module to schedule and send invitation"
                               >
-                                <span className="material-symbols-outlined text-[14px]">event_available</span>
-                                <span>{app.status === 'interview' ? 'Reschedule' : 'Request Interview'}</span>
+                                <span className="material-symbols-outlined text-[13px]">event_available</span>
+                                <span>{app.status === 'interview' ? 'Reschedule' : 'Interview'}</span>
                               </button>
                             )}
 
                             {isOnCall && app.status !== 'accepted' && (
                               <button
                                 onClick={() => handleAcceptOnCall(app.application_id)}
-                                className="px-3 py-1.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm cursor-pointer"
+                                className="px-2.5 py-1 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm cursor-pointer"
                               >
-                                <span className="material-symbols-outlined text-[15px]">verified</span>
-                                <span>Accept On-Call</span>
+                                <span className="material-symbols-outlined text-[14px]">verified</span>
+                                <span>Accept</span>
                               </button>
                             )}
                           </div>

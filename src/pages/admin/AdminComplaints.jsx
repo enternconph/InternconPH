@@ -3,6 +3,7 @@ import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import Pagination from '../../components/ui/Pagination';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { DetailLink } from '../../components/ui/kit';
 
 export default function AdminComplaints() {
   const [data, setData] = useState({
@@ -390,13 +391,18 @@ export default function AdminComplaints() {
                 return (
                   <div
                     key={report.report_id}
-                    className="bento-card border border-outline-variant/60 hover:border-outline-variant transition-all duration-200 p-5 space-y-4"
+                    className="bento-card border border-outline-variant/60 hover:border-outline-variant transition-all duration-200 p-5 space-y-3.5"
                   >
                     {/* Card Header */}
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 border-b border-outline-variant/40 pb-3">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-sm md:text-base font-bold text-on-surface">{report.title}</h3>
+                          <DetailLink 
+                            onClick={() => setViewingReport(report)}
+                            className="text-sm md:text-base font-bold text-on-surface hover:text-vibrant-orange"
+                          >
+                            {report.title}
+                          </DetailLink>
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-surface-container-high text-on-surface">
                             {report.category_name}
                           </span>
@@ -449,60 +455,34 @@ export default function AdminComplaints() {
                     </div>
 
                     {/* Entities Details */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs bg-surface-container-lowest p-3.5 rounded-xl border border-outline-variant/30">
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[14px] text-primary">school</span>
-                          Reporting Institution
-                        </span>
-                        <p className="font-bold text-on-surface text-xs md:text-sm">{report.institution_name}</p>
-                        <p className="text-[11px] text-on-surface-variant font-mono">
-                          Code: {report.institution_code || 'N/A'} &bull; Contact: {report.reporter_email}
-                        </p>
-                      </div>
-
-                      <div className="space-y-1 border-t md:border-t-0 md:border-l border-outline-variant/40 pt-2 md:pt-0 md:pl-4">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[14px] text-vibrant-orange">corporate_fare</span>
-                          Reported Organization
-                        </span>
-                        <p className="font-bold text-on-surface text-xs md:text-sm">{report.organization_name}</p>
-                        <p className="text-[11px] text-on-surface-variant font-mono">
-                          Contact: {report.org_email || 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Findings & Recommendations preview */}
-                    <div className="space-y-2 text-xs">
-                      <div>
-                        <span className="font-bold text-on-surface-variant text-[11px] uppercase tracking-wider">
-                          University Investigation Findings:
-                        </span>
-                        <p className="text-on-surface mt-0.5 line-clamp-2 bg-surface-container-low/50 p-2.5 rounded-lg border border-outline-variant/20">
-                          {report.description}
-                        </p>
-                      </div>
-                      {report.recommendations && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/30">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[16px] text-primary">school</span>
                         <div>
-                          <span className="font-bold text-on-surface-variant text-[11px] uppercase tracking-wider">
-                            University Recommendation:
-                          </span>
-                          <p className="text-on-surface-variant mt-0.5 line-clamp-1 italic">
-                            &ldquo;{report.recommendations}&rdquo;
-                          </p>
+                          <span className="text-[10px] uppercase font-bold text-on-surface-variant">Institution: </span>
+                          <span className="font-bold text-on-surface">{report.institution_name}</span>
                         </div>
-                      )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[16px] text-vibrant-orange">corporate_fare</span>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-on-surface-variant">Organization: </span>
+                          <span className="font-bold text-on-surface">{report.organization_name}</span>
+                        </div>
+                      </div>
+                      <DetailLink onClick={() => setViewingReport(report)}>
+                        Read Dossier
+                      </DetailLink>
                     </div>
 
                     {/* Card Actions */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-outline-variant/40">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-outline-variant/40">
                       <button
                         onClick={() => setViewingReport(report)}
                         className="px-3 py-1.5 text-xs font-bold text-on-surface-variant hover:text-on-surface bg-surface-container hover:bg-surface-container-high rounded-lg transition-colors flex items-center gap-1.5"
                       >
                         <span className="material-symbols-outlined text-[16px]">visibility</span>
-                        <span>Read Full Dossier</span>
+                        <span>View Evidence & Details</span>
                       </button>
 
                       <div className="flex items-center gap-2">
@@ -620,7 +600,9 @@ export default function AdminComplaints() {
                             })}
                           </span>
                         </div>
-                        <h4 className="text-sm font-bold text-on-surface mt-1.5">{acc.subject || 'Workplace Incident'}</h4>
+                        <DetailLink onClick={() => setViewingAccident(acc)} className="text-sm font-bold text-on-surface mt-1.5 block hover:text-vibrant-orange">
+                          {acc.subject || 'Workplace Incident'}
+                        </DetailLink>
                       </div>
 
                       <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600 shrink-0">
@@ -631,32 +613,20 @@ export default function AdminComplaints() {
                     </div>
 
                     {/* Intern & Org Info */}
-                    <div className="space-y-1 text-xs bg-surface-container-lowest p-3 rounded-lg border border-outline-variant/30">
-                      <div className="flex justify-between">
+                    <div className="space-y-1.5 text-xs bg-surface-container-lowest p-3 rounded-lg border border-outline-variant/30">
+                      <div className="flex justify-between items-center">
                         <span className="text-on-surface-variant">Affected Intern:</span>
                         <span className="font-bold text-on-surface">
                           {acc.first_name} {acc.last_name} ({acc.student_number || 'N/A'})
                         </span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-on-surface-variant">Institution:</span>
-                        <span className="font-medium text-on-surface">{acc.institution_name || 'N/A'}</span>
-                      </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center">
                         <span className="text-on-surface-variant">Organization:</span>
                         <span className="font-medium text-on-surface">{acc.organization_name}</span>
                       </div>
-                    </div>
-
-                    {/* Location & Injuries */}
-                    <div className="space-y-1.5 text-xs">
-                      <div>
-                        <span className="font-bold text-on-surface-variant text-[10px] uppercase">Incident Location:</span>
-                        <p className="text-on-surface text-xs">{acc.location || 'Not specified'}</p>
-                      </div>
-                      <div>
-                        <span className="font-bold text-on-surface-variant text-[10px] uppercase">Injuries Reported:</span>
-                        <p className="text-on-surface text-xs line-clamp-2">{acc.injuries_sustained || 'None reported'}</p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-on-surface-variant">Incident Location:</span>
+                        <span className="font-medium text-on-surface truncate max-w-[200px]">{acc.location || 'Not specified'}</span>
                       </div>
                     </div>
 
@@ -677,13 +647,9 @@ export default function AdminComplaints() {
                         <span>{acc.is_read ? 'Mark Unread' : 'Mark as Read'}</span>
                       </button>
 
-                      <button
-                        onClick={() => setViewingAccident(acc)}
-                        className="px-3 py-1.5 text-xs font-bold text-vibrant-orange hover:bg-orange-tint rounded-lg transition-colors flex items-center gap-1"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">info</span>
-                        <span>Full Accident Dossier</span>
-                      </button>
+                      <DetailLink onClick={() => setViewingAccident(acc)}>
+                        Full Accident Dossier
+                      </DetailLink>
                     </div>
                   </div>
                 );

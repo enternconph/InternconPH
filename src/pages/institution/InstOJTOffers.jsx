@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl, formatAddress } from '../../utils/fileHelper';
+import { DetailLink } from '../../components/ui';
 
 export default function InstOJTOffers() {
   const [offers, setOffers] = useState([]);
@@ -118,7 +119,7 @@ export default function InstOJTOffers() {
                   key={offer.approval_id}
                   className="bg-surface-container-low rounded-xl p-5 border border-outline-variant space-y-3 hover:border-vibrant-orange/40 transition-colors flex flex-col justify-between"
                 >
-                  <div className="space-y-2.5">
+                  <div className="space-y-2">
                     {/* Top Badges */}
                     <div className="flex justify-between items-start flex-wrap gap-2">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
@@ -131,7 +132,7 @@ export default function InstOJTOffers() {
                         <span className="material-symbols-outlined text-[13px]">
                           {isOnCall ? 'bolt' : isOjt ? 'badge' : 'work'}
                         </span>
-                        {isOnCall ? 'On-Call Opportunity' : isOjt ? 'OJT Internship' : 'Career Job Opening'}
+                        {isOnCall ? 'On-Call' : isOjt ? 'OJT Internship' : 'Career Job'}
                       </span>
 
                       <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
@@ -147,95 +148,46 @@ export default function InstOJTOffers() {
 
                     {/* Title & Organization */}
                     <div>
-                      <h3 className="font-bold text-base text-on-surface">{offer.title}</h3>
-                      <p className="text-xs font-bold text-on-surface-variant flex items-center gap-1 mt-0.5">
+                      <h3 className="font-bold text-base text-on-surface leading-snug">{offer.title}</h3>
+                      <p className="text-xs font-semibold text-on-surface-variant flex items-center gap-1 mt-0.5">
                         <span className="material-symbols-outlined text-[14px]">business</span>
                         <span>{offer.organization_name}</span>
                         {offer.industry && <span>• {offer.industry}</span>}
                       </p>
                     </div>
 
-                    {/* Flyer banner thumbnail if present */}
-                    {offer.flyer_image_url && (
-                      <div className="w-full h-32 rounded-lg overflow-hidden bg-surface-container border border-outline-variant relative group">
-                        <img
-                          src={resolveFileUrl(offer.flyer_image_url)}
-                          alt={`${offer.title} flyer`}
-                          loading="lazy"
-                          decoding="async"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          onError={(e) => { e.target.style.display = 'none'; }}
-                        />
-                      </div>
-                    )}
-
-                    {/* On-Call or Mentor Specifics */}
-                    {isOnCall && (
-                      <div className="p-2.5 bg-amber-500/10 rounded-lg border border-amber-500/20 text-xs text-amber-900 space-y-0.5">
-                        <div className="flex justify-between font-bold">
-                          <span>₱{parseFloat(offer.salary_rate || 0).toLocaleString()} / {offer.salary_rate_type || 'day'}</span>
-                          <span>{offer.on_call_days || 1} Day(s) On-Call</span>
-                        </div>
-                        <p className="text-[11px] opacity-90">Deadline: {offer.finish_time || 'Immediate'}</p>
-                      </div>
-                    )}
-
-                    {isOjt && offer.mentor_first_name && (
-                      <div className="p-2.5 bg-orange-tint/30 rounded-lg border border-vibrant-orange/20 text-xs space-y-0.5">
-                        <span className="text-[10px] font-bold text-vibrant-orange uppercase block">Assigned Workplace Mentor</span>
-                        <p className="font-bold text-on-surface">{offer.mentor_first_name} {offer.mentor_last_name} ({offer.mentor_job_title || 'Mentor'})</p>
-                        <p className="text-[11px] text-on-surface-variant">Dept: {offer.mentor_department || 'General'} • Phone: {offer.mentor_contact || 'N/A'}</p>
-                      </div>
-                    )}
-
-                    {/* Description */}
-                    <p className="text-xs text-on-surface-variant line-clamp-2">
-                      {offer.description}
-                    </p>
-
                     {/* Metadata tags */}
-                    <div className="flex flex-wrap gap-2 text-[11px] text-on-surface-variant pt-1">
+                    <div className="flex flex-wrap gap-1.5 text-[11px] text-on-surface-variant pt-0.5">
                       <span className="flex items-center gap-1 bg-surface px-2 py-0.5 rounded border border-outline-variant">
-                        <span className="material-symbols-outlined text-[13px]">location_on</span>
-                        <span>{offer.location || 'Hybrid'}</span>
-                      </span>
-                      {offer.workplace_area && (
-                        <span className="flex items-center gap-1 bg-orange-tint/40 text-vibrant-orange px-2 py-0.5 rounded border border-vibrant-orange/20 font-bold">
-                          <span className="material-symbols-outlined text-[13px]">meeting_room</span>
-                          <span>Area: {offer.workplace_area}</span>
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1 bg-surface px-2 py-0.5 rounded border border-outline-variant">
-                        <span className="material-symbols-outlined text-[13px]">group</span>
-                        <span>{offer.slots_available || 1} slot(s)</span>
-                      </span>
-                      <span className="flex items-center gap-1 bg-surface px-2 py-0.5 rounded border border-outline-variant">
-                        <span className="material-symbols-outlined text-[13px]">tune</span>
+                        <span className="material-symbols-outlined text-[12px]">tune</span>
                         <span className="capitalize">{offer.work_setup || 'Hybrid'}</span>
+                      </span>
+                      <span className="flex items-center gap-1 bg-surface px-2 py-0.5 rounded border border-outline-variant">
+                        <span className="material-symbols-outlined text-[12px]">location_on</span>
+                        <span className="truncate max-w-[130px]">{offer.location?.split(',')[0] || 'On-site'}</span>
+                      </span>
+                      <span className="flex items-center gap-1 bg-surface px-2 py-0.5 rounded border border-outline-variant">
+                        <span className="material-symbols-outlined text-[12px]">group</span>
+                        <span>{offer.slots_available || 1} slot(s)</span>
                       </span>
                     </div>
 
-                    {/* Target Programs */}
-                    {offer.target_programs?.length > 0 && (
-                      <div className="flex flex-wrap gap-1 items-center pt-1 text-[10px]">
-                        <span className="text-on-surface-variant font-bold">Programs:</span>
-                        {offer.target_programs.map(tp => (
-                          <span key={tp.program_id} className="px-1.5 py-0.5 bg-surface-container rounded text-on-surface">
-                            {tp.program_code || tp.program_name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    {/* View Details Link */}
+                    <div className="pt-0.5">
+                      <DetailLink onClick={() => setSelectedOffer(offer)}>
+                        View Details
+                      </DetailLink>
+                    </div>
                   </div>
 
                   {/* Actions */}
                   <div className="pt-3 border-t border-outline-variant flex items-center justify-between gap-2">
                     <button
                       onClick={() => setSelectedOffer(offer)}
-                      className="px-3.5 py-1.5 bg-surface-container hover:bg-surface-container-high rounded-lg text-xs font-bold text-on-surface transition-colors flex items-center gap-1.5 cursor-pointer border border-outline-variant"
+                      className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high rounded-lg text-xs font-bold text-on-surface transition-colors flex items-center gap-1 cursor-pointer border border-outline-variant"
                     >
-                      <span className="material-symbols-outlined text-[15px]">visibility</span>
-                      <span>Inspect Details</span>
+                      <span className="material-symbols-outlined text-[14px]">info</span>
+                      <span>Details</span>
                     </button>
 
                     {offer.approval_status === 'pending' && (
