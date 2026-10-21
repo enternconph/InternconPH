@@ -267,6 +267,59 @@ export default function DtrScreen() {
               </View>
             </View>
 
+            {/* Today's Shift Status Indicator Card */}
+            <View style={styles.todayCardContainer}>
+              {todayLog?.status === 'rejected' ? (
+                <View style={[styles.todayStatusCard, styles.cardRejected]}>
+                  <AlertCircle size={18} color="#FF5252" />
+                  <View style={styles.todayTextCol}>
+                    <Text style={[styles.todayTitle, styles.textRed]}>ATTENDANCE REJECTED / FAILED</Text>
+                    <Text style={styles.todaySubtitle}>
+                      {todayLog.rejection_notes || 'Shift was not approved by supervisor. Please consult workplace mentor.'}
+                    </Text>
+                  </View>
+                </View>
+              ) : todayLog?.time_out ? (
+                <View style={[styles.todayStatusCard, styles.cardSuccess]}>
+                  <CheckCircle2 size={18} color="#80CBC4" />
+                  <View style={styles.todayTextCol}>
+                    <View style={styles.todayHeaderRow}>
+                      <Text style={[styles.todayTitle, styles.textTeal]}>TIME-OUT SUCCESSFUL • COMPLETED</Text>
+                      <Text style={styles.hoursTag}>{todayLog.hours_rendered || 0} hrs</Text>
+                    </View>
+                    <Text style={styles.todaySubtitle}>
+                      In: {formatTime12(todayLog.time_in)} • Out: {formatTime12(todayLog.time_out)} • {todayLog.status === 'verified' ? 'Certified by Mentor' : 'Pending Mentor Validation'}
+                    </Text>
+                  </View>
+                </View>
+              ) : todayLog?.time_in ? (
+                <View style={[styles.todayStatusCard, styles.cardActive]}>
+                  <View style={styles.greenPulse} />
+                  <View style={styles.todayTextCol}>
+                    <View style={styles.todayHeaderRow}>
+                      <Text style={[styles.todayTitle, styles.textTeal]}>TIME-IN SUCCESSFUL • ON DUTY</Text>
+                      <Text style={styles.inStatusTag}>
+                        {todayLog.time_in_status === 'late' ? 'LATE' : 'ON-TIME'}
+                      </Text>
+                    </View>
+                    <Text style={styles.todaySubtitle}>
+                      Clocked in at {formatTime12(todayLog.time_in)} • Active Shift. Scan QR upon departure to Clock-Out.
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={[styles.todayStatusCard, styles.cardAwaiting]}>
+                  <Clock size={18} color="#FFB433" />
+                  <View style={styles.todayTextCol}>
+                    <Text style={[styles.todayTitle, styles.textAmber]}>AWAITING TIME-IN • SHIFT PENDING</Text>
+                    <Text style={styles.todaySubtitle}>
+                      You have not clocked in today. Present your dynamic QR code to HR scanner at premises.
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+
             {/* Filter Pills */}
             <View style={styles.filterRow}>
               <TouchableOpacity
@@ -415,6 +468,86 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: 'rgba(255, 255, 255, 0.55)',
     marginTop: 1
+  },
+  todayCardContainer: {
+    marginBottom: 14
+  },
+  todayStatusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 13,
+    borderRadius: 18,
+    borderWidth: 1.5
+  },
+  cardSuccess: {
+    backgroundColor: 'rgba(38, 166, 154, 0.12)',
+    borderColor: 'rgba(128, 203, 196, 0.35)'
+  },
+  cardActive: {
+    backgroundColor: 'rgba(38, 166, 154, 0.15)',
+    borderColor: 'rgba(128, 203, 196, 0.5)'
+  },
+  cardAwaiting: {
+    backgroundColor: 'rgba(255, 180, 51, 0.1)',
+    borderColor: 'rgba(255, 180, 51, 0.35)'
+  },
+  cardRejected: {
+    backgroundColor: 'rgba(255, 82, 82, 0.12)',
+    borderColor: 'rgba(255, 82, 82, 0.4)'
+  },
+  todayTextCol: {
+    flex: 1
+  },
+  todayHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6
+  },
+  todayTitle: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5
+  },
+  todaySubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginTop: 2
+  },
+  textTeal: {
+    color: '#80CBC4'
+  },
+  textAmber: {
+    color: '#FFB433'
+  },
+  textRed: {
+    color: '#FF5252'
+  },
+  hoursTag: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#193631',
+    backgroundColor: '#80CBC4',
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    borderRadius: 10
+  },
+  inStatusTag: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#193631',
+    backgroundColor: '#80CBC4',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10
+  },
+  greenPulse: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#80CBC4'
   },
   filterRow: {
     flexDirection: 'row',
