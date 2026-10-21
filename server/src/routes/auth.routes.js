@@ -236,7 +236,7 @@ router.post('/login', async (req, res) => {
         const inst = insts[0];
         roleData.institution_id = inst.institution_id;
         roleData.full_name = inst.institution_name;
-        roleData.position = 'director';
+        roleData.position = 'ojt_head';
 
         if (inst.status === 'deactivated' || inst.status === 'suspended' || inst.status === 'rejected') {
           return res.status(403).json({
@@ -286,7 +286,7 @@ router.post('/login', async (req, res) => {
         if (!staff.is_verified || user.is_verified === 0) {
           return res.status(403).json({
             success: false,
-            message: 'Your staff account is currently pending verification by the Institution Director.'
+            message: 'Your staff account is currently pending verification by the Institution OJT Head.'
           });
         }
       }
@@ -1367,14 +1367,14 @@ router.post('/register/staff', async (req, res) => {
         connection.release();
         return res.status(400).json({
           success: false,
-          message: `Staff ID "${employee_id}" does not match the Director-issued passcode invitation (expected ${codeRecord.target_identifier}). Registration rejected.`
+          message: `Staff ID "${employee_id}" does not match the OJT Head-issued passcode invitation (expected ${codeRecord.target_identifier}). Registration rejected.`
         });
       }
     }
 
     const instId = codeRecord.institution_id || institution_id;
     const progId = codeRecord.program_id || program_id || null;
-    const position = staff_position ? staff_position : (codeRecord.intended_position || 'ojt_supervisor');
+    const position = 'ojt_coordinator';
 
     let resolvedDept = codeRecord.intended_department || department_name || null;
     if (progId && !resolvedDept) {
@@ -1486,13 +1486,15 @@ router.post('/register/staff', async (req, res) => {
       }
 
       const positionLabelMap = {
-        ojt_supervisor: 'OJT Supervisor',
         ojt_coordinator: 'OJT Coordinator',
-        registrar: 'Registrar',
-        guidance_counselor: 'Guidance Counselor',
-        dean: 'Dean'
+        ojt_supervisor: 'OJT Coordinator',
+        registrar: 'OJT Coordinator',
+        guidance_counselor: 'OJT Coordinator',
+        dean: 'OJT Coordinator',
+        ojt_head: 'OJT Head',
+        director: 'OJT Head'
       };
-      const formattedPos = positionLabelMap[position] || (position ? position.replace(/_/g, ' ') : 'Staff Member');
+      const formattedPos = positionLabelMap[position] || 'OJT Coordinator';
       const staffFullName = `${title ? title + ' ' : ''}${first_name} ${last_name}`.trim();
 
       // Determine staff member's department (directly or via assigned degree program)
@@ -1506,14 +1508,14 @@ router.post('/register/staff', async (req, res) => {
         } catch (_) { }
       }
 
-      // 1. Notify the main account(s) of the institution (Director)
+      // 1. Notify the main account(s) of the institution (OJT Head)
       for (const directorUserId of mainAccountUserIds) {
         await sendNotification({
           userId: directorUserId,
           senderId: userId,
           senderName: `${first_name} ${last_name}`.trim(),
-          title: 'New Staff Registration Pending Verification',
-          message: `${staffFullName} (${formattedPos}) has registered with Employee ID ${staffEmpId} and is waiting for your verification.`,
+          title: 'New OJT Coordinator Registration Pending Verification',
+          message: `${staffFullName} (OJT Coordinator) has registered with Employee ID ${staffEmpId} and is waiting for your verification.`,
           type: 'verification',
           link: '/dashboard/institution/staff',
           relatedType: 'institution_staff',

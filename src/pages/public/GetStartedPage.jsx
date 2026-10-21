@@ -102,7 +102,7 @@ export default function GetStartedPage() {
               <div className="w-full h-52 sm:h-56 bg-surface-container-low overflow-hidden relative">
                 <img
                   src="/photo/school.jpg"
-                  alt="Institution Director"
+                  alt="Institution OJT Head"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   onError={(e) => {
                     e.target.src = '/photo/institutionreg.jpg';
@@ -116,10 +116,10 @@ export default function GetStartedPage() {
                   Institution Portal
                 </span>
                 <h2 className="text-xl sm:text-2xl font-bold text-on-surface mb-3 leading-tight">
-                  Institution Director
+                  Institution OJT Head
                 </h2>
                 <p className="text-xs sm:text-sm text-on-surface-variant leading-relaxed mb-6 flex-grow">
-                  Create the university's main account (CHED/TESDA accredited), manage programs, and issue access codes for coordinators and deans.
+                  Create the university's main account (CHED/TESDA accredited), manage programs, and issue passcodes for OJT coordinators.
                 </p>
 
                 <div className="mt-auto pt-2 space-y-2.5">
@@ -136,7 +136,7 @@ export default function GetStartedPage() {
                     className="w-full py-2.5 px-4 bg-surface-container text-vibrant-orange border border-vibrant-orange/30 hover:bg-vibrant-orange/10 rounded-2xl text-xs sm:text-sm font-bold transition-colors flex items-center justify-center gap-1.5"
                   >
                     <span className="material-symbols-outlined text-[18px]">badge</span>
-                    <span>Register as Staff</span>
+                    <span>Register as OJT Coordinator</span>
                   </Link>
                 </div>
               </div>

@@ -252,7 +252,7 @@ export default function InstPrograms() {
     return 'domain';
   };
 
-  // Assigned department for restricted staff / deans
+  // Assigned department for coordinators
   const assignedDeptName = useMemo(() => {
     if (!staffScope?.isRestricted) return null;
     return staffScope.department || staffScope.program?.program_name || staffScope.programs?.[0]?.department || staffScope.programs?.[0]?.program_name || 'Assigned Department';

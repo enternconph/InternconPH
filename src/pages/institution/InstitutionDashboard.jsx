@@ -586,10 +586,10 @@ export default function InstitutionDashboard() {
             </div>
             <div>
               <h3 className="font-bold text-sm text-on-surface flex items-center gap-2">
-                <span>Action Required: {stats.pendingStaffCount} Staff Registration{(stats.pendingStaffCount || 0) > 1 ? 's' : ''} Awaiting Director Verification</span>
+                <span>Action Required: {stats.pendingStaffCount} OJT Coordinator Registration{(stats.pendingStaffCount || 0) > 1 ? 's' : ''} Awaiting OJT Head Verification</span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-600 text-white font-bold animate-pulse">Pending Review</span>
               </h3>
-              <p className="text-xs text-on-surface-variant">New faculty or coordinator accounts registered using Director passcodes and are waiting for your approval before accessing departmental tools.</p>
+              <p className="text-xs text-on-surface-variant">New OJT Coordinator accounts registered using OJT Head passcodes and are waiting for your approval before accessing institutional tools.</p>
             </div>
           </div>
           <Link to="/dashboard/institution/staff"
@@ -606,7 +606,7 @@ export default function InstitutionDashboard() {
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold text-on-surface">
               {isStaff
-                ? `${staffAssignment?.first_name || ''} ${staffAssignment?.last_name || ''} — Staff Dashboard 🎓`
+                ? `${staffAssignment?.first_name || ''} ${staffAssignment?.last_name || ''} — OJT Coordinator Dashboard 🎓`
                 : `${data?.institution?.institution_name || user?.full_name || 'Partner University'} 🏛️`}
             </h1>
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-50 text-emerald-600 border border-emerald-200">
@@ -622,7 +622,7 @@ export default function InstitutionDashboard() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <span className="px-3.5 py-1 bg-green-tint text-pinoy-green rounded-full text-xs font-bold">
-            {isStaff ? 'Program Staff' : 'Accredited Partner'}
+            {isStaff ? 'OJT Coordinator' : 'OJT Head · Accredited Partner'}
           </span>
           {!isStaff && (
             <Link to="/dashboard/institution/ojt-offers"

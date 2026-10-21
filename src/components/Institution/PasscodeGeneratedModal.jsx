@@ -26,11 +26,11 @@ export default function PasscodeGeneratedModal({
   const staffNumber = data.staff_number || '';
   const positionLabel = (() => {
     switch (data.position) {
-      case 'ojt_supervisor': return 'OJT Supervisor / Adviser';
-      case 'registrar': return 'Registrar';
-      case 'guidance_counselor': return 'Guidance Counselor';
-      case 'dean': return 'College Dean';
-      default: return data.position || 'Staff Coordinator';
+      case 'ojt_coordinator':
+      case 'ojt_supervisor': return 'OJT Coordinator';
+      case 'ojt_head':
+      case 'director': return 'OJT Head';
+      default: return 'OJT Coordinator';
     }
   })();
 
@@ -60,19 +60,19 @@ export default function PasscodeGeneratedModal({
       ? `📚 Assigned Program: ${data.program_name}\n`
       : '🌐 Assigned Scope: All Programs / Institution-Wide\n';
 
-    const inviteText = `🏛️ INTERNCONPH — DIRECTOR STAFF INVITATION
+    const inviteText = `🏛️ INTERNCONPH — OJT HEAD STAFF INVITATION
 --------------------------------------------------
-You have been invited by the Institution Director to register as a Faculty Coordinator on internconPH.
+You have been invited by the Institution OJT Head to register as an OJT Coordinator on internconPH.
 
 📋 Assigned Position: ${positionLabel}
 🆔 Required Staff ID: ${staffNumber}
-🔑 Director Passcode: ${accessCode}
+🔑 OJT Head Passcode: ${accessCode}
 ⏳ Valid Until: ${formatExpiry(data.expires_at)}
 ${inviteDeptOrProg}🔗 Registration Link: ${registerUrl}
 
 Instructions:
 1. Open the registration link above.
-2. Enter your Director Passcode [${accessCode}] and Staff ID [${staffNumber}].
+2. Enter your OJT Head Passcode [${accessCode}] and Staff ID [${staffNumber}].
 3. Complete your account details to activate your coordinator dashboard.
 --------------------------------------------------`;
 
@@ -128,7 +128,7 @@ Instructions:
               Passcode Generated!
             </h2>
             <p className="text-xs text-on-surface-variant mt-1 max-w-xs mx-auto">
-              The official Director authorization passcode for this staff member is active and ready to share.
+              The official OJT Head authorization passcode for this coordinator is active and ready to share.
             </p>
           </div>
 
@@ -138,7 +138,7 @@ Instructions:
               <div className="flex items-center justify-between text-[11px] font-bold text-vibrant-orange uppercase tracking-wider mb-1.5">
                 <span className="flex items-center gap-1">
                   <span className="material-symbols-outlined text-[15px]">verified_user</span>
-                  Director Passcode
+                  OJT Head Passcode
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] bg-vibrant-orange text-white font-bold">
                   Active Credential

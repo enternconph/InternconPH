@@ -151,7 +151,7 @@ export const verifyToken = async (req, res, next) => {
       if (insts.length > 0) {
         institutionId = insts[0].institution_id;
         fullName = insts[0].institution_name;
-        position = 'director';
+        position = 'ojt_head';
         if (['deactivated', 'suspended', 'rejected'].includes(insts[0].status)) {
           return res.status(403).json({
             success: false,

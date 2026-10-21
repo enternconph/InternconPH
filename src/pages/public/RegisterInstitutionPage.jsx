@@ -27,7 +27,7 @@ export default function RegisterInstitutionPage() {
     confirm_password: '',
     accreditation_number: '',
     director_name: '',
-    director_title: 'Institution Director / President',
+    director_title: 'Institution OJT Head',
     google_map_link: ''
   });
 
@@ -86,8 +86,8 @@ export default function RegisterInstitutionPage() {
       { key: 'institution_name', label: 'Institution Name', value: formData.institution_name },
       { key: 'institution_code', label: 'Acronym', value: formData.institution_code },
       { key: 'accreditation_number', label: 'Permit No. (CHED/TESDA/DepEd)', value: formData.accreditation_number },
-      { key: 'director_name', label: 'Director / President', value: formData.director_name },
-      { key: 'email', label: 'Director Email', value: formData.email },
+      { key: 'director_name', label: 'Institution OJT Head', value: formData.director_name },
+      { key: 'email', label: 'OJT Head Email', value: formData.email },
       { key: 'password', label: 'Password', value: formData.password },
       { key: 'confirm_password', label: 'Confirm Password', value: formData.confirm_password }
     ]);
@@ -124,7 +124,7 @@ export default function RegisterInstitutionPage() {
 
     const emailErr = validateEmail(formData.email, { required: true });
     if (emailErr) {
-      setFieldValidationError('email', 'Director Email', emailErr, setFieldErrors, setMissingList, setError);
+      setFieldValidationError('email', 'OJT Head Email', emailErr, setFieldErrors, setMissingList, setError);
       emailInputRef.current?.focus();
       return;
     }
@@ -149,7 +149,7 @@ export default function RegisterInstitutionPage() {
       setLoading(false);
 
       if (res.success) {
-        alert('Institution main account and accreditation softcopy submitted! System Admin will verify your documents before activating director dashboard.');
+        alert('Institution main account and accreditation softcopy submitted! System Admin will verify your documents before activating OJT Head dashboard.');
         navigate('/login');
       } else {
         handleServerValidationError(
@@ -324,7 +324,7 @@ export default function RegisterInstitutionPage() {
                         <FieldErrorMessage error={fieldErrors.accreditation_number} />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-on-surface-variant uppercase mb-1.5">Director / President *</label>
+                        <label className="block text-xs font-bold text-on-surface-variant uppercase mb-1.5">Institution OJT Head *</label>
                         <input
                           type="text"
                           required
@@ -375,12 +375,12 @@ export default function RegisterInstitutionPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <EmailInput
-                        label="Director Email"
+                        label="OJT Head Email"
                         required
-                        name="inst_director_email"
+                        name="inst_ojt_head_email"
                         autoComplete="off"
                         dataLpignore="true"
-                        placeholder="director@university.edu.ph"
+                        placeholder="ojthead@university.edu.ph"
                         value={formData.email}
                         onChange={(e) => handleFieldChange('email', e.target.value)}
                         error={fieldErrors.email}

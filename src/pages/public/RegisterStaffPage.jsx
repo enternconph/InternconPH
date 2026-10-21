@@ -27,13 +27,13 @@ export default function RegisterStaffPage() {
     access_code: '',
     institution_id: '',
     program_id: '',
-    title: 'Prof.', // Dr., Prof., Engr., Dean, Atty., Mr., Ms.
+    title: 'Prof.', // Dr., Prof., Engr., Atty., Mr., Ms.
     first_name: '',
     middle_name: '',
     last_name: '',
     suffix: '',
     employee_id: '',
-    staff_position: 'ojt_supervisor', // ojt_supervisor, registrar, guidance_counselor, dean
+    staff_position: 'ojt_coordinator', // ojt_coordinator
     department_name: '',
     office_location: '',
     contact_number: '',
@@ -242,8 +242,8 @@ export default function RegisterStaffPage() {
                   <span className="material-symbols-outlined text-[15px]">badge</span>
                   Authorized Institution Staff
                 </div>
-                <h1 className="text-3xl font-bold text-on-surface tracking-tight">Staff Registration</h1>
-                <p className="text-sm text-on-surface-variant">For OJT Supervisors, Registrars, Guidance Counselors, and College Deans. Requires a Director-issued Passcode.</p>
+                <h1 className="text-3xl font-bold text-on-surface tracking-tight">OJT Coordinator Registration</h1>
+                <p className="text-sm text-on-surface-variant">For authorized Institution OJT Coordinators. Requires an OJT Head-issued Passcode.</p>
               </div>
 
               {error && (
@@ -266,13 +266,13 @@ export default function RegisterStaffPage() {
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-on-surface border-b border-outline-variant pb-2">Verification</h3>
                   <div className="p-4 bg-surface-container rounded-xl border border-outline-variant space-y-3">
-                    <label className="block text-xs font-bold text-on-surface uppercase tracking-wider">Director-Issued Access Passcode *</label>
-                    <p className="text-[11px] text-on-surface-variant leading-relaxed">Enter the passcode generated and sent to you by your University / Institution Director.</p>
+                    <label className="block text-xs font-bold text-on-surface uppercase tracking-wider">OJT Head-Issued Access Passcode *</label>
+                    <p className="text-[11px] text-on-surface-variant leading-relaxed">Enter the passcode generated and sent to you by your University / Institution OJT Head.</p>
                     <input
                       type="text"
                       required
                       data-field="access_code"
-                      placeholder="e.g. INST-SUP-XXXXX"
+                      placeholder="e.g. INST-COO-XXXXX"
                       value={formData.access_code}
                       onChange={(e) => { handleFieldChange('access_code', e.target.value.toUpperCase()); }}
                       className={`w-full px-4 py-3 rounded-xl border bg-surface-container-lowest text-on-surface font-mono font-bold text-sm tracking-wider outline-none transition-all ${getFieldValidationClass(!!fieldErrors.access_code)}`}
@@ -314,10 +314,7 @@ export default function RegisterStaffPage() {
                         onChange={(e) => handleFieldChange('staff_position', e.target.value)}
                         className={`w-full px-4 py-3 rounded-xl border bg-surface-container-lowest text-on-surface text-sm outline-none transition-all ${getFieldValidationClass(!!fieldErrors.staff_position)}`}
                       >
-                        <option value="ojt_supervisor">OJT Supervisor / Adviser</option>
-                        <option value="registrar">Registrar</option>
-                        <option value="guidance_counselor">Guidance Counselor</option>
-                        <option value="dean">College Dean</option>
+                        <option value="ojt_coordinator">OJT Coordinator</option>
                       </select>
                       <FieldErrorMessage error={fieldErrors.staff_position} />
                     </div>
@@ -388,7 +385,6 @@ export default function RegisterStaffPage() {
                         <option value="Prof.">Prof.</option>
                         <option value="Dr.">Dr.</option>
                         <option value="Engr.">Engr.</option>
-                        <option value="Dean">Dean</option>
                         <option value="Atty.">Atty.</option>
                         <option value="Mr.">Mr.</option>
                         <option value="Ms.">Ms.</option>
@@ -599,7 +595,7 @@ export default function RegisterStaffPage() {
                       Submitting Registration...
                     </>
                   ) : (
-                    'Register Staff Account'
+                    'Register as OJT Coordinator'
                   )}
                 </button>
               </form>

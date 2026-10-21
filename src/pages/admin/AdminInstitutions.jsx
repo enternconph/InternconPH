@@ -213,7 +213,7 @@ export default function AdminInstitutions() {
               <thead>
                 <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
                   <th className="py-3 px-4">Institution</th>
-                  <th className="py-3 px-4">Classification & Director</th>
+                  <th className="py-3 px-4">Classification & OJT Head</th>
                   <th className="py-3 px-4">Status & Contact</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
@@ -244,9 +244,9 @@ export default function AdminInstitutions() {
                           </div>
                         </td>
 
-                        {/* Classification & Director */}
+                        {/* Classification & OJT Head */}
                         <td className="py-3 px-4 text-xs">
-                          <p className="font-medium text-on-surface">{inst.director_name || 'Director / President'}</p>
+                          <p className="font-medium text-on-surface">{inst.director_name || 'OJT Head / President'}</p>
                           <p className="text-[11px] text-on-surface-variant capitalize mt-0.5">
                             {(inst.institution_type || 'university').replace('_', ' ')}
                           </p>
@@ -353,7 +353,7 @@ export default function AdminInstitutions() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-on-surface-variant">
                     <p>Institution Code: <strong className="text-on-surface font-mono">{selectedInst.institution_code}</strong></p>
                     <p>Classification: <strong className="text-on-surface capitalize">{(instDetail?.institution?.institution_type || selectedInst.institution_type || 'university').replace('_', ' ')}</strong></p>
-                    <p>Director / President: <strong className="text-on-surface">{instDetail?.institution?.director_name || selectedInst.director_name || 'N/A'}</strong></p>
+                    <p>OJT Head / President: <strong className="text-on-surface">{instDetail?.institution?.director_name || selectedInst.director_name || 'N/A'}</strong></p>
                     <p>Official Email: <strong className="text-on-surface break-all">{selectedInst.contact_email || 'N/A'}</strong></p>
                     <p>Campus Trunkline: <strong className="text-on-surface">{selectedInst.contact_phone || 'N/A'}</strong></p>
                     <p>Website: <a href={selectedInst.website || '#'} target="_blank" rel="noreferrer" className="text-vibrant-orange hover:underline break-all">{selectedInst.website || 'N/A'}</a></p>

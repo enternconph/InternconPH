@@ -591,7 +591,7 @@ export default function LandingPage() {
                   step: '02',
                   icon: 'key',
                   title: '2. Delegated Access-Code Governance',
-                  desc: 'Secure hierarchical management. Institution Directors and HR Heads generate departmental passcodes so authorized faculty coordinators and workplace mentors can onboard with scoped permissions.'
+                  desc: 'Secure hierarchical management. Institution OJT Heads and HR Heads generate departmental passcodes so authorized OJT coordinators and workplace mentors can onboard with scoped permissions.'
                 },
                 {
                   step: '03',
@@ -850,8 +850,8 @@ export default function LandingPage() {
                 <div className="flex items-start gap-3">
                   <span className="material-symbols-outlined text-pinoy-green text-[20px] shrink-0">check_circle</span>
                   <div>
-                    <span className="font-bold text-on-surface block">Multi-Tier Academic Governance:</span>
-                    <span className="text-on-surface-variant">Scoped portals for Institution Directors, Deans, Registrars, OJT Coordinators, and Guidance Counselors.</span>
+                    <span className="font-bold text-on-surface block">Academic Governance:</span>
+                    <span className="text-on-surface-variant">Dedicated portals for Institution OJT Heads and OJT Coordinators.</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">

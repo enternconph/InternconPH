@@ -84,12 +84,12 @@ const HR = [
 const INSTITUTION = [
   {
     title: 'Overview',
-    items: [item('/dashboard/institution', 'dashboard', 'Institution Overview', { end: true, primary: true, short: 'Home' })],
+    items: [item('/dashboard/institution', 'dashboard', 'OJT Head Overview', { end: true, primary: true, short: 'Home' })],
   },
   {
     title: 'Students & OJT',
     items: [
-      item('/dashboard/institution/students', 'verified_user', 'Student Verification', { primary: true, short: 'Students' }),
+      item('/dashboard/institution/students', 'verified_user', 'Student Verification & Clearance', { primary: true, short: 'Students' }),
       item('/dashboard/institution/monitoring', 'monitoring', 'OJT Monitoring & DTR', { primary: true, short: 'Monitor' }),
       item('/dashboard/institution/ojt-offers', 'work_outline', 'Dispatched OJT Offers', { primary: true, short: 'Offers' }),
     ],
@@ -97,7 +97,7 @@ const INSTITUTION = [
   {
     title: 'Academic Operations',
     items: [
-      item('/dashboard/institution/staff', 'badge', 'Faculty & Coordinators'),
+      item('/dashboard/institution/staff', 'badge', 'OJT Coordinators & Staff'),
       item('/dashboard/institution/programs', 'menu_book', 'Degree Programs'),
       item('/dashboard/institution/requirements', 'assignment_late', 'Clearance Requirements'),
     ],
@@ -128,44 +128,22 @@ const ADMIN = [
   },
 ];
 
-function institutionStaffSections(position) {
-  const scope = [];
-
-  if (position === 'ojt_supervisor' || position === 'ojt_coordinator' || !position) {
-    scope.push(
-      item('/dashboard/institution/students', 'verified_user', 'Student Verification', { primary: true, short: 'Students' }),
-      item('/dashboard/institution/monitoring', 'monitoring', 'OJT Monitoring & Logs', { primary: true, short: 'Monitor' }),
-      item('/dashboard/institution/ojt-offers', 'work_outline', 'OJT Offers', { primary: true, short: 'Offers' }),
-    );
-  }
-
-  if (position === 'registrar') {
-    scope.push(
-      item('/dashboard/institution/students', 'verified_user', 'Student Verification', { primary: true, short: 'Students' }),
-      item('/dashboard/institution/requirements', 'assignment_late', 'Clearance Requirements', { primary: true, short: 'Clearance' }),
-    );
-  }
-
-  if (position === 'guidance_counselor') {
-    scope.push(item('/dashboard/institution/monitoring', 'gavel', 'Grievance Oversight', { primary: true, short: 'Grievances' }));
-  }
-
-  if (position === 'dean') {
-    scope.push(
-      item('/dashboard/institution/students', 'verified_user', 'Department Students', { primary: true, short: 'Students' }),
-      item('/dashboard/institution/staff', 'badge', 'Department Staff'),
-      item('/dashboard/institution/programs', 'menu_book', 'Department Programs'),
-      item('/dashboard/institution/monitoring', 'monitoring', 'OJT Monitoring', { primary: true, short: 'Monitor' }),
-      item('/dashboard/institution/ojt-offers', 'work_outline', 'OJT & Job Offers'),
-    );
-  }
-
+function institutionStaffSections() {
   return [
     {
       title: 'Overview',
-      items: [item('/dashboard/institution', 'dashboard', 'Staff Overview', { end: true, primary: true, short: 'Home' })],
+      items: [item('/dashboard/institution', 'dashboard', 'Coordinator Overview', { end: true, primary: true, short: 'Home' })],
     },
-    { title: 'Assigned Scope', items: scope },
+    {
+      title: 'Academic & OJT Operations',
+      items: [
+        item('/dashboard/institution/students', 'verified_user', 'Student Verification & Clearance', { primary: true, short: 'Students' }),
+        item('/dashboard/institution/monitoring', 'monitoring', 'OJT Monitoring & DTR', { primary: true, short: 'Monitor' }),
+        item('/dashboard/institution/ojt-offers', 'work_outline', 'Dispatched OJT Offers', { primary: true, short: 'Offers' }),
+        item('/dashboard/institution/programs', 'menu_book', 'Degree Programs'),
+        item('/dashboard/institution/requirements', 'assignment_late', 'Clearance Requirements'),
+      ],
+    },
   ];
 }
 

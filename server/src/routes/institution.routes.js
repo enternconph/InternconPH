@@ -594,11 +594,11 @@ router.put('/students/:id/graduate', async (req, res) => {
       }
       const pos = (staffRows[0].position || '').toLowerCase();
       const cls = (staffRows[0].classification || '').toLowerCase();
-      const isRegistrarOrAdmin = pos.includes('registrar') || pos.includes('director') || pos.includes('dean') || pos.includes('admin') || pos.includes('coordinator') || cls.includes('registrar');
-      if (!isRegistrarOrAdmin) {
+      const isAuthorized = pos.includes('coordinator') || pos.includes('head') || pos.includes('director') || pos.includes('supervisor') || pos.includes('registrar') || pos.includes('dean') || pos.includes('admin');
+      if (!isAuthorized) {
         return res.status(403).json({
           success: false,
-          message: 'Permission denied. Only academic staff with Registrar, Director, or Coordinator authority can update student status to Graduated.'
+          message: 'Permission denied. Only academic staff with OJT Head or OJT Coordinator authority can update student status to Graduated.'
         });
       }
     }
@@ -1142,58 +1142,17 @@ router.post('/staff/access-code', async (req, res) => {
       });
     }
 
-    // 3. Resolve Program & Department Scope
-    const scope = await getStaffProgramScope(req.user.user_id, req.user.role, inst.institution_id);
-    let resolvedProgramId = program_id ? Number(program_id) : null;
-    let resolvedDept = (department || req.body.intended_department || '').trim() || null;
-
-    const isCallerDean = (req.user.role === 'institution_staff' && (scope.isDean || req.user.position === 'dean' || scope.position === 'dean'));
-    const isCallerRestricted = (req.user.role === 'institution_staff' && scope.isRestricted);
-    const isDeanOrRestricted = isCallerDean || isCallerRestricted;
-
-    if (isCallerDean) {
-      if (position === 'dean') {
-        return res.status(403).json({
-          success: false,
-          message: 'Access Denied: Only the Institution Director can appoint College Deans.'
-        });
-      }
-      // Dean can only generate passcodes for their assigned department
-      resolvedDept = scope.department;
-      if (resolvedProgramId) {
-        if (scope.programIds && scope.programIds.length > 0 && !scope.programIds.includes(Number(resolvedProgramId))) {
-          return res.status(403).json({
-            success: false,
-            message: `Access Denied: Program does not belong to your department (${scope.department}).`
-          });
-        }
-      }
-    } else if (isCallerRestricted) {
-      const assignedId = scope.programId || req.user.program_id;
-      if (!assignedId) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access Denied: You must be assigned to an active degree program to generate staff passcodes.'
-        });
-      }
-      resolvedProgramId = assignedId;
+    // 3. Only the OJT Head (main institution account) can generate staff passcodes and add staff!
+    if (req.user.role === 'institution_staff') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access Denied: Only the Institution OJT Head can generate staff passcodes and add staff.'
+      });
     }
 
-    // When appointing a Dean:
-    // The user specified: "the dean should be assign to Assigned Department not to a just 1 program, the dean will handle the departments programs"
-    if (position === 'dean') {
-      resolvedProgramId = null; // Dean handles the whole department, not just 1 program!
-      if (!resolvedDept && program_id) {
-        const [pRows] = await pool.query('SELECT department FROM programs WHERE program_id = ?', [program_id]);
-        if (pRows.length > 0 && pRows[0].department) resolvedDept = pRows[0].department;
-      }
-      if (!resolvedDept) {
-        return res.status(400).json({
-          success: false,
-          message: 'Please select an Assigned Department for the College Dean. The Dean will oversee all programs in this department.'
-        });
-      }
-    } else if (resolvedProgramId && !resolvedDept) {
+    let resolvedProgramId = program_id ? Number(program_id) : null;
+    let resolvedDept = (department || req.body.intended_department || '').trim() || null;
+    if (resolvedProgramId && !resolvedDept) {
       const [pRows] = await pool.query('SELECT department FROM programs WHERE program_id = ?', [resolvedProgramId]);
       if (pRows.length > 0 && pRows[0].department) {
         resolvedDept = pRows[0].department;
@@ -1218,26 +1177,18 @@ router.post('/staff/access-code', async (req, res) => {
       }
     }
 
-    const prefixMap = {
-      ojt_supervisor: 'SUP',
-      registrar: 'REG',
-      guidance_counselor: 'GND',
-      dean: 'DEN',
-      director: 'DIR'
-    };
-    const prefix = prefixMap[position] || 'STF';
     const rand = Math.random().toString(36).substring(2, 7).toUpperCase();
-    const codeRaw = `INST-${prefix}-${rand}`;
+    const codeRaw = `INST-COO-${rand}`;
 
     const insertSql = formattedExpiresAt
       ? `INSERT INTO access_codes (
           code_hash, recipient_type, institution_id, program_id, intended_department, target_identifier,
           intended_position, intended_email, assigned_permissions, created_by, expires_at
-        ) VALUES (?, 'institution_staff', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, 'institution_staff', ?, ?, ?, ?, 'ojt_coordinator', ?, ?, ?, ?)`
       : `INSERT INTO access_codes (
           code_hash, recipient_type, institution_id, program_id, intended_department, target_identifier,
           intended_position, intended_email, assigned_permissions, created_by, expires_at
-        ) VALUES (?, 'institution_staff', ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 14 DAY))`;
+        ) VALUES (?, 'institution_staff', ?, ?, ?, ?, 'ojt_coordinator', ?, ?, ?, DATE_ADD(NOW(), INTERVAL 14 DAY))`;
 
     const insertParams = [
       codeRaw,
@@ -1245,9 +1196,13 @@ router.post('/staff/access-code', async (req, res) => {
       resolvedProgramId,
       resolvedDept,
       cleanStaffNumber,
-      position || 'ojt_supervisor',
       emailToSave,
-      permissions ? JSON.stringify(permissions) : null,
+      permissions ? JSON.stringify(permissions) : JSON.stringify({
+        can_verify_students: true,
+        can_manage_ojt_records: true,
+        can_handle_grievances: true,
+        can_approve_job_offers: true
+      }),
       req.user.user_id
     ];
     if (formattedExpiresAt) insertParams.push(formattedExpiresAt);
@@ -1258,11 +1213,11 @@ router.post('/staff/access-code', async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: `${isDeanOrRestricted ? 'Department' : 'Staff'} Access Code generated for Employee ID ${cleanStaffNumber}!`,
+      message: `OJT Coordinator Passcode [${codeRaw}] generated for Employee ID ${cleanStaffNumber}!`,
       data: {
         access_code: codeRaw,
         staff_number: cleanStaffNumber,
-        position: position || 'ojt_supervisor',
+        position: 'ojt_coordinator',
         program_id: resolvedProgramId,
         intended_department: resolvedDept,
         intended_email: emailToSave,
@@ -1278,6 +1233,9 @@ router.post('/staff/access-code', async (req, res) => {
 // DELETE /api/inst/staff/access-code/:codeId - Delete and invalidate staff passcode
 router.delete('/staff/access-code/:codeId', async (req, res) => {
   try {
+    if (req.user.role === 'institution_staff') {
+      return res.status(403).json({ success: false, message: 'Access Denied: Only the Institution OJT Head can manage staff passcodes.' });
+    }
     const inst = await getInstId(req.user.user_id);
     if (!inst) return res.status(404).json({ success: false, message: 'Institution not found.' });
 
@@ -1742,10 +1700,10 @@ router.put('/staff/:id/verify', async (req, res) => {
 
     const scope = await getStaffProgramScope(req.user.user_id, req.user.role, inst.institution_id);
 
-    // If caller is regular staff without dean authority, reject
-    if (req.user.role === 'institution_staff' && !scope.isDean) {
+    // Only the OJT Head (main institution account) can verify and approve staff registrations!
+    if (req.user.role === 'institution_staff') {
       await connection.rollback();
-      return res.status(403).json({ success: false, message: 'Only the Institution Director or College Dean can verify staff accounts.' });
+      return res.status(403).json({ success: false, message: 'Access Denied: Only the Institution OJT Head can verify and approve staff accounts.' });
     }
 
     const [staffRows] = await connection.query(
@@ -1763,21 +1721,6 @@ router.put('/staff/:id/verify', async (req, res) => {
     }
 
     const staffMember = staffRows[0];
-
-    // If caller is College Dean, verify that the staff member belongs to their collegiate department
-    if (scope.isDean && scope.department) {
-      const staffDept = (staffMember.department || staffMember.program_department || '').trim().toLowerCase();
-      const deanDept = scope.department.trim().toLowerCase();
-      const inProgScope = Boolean(staffMember.program_id && scope.programIds && scope.programIds.includes(Number(staffMember.program_id)));
-
-      if (staffDept !== deanDept && !inProgScope) {
-        await connection.rollback();
-        return res.status(403).json({
-          success: false,
-          message: `As College Dean of ${scope.department}, you can only verify staff members assigned to your department.`
-        });
-      }
-    }
 
     if (action === 'approve') {
       await connection.query('UPDATE users SET is_verified = 1, is_active = 1 WHERE user_id = ?', [staffMember.user_id]);
@@ -1817,11 +1760,11 @@ router.put('/staff/:id/verify', async (req, res) => {
 
     if (action === 'approve') {
       try {
-        const verifierTitle = scope.isDean ? 'College Dean' : 'Institution Director';
+        const verifierTitle = 'Institution OJT Head';
         await sendNotification({
           userId: staffMember.user_id,
-          title: 'Staff Account Verified & Activated',
-          message: `Your staff account at ${inst.institution_name} has been approved and activated by the ${verifierTitle}. You can now access all departmental features.`,
+          title: 'OJT Coordinator Account Verified & Activated',
+          message: `Your OJT Coordinator account at ${inst.institution_name} has been approved and activated by the ${verifierTitle}. You can now access all coordinator features.`,
           type: 'verification',
           link: '/dashboard/institution'
         });

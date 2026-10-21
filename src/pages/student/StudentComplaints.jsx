@@ -589,7 +589,7 @@ export default function StudentComplaints() {
                     <div className="text-[11px] text-on-surface leading-tight space-y-0.5">
                       <p className="font-bold text-blue-800 dark:text-blue-300">OJT Academic & Training Routing</p>
                       <p className="text-on-surface-variant">
-                        This grievance will be submitted directly to your <strong>Institution OJT Coordinator & Dean</strong>, and forwarded to Host Company HR.
+                        This grievance will be submitted directly to your <strong>Institution OJT Coordinator & OJT Head</strong>, and forwarded to Host Company HR.
                       </p>
                     </div>
                   </div>
@@ -788,7 +788,7 @@ export default function StudentComplaints() {
                   <span>Academic Institution Review</span>
                 </div>
                 <p className="text-[11px] text-blue-900/85 dark:text-blue-200 leading-relaxed">
-                  As a Current OJT student, your grievance is submitted directly to your Institution OJT Coordinator and Dean for formal review and workplace mediation.
+                  As a Current OJT student, your grievance is submitted directly to your Institution OJT Coordinator and OJT Head for formal review and workplace mediation.
                 </p>
               </div>
             ) : (

@@ -1510,7 +1510,7 @@ router.get('/profile', async (req, res) => {
          FROM institution_staff isf
          JOIN users u ON isf.user_id = u.user_id
          WHERE isf.institution_id = ? AND (isf.program_id = ? OR isf.program_id IS NULL) AND isf.is_active = 1
-         ORDER BY (CASE WHEN isf.position = 'ojt_supervisor' THEN 0 ELSE 1 END) LIMIT 1`,
+         ORDER BY (CASE WHEN isf.position = 'ojt_coordinator' OR isf.position = 'ojt_supervisor' THEN 0 ELSE 1 END) LIMIT 1`,
         [studentProfile.institution_id, studentProfile.program_id]
       );
       if (progStaff.length > 0) assignedSupervisor = progStaff[0];
@@ -4494,7 +4494,7 @@ router.post('/complaints', async (req, res) => {
     }
 
     // FOR ONGOING OJT STUDENTS:
-    // Routed to the student's Institution OJT Coordinators & Dean for formal academic review & workplace mediation
+    // Routed to the student's Institution OJT Coordinators & OJT Head for formal academic review & workplace mediation
     const studentProgId = student.program_id || null;
     const [coordinators] = await pool.query(
       `SELECT DISTINCT user_id FROM (

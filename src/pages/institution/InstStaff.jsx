@@ -41,7 +41,7 @@ export default function InstStaff() {
 
   // Passcode Generator State
   const [staffNumber, setStaffNumber] = useState('');
-  const [position, setPosition] = useState('ojt_supervisor'); // ojt_supervisor, registrar, guidance_counselor, dean
+  const [position, setPosition] = useState('ojt_coordinator');
   const [departments, setDepartments] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedProgram, setSelectedProgram] = useState('');
@@ -52,12 +52,12 @@ export default function InstStaff() {
   const [permissions, setPermissions] = useState({
     can_verify_students: true,
     can_manage_ojt_records: true,
-    can_handle_grievances: false,
-    can_approve_job_offers: false
+    can_handle_grievances: true,
+    can_approve_job_offers: true
   });
 
-  const isDean = user?.position === 'dean' || user?.role_name === 'dean' || staffScope?.position === 'dean' || staffScope?.isDean;
-  const assignedProgramId = user?.program_id || staffScope?.programId || (isDean && programs.length > 0 ? programs[0].program_id : null);
+  const isOJTHead = user?.role === 'institution' || user?.position === 'ojt_head' || user?.position === 'director';
+  const assignedProgramId = user?.program_id || staffScope?.programId || null;
 
   const fetchStaffData = useCallback(async () => {
     try {
@@ -141,11 +141,6 @@ export default function InstStaff() {
       return;
     }
 
-    if (position === 'dean' && !selectedDepartment) {
-      alert('Please select the Assigned Academic Department / College for the College Dean.');
-      return;
-    }
-
     if (staffEmail && staffEmail.trim()) {
       const emailErr = validateEmail(staffEmail.trim(), { required: false });
       if (emailErr) {
@@ -161,24 +156,18 @@ export default function InstStaff() {
 
     const payload = {
       staff_number: cleanInputId,
-      position,
+      position: 'ojt_coordinator',
       intended_email: staffEmail || null,
       permissions,
-      expiration_date: expirationDate
+      expiration_date: expirationDate,
+      program_id: selectedProgram || null
     };
 
-    if (position === 'dean') {
+    if (selectedProgram) {
+      const prog = programs.find((p) => String(p.program_id) === String(selectedProgram));
+      payload.department = prog?.department || null;
+    } else if (selectedDepartment) {
       payload.department = selectedDepartment;
-      payload.program_id = null;
-    } else if (isDean) {
-      payload.department = staffScope?.department || user?.department || null;
-      payload.program_id = selectedProgram || null;
-    } else {
-      payload.program_id = selectedProgram || null;
-      if (selectedProgram) {
-        const prog = programs.find((p) => String(p.program_id) === String(selectedProgram));
-        payload.department = prog?.department || null;
-      }
     }
 
     try {
@@ -194,8 +183,6 @@ export default function InstStaff() {
           intended_department: effectiveDept,
           program_name: progObj
             ? `${progObj.program_name} (${progObj.program_code})`
-            : position === 'dean'
-            ? effectiveDept || 'Academic Department'
             : effectiveDept
             ? `Dept: ${effectiveDept}`
             : 'All Programs / Institution-Wide',
@@ -204,7 +191,7 @@ export default function InstStaff() {
         setGeneratedCode(enrichedData);
         setShowGeneratedModal(true);
         setMessage(
-          `${isDean ? 'Department' : 'Director'} Passcode [${res.data.access_code}] generated successfully for Staff ID: ${cleanInputId}! Share this with the staff member.`
+          `OJT Coordinator Passcode [${res.data.access_code}] generated successfully for Staff ID: ${cleanInputId}! Share this with the coordinator.`
         );
         setStaffNumber('');
         setStaffEmail('');
@@ -377,18 +364,17 @@ export default function InstStaff() {
 
   const formatPosition = (pos) => {
     switch (pos) {
+      case 'ojt_coordinator':
       case 'ojt_supervisor':
-        return { label: 'OJT Supervisor / Adviser', color: 'bg-orange-tint text-vibrant-orange' };
       case 'registrar':
-        return { label: 'Registrar', color: 'bg-blue-500/10 text-blue-500' };
       case 'guidance_counselor':
-        return { label: 'Guidance Counselor', color: 'bg-purple-500/10 text-purple-500' };
       case 'dean':
-        return { label: 'College Dean', color: 'bg-green-tint text-pinoy-green' };
+        return { label: 'OJT Coordinator', color: 'bg-orange-tint text-vibrant-orange' };
+      case 'ojt_head':
       case 'director':
-        return { label: 'Institution Director', color: 'bg-yellow-500/10 text-yellow-600' };
+        return { label: 'OJT Head', color: 'bg-yellow-500/10 text-yellow-600' };
       default:
-        return { label: (pos || 'Staff').replace(/_/g, ' '), color: 'bg-surface-container text-on-surface' };
+        return { label: (pos || 'Coordinator').replace(/_/g, ' '), color: 'bg-surface-container text-on-surface' };
     }
   };
 
@@ -397,9 +383,9 @@ export default function InstStaff() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-on-surface">Institution Staff & Coordinators Management</h1>
+          <h1 className="text-2xl font-bold text-on-surface">Institution OJT Coordinators & Staff</h1>
           <p className="text-sm text-on-surface-variant">
-            Issue Director-authorized passcodes, inspect complete staff personal details, and verify registrations.
+            Issue OJT Head-authorized passcodes, inspect complete coordinator personal details, and verify registrations.
           </p>
         </div>
       </div>
@@ -477,7 +463,7 @@ export default function InstStaff() {
 
       {/* Main Grid: Passcode Generator on Left, Verification & Roster on Right */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Passcode Generator Form */}
+        {/* Passcode Generator Form / Authority Card */}
         <div className="bento-card space-y-4 lg:sticky lg:top-6">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-orange-tint text-vibrant-orange flex items-center justify-center">
@@ -485,138 +471,88 @@ export default function InstStaff() {
             </div>
             <div>
               <h2 className="text-base font-bold text-on-surface">
-                {isDean ? 'Generate Department Staff Passcode' : 'Generate Staff Passcode'}
+                {isOJTHead ? 'Generate Coordinator Passcode' : 'Staff Governance'}
               </h2>
               <p className="text-[11px] text-on-surface-variant">
-                {isDean ? 'Dean-issued invitation for department faculty & coordinators' : 'Director-issued invitation for coordinators'}
+                {isOJTHead ? 'OJT Head-issued invitation for coordinators' : 'OJT Head Administrative Authority'}
               </p>
             </div>
           </div>
 
-          <form noValidate onSubmit={handleGenerateCode} className="space-y-3 text-xs">
-            <div>
-              <label className="block font-bold text-on-surface-variant uppercase mb-1">
-                Staff / Employee ID *
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. STF-2026-081"
-                value={staffNumber}
-                onChange={(e) => setStaffNumber(e.target.value.toUpperCase())}
-                className={`w-full px-3 py-2 rounded-lg border bg-surface-container-low text-on-surface font-mono font-bold outline-none focus:ring-2 ${duplicateActiveCode || duplicateStaffMember
-                    ? 'border-error focus:ring-error text-error'
-                    : 'border-outline-variant focus:ring-vibrant-orange'
-                  }`}
-              />
-              {duplicateActiveCode && (
-                <div className="mt-1.5 p-2 rounded bg-error-container text-error text-[10px] font-bold flex items-center gap-1.5 border border-error/20">
-                  <span className="material-symbols-outlined text-[14px]">warning</span>
-                  <span>Duplicate ID: Active code ({duplicateActiveCode.code_hash}) already exists (expires {new Date(duplicateActiveCode.expires_at).toLocaleDateString()}).</span>
-                </div>
-              )}
-              {duplicateStaffMember && (
-                <div className="mt-1.5 p-2 rounded bg-error-container text-error text-[10px] font-bold flex items-center gap-1.5 border border-error/20">
-                  <span className="material-symbols-outlined text-[14px]">error</span>
-                  <span>Duplicate ID: Already assigned to registered staff ({duplicateStaffMember.first_name} {duplicateStaffMember.last_name}).</span>
-                </div>
-              )}
-              <p className="text-[10px] text-on-surface-variant mt-1">
-                Staff must match this exact Employee ID during passcode registration. Duplicates are strictly blocked.
+          {!isOJTHead ? (
+            <div className="p-4 bg-surface-container rounded-xl border border-outline-variant text-xs space-y-2.5">
+              <div className="flex items-center gap-2 text-vibrant-orange font-bold">
+                <span className="material-symbols-outlined text-[18px]">lock</span>
+                <span>OJT Head Access Only</span>
+              </div>
+              <p className="text-on-surface-variant leading-relaxed">
+                Only the university's main account (<strong>Institution OJT Head</strong>) has the administrative authority to issue authorization passcodes, onboard new staff, and verify coordinator accounts.
               </p>
             </div>
-
-            <div>
-              <label className="block font-bold text-on-surface-variant uppercase mb-1">
-                Staff Position / Role *
-              </label>
-              <select
-                value={position}
-                onChange={(e) => {
-                  const pos = e.target.value;
-                  setPosition(pos);
-                  setPermissions({
-                    can_verify_students: pos === 'registrar' || pos === 'ojt_supervisor',
-                    can_manage_ojt_records: pos === 'ojt_supervisor' || pos === 'dean',
-                    can_handle_grievances: pos === 'guidance_counselor',
-                    can_approve_job_offers: pos === 'dean' || pos === 'ojt_supervisor'
-                  });
-                }}
-                className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface font-bold outline-none focus:ring-2 focus:ring-vibrant-orange"
-              >
-                <option value="ojt_supervisor">OJT Supervisor / Adviser (Student Monitoring & Hours)</option>
-                {!isDean && <option value="registrar">Registrar (Student Verification & Clearance)</option>}
-                {!isDean && <option value="guidance_counselor">Guidance Counselor (Grievances & Student Concerns)</option>}
-                {!isDean && <option value="dean">College Dean / Department Head (Department Programs & Staff)</option>}
-              </select>
-            </div>
-
-            {/* Department / Program Selection */}
-            {position === 'dean' ? (
-              <div>
-                <label className="block font-bold text-on-surface-variant uppercase mb-1 flex items-center justify-between">
-                  <span>Assigned Academic Department / College *</span>
-                  <span className="text-[10px] text-vibrant-orange font-bold flex items-center gap-1 bg-orange-tint px-2 py-0.5 rounded-full border border-vibrant-orange/30">
-                    <span className="material-symbols-outlined text-[12px]">domain</span>
-                    Department Head
-                  </span>
-                </label>
-                <select
-                  required
-                  value={selectedDepartment}
-                  onChange={(e) => setSelectedDepartment(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface font-bold outline-none focus:ring-2 focus:ring-vibrant-orange"
-                >
-                  <option value="">-- Select Academic Department / College --</option>
-                  {departments.map((dept) => (
-                    <option key={dept} value={dept}>
-                      {dept}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-on-surface-variant mt-1.5 flex items-start gap-1 leading-normal">
-                  <span className="material-symbols-outlined text-[14px] text-vibrant-orange shrink-0 mt-0.5">info</span>
-                  <span>
-                    The College Dean oversees, coordinates, and approves OJT offers across <strong>all academic degree programs</strong> within this department.
-                  </span>
-                </p>
-              </div>
-            ) : isDean ? (
-              <div>
-                <label className="block font-bold text-on-surface-variant uppercase mb-1 flex items-center justify-between">
-                  <span>Assigned Program / Scope *</span>
-                  <span className="text-[10px] text-vibrant-orange font-bold flex items-center gap-1 bg-orange-tint px-2 py-0.5 rounded-full border border-vibrant-orange/30">
-                    <span className="material-symbols-outlined text-[12px]">lock</span>
-                    {staffScope?.department || user?.department || 'Your Department'}
-                  </span>
-                </label>
-                <select
-                  value={selectedProgram}
-                  onChange={(e) => setSelectedProgram(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface font-bold outline-none focus:ring-2 focus:ring-vibrant-orange"
-                >
-                  <option value="">Department-Wide — All Programs in {staffScope?.department || user?.department || 'Department'}</option>
-                  {programs.map((p) => (
-                    <option key={p.program_id} value={p.program_id}>
-                      {p.program_name} ({p.program_code})
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-on-surface-variant mt-1.5 flex items-center gap-1 leading-normal">
-                  <span className="material-symbols-outlined text-[14px] text-vibrant-orange shrink-0">info</span>
-                  <span>
-                    As College Dean, passcodes you generate are scoped exclusively to your department ({staffScope?.department || user?.department}).
-                  </span>
-                </p>
-              </div>
-            ) : (
+          ) : (
+            <form noValidate onSubmit={handleGenerateCode} className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-on-surface-variant uppercase mb-1">
-                  Assigned Program / Department
+                  Staff / Employee ID *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. STF-2026-081"
+                  value={staffNumber}
+                  onChange={(e) => setStaffNumber(e.target.value.toUpperCase())}
+                  className={`w-full px-3 py-2 rounded-lg border bg-surface-container-low text-on-surface font-mono font-bold outline-none focus:ring-2 ${duplicateActiveCode || duplicateStaffMember
+                      ? 'border-error focus:ring-error text-error'
+                      : 'border-outline-variant focus:ring-vibrant-orange'
+                    }`}
+                />
+                {duplicateActiveCode && (
+                  <div className="mt-1.5 p-2 rounded bg-error-container text-error text-[10px] font-bold flex items-center gap-1.5 border border-error/20">
+                    <span className="material-symbols-outlined text-[14px]">warning</span>
+                    <span>Duplicate ID: Active code ({duplicateActiveCode.code_hash}) already exists (expires {new Date(duplicateActiveCode.expires_at).toLocaleDateString()}).</span>
+                  </div>
+                )}
+                {duplicateStaffMember && (
+                  <div className="mt-1.5 p-2 rounded bg-error-container text-error text-[10px] font-bold flex items-center gap-1.5 border border-error/20">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>Duplicate ID: Already assigned to registered staff ({duplicateStaffMember.first_name} {duplicateStaffMember.last_name}).</span>
+                  </div>
+                )}
+                <p className="text-[10px] text-on-surface-variant mt-1">
+                  Staff must match this exact Employee ID during passcode registration. Duplicates are strictly blocked.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-on-surface-variant uppercase mb-1">
+                  Staff Position / Role *
+                </label>
+                <select
+                  value={position}
+                  disabled
+                  className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container text-on-surface font-bold outline-none cursor-not-allowed"
+                >
+                  <option value="ojt_coordinator">OJT Coordinator (Full Coordination, Verification & Clearance)</option>
+                </select>
+                <p className="text-[10px] text-on-surface-variant mt-1 leading-normal">
+                  OJT Coordinators possess full institutional authority across student verification, clearance requirements, DTR monitoring, grievance handling, and opportunity approvals.
+                </p>
+              </div>
+
+              {/* Department / Program Selection */}
+              <div>
+                <label className="block font-bold text-on-surface-variant uppercase mb-1">
+                  Assigned Degree Program Scope
                 </label>
                 <select
                   value={selectedProgram}
-                  onChange={(e) => setSelectedProgram(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedProgram(e.target.value);
+                    if (e.target.value) {
+                      const prog = programs.find((p) => String(p.program_id) === String(e.target.value));
+                      if (prog?.department) setSelectedDepartment(prog.department);
+                    }
+                  }}
                   className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface outline-none focus:ring-2 focus:ring-vibrant-orange"
                 >
                   <option value="">All Programs / Institution-Wide</option>
@@ -627,21 +563,20 @@ export default function InstStaff() {
                   ))}
                 </select>
               </div>
-            )}
 
-            <div>
-              <EmailInput
-                label="Staff Official Email (Optional)"
-                required={false}
-                placeholder="faculty@university.edu.ph"
-                value={staffEmail}
-                onChange={(e) => setStaffEmail(e.target.value)}
-                error={staffEmailError}
-                onErrorChange={setStaffEmailError}
-                ref={emailInputRef}
-                className="bg-surface-container-low text-on-surface"
-              />
-            </div>
+              <div>
+                <EmailInput
+                  label="Coordinator Official Email (Optional)"
+                  required={false}
+                  placeholder="coordinator@university.edu.ph"
+                  value={staffEmail}
+                  onChange={(e) => setStaffEmail(e.target.value)}
+                  error={staffEmailError}
+                  onErrorChange={setStaffEmailError}
+                  ref={emailInputRef}
+                  className="bg-surface-container-low text-on-surface"
+                />
+              </div>
 
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -749,11 +684,12 @@ export default function InstStaff() {
               ) : (
                 <>
                   <span className="material-symbols-outlined text-[18px]">key</span>
-                  <span>Generate Staff Passcode</span>
+                  <span>Generate Coordinator Passcode</span>
                 </>
               )}
             </button>
           </form>
+        )}
         </div>
 
         {/* Staff Tabs & Verification Views */}
@@ -807,13 +743,11 @@ export default function InstStaff() {
                   <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
                     <span className="material-symbols-outlined text-vibrant-orange text-[20px]">how_to_reg</span>
                     <span>
-                      Staff Registrations Awaiting Verification {isDean && staffScope?.department ? `— ${staffScope.department}` : ''} ({data.pendingStaff?.length || 0})
+                      OJT Coordinator Registrations Awaiting Verification ({data.pendingStaff?.length || 0})
                     </span>
                   </h2>
                   <p className="text-xs text-on-surface-variant">
-                    {isDean
-                      ? `Only staff registrations belonging to your assigned department (${staffScope?.department || 'Department'}) appear in this queue.`
-                      : 'Only staff who registered with a matching Director Passcode and Staff ID appear in this queue.'}
+                    Only OJT Coordinators who registered with a matching OJT Head Passcode and Staff ID appear in this queue.
                   </p>
                 </div>
               </div>
@@ -1452,7 +1386,7 @@ export default function InstStaff() {
         </div>
       </div>
 
-            {/* FULL PERSONAL DETAILS MODAL FOR DIRECTOR VERIFICATION WITH UNMATCHED INFO WARNINGS */}
+            {/* FULL PERSONAL DETAILS MODAL FOR OJT HEAD VERIFICATION WITH UNMATCHED INFO WARNINGS */}
       {selectedStaff && (() => {
         const isDeanPosition =
           selectedStaff.position === 'dean' ||
@@ -1515,7 +1449,7 @@ export default function InstStaff() {
                       )}
                     </h3>
                     <p className="text-xs text-on-surface-variant">
-                      Submitted registration data for {isDean ? 'Collegiate Dean' : 'Director'} verification & authorization
+                      Submitted registration data for OJT Head verification & authorization
                     </p>
                   </div>
                 </div>
@@ -1538,7 +1472,7 @@ export default function InstStaff() {
                       <span>⚠️ Warning: Unmatched Registration Information Detected</span>
                     </div>
                     <p className="text-xs text-red-700 font-medium leading-relaxed">
-                      One or more fields submitted during the Institution Staff Account Registration do not match the Director's authorized Passcode configuration. Review the <span className="underline font-bold">red highlighted entries</span> below with the warning signs (⚠️) before approving this account.
+                      One or more fields submitted during the OJT Coordinator Account Registration do not match the OJT Head's authorized Passcode configuration. Review the <span className="underline font-bold">red highlighted entries</span> below with the warning signs (⚠️) before approving this account.
                     </p>
                     <div className="flex flex-wrap gap-2 pt-1">
                       {isPosMismatch && (
@@ -1636,7 +1570,7 @@ export default function InstStaff() {
                         <div className="mt-2 pt-2 border-t border-red-500/30 text-[11px] text-red-700 space-y-0.5">
                           <span className="font-bold flex items-center gap-1 text-red-600">
                             <span className="material-symbols-outlined text-[14px]">error</span>
-                            <span>Director Passcode Preset:</span>
+                            <span>OJT Head Passcode Preset:</span>
                           </span>
                           <span className="font-extrabold text-red-800 bg-red-500/20 px-2 py-0.5 rounded inline-block">
                             {formatPosition(selectedStaff.passcode_intended_position).label}
@@ -1661,7 +1595,7 @@ export default function InstStaff() {
                           All Degree Programs in {staffDept || 'Assigned Department'}
                         </span>
                         <p className="text-[10px] text-on-surface-variant mt-1 leading-normal">
-                          As College Dean, this staff member oversees student monitoring and OJT approvals across all degree programs within this academic department.
+                          As Department Coordinator, this staff member oversees student monitoring and OJT approvals across all degree programs within this academic department.
                         </p>
                       </div>
                     ) : (
@@ -1688,7 +1622,7 @@ export default function InstStaff() {
                           <div className="mt-2 pt-2 border-t border-red-500/30 text-[11px] text-red-700 space-y-0.5">
                             <span className="font-bold flex items-center gap-1 text-red-600">
                               <span className="material-symbols-outlined text-[14px]">error</span>
-                              <span>Director Passcode Preset:</span>
+                              <span>OJT Head Passcode Preset:</span>
                             </span>
                             <span className="font-extrabold text-red-800 bg-red-500/20 px-2 py-0.5 rounded inline-block">
                               {selectedStaff.passcode_intended_program_name
@@ -1726,7 +1660,7 @@ export default function InstStaff() {
                         <div className="mt-2 pt-2 border-t border-red-500/30 text-[11px] text-red-700 space-y-0.5">
                           <span className="font-bold flex items-center gap-1 text-red-600">
                             <span className="material-symbols-outlined text-[14px]">error</span>
-                            <span>Director Department Preset:</span>
+                            <span>OJT Head Department Preset:</span>
                           </span>
                           <span className="font-extrabold text-red-800 bg-red-500/20 px-2 py-0.5 rounded inline-block">
                             {intendedDept}
@@ -1777,7 +1711,7 @@ export default function InstStaff() {
                         <div className="mt-2 pt-2 border-t border-red-500/30 text-[11px] text-red-700 space-y-0.5">
                           <span className="font-bold flex items-center gap-1 text-red-600">
                             <span className="material-symbols-outlined text-[14px]">error</span>
-                            <span>Director Passcode Preset:</span>
+                            <span>OJT Head Passcode Preset:</span>
                           </span>
                           <span className="font-extrabold text-red-800 bg-red-500/20 px-2 py-0.5 rounded inline-block font-mono">
                             {selectedStaff.passcode_intended_email}
@@ -1798,7 +1732,7 @@ export default function InstStaff() {
                     <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant">
                       <span className="text-on-surface-variant block text-[10px] font-bold uppercase tracking-wider">Passcode Validated</span>
                       <span className="font-bold text-vibrant-orange text-sm font-mono block mt-1">
-                        {selectedStaff.passcode_used || 'Director Passcode Match'}
+                        {selectedStaff.passcode_used || 'OJT Head Passcode Match'}
                       </span>
                     </div>
 

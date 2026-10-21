@@ -125,12 +125,10 @@ export default function InstStudents() {
     reason: ''
   });
 
-  // Detect Registrar / Director role for authorization
-  const isRegistrarOrAdmin = useMemo(() => {
-    const pos = (user?.details?.position || user?.position || '').toLowerCase();
-    const role = (user?.role || '').toLowerCase();
-    return pos.includes('registrar') || pos.includes('director') || pos.includes('dean') || role.includes('admin');
-  }, [user]);
+  // Both OJT Head and OJT Coordinator have full access to graduate students
+  const canGraduateStudent = useMemo(() => {
+    return true;
+  }, []);
 
   const handleOpenPortfolio = async (student) => {
     const studentId = student.student_id;
@@ -258,7 +256,7 @@ export default function InstStudents() {
     });
 
     let defaultStaffId = '';
-    if (staffAssignment.is_restricted && staffAssignment.position === 'ojt_supervisor' && staffAssignment.staff_id) {
+    if (staffAssignment.is_restricted && (staffAssignment.position === 'ojt_coordinator' || staffAssignment.position === 'ojt_supervisor') && staffAssignment.staff_id) {
       defaultStaffId = String(staffAssignment.staff_id);
     } else if (matchingSups.length === 1) {
       defaultStaffId = String(matchingSups[0].staff_id);
@@ -326,7 +324,7 @@ export default function InstStudents() {
       return;
     }
     if (codeForm.intended_status === 'starting_ojt' && deptSupervisors.length > 1 && !codeForm.assigned_staff_id) {
-      showToast(`Please select the OJT Supervisor / Adviser for ${selectedDept || 'this department'}.`, true);
+      showToast(`Please select the OJT Coordinator for ${selectedDept || 'this department'}.`, true);
       return;
     }
 
@@ -709,8 +707,8 @@ export default function InstStudents() {
                             </button>
                           )}
 
-                          {/* Registrar Graduation Action (For Registrar / Director role when student completed OJT) */}
-                          {isRegistrarOrAdmin && s.student_id && (s.ojt_status === 'completed' || s.ojt_status === 'completed_ojt' || s.status_id === 4) && s.ojt_status !== 'graduated' && s.status_id !== 5 && (
+                          {/* Graduation Action (For OJT Head & OJT Coordinator when student completed OJT) */}
+                          {canGraduateStudent && s.student_id && (s.ojt_status === 'completed' || s.ojt_status === 'completed_ojt' || s.status_id === 4) && s.ojt_status !== 'graduated' && s.status_id !== 5 && (
                             <button
                               disabled={actionLoading}
                               onClick={() => setGraduateModal({
@@ -720,7 +718,7 @@ export default function InstStudents() {
                                 notes: ''
                               })}
                               className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-90 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
-                              title="Registrar Action: Update Student Status from Completed OJT to Graduated"
+                              title="Update Student Status from Completed OJT to Graduated"
                             >
                               <span className="material-symbols-outlined text-[16px]">school</span>
                               <span>Graduate Student</span>
@@ -889,7 +887,7 @@ export default function InstStudents() {
                             {c.supervisor_first_name && (
                               <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-orange-tint/70 text-vibrant-orange text-[10px] font-bold border border-vibrant-orange/20">
                                 <span className="material-symbols-outlined text-[12px]">assignment_ind</span>
-                                <span>Adviser: {c.supervisor_first_name} {c.supervisor_last_name}</span>
+                                <span>Coordinator: {c.supervisor_first_name} {c.supervisor_last_name}</span>
                               </div>
                             )}
                           </td>
@@ -994,7 +992,7 @@ export default function InstStudents() {
                     {generatedCode.supervisor_name && (
                       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface text-xs font-semibold text-on-surface border border-outline-variant">
                         <span className="material-symbols-outlined text-vibrant-orange text-sm">assignment_ind</span>
-                        <span>OJT Adviser: <strong className="text-on-surface">{generatedCode.supervisor_name}</strong></span>
+                        <span>OJT Coordinator: <strong className="text-on-surface">{generatedCode.supervisor_name}</strong></span>
                       </div>
                     )}
                   </div>
@@ -1241,13 +1239,13 @@ export default function InstStudents() {
                   </div>
                 </div>
 
-                {/* OJT Supervisor / Adviser Selection for starting_ojt */}
+                {/* OJT Coordinator Selection for starting_ojt */}
                 {codeForm.intended_status === 'starting_ojt' && (
                   <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="block font-bold text-on-surface uppercase text-[11px] flex items-center gap-1.5">
                         <span className="material-symbols-outlined text-vibrant-orange text-[16px]">assignment_ind</span>
-                        <span>OJT Supervisor / Adviser *</span>
+                        <span>OJT Coordinator *</span>
                       </label>
                       {selectedDept && (
                         <span className="text-[10px] font-semibold text-on-surface-variant bg-surface px-2 py-0.5 rounded border border-outline-variant">
@@ -1264,15 +1262,15 @@ export default function InstStudents() {
                           onChange={(e) => setCodeForm({ ...codeForm, assigned_staff_id: e.target.value })}
                           className="w-full px-3 py-2.5 rounded-lg border border-vibrant-orange/50 bg-surface text-on-surface font-semibold outline-none focus:ring-2 focus:ring-vibrant-orange text-xs"
                         >
-                          <option value="">Select OJT Supervisor / Adviser for this Department...</option>
+                          <option value="">Select OJT Coordinator for this Department...</option>
                           {deptSupervisors.map((s) => (
                             <option key={s.staff_id} value={s.staff_id}>
-                              {s.first_name} {s.last_name} {s.employee_id ? `(${s.employee_id})` : s.email ? `(${s.email})` : ''} — {s.position === 'ojt_supervisor' ? 'OJT Supervisor / Adviser' : s.position}
+                              {s.first_name} {s.last_name} {s.employee_id ? `(${s.employee_id})` : s.email ? `(${s.email})` : ''} — {s.position === 'ojt_coordinator' || s.position === 'ojt_supervisor' ? 'OJT Coordinator' : s.position}
                             </option>
                           ))}
                         </select>
                         <p className="text-[10px] text-on-surface-variant leading-relaxed">
-                          The <strong className="text-on-surface">{selectedDept}</strong> department has <strong>{deptSupervisors.length} OJT Supervisors/Advisers</strong>. Please select which supervisor is assigned to this registration passcode cohort.
+                          The <strong className="text-on-surface">{selectedDept}</strong> department has <strong>{deptSupervisors.length} OJT Coordinators</strong>. Please select which coordinator is assigned to this registration passcode cohort.
                         </p>
                       </div>
                     ) : deptSupervisors.length === 1 ? (
@@ -1286,7 +1284,7 @@ export default function InstStudents() {
                               {deptSupervisors[0].first_name} {deptSupervisors[0].last_name}
                             </div>
                             <div className="text-[10px] text-on-surface-variant flex items-center gap-1.5 flex-wrap">
-                              <span>{deptSupervisors[0].position === 'ojt_supervisor' ? 'OJT Supervisor / Adviser' : deptSupervisors[0].position}</span>
+                              <span>{deptSupervisors[0].position === 'ojt_coordinator' || deptSupervisors[0].position === 'ojt_supervisor' ? 'OJT Coordinator' : deptSupervisors[0].position}</span>
                               {deptSupervisors[0].employee_id && <span>• ID: {deptSupervisors[0].employee_id}</span>}
                               {deptSupervisors[0].email && <span>• {deptSupervisors[0].email}</span>}
                             </div>
@@ -1301,12 +1299,12 @@ export default function InstStudents() {
                       <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-1.5">
                         <div className="flex items-center gap-1.5 text-amber-600 font-bold text-xs">
                           <span className="material-symbols-outlined text-sm">info</span>
-                          <span>No Supervisor Registered for {selectedDept || 'this Department'}</span>
+                          <span>No Coordinator Registered for {selectedDept || 'this Department'}</span>
                         </div>
                         <p className="text-[10px] text-on-surface-variant leading-relaxed">
-                          No dedicated OJT Supervisor is currently assigned under this department.
+                          No dedicated OJT Coordinator is currently assigned under this department.
                           {otherSupervisors.length > 0
-                            ? ' You may optionally select an institution-wide supervisor below or leave unassigned:'
+                            ? ' You may optionally select an institution-wide coordinator below or leave unassigned:'
                             : ' Incoming students will be routed for general review.'}
                         </p>
                         {otherSupervisors.length > 0 && (
@@ -1318,7 +1316,7 @@ export default function InstStudents() {
                             <option value="">Leave Unassigned (General Review)</option>
                             {otherSupervisors.map((s) => (
                               <option key={s.staff_id} value={s.staff_id}>
-                                {s.first_name} {s.last_name} ({s.department || 'General'}) — {s.position}
+                                {s.first_name} {s.last_name} ({s.department || 'General'}) — {s.position === 'ojt_coordinator' || s.position === 'ojt_supervisor' ? 'OJT Coordinator' : s.position}
                               </option>
                             ))}
                           </select>
@@ -1498,7 +1496,7 @@ export default function InstStudents() {
                     {selectedStudent.assigned_supervisor && (
                       <div className="sm:col-span-3 pt-2 border-t border-outline-variant flex items-center justify-between">
                         <div>
-                          <span className="text-on-surface-variant block text-[10px] font-bold uppercase">Assigned OJT Supervisor / Adviser</span>
+                          <span className="text-on-surface-variant block text-[10px] font-bold uppercase">Assigned OJT Coordinator</span>
                           <span className="font-bold text-xs text-vibrant-orange flex items-center gap-1.5 mt-0.5">
                             <span className="material-symbols-outlined text-[15px]">assignment_ind</span>
                             <span>{selectedStudent.assigned_supervisor.first_name} {selectedStudent.assigned_supervisor.last_name}</span>
@@ -1509,7 +1507,7 @@ export default function InstStudents() {
                         </div>
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-emerald-600 border border-emerald-500/20">
                           <span className="material-symbols-outlined text-[12px]">check_circle</span>
-                          Supervisor Assigned
+                          Coordinator Assigned
                         </span>
                       </div>
                     )}
@@ -1641,8 +1639,8 @@ export default function InstStudents() {
                         </p>
                       </div>
 
-                      {/* Registrar Graduate Action in Portfolio */}
-                      {isRegistrarOrAdmin && isCompletedOjt && !isGrad && (
+                      {/* Graduate Action in Portfolio */}
+                      {canGraduateStudent && isCompletedOjt && !isGrad && (
                         <button
                           disabled={actionLoading}
                           onClick={() => setGraduateModal({
@@ -1942,7 +1940,7 @@ export default function InstStudents() {
         </div>
       )}
 
-      {/* MODAL 5: REGISTRAR GRADUATE STUDENT CONFIRMATION */}
+      {/* MODAL 5: GRADUATE STUDENT CONFIRMATION */}
       {graduateModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
           <div className="bg-surface max-w-md w-full rounded-2xl shadow-2xl border border-outline-variant p-6 space-y-4 text-xs">
@@ -1952,7 +1950,7 @@ export default function InstStudents() {
               </div>
               <div>
                 <h3 className="text-base font-bold text-on-surface">Mark Student as Graduated</h3>
-                <p className="text-xs text-on-surface-variant">Registrar Clearance & Status Update</p>
+                <p className="text-xs text-on-surface-variant">OJT Clearance & Status Update</p>
               </div>
             </div>
 
