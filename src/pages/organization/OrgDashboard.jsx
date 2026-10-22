@@ -4,6 +4,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import api from '../../api/client';
 import { DashboardSkeleton } from '../../components/ui/Skeleton';
+import { DetailDrawer, DetailRow } from '../../components/ui';
+import { resolveFileUrl, formatAddress } from '../../utils/fileHelper';
 
 export default function OrgDashboard() {
   const { user } = useAuth();
@@ -11,6 +13,7 @@ export default function OrgDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showNoMentorWarning, setShowNoMentorWarning] = useState(false);
+  const [selectedJobForDetail, setSelectedJobForDetail] = useState(null);
 
   const role = user?.role_name || user?.role || '';
   const isMentor = role === 'workplace_mentor' || role === 'mentor';
@@ -442,26 +445,20 @@ export default function OrgDashboard() {
 
         {data?.jobs?.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-outline-variant/60">
-            <table className="w-full text-left text-sm min-w-[720px]">
+            <table className="w-full text-left text-sm min-w-[500px]">
               <thead>
                 <tr className="border-b border-outline-variant bg-surface-container-low/60 text-on-surface-variant text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
-                  <th className="py-3 px-3.5">Opportunity Details</th>
-                  <th className="py-3 px-3.5">Target Programs & Audience</th>
-                  <th className="py-3 px-3.5">Status & Approvals</th>
-                  <th className="py-3 px-3.5 text-right">Action</th>
+                  <th className="py-3 px-4">Opportunity Details</th>
+                  <th className="py-3 px-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/40">
                 {data.jobs.map((job) => {
                   const pType = job.posting_type || 'ojt';
-                  const approvals = job.institution_approvals || [];
-                  const approvedCount = approvals.filter(a => a.approval_status === 'approved').length;
-                  const totalApprovals = approvals.length;
-                  const programsList = job.target_programs || [];
 
                   return (
                     <tr key={job.job_id} className="hover:bg-surface-container-low/70 transition-colors text-xs group">
-                      <td className="py-3.5 px-3.5">
+                      <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-sm text-on-surface group-hover:text-vibrant-orange transition-colors">{job.title}</p>
                           <span className={`inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-semibold capitalize ${
@@ -475,102 +472,39 @@ export default function OrgDashboard() {
                           </span>
                         </div>
                         <div className="text-[11px] text-on-surface-variant flex items-center flex-wrap gap-1.5 mt-1 font-medium">
-                          <span className="inline-flex items-center gap-0.5 text-on-surface-variant">
-                            <span className="material-symbols-outlined text-[13px] text-vibrant-orange">location_on</span>
-                            {job.location || 'On-site / Hybrid'}
-                          </span>
                           {job.workplace_area && (
                             <>
-                              <span className="text-outline-variant">•</span>
                               <span className="inline-flex items-center gap-0.5 text-on-surface font-semibold">
-                                <span className="material-symbols-outlined text-[12px] text-vibrant-orange">meeting_room</span>
+                                <span className="material-symbols-outlined text-[13px] text-vibrant-orange">meeting_room</span>
                                 <span>{job.workplace_area}</span>
                               </span>
+                              <span className="text-outline-variant">•</span>
                             </>
                           )}
-                          <span className="text-outline-variant">•</span>
-                          <span className="capitalize">{job.work_setup}</span>
+                          <span className="capitalize">{job.work_setup || 'On-Site'}</span>
                           <span className="text-outline-variant">•</span>
                           <span>{job.slots_available || 1} {job.slots_available === 1 ? 'slot' : 'slots'}</span>
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-3.5">
-                        {programsList.length > 0 ? (
-                          <div className="flex flex-wrap items-center gap-1.5 max-w-[220px]">
-                            {programsList.slice(0, 2).map((p, idx) => {
-                              const label = p.program_code || p.program_name || (typeof p === 'string' ? p : 'Program');
-                              return (
-                                <span
-                                  key={idx}
-                                  title={p.program_name || label}
-                                  className="inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-surface-container-high text-on-surface border border-outline-variant/60 shadow-xs max-w-[130px] truncate"
-                                >
-                                  {label}
-                                </span>
-                              );
-                            })}
-                            {programsList.length > 2 && (
-                              <span
-                                title={programsList.slice(2).map(p => p.program_code || p.program_name).join(', ')}
-                                className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-surface-container text-on-surface-variant border border-outline-variant/40"
-                              >
-                                +{programsList.length - 2} more
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-on-surface-variant italic">
-                            <span className="material-symbols-outlined text-[13px] not-italic opacity-60">all_inclusive</span>
-                            All Academic Programs
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-3.5">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            (job.status || 'active').toLowerCase() === 'active'
-                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                              : 'bg-surface-container text-on-surface-variant border border-outline-variant'
-                          }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${
-                              (job.status || 'active').toLowerCase() === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'
-                            }`} />
-                            {job.status || 'Active'}
-                          </span>
-                          <span className="text-[11px] text-on-surface-variant font-medium">
-                            <strong className="text-on-surface">{job.applicant_count || 0}</strong> applicants
-                          </span>
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedJobForDetail(job)}
+                            className="px-3 py-1.5 bg-vibrant-orange/10 hover:bg-vibrant-orange text-vibrant-orange hover:text-white rounded-lg text-xs font-bold transition-all border border-vibrant-orange/30 hover:border-vibrant-orange inline-flex items-center gap-1.5 shadow-xs"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">visibility</span>
+                            <span>View Details</span>
+                          </button>
+                          <Link
+                            to="/dashboard/organization/jobs"
+                            className="px-3 py-1.5 bg-surface-container text-on-surface hover:bg-surface-container-high rounded-lg text-xs font-bold transition-all border border-outline-variant inline-flex items-center gap-1 group/btn shadow-xs"
+                          >
+                            <span>Manage</span>
+                            <span className="material-symbols-outlined text-[14px] group-hover/btn:translate-x-0.5 transition-transform">arrow_forward</span>
+                          </Link>
                         </div>
-                        <div className="mt-1">
-                          {totalApprovals > 0 ? (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-semibold ${
-                              approvedCount === totalApprovals
-                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                : approvedCount > 0
-                                ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                                : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                            }`}>
-                              <span className="material-symbols-outlined text-[12px]">
-                                {approvedCount === totalApprovals ? 'verified' : approvedCount > 0 ? 'rule' : 'hourglass_top'}
-                              </span>
-                              <span>{approvedCount}/{totalApprovals} Approved</span>
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-on-surface-variant">General Access</span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-3.5 text-right whitespace-nowrap">
-                        <Link
-                          to="/dashboard/organization/jobs"
-                          className="px-3 py-1.5 bg-surface-container text-on-surface hover:bg-vibrant-orange hover:text-white rounded-lg text-xs font-bold transition-all border border-outline-variant hover:border-vibrant-orange inline-flex items-center gap-1 group/btn shadow-xs"
-                        >
-                          <span>Manage</span>
-                          <span className="material-symbols-outlined text-[14px] group-hover/btn:translate-x-0.5 transition-transform">arrow_forward</span>
-                        </Link>
                       </td>
                     </tr>
                   );
@@ -712,6 +646,232 @@ export default function OrgDashboard() {
           </div>
         </div>
       )}
+
+      {/* VIEW DETAILS DRAWER */}
+      <DetailDrawer
+        open={!!selectedJobForDetail}
+        onClose={() => setSelectedJobForDetail(null)}
+        title={selectedJobForDetail?.title || 'Opportunity Details'}
+        subtitle="Opportunity & Placement Specs"
+        footer={
+          selectedJobForDetail && (
+            <div className="flex items-center justify-between w-full gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedJobForDetail(null)}
+                className="px-4 py-2 bg-surface-container text-on-surface hover:bg-surface-container-high rounded-xl text-xs font-bold transition-all border border-outline-variant"
+              >
+                Close
+              </button>
+              <Link
+                to="/dashboard/organization/jobs"
+                className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold transition-all shadow-sm inline-flex items-center gap-1.5"
+              >
+                <span>Manage in Postings</span>
+                <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+              </Link>
+            </div>
+          )
+        }
+      >
+        {selectedJobForDetail && (() => {
+          const job = selectedJobForDetail;
+          const pType = job.posting_type || 'ojt';
+          const approvals = job.institution_approvals || [];
+          const approvedCount = approvals.filter(a => a.approval_status === 'approved').length;
+          const totalApprovals = approvals.length;
+          const programsList = job.target_programs || [];
+
+          return (
+            <div className="space-y-4">
+              {job.flyer_image_url && (
+                <div className="rounded-2xl overflow-hidden border border-outline-variant max-h-48 bg-surface-container">
+                  <img
+                    src={resolveFileUrl(job.flyer_image_url)}
+                    alt={job.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+
+              {/* Status & Approvals Section */}
+              <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/60 space-y-3">
+                <div className="flex items-center justify-between border-b border-outline-variant/40 pb-2.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-vibrant-orange">verified_user</span>
+                    Status & Approvals
+                  </span>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
+                    (job.status || 'active').toLowerCase() === 'active'
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-surface-container text-on-surface-variant border border-outline-variant'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      (job.status || 'active').toLowerCase() === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'
+                    }`} />
+                    {job.status || 'Active'}
+                  </span>
+                </div>
+
+                <DetailRow label="Candidates Applied">
+                  <span className="font-bold text-on-surface">
+                    {job.applicant_count || 0} applicant{job.applicant_count === 1 ? '' : 's'}
+                  </span>
+                </DetailRow>
+
+                <DetailRow label="Institution Approvals">
+                  {totalApprovals > 0 ? (
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                      approvedCount === totalApprovals
+                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                        : approvedCount > 0
+                        ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                        : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                    }`}>
+                      <span className="material-symbols-outlined text-[14px]">
+                        {approvedCount === totalApprovals ? 'verified' : approvedCount > 0 ? 'rule' : 'hourglass_top'}
+                      </span>
+                      <span>{approvedCount}/{totalApprovals} Approved</span>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-on-surface-variant font-medium">General Access (All Accredited Institutions)</span>
+                  )}
+                </DetailRow>
+
+                {totalApprovals > 0 && (
+                  <div className="pt-2 border-t border-outline-variant/30 space-y-1.5">
+                    <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Institution Endorsement Breakdown</p>
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      {approvals.map((app, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-surface-container/70 border border-outline-variant/40">
+                          <span className="font-semibold text-on-surface truncate mr-2" title={app.institution_name}>
+                            {app.institution_name || app.institution_code || 'Academic Partner'}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold uppercase tracking-wider shrink-0 ${
+                            app.approval_status === 'approved'
+                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                              : app.approval_status === 'rejected'
+                              ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                              : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                          }`}>
+                            {app.approval_status || 'Pending'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Target Programs & Audience Section */}
+              <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/60 space-y-3">
+                <div className="flex items-center justify-between border-b border-outline-variant/40 pb-2.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-vibrant-orange">school</span>
+                    Target Programs & Audience
+                  </span>
+                  <span className="text-xs font-bold text-on-surface">
+                    {programsList.length > 0 ? `${programsList.length} Program${programsList.length === 1 ? '' : 's'}` : 'All'}
+                  </span>
+                </div>
+
+                {programsList.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {programsList.map((p, idx) => {
+                      const code = p.program_code || (typeof p === 'string' ? p : '');
+                      const name = p.program_name || '';
+                      return (
+                        <div
+                          key={idx}
+                          className="px-3 py-1.5 rounded-lg bg-surface-container text-on-surface border border-outline-variant/60 flex items-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-[14px] text-vibrant-orange">check_circle</span>
+                          <div>
+                            {code && <span className="font-bold text-xs mr-1.5">{code}</span>}
+                            {name && <span className="text-[11px] text-on-surface-variant">{name}</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-lg bg-surface-container/60 border border-outline-variant/40 text-xs text-on-surface-variant flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] text-vibrant-orange">all_inclusive</span>
+                    <span>This opportunity accepts applicants from <strong>all academic programs and disciplines</strong>.</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Location & Placement Specs Section */}
+              <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/60 space-y-3">
+                <div className="flex items-center justify-between border-b border-outline-variant/40 pb-2.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-vibrant-orange">location_on</span>
+                    Workplace Location & Specifications
+                  </span>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Physical Address / Work Location</p>
+                  <p className="text-sm font-semibold text-on-surface leading-snug">
+                    {formatAddress(job.location) || job.location || 'On-site / Hybrid arrangement'}
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-outline-variant/30 space-y-2">
+                  <DetailRow label="Opportunity Type">
+                    <span className="font-bold text-on-surface capitalize">
+                      {pType === 'ojt' ? 'OJT Internship' : pType === 'on_call' ? 'On-Call Opportunity' : 'Career Opening'}
+                    </span>
+                  </DetailRow>
+                  <DetailRow label="Work Setup">
+                    <span className="capitalize font-semibold text-on-surface">{job.work_setup || 'On-Site'}</span>
+                  </DetailRow>
+                  {job.workplace_area && (
+                    <DetailRow label="Workplace Area / Dept">
+                      <span className="font-semibold text-on-surface">{job.workplace_area}</span>
+                    </DetailRow>
+                  )}
+                  <DetailRow label="Slots Available">
+                    <span className="font-bold text-on-surface">{job.slots_available || 1} {job.slots_available === 1 ? 'slot' : 'slots'}</span>
+                  </DetailRow>
+                  {job.mentor_first_name && (
+                    <DetailRow label="Assigned Mentor">
+                      <span className="font-semibold text-on-surface">
+                        {job.mentor_first_name} {job.mentor_last_name}
+                      </span>
+                    </DetailRow>
+                  )}
+                  {(job.start_time || job.finish_time) && (
+                    <DetailRow label="Shift Hours">
+                      <span>{job.start_time || '08:00'} - {job.finish_time || '17:00'} (PST)</span>
+                    </DetailRow>
+                  )}
+                </div>
+              </div>
+
+              {/* Description & Requirements (if present) */}
+              {job.description && (
+                <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/60 space-y-1.5">
+                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Description</p>
+                  <p className="text-xs text-on-surface-variant whitespace-pre-wrap leading-relaxed">
+                    {job.description}
+                  </p>
+                </div>
+              )}
+
+              {job.requirements && (
+                <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/60 space-y-1.5">
+                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Requirements</p>
+                  <p className="text-xs text-on-surface-variant whitespace-pre-wrap leading-relaxed">
+                    {job.requirements}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </DetailDrawer>
     </div>
   );
 }
