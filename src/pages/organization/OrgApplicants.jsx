@@ -406,16 +406,16 @@ export default function OrgApplicants() {
                         </td>
 
                         {/* Action */}
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end">
                             <button
                               type="button"
                               onClick={() => handleInspectCandidate(app.application_id)}
-                              className="w-8 h-8 bg-surface-container hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-vibrant-orange transition-all border border-outline-variant hover:border-vibrant-orange/40 inline-flex items-center justify-center shrink-0 cursor-pointer shadow-xs"
+                              className="px-3 py-1.5 bg-vibrant-orange/10 hover:bg-vibrant-orange text-vibrant-orange hover:text-white rounded-lg text-xs font-bold transition-all border border-vibrant-orange/30 hover:border-vibrant-orange inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
                               title="View Candidate Details"
-                              aria-label="View Candidate Details"
                             >
-                              <span className="material-symbols-outlined text-[18px]">visibility</span>
+                              <span className="material-symbols-outlined text-[15px]">visibility</span>
+                              <span>View Details</span>
                             </button>
                           </div>
                         </td>
