@@ -10,6 +10,8 @@ import { MissingFieldsBanner, FieldErrorMessage, getFieldValidationClass } from 
 import EmailInput from '../../components/ui/EmailInput';
 import { validateEmail } from '../../utils/email';
 
+import RegistrationLayout from '../../components/Auth/RegistrationLayout';
+
 export default function RegisterStudentPage() {
   const navigate = useNavigate();
   const [institutions, setInstitutions] = useState([]);
@@ -190,51 +192,40 @@ export default function RegisterStudentPage() {
     }
   };
 
-  return (
-    <PageTransition>
-      <div className="min-h-[100dvh] bg-surface-container-lowest flex items-center justify-center p-2.5 sm:p-4 md:p-6 relative overflow-y-auto">
-        
-        {/* Decorative background blobs */}
-        <div className="absolute top-[-10%] left-[-5%] w-[450px] h-[450px] bg-orange-tint rounded-full mix-blend-multiply filter blur-3xl opacity-60 pointer-events-none"></div>
-        <div className="absolute bottom-[-10%] right-[-5%] w-[450px] h-[450px] bg-green-tint rounded-full mix-blend-multiply filter blur-3xl opacity-60 pointer-events-none"></div>
+    const filledCount = [
+      formData.access_code,
+      formData.first_name,
+      formData.last_name,
+      formData.student_number,
+      formData.email,
+      formData.contact_number,
+      selectedInst,
+      formData.program_id,
+      formData.password,
+      formData.confirm_password
+    ].filter(Boolean).length;
+    const progressPercentage = Math.min(100, Math.max(20, Math.round((filledCount / 10) * 100)));
 
-        {/* Floating Card */}
-        <div className="w-full max-w-[1020px] max-h-[min(94vh,760px)] bg-surface rounded-2xl sm:rounded-[1.75rem] shadow-[0_16px_40px_rgba(0,0,0,0.08)] overflow-hidden flex relative z-10 border border-outline-variant/30 my-auto">
-          
-          {/* LEFT PANEL - Form */}
-          <div className="w-full lg:w-3/5 p-4 sm:p-6 md:p-8 flex flex-col relative bg-surface max-h-[min(94vh,760px)] overflow-y-auto custom-scrollbar">
-            
-            {/* Top Back Button */}
-            <Link 
-              to="/get-started" 
-              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-on-surface-variant hover:text-vibrant-orange transition-colors mb-4 w-fit"
-            >
-              <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-              Back to Roles
-            </Link>
+    return (
+      <RegistrationLayout
+        role="student"
+        badgeText="Official Student Clearance"
+        badgeIcon="school"
+        title="Student Registration"
+        subtitle="Register using your university-issued access code. Apply to verified OJT openings, log attendance, and earn accredited hours."
+        progressPercentage={progressPercentage}
+      >
+        {error && (
+          <div className="p-3 mb-5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-xs font-semibold flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">error</span>
+            <span>{error}</span>
+          </div>
+        )}
 
-            <div className="flex-grow flex flex-col justify-center">
-              {/* Header */}
-              <div className="space-y-1.5 mb-5 sm:mb-6">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-tint text-vibrant-orange font-bold text-xs mb-1">
-                  <span className="material-symbols-outlined text-[14px]">pin</span>
-                  Institution Passcode Verification
-                </div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">Student Registration</h1>
-                <p className="text-xs sm:text-sm text-on-surface-variant">Create your account to access verified OJT opportunities.</p>
-              </div>
+        {/* Incomplete Required Fields Top Banner with Quick-Jump Links */}
+        <MissingFieldsBanner missingList={missingList} onClear={() => setMissingList([])} />
 
-              {error && (
-                <div className="p-2.5 sm:p-3 mb-4 bg-error-container text-error rounded-xl text-xs font-medium flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px]">error</span>
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {/* Incomplete Required Fields Top Banner with Quick-Jump Links */}
-              <MissingFieldsBanner missingList={missingList} onClear={() => setMissingList([])} />
-
-              <form noValidate onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
+        <form noValidate onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
                 {/* Hidden anti-autofill dummy traps to absorb browser credential autofill */}
                 <div style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }} aria-hidden="true">
                   <input type="text" name="fake_username_prevent_autofill" tabIndex={-1} autoComplete="off" />
@@ -546,55 +537,30 @@ export default function RegisterStudentPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 sm:py-3.5 mt-5 bg-vibrant-orange text-white rounded-xl font-bold text-xs sm:text-sm hover:bg-deep-orange transition-all disabled:opacity-50 shadow-md hover:shadow-lg active:scale-[0.98] flex justify-center items-center gap-2"
+                  className="w-full py-3.5 mt-6 bg-[#ffba4a] hover:bg-[#ffc96e] text-[#291800] rounded-xl font-bold text-sm shadow-[0_0_20px_rgba(255,186,74,0.35)] transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer"
                 >
                   {loading ? (
                     <>
                       <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
-                      Registering...
+                      <span>Submitting Registration...</span>
                     </>
                   ) : (
-                    'Submit Student Registration'
+                    <>
+                      <span>Submit Student Registration</span>
+                      <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                    </>
                   )}
                 </button>
               </form>
               
-              <div className="pt-4 sm:pt-5 text-center">
-                <p className="text-xs sm:text-sm text-on-surface-variant">
-                  Already have an account?{' '}
-                  <Link to="/login" className="text-vibrant-orange font-bold hover:underline">
-                    Sign In
+              <div className="pt-5 text-center border-t border-slate-200 dark:border-white/10 mt-6">
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                  Already have an accredited account?{' '}
+                  <Link to="/login" className="text-teal-500 dark:text-teal-400 font-bold hover:underline">
+                    Sign In →
                   </Link>
                 </p>
               </div>
-
-            </div>
-          </div>
-
-          {/* RIGHT PANEL - Image */}
-          <div className="hidden lg:block lg:w-2/5 relative bg-surface-container-high overflow-hidden">
-            <img 
-              src="/photo/StudentReg.jpg" 
-              alt="Student Registration" 
-              loading="lazy"
-              decoding="async"
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
-            />
-            {/* Overlay to ensure image blends elegantly */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-vibrant-orange/20 to-transparent mix-blend-overlay"></div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
-            
-            {/* Contextual Text on Image */}
-            <div className="absolute bottom-8 left-8 right-8 text-white">
-              <h3 className="text-xl sm:text-2xl font-bold mb-1.5">Your Career Starts Here</h3>
-              <p className="text-xs sm:text-sm text-white/80 leading-relaxed">
-                Connect with verified employers, log your OJT hours digitally, and build your professional portfolio with InternConPH.
-              </p>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </PageTransition>
+      </RegistrationLayout>
   );
 }

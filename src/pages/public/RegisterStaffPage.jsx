@@ -9,6 +9,7 @@ import { validateRequiredFields, handleServerValidationError, setFieldValidation
 import { MissingFieldsBanner, FieldErrorMessage, getFieldValidationClass } from '../../components/Auth/RegistrationAlerts';
 import EmailInput from '../../components/ui/EmailInput';
 import { validateEmail } from '../../utils/email';
+import RegistrationLayout from '../../components/Auth/RegistrationLayout';
 
 export default function RegisterStaffPage() {
   const navigate = useNavigate();
@@ -212,50 +213,38 @@ export default function RegisterStaffPage() {
 
   const selectedInstObj = institutions.find((i) => String(i.institution_id) === String(formData.institution_id));
 
+  const filledCount = [
+    formData.access_code,
+    formData.institution_id,
+    formData.first_name,
+    formData.last_name,
+    formData.department_name,
+    formData.email,
+    formData.contact_number,
+    formData.password,
+    formData.confirm_password
+  ].filter(Boolean).length;
+  const progressPercentage = Math.min(100, Math.max(25, Math.round((filledCount / 9) * 100)));
+
   return (
-    <PageTransition>
-      <div className="min-h-[100dvh] bg-surface-container-lowest flex items-center justify-center p-2.5 sm:p-4 md:p-6 relative overflow-y-auto">
-        
-        {/* Decorative background blobs */}
-        <div className="absolute top-[-10%] left-[-5%] w-[450px] h-[450px] bg-orange-tint rounded-full mix-blend-multiply filter blur-3xl opacity-60"></div>
-        <div className="absolute bottom-[-10%] right-[-5%] w-[450px] h-[450px] bg-green-tint rounded-full mix-blend-multiply filter blur-3xl opacity-60"></div>
+    <RegistrationLayout
+      role="staff"
+      badgeText="Authorized Academic Staff"
+      badgeIcon="badge"
+      title="Coordinator Registration"
+      subtitle="For authorized Institution OJT Coordinators. Requires a Passcode issued by your Institution OJT Head."
+      progressPercentage={progressPercentage}
+    >
+      {error && (
+        <div className="p-3 mb-5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-xs font-semibold flex items-center gap-2">
+          <span className="material-symbols-outlined text-[18px]">error</span>
+          <span>{error}</span>
+        </div>
+      )}
 
-        {/* Floating Card */}
-        <div className="w-full max-w-[1020px] max-h-[min(94vh,760px)] bg-surface rounded-2xl sm:rounded-[1.75rem] shadow-[0_16px_40px_rgba(0,0,0,0.08)] overflow-hidden flex relative z-10 border border-outline-variant/30 my-auto">
-          
-          {/* LEFT PANEL - Form */}
-          <div className="w-full lg:w-3/5 p-4 sm:p-6 md:p-8 flex flex-col relative bg-surface max-h-[min(94vh,760px)] overflow-y-auto custom-scrollbar">
-            
-            {/* Top Back Button */}
-            <Link 
-              to="/get-started" 
-              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-on-surface-variant hover:text-vibrant-orange transition-colors mb-4 w-fit"
-            >
-              <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-              Back to Roles
-            </Link>
+      <MissingFieldsBanner missingList={missingList} onClear={() => { setMissingList([]); setFieldErrors({}); }} />
 
-            <div className="flex-grow flex flex-col justify-center">
-              {/* Header */}
-              <div className="space-y-1.5 mb-5 sm:mb-6">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-tint text-vibrant-orange font-bold text-xs mb-1">
-                  <span className="material-symbols-outlined text-[14px]">badge</span>
-                  Authorized Institution Staff
-                </div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">OJT Coordinator Registration</h1>
-                <p className="text-xs sm:text-sm text-on-surface-variant">For authorized Institution OJT Coordinators. Requires an OJT Head-issued Passcode.</p>
-              </div>
-
-              {error && (
-                <div className="p-2.5 sm:p-3 mb-4 bg-error-container text-error rounded-xl text-xs font-medium flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px]">error</span>
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <MissingFieldsBanner missingList={missingList} onClear={() => { setMissingList([]); setFieldErrors({}); }} />
-
-              <form onSubmit={handleSubmit} noValidate autoComplete="off" className="space-y-4">
+      <form onSubmit={handleSubmit} noValidate autoComplete="off" className="space-y-4">
                 {/* Hidden anti-autofill dummy traps to absorb browser credential autofill */}
                 <div style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }} aria-hidden="true">
                   <input type="text" name="fake_username_prevent_autofill" tabIndex={-1} autoComplete="off" />
@@ -587,56 +576,30 @@ export default function RegisterStaffPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 sm:py-3.5 mt-5 bg-vibrant-orange text-white rounded-xl font-bold text-xs sm:text-sm hover:bg-deep-orange transition-all disabled:opacity-50 shadow-md hover:shadow-lg active:scale-[0.98] flex justify-center items-center gap-2"
+                  className="w-full py-3.5 mt-6 bg-[#ffba4a] hover:bg-[#ffc96e] text-[#291800] rounded-xl font-bold text-sm shadow-[0_0_20px_rgba(255,186,74,0.35)] transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer"
                 >
                   {loading ? (
                     <>
                       <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
-                      Submitting Registration...
+                      <span>Submitting Registration...</span>
                     </>
                   ) : (
-                    'Register as OJT Coordinator'
+                    <>
+                      <span>Register as OJT Coordinator</span>
+                      <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                    </>
                   )}
                 </button>
               </form>
               
-              <div className="pt-4 sm:pt-5 text-center">
-                <p className="text-xs sm:text-sm text-on-surface-variant">
+              <div className="pt-5 text-center border-t border-slate-200 dark:border-white/10 mt-6">
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
                   Already have an active staff account?{' '}
-                  <Link to="/login" className="text-vibrant-orange font-bold hover:underline">
-                    Sign in to Staff Portal
+                  <Link to="/login" className="text-teal-500 dark:text-teal-400 font-bold hover:underline">
+                    Sign In →
                   </Link>
                 </p>
               </div>
-
-            </div>
-          </div>
-
-          {/* RIGHT PANEL - Image */}
-          <div className="hidden lg:block lg:w-2/5 relative bg-surface-container-high overflow-hidden">
-            <img 
-              src="/photo/staff.jpg" 
-              alt="Staff Registration" 
-              loading="lazy"
-              decoding="async"
-              onError={(e) => {
-                e.target.src = '/staff.jpg';
-              }}
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-tr from-orange-tint/40 to-transparent mix-blend-overlay"></div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
-            
-            <div className="absolute bottom-8 left-8 right-8 text-white">
-              <h3 className="text-xl sm:text-2xl font-bold mb-1.5">Guide the Next Generation</h3>
-              <p className="text-xs sm:text-sm text-white/80 leading-relaxed">
-                Empower your students with comprehensive tools. Review OJT requirements, monitor DTR and evaluations, and ensure smooth internship journeys from start to finish.
-              </p>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </PageTransition>
+      </RegistrationLayout>
   );
 }

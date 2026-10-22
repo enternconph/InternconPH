@@ -51,9 +51,18 @@ export default function Header() {
       <div className="flex items-center justify-between h-16 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto gap-4">
         {/* Left: Logo */}
         <div className="flex-1 flex items-center justify-start min-w-0">
-          <Link to="/" className="text-xl font-bold text-vibrant-orange flex items-center gap-2 shrink-0">
-            <img src="/logo.png" alt="internconPH Logo" className="h-9 sm:h-10 w-auto object-contain" decoding="async" />
-            <span className="text-xl sm:text-2xl font-bold tracking-tight">íntєrncσnᵖʰ</span>
+          <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
+            <div className="w-10 h-10 rounded-xl bg-white shadow-sm p-1.5 shrink-0 flex items-center justify-center border border-black/5 transition-transform group-hover:scale-105">
+              <img src="/logo.png" alt="InternconPH Logo" className="w-full h-full object-contain" decoding="async" />
+            </div>
+            <div className="flex flex-col text-left">
+              <span className="text-lg sm:text-xl font-bold tracking-tight leading-tight text-on-surface">
+                interncon<span className="text-[#F59E0B]">ph</span>
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-semibold tracking-wider text-teal-500 uppercase leading-none mt-0.5">
+                INTERNSHIP CONNECTIVITY
+              </span>
+            </div>
           </Link>
         </div>
 
@@ -189,16 +198,16 @@ export default function Header() {
               <span>Dashboard</span>
             </Link>
           ) : (
-            <div className="hidden sm:flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-2.5">
               <Link
                 to="/login"
-                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-on-surface hover:text-vibrant-orange hover:bg-surface-container transition-colors"
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-on-surface hover:text-[#F59E0B] hover:bg-surface-container transition-colors"
               >
                 Sign In
               </Link>
               <Link
                 to="/get-started"
-                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-500 via-vibrant-orange to-deep-orange text-white px-3.5 py-1.5 rounded-xl text-xs font-bold hover:brightness-110 transition-all shadow-sm active:scale-95 group"
+                className="inline-flex items-center gap-1.5 bg-[#FFB433] hover:bg-[#ffa71a] text-[#132320] px-4 py-1.5 rounded-xl text-xs font-bold shadow-[0_2px_12px_rgba(255,180,51,0.25)] transition-all active:scale-95 group cursor-pointer"
               >
                 <span>Get Started</span>
                 <span className="material-symbols-outlined text-[15px] transition-transform duration-200 group-hover:translate-x-0.5">

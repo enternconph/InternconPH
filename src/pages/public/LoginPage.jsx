@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import PageTransition from '../../components/Layout/PageTransition';
-import EmailInput from '../../components/ui/EmailInput';
 import { validateEmail } from '../../utils/email';
 
 export default function LoginPage() {
@@ -13,6 +12,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [emailError, setEmailError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showForgotNotice, setShowForgotNotice] = useState(false);
   const emailInputRef = useRef(null);
 
   const { login, getDashboardUrl } = useAuth();
@@ -44,158 +44,382 @@ export default function LoginPage() {
 
   return (
     <PageTransition>
-      <div className="min-h-[100dvh] bg-surface-container-lowest flex items-center justify-center p-3 sm:p-5 md:p-6 relative overflow-y-auto">
+      <div className={`min-h-[100dvh] flex flex-col justify-between transition-colors duration-300 relative overflow-x-hidden ${
+        isDark ? 'bg-[#061210] text-[#94a3b8]' : 'bg-[#F8FAF9] text-[#1c2e2b]'
+      }`}>
         
-        {/* Decorative background blobs */}
-        <div className="absolute top-[-10%] left-[-5%] w-[450px] h-[450px] bg-orange-tint rounded-full mix-blend-multiply filter blur-3xl opacity-60 pointer-events-none"></div>
-        <div className="absolute bottom-[-10%] right-[-5%] w-[450px] h-[450px] bg-green-tint rounded-full mix-blend-multiply filter blur-3xl opacity-60 pointer-events-none"></div>
+        {/* Ambient Glows */}
+        <div className={`absolute top-[-15%] left-[-10%] w-[550px] h-[550px] rounded-full filter blur-[100px] pointer-events-none opacity-40 transition-opacity ${
+          isDark ? 'bg-[#0d9488]/25' : 'bg-[#80CBC4]/30'
+        }`}></div>
+        <div className={`absolute bottom-[-15%] right-[-10%] w-[550px] h-[550px] rounded-full filter blur-[100px] pointer-events-none opacity-40 transition-opacity ${
+          isDark ? 'bg-[#059669]/20' : 'bg-[#B4EBE6]/40'
+        }`}></div>
 
-        {/* Floating Card */}
-        <div className="w-full max-w-[880px] bg-surface rounded-2xl sm:rounded-[1.75rem] shadow-[0_16px_40px_rgba(0,0,0,0.08)] overflow-hidden flex relative z-10 border border-outline-variant/30 my-auto">
-          
-          {/* LEFT PANEL - Form */}
-          <div className="w-full lg:w-1/2 p-5 sm:p-7 md:p-8 lg:p-9 flex flex-col justify-between relative bg-surface">
-            
-            {/* Top Navigation: Back Button & Theme Toggle */}
-            <div className="flex items-center justify-between mb-4 sm:mb-6">
-              <Link 
-                to="/" 
-                className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-on-surface-variant hover:text-vibrant-orange transition-colors"
-              >
-                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                Back
-              </Link>
+        {/* TOP HEADER */}
+        <header className="w-full relative z-20 px-4 sm:px-8 py-4">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            {/* Logo */}
+            <Link to="/" className="flex items-center gap-3 group">
+              <div className="w-10 h-10 rounded-xl bg-white shadow-sm p-1.5 shrink-0 flex items-center justify-center border border-black/5 transition-transform group-hover:scale-105">
+                <img src="/logo.png" alt="InternconPH Logo" className="w-full h-full object-contain" decoding="async" />
+              </div>
+              <div className="flex flex-col">
+                <span className={`text-lg sm:text-xl font-bold tracking-tight leading-tight transition-colors ${
+                  isDark ? 'text-white' : 'text-[#0c1f1c]'
+                }`}>
+                  interncon<span className="text-[#F59E0B]">ph</span>
+                </span>
+                <span className="text-[9px] sm:text-[10px] font-semibold tracking-wider text-[#14b8a6] uppercase leading-none mt-0.5">
+                  INTERNSHIP CONNECTIVITY
+                </span>
+              </div>
+            </Link>
+
+            {/* Right Controls: Theme Toggle & Sign In Pill */}
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 id="login-theme-toggle-btn"
                 onClick={toggleTheme}
-                className={`p-1.5 sm:p-2 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 ${
+                className={`p-2 rounded-full transition-all duration-200 cursor-pointer ${
                   isDark
-                    ? 'bg-primary-container/20 text-primary-container hover:bg-primary-container/30 border border-primary-container/40'
-                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                    ? 'text-yellow-400 hover:bg-white/10'
+                    : 'text-gray-600 hover:bg-black/5 hover:text-gray-900'
                 }`}
-                title={isDark ? 'Switch to Light Mode' : 'Switch to Aura Radiant Dark Mode'}
+                title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 aria-label="Toggle Theme Mode"
               >
-                <span className="material-symbols-outlined text-[17px] sm:text-[18px] block">
+                <span className="material-symbols-outlined text-[20px] block">
                   {isDark ? 'light_mode' : 'dark_mode'}
                 </span>
               </button>
-            </div>
 
-            <div className="flex-grow flex flex-col justify-center">
-              {/* Logo & Title */}
-              <div className="flex flex-col items-center text-center space-y-1.5 mb-5 sm:mb-6">
-                <div className="flex items-center gap-2 mb-1">
-                  <img src="/logo.png" alt="internconPH" className="h-8 sm:h-9 w-auto object-contain" decoding="async" />
-                  <span className="text-xl sm:text-2xl font-bold text-on-surface tracking-tight">ínternconᵖʰ</span>
-                </div>
-                <h1 className="text-xl sm:text-2xl font-bold text-on-surface">Welcome Back</h1>
-                <p className="text-xs sm:text-sm text-on-surface-variant">Sign in to your InternConPH account</p>
+              <div className={`hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs font-semibold ${
+                isDark 
+                  ? 'border-emerald-500/30 bg-[#0c2420] text-emerald-300' 
+                  : 'border-emerald-600/30 bg-emerald-50 text-emerald-800'
+              }`}>
+                <span className="material-symbols-outlined text-[16px]">person</span>
+                <span>Sign In</span>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* MAIN CONTENT AREA */}
+        <main className="flex-1 flex items-center justify-center p-3 sm:p-6 relative z-10 w-full my-auto">
+          {/* FLOATING CARD */}
+          <div className={`w-full max-w-[1020px] rounded-3xl overflow-hidden shadow-2xl flex flex-col lg:flex-row relative border transition-all duration-300 ${
+            isDark 
+              ? 'bg-[#091714] border-[#163830] shadow-[0_24px_70px_rgba(0,0,0,0.65)]' 
+              : 'bg-white border-[#E2E8F0] shadow-[0_20px_50px_rgba(0,0,0,0.06)]'
+          }`}>
+
+            {/* LEFT PANEL - Form Area */}
+            <div className={`w-full lg:w-1/2 p-6 sm:p-9 md:p-10 flex flex-col justify-center relative ${
+              isDark ? 'bg-[#091714]' : 'bg-white'
+            }`}>
+              
+              {/* Badge */}
+              <div className="mb-4">
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] sm:text-[11px] font-extrabold uppercase tracking-widest ${
+                  isDark 
+                    ? 'bg-[#0e3831] text-[#2dd4bf] border border-[#2dd4bf]/20' 
+                    : 'bg-[#e6f7f5] text-[#0d9488] border border-[#0d9488]/20'
+                }`}>
+                  WELCOME BACK
+                </span>
               </div>
 
+              {/* Title & Subtitle */}
+              <div className="space-y-1.5 mb-6">
+                <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${
+                  isDark ? 'text-white' : 'text-[#0c1f1c]'
+                }`}>
+                  Welcome back<span className="text-[#2dd4bf]">.</span>
+                </h1>
+                <p className={`text-xs sm:text-sm ${
+                  isDark ? 'text-[#94a3b8]' : 'text-gray-500'
+                }`}>
+                  Sign in to continue your journey with InternConPH.
+                </p>
+              </div>
+
+              {/* Error Message */}
               {error && (
-                <div className="p-2.5 sm:p-3 mb-4 bg-error-container text-error rounded-xl text-xs font-medium flex items-center gap-2">
+                <div className="p-3 mb-4 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl text-xs font-medium flex items-center gap-2">
                   <span className="material-symbols-outlined text-[18px]">error</span>
                   <span>{error}</span>
                 </div>
               )}
 
-              <form noValidate onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4">
+              {/* Sign In Form */}
+              <form noValidate onSubmit={handleSubmit} className="space-y-4">
+                {/* Email Address */}
                 <div>
-                  <EmailInput
-                    label="Email Address"
-                    required
-                    showIcon
-                    icon="person"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (emailError) setEmailError(null);
-                    }}
-                    error={emailError}
-                    onErrorChange={setEmailError}
-                    ref={emailInputRef}
-                    placeholder="name@university.edu.ph"
-                    className="py-2.5 sm:py-3 bg-surface-container-lowest text-xs sm:text-sm"
-                  />
+                  <label className={`block text-xs font-semibold mb-1.5 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Email address
+                  </label>
+                  <div className="relative flex items-center">
+                    <span className={`material-symbols-outlined absolute left-3.5 text-[18px] pointer-events-none ${
+                      isDark ? 'text-gray-500' : 'text-gray-400'
+                    }`}>
+                      person
+                    </span>
+                    <input
+                      ref={emailInputRef}
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (emailError) setEmailError(null);
+                      }}
+                      placeholder="name@university.edu.ph"
+                      className={`w-full pl-10 pr-4 py-3 rounded-xl text-xs sm:text-sm outline-none transition-all ${
+                        isDark 
+                          ? 'bg-[#061210] border border-[#163830] text-white placeholder-gray-500 focus:border-[#2dd4bf] focus:ring-1 focus:ring-[#2dd4bf]' 
+                          : 'bg-[#F9FBFA] border border-gray-200 text-gray-900 placeholder-gray-400 focus:border-[#0d9488] focus:bg-white focus:ring-1 focus:ring-[#0d9488]'
+                      } ${emailError ? '!border-red-500' : ''}`}
+                    />
+                  </div>
+                  {emailError && (
+                    <span className="text-[11px] text-red-400 mt-1 block font-medium">{emailError}</span>
+                  )}
                 </div>
 
+                {/* Password Field */}
                 <div>
-                  <label className="block text-xs font-bold text-on-surface-variant uppercase mb-1">Password</label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px] sm:text-[20px]">lock</span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className={`block text-xs font-semibold ${
+                      isDark ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Password
+                    </label>
+                  </div>
+                  <div className="relative flex items-center">
+                    <span className={`material-symbols-outlined absolute left-3.5 text-[18px] pointer-events-none ${
+                      isDark ? 'text-gray-500' : 'text-gray-400'
+                    }`}>
+                      lock
+                    </span>
                     <input
                       type={showPassword ? 'text' : 'password'}
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-10 pr-10 py-2.5 sm:py-3 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface text-xs sm:text-sm focus:ring-2 focus:ring-vibrant-orange outline-none transition-all focus:border-vibrant-orange"
+                      className={`w-full pl-10 pr-11 py-3 rounded-xl text-xs sm:text-sm outline-none transition-all ${
+                        isDark 
+                          ? 'bg-[#061210] border border-[#163830] text-white placeholder-gray-500 focus:border-[#2dd4bf] focus:ring-1 focus:ring-[#2dd4bf]' 
+                          : 'bg-[#F9FBFA] border border-gray-200 text-gray-900 placeholder-gray-400 focus:border-[#0d9488] focus:bg-white focus:ring-1 focus:ring-[#0d9488]'
+                      }`}
                     />
                     <button
                       type="button"
                       tabIndex={-1}
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setShowPassword((prev) => !prev);
-                      }}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors p-1 flex items-center justify-center cursor-pointer rounded-lg hover:bg-surface-container"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className={`absolute right-3.5 p-1 flex items-center justify-center cursor-pointer rounded-lg transition-colors ${
+                        isDark ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-gray-700'
+                      }`}
                       title={showPassword ? 'Hide password' : 'Show password'}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
-                      <span className="material-symbols-outlined text-[18px] pointer-events-none select-none">
+                      <span className="material-symbols-outlined text-[18px]">
                         {showPassword ? 'visibility_off' : 'visibility'}
                       </span>
                     </button>
                   </div>
+
+                  <div className="flex justify-end mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotNotice(!showForgotNotice)}
+                      className="text-xs font-semibold text-[#2dd4bf] hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+
+                  {showForgotNotice && (
+                    <div className="mt-2 p-2.5 rounded-lg bg-teal-500/10 border border-teal-500/20 text-xs text-teal-300 leading-relaxed">
+                      For secure credential verification, password resets are processed by your University OJT Coordinator or Organization HR Administrator.
+                    </div>
+                  )}
                 </div>
 
+                {/* Primary Sign In Button: Warm Amber CTA */}
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 sm:py-3.5 mt-4 sm:mt-5 bg-vibrant-orange text-white rounded-xl font-bold text-xs sm:text-sm hover:bg-deep-orange transition-all disabled:opacity-50 shadow-md hover:shadow-lg active:scale-[0.98] flex justify-center items-center gap-2 cursor-pointer"
+                  className="w-full py-3.5 px-6 rounded-xl font-bold text-xs sm:text-sm bg-[#F59E0B] hover:bg-[#e08e04] text-[#0c1a17] shadow-lg hover:shadow-xl active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {loading ? (
                     <>
                       <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
-                      Authenticating...
+                      Signing In...
                     </>
                   ) : (
-                    'Sign In'
+                    <>
+                      <span>Sign In</span>
+                      <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                    </>
                   )}
                 </button>
               </form>
 
-              <div className="pt-4 sm:pt-5 text-center">
-                <p className="text-xs sm:text-sm text-on-surface-variant">
-                  Don't have an account yet?{' '}
-                  <Link to="/get-started" className="text-vibrant-orange font-bold hover:underline">
-                    Get Started
+              {/* Privacy Shield Separator */}
+              <div className="relative flex items-center justify-center my-5">
+                <div className={`w-full h-px ${isDark ? 'bg-white/10' : 'bg-gray-200'}`}></div>
+                <div className={`absolute px-3 flex items-center gap-1.5 text-[11px] font-medium whitespace-nowrap ${
+                  isDark ? 'bg-[#091714] text-gray-400' : 'bg-white text-gray-500'
+                }`}>
+                  <span className="material-symbols-outlined text-[14px] text-[#2dd4bf]">verified_user</span>
+                  <span>Your information is secure and private.</span>
+                </div>
+              </div>
+
+              {/* Bottom Actions */}
+              <div className="text-center space-y-1.5 pt-1">
+                <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  New to InternConPH?{' '}
+                  <Link to="/get-started" className="text-[#2dd4bf] font-bold hover:underline inline-flex items-center gap-0.5">
+                    <span>Get Started</span>
+                    <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
                   </Link>
                 </p>
+                <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  Need help? Contact your institution or organization.
+                </p>
               </div>
+
             </div>
-          </div>
 
-          {/* RIGHT PANEL - Image */}
-          <div className="hidden lg:block lg:w-1/2 relative bg-surface-container-high overflow-hidden min-h-[460px]">
-            <img 
-              src="/photo/building.jpg" 
-              alt="Login Building" 
-              loading="lazy"
-              decoding="async"
-              onError={(e) => {
-                e.target.src = '/building.jpg';
-              }}
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
-            />
-            {/* Overlay to ensure image blends elegantly */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-vibrant-orange/20 to-transparent mix-blend-overlay"></div>
-          </div>
+            {/* RIGHT PANEL - Connected Ecosystem Showcase Graphic */}
+            <div className={`w-full lg:w-1/2 p-6 sm:p-9 md:p-10 flex flex-col justify-between relative overflow-hidden ${
+              isDark 
+                ? 'bg-gradient-to-br from-[#0c2a23] via-[#081b16] to-[#040e0c] text-white border-t lg:border-t-0 lg:border-l border-[#163830]' 
+                : 'bg-gradient-to-br from-[#dcfce7]/60 via-[#e0f2fe]/50 to-[#ccfbf1]/80 text-[#0c1f1c] border-t lg:border-t-0 lg:border-l border-gray-100'
+            }`}>
+              
+              {/* Background Glow Meshes */}
+              <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-64 h-64 rounded-full bg-[#2dd4bf]/15 filter blur-3xl pointer-events-none"></div>
 
-        </div>
+              {/* Connected Ecosystem Topology Graphic */}
+              <div className="relative w-full max-w-[340px] h-[170px] mx-auto my-auto flex items-center justify-center">
+                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 340 170" fill="none">
+                  {/* Glowing Connection Paths */}
+                  <path
+                    d="M 65 95 C 110 95, 120 45, 170 45 C 220 45, 230 95, 275 95"
+                    stroke={isDark ? "#2dd4bf" : "#0d9488"}
+                    strokeWidth="2"
+                    strokeOpacity={isDark ? "0.6" : "0.5"}
+                    strokeDasharray="4 4"
+                    className="animate-pulse"
+                  />
+                  <path
+                    d="M 65 95 Q 170 135 275 95"
+                    stroke={isDark ? "#2dd4bf" : "#0d9488"}
+                    strokeWidth="1.5"
+                    strokeOpacity={isDark ? "0.35" : "0.3"}
+                  />
+                  {/* Glowing Signal Nodes */}
+                  <circle cx="115" cy="65" r="3.5" fill={isDark ? "#5eead4" : "#14b8a6"} className="animate-ping" style={{ animationDuration: '3s' }} />
+                  <circle cx="225" cy="65" r="3.5" fill={isDark ? "#5eead4" : "#14b8a6"} className="animate-ping" style={{ animationDuration: '4s' }} />
+                  <circle cx="170" cy="120" r="3" fill="#F59E0B" />
+                </svg>
+
+                {/* Left Node: Company / Hiring Organization */}
+                <div className="absolute left-[35px] top-[65px] flex flex-col items-center">
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
+                    isDark 
+                      ? 'bg-[#081c18] border-2 border-[#2dd4bf] text-[#2dd4bf] shadow-[0_0_22px_rgba(45,212,191,0.5)]' 
+                      : 'bg-white border-2 border-[#0d9488] text-[#0d9488] shadow-[0_6px_20px_rgba(13,148,136,0.25)]'
+                  }`}>
+                    <span className="material-symbols-outlined text-[24px]">apartment</span>
+                  </div>
+                </div>
+
+                {/* Center Top Node: Student / Graduation Cap */}
+                <div className="absolute left-1/2 -translate-x-1/2 top-[15px] flex flex-col items-center">
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
+                    isDark 
+                      ? 'bg-[#081c18] border-2 border-[#2dd4bf] text-[#2dd4bf] shadow-[0_0_26px_rgba(45,212,191,0.6)]' 
+                      : 'bg-white border-2 border-[#0d9488] text-[#0d9488] shadow-[0_8px_24px_rgba(13,148,136,0.3)]'
+                  }`}>
+                    <span className="material-symbols-outlined text-[26px]">school</span>
+                  </div>
+                </div>
+
+                {/* Right Node: Institution / University */}
+                <div className="absolute right-[35px] top-[65px] flex flex-col items-center">
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
+                    isDark 
+                      ? 'bg-[#211403] border-2 border-[#F59E0B] text-[#F59E0B] shadow-[0_0_22px_rgba(245,158,11,0.5)]' 
+                      : 'bg-white border-2 border-[#F59E0B] text-[#F59E0B] shadow-[0_6px_20px_rgba(245,158,11,0.25)]'
+                  }`}>
+                    <span className="material-symbols-outlined text-[24px]">account_balance</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Headline & Subtitle */}
+              <div className="relative z-10 pt-4 space-y-2">
+                <h2 className={`text-2xl sm:text-3xl font-extrabold tracking-tight leading-tight ${
+                  isDark ? 'text-white' : 'text-[#0c1f1c]'
+                }`}>
+                  Your next opportunity <span className="text-[#2dd4bf]">starts here.</span>
+                </h2>
+                <p className={`text-xs sm:text-sm leading-relaxed max-w-sm ${
+                  isDark ? 'text-gray-300/80' : 'text-gray-600'
+                }`}>
+                  One platform. Students, organizations, and institutions—connected.
+                </p>
+              </div>
+
+              {/* 3 Value Pillars */}
+              <div className={`relative z-10 mt-6 pt-5 border-t flex flex-wrap items-center justify-between gap-3 text-xs ${
+                isDark ? 'border-white/10 text-gray-300' : 'border-black/5 text-gray-700'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <span className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                    isDark ? 'bg-teal-500/20 text-[#2dd4bf]' : 'bg-teal-100 text-[#0d9488]'
+                  }`}>
+                    <span className="material-symbols-outlined text-[15px]">verified_user</span>
+                  </span>
+                  <span className="font-medium text-[11px] sm:text-xs">Verified opportunities</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                    isDark ? 'bg-teal-500/20 text-[#2dd4bf]' : 'bg-teal-100 text-[#0d9488]'
+                  }`}>
+                    <span className="material-symbols-outlined text-[15px]">bar_chart</span>
+                  </span>
+                  <span className="font-medium text-[11px] sm:text-xs">OJT progress tracking</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                    isDark ? 'bg-teal-500/20 text-[#2dd4bf]' : 'bg-teal-100 text-[#0d9488]'
+                  }`}>
+                    <span className="material-symbols-outlined text-[15px]">groups</span>
+                  </span>
+                  <span className="font-medium text-[11px] sm:text-xs">Career connections</span>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </main>
+
+        {/* BOTTOM EMPTY BAR TO MAINTAIN SPACING */}
+        <div className="py-2"></div>
       </div>
     </PageTransition>
   );
