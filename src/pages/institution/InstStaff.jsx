@@ -32,6 +32,10 @@ export default function InstStaff() {
   const [copiedCodeId, setCopiedCodeId] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: 'delete', code: null });
 
+  // Active Staff Management UX State
+  const [activeStaffSearch, setActiveStaffSearch] = useState('');
+  const [activeStaffDeptFilter, setActiveStaffDeptFilter] = useState('all');
+
   // Expiration Date Helper
   const getDefaultExpirationDate = (days = 14) => {
     const d = new Date();
@@ -328,6 +332,34 @@ export default function InstStaff() {
 
     return list;
   }, [data.accessCodes, passcodeStatusFilter, passcodeSearch]);
+
+  const filteredVerifiedStaff = useMemo(() => {
+    let list = data.verifiedStaff || [];
+
+    if (activeStaffDeptFilter !== 'all') {
+      list = list.filter((s) => {
+        const staffDept = (s.department_name || s.department || '').trim().toLowerCase();
+        return staffDept === activeStaffDeptFilter.toLowerCase();
+      });
+    }
+
+    if (activeStaffSearch.trim()) {
+      const q = activeStaffSearch.trim().toLowerCase();
+      list = list.filter((s) => {
+        const fullName = `${s.salutation || ''} ${s.first_name || ''} ${s.middle_name || ''} ${s.last_name || ''} ${s.suffix || ''}`.toLowerCase();
+        return (
+          fullName.includes(q) ||
+          s.email?.toLowerCase().includes(q) ||
+          s.staff_number?.toLowerCase().includes(q) ||
+          s.program_name?.toLowerCase().includes(q) ||
+          s.department_name?.toLowerCase().includes(q) ||
+          s.position?.toLowerCase().includes(q)
+        );
+      });
+    }
+
+    return list;
+  }, [data.verifiedStaff, activeStaffSearch, activeStaffDeptFilter]);
 
   const handleConfirmAction = async () => {
     if (!confirmModal.code) return;
@@ -864,69 +896,284 @@ export default function InstStaff() {
             </div>
           )}
 
-          {/* TAB 2: ACTIVE VERIFIED STAFF ROSTER */}
+          {/* TAB 2: ACTIVE VERIFIED STAFF ROSTER (CLEAN, UNIFORM TABLE VIEW) */}
           {activeTab === 'active' && (
             <div className="bento-card space-y-4">
-              <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-pinoy-green text-[20px]">verified</span>
-                <span>Active Institution Staff & Appointed Officers ({data.verifiedStaff?.length || 0})</span>
-              </h2>
+              {/* Header & Meta Summary */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant pb-4">
+                <div>
+                  <h2 className="text-base font-bold text-on-surface flex items-center gap-2">
+                    <span className="material-symbols-outlined text-pinoy-green text-[22px]">verified</span>
+                    <span>Active Institution Staff & Appointed Officers</span>
+                  </h2>
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    Official roster of verified OJT coordinators, department heads, and academic supervisors.
+                  </p>
+                </div>
+                {data.verifiedStaff?.length > 0 && (
+                  <span className="px-3 py-1 bg-surface-container text-on-surface rounded-full text-xs font-bold border border-outline-variant self-start sm:self-auto shrink-0">
+                    {filteredVerifiedStaff.length} of {data.verifiedStaff.length} {data.verifiedStaff.length === 1 ? 'Staff Member' : 'Staff Members'}
+                  </span>
+                )}
+              </div>
+
+              {/* Search & Department Filter Bar */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                {/* Search Input */}
+                <div className="relative flex-1 max-w-md">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">
+                    search
+                  </span>
+                  <input
+                    type="text"
+                    value={activeStaffSearch}
+                    onChange={(e) => setActiveStaffSearch(e.target.value)}
+                    placeholder="Search by name, Staff ID, email, program, or department..."
+                    className="w-full pl-9 pr-8 py-2 bg-surface-container-low border border-outline-variant rounded-xl text-xs text-on-surface placeholder:text-on-surface-variant/60 outline-none focus:border-vibrant-orange focus:ring-2 focus:ring-vibrant-orange/10 transition-all"
+                  />
+                  {activeStaffSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveStaffSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface text-[14px]"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">close</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Department Filter Dropdown */}
+                {departments.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={activeStaffDeptFilter}
+                      onChange={(e) => setActiveStaffDeptFilter(e.target.value)}
+                      className="px-3 py-2 bg-surface-container-low border border-outline-variant rounded-xl text-xs text-on-surface font-semibold outline-none focus:border-vibrant-orange focus:ring-2 focus:ring-vibrant-orange/10 cursor-pointer"
+                    >
+                      <option value="all">All Departments</option>
+                      {departments.map((dept) => (
+                        <option key={dept} value={dept}>
+                          {dept}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
 
               {loading ? (
                 <div className="p-8 flex justify-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-4 border-vibrant-orange border-t-transparent"></div>
                 </div>
               ) : !data.verifiedStaff || data.verifiedStaff.length === 0 ? (
-                <div className="text-center py-12 text-on-surface-variant text-xs space-y-2">
-                  <span className="material-symbols-outlined text-4xl text-on-surface-variant/40">groups</span>
-                  <p>No active staff accounts verified yet.</p>
+                <div className="text-center py-12 border border-dashed border-outline-variant rounded-2xl space-y-3 bg-surface-container-lowest">
+                  <div className="w-12 h-12 rounded-full bg-surface-container mx-auto flex items-center justify-center text-on-surface-variant/60">
+                    <span className="material-symbols-outlined text-[28px]">groups</span>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-bold text-sm text-on-surface">No Active Staff Accounts</p>
+                    <p className="text-xs text-on-surface-variant max-w-sm mx-auto">
+                      No staff accounts have been verified yet. Check the Pending Verification tab to review registrations.
+                    </p>
+                  </div>
+                </div>
+              ) : filteredVerifiedStaff.length === 0 ? (
+                <div className="text-center py-12 border border-dashed border-outline-variant rounded-2xl space-y-3 bg-surface-container-lowest">
+                  <div className="w-12 h-12 rounded-full bg-surface-container mx-auto flex items-center justify-center text-on-surface-variant/60">
+                    <span className="material-symbols-outlined text-[28px]">person_search</span>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-bold text-sm text-on-surface">No Matching Staff Found</p>
+                    <p className="text-xs text-on-surface-variant max-w-sm mx-auto">
+                      No verified staff matched your search query. Try adjusting your search keywords or resetting filters.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveStaffSearch('');
+                      setActiveStaffDeptFilter('all');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface rounded-lg text-xs font-bold border border-outline-variant transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">refresh</span>
+                    <span>Reset Filters</span>
+                  </button>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {data.verifiedStaff.map((s) => {
-                    const posBadge = formatPosition(s.position);
-                    return (
-                      <div
-                        key={s.staff_id}
-                        className="p-4 bg-surface-container rounded-xl flex items-center justify-between border border-outline-variant text-xs"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-sm text-on-surface">
-                              {s.salutation} {s.first_name} {s.middle_name} {s.last_name} {s.suffix}
-                            </span>
-                            <span className={`px-2.5 py-0.5 rounded text-[10px] uppercase font-bold ${posBadge.color}`}>
-                              {posBadge.label}
-                            </span>
-                            {(s.has_discrepancy || s.position_mismatch || s.program_mismatch || s.email_mismatch) && (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-700 flex items-center gap-1 border border-amber-500/30">
-                                <span className="material-symbols-outlined text-[13px]">warning</span>
-                                <span>Note: Passcode Variance</span>
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-on-surface-variant text-[11px]">
-                            {s.email} • Staff ID: <span className="font-bold text-on-surface font-mono">{s.staff_number}</span>
-                            {s.program_name && ` • Program: ${s.program_name}`}
-                            {s.department_name && ` • Dept: ${s.department_name}`}
-                          </p>
-                        </div>
+                <>
+                  {/* Desktop & Tablet Organized Table View */}
+                  <div className="hidden md:block overflow-x-auto rounded-xl border border-outline-variant bg-surface">
+                    <table className="w-full text-left text-xs min-w-[700px]">
+                      <thead>
+                        <tr className="border-b border-outline-variant bg-surface-container-low text-on-surface-variant whitespace-nowrap font-bold">
+                          <th className="py-3.5 px-4">Staff Member & Contact</th>
+                          <th className="py-3.5 px-4">Role & Academic Scope</th>
+                          <th className="py-3.5 px-4 text-center">Status</th>
+                          <th className="py-3.5 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-outline-variant/60">
+                        {filteredVerifiedStaff.map((s) => {
+                          const posBadge = formatPosition(s.position);
+                          return (
+                            <tr
+                              key={s.staff_id}
+                              className="hover:bg-surface-container-low/80 transition-colors"
+                            >
+                              {/* Staff Member & Contact */}
+                              <td className="py-3.5 px-4 align-middle">
+                                <div className="space-y-1">
+                                  <div className="font-bold text-sm text-on-surface flex items-center gap-1.5">
+                                    <span>
+                                      {s.salutation} {s.first_name} {s.middle_name} {s.last_name} {s.suffix}
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] text-on-surface-variant flex items-center gap-1.5">
+                                    <span className="material-symbols-outlined text-[13px] text-on-surface-variant/70">mail</span>
+                                    <span className="truncate max-w-[240px]">{s.email}</span>
+                                  </div>
+                                  <div className="text-[11px] font-mono text-on-surface-variant flex items-center gap-1">
+                                    <span className="text-[10px] uppercase font-bold text-on-surface-variant/70">Staff ID:</span>
+                                    <span className="font-bold text-on-surface">{s.staff_number || s.employee_id || 'N/A'}</span>
+                                  </div>
+                                </div>
+                              </td>
 
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setSelectedStaff(s)}
-                            className="px-3 py-1.5 bg-surface-container-high text-on-surface hover:bg-surface-container-highest rounded-lg font-bold text-xs transition-colors border border-outline-variant"
-                          >
-                            Details
-                          </button>
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-green-tint text-pinoy-green">
-                            Active & Verified
-                          </span>
+                              {/* Role & Scope */}
+                              <td className="py-3.5 px-4 align-middle">
+                                <div className="space-y-1.5 max-w-[320px]">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wide ${posBadge.color}`}>
+                                      {posBadge.label}
+                                    </span>
+                                    {(s.has_discrepancy || s.position_mismatch || s.program_mismatch || s.email_mismatch) && (
+                                      <span
+                                        title="Registration data differs from initial passcode configuration"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 whitespace-nowrap"
+                                      >
+                                        <span className="material-symbols-outlined text-[12px]">warning</span>
+                                        <span>Note: Passcode Variance</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-on-surface-variant space-y-0.5">
+                                    {s.program_name && (
+                                      <p className="flex items-center gap-1 text-on-surface font-medium truncate" title={s.program_name}>
+                                        <span className="material-symbols-outlined text-[13px] text-vibrant-orange shrink-0">school</span>
+                                        <span className="truncate">{s.program_name}</span>
+                                      </p>
+                                    )}
+                                    {s.department_name && (
+                                      <p className="flex items-center gap-1 text-[10.5px] truncate" title={s.department_name}>
+                                        <span className="material-symbols-outlined text-[13px] text-on-surface-variant/70 shrink-0">domain</span>
+                                        <span className="truncate">Dept: {s.department_name}</span>
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Clean, Uniform Status Indicator */}
+                              <td className="py-3.5 px-4 align-middle text-center whitespace-nowrap">
+                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-green-tint text-pinoy-green border border-pinoy-green/30 shadow-2xs whitespace-nowrap">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-pinoy-green animate-pulse" />
+                                  <span className="material-symbols-outlined text-[14px]">verified</span>
+                                  <span>Active & Verified</span>
+                                </div>
+                              </td>
+
+                              {/* Action */}
+                              <td className="py-3.5 px-4 align-middle text-right whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedStaff(s)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-high text-on-surface hover:bg-surface-container-highest rounded-lg font-bold text-xs transition-colors border border-outline-variant hover:border-vibrant-orange/40 shadow-2xs cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">info</span>
+                                  <span>Details</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Responsive Mobile Cards View (Screen < 768px) */}
+                  <div className="md:hidden space-y-3">
+                    {filteredVerifiedStaff.map((s) => {
+                      const posBadge = formatPosition(s.position);
+                      return (
+                        <div
+                          key={s.staff_id}
+                          className="p-4 bg-surface rounded-xl border border-outline-variant space-y-3 shadow-xs"
+                        >
+                          <div className="flex items-start justify-between gap-2 border-b border-outline-variant/60 pb-2.5">
+                            <div className="space-y-0.5">
+                              <span className="font-bold text-sm text-on-surface block">
+                                {s.salutation} {s.first_name} {s.middle_name} {s.last_name} {s.suffix}
+                              </span>
+                              <div className="flex items-center gap-1 text-[11px] text-on-surface-variant font-mono">
+                                <span>Staff ID:</span>
+                                <span className="font-bold text-on-surface">{s.staff_number || s.employee_id || 'N/A'}</span>
+                              </div>
+                            </div>
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-tint text-pinoy-green border border-pinoy-green/30 whitespace-nowrap shrink-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-pinoy-green animate-pulse" />
+                              <span>Active & Verified</span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`px-2.5 py-0.5 rounded text-[10px] uppercase font-bold ${posBadge.color}`}>
+                                {posBadge.label}
+                              </span>
+                              {(s.has_discrepancy || s.position_mismatch || s.program_mismatch || s.email_mismatch) && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center gap-1 border border-amber-500/30">
+                                  <span className="material-symbols-outlined text-[12px]">warning</span>
+                                  <span>Note: Passcode Variance</span>
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="p-2.5 bg-surface-container-low rounded-lg text-[11px] text-on-surface-variant space-y-1">
+                              <p className="flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[13px] text-on-surface-variant/70">mail</span>
+                                <span className="truncate">{s.email}</span>
+                              </p>
+                              {s.program_name && (
+                                <p className="flex items-center gap-1.5 text-on-surface font-medium">
+                                  <span className="material-symbols-outlined text-[13px] text-vibrant-orange shrink-0">school</span>
+                                  <span className="truncate">{s.program_name}</span>
+                                </p>
+                              )}
+                              {s.department_name && (
+                                <p className="flex items-center gap-1.5 text-[10.5px]">
+                                  <span className="material-symbols-outlined text-[13px] text-on-surface-variant/70 shrink-0">domain</span>
+                                  <span className="truncate">Dept: {s.department_name}</span>
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="pt-1 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedStaff(s)}
+                              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-surface-container-high text-on-surface hover:bg-surface-container-highest rounded-lg font-bold text-xs transition-colors border border-outline-variant"
+                            >
+                              <span className="material-symbols-outlined text-[15px]">info</span>
+                              <span>View Staff Details</span>
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
           )}
