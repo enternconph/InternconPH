@@ -45,8 +45,20 @@ const PORT = process.env.PORT || 3000;
 // Initialize Realtime WebSockets (Socket.IO)
 initSocket(httpServer);
 
+import { securityHeaders } from './middleware/security.js';
+import { globalApiRateLimiter, authRateLimiter } from './middleware/rateLimit.js';
+
+// Enforce OWASP security headers (X-Frame-Options, X-Content-Type-Options, etc.)
+app.use(securityHeaders());
+
 // Enable HTTP payload compression (Gzip / Deflate)
 app.use(compression());
+
+// Global API rate limiting (with bypass for health checks and uploads)
+app.use('/api', globalApiRateLimiter);
+
+// Strict rate limiting for login and registration endpoints
+app.use(['/api/auth/login', '/api/login', '/api/auth/register'], authRateLimiter);
 
 
 // Ensure canonical uploads directories exist

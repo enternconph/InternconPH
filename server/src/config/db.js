@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
 
-const connectionLimit = parseInt(process.env.DB_POOL_LIMIT || process.env.DB_CONNECTION_LIMIT || '5', 10);
+const connectionLimit = parseInt(process.env.DB_POOL_LIMIT || process.env.DB_CONNECTION_LIMIT || '25', 10);
 
 const poolConfig = {
   host: process.env.DB_HOST || '127.0.0.1',
@@ -19,9 +19,9 @@ const poolConfig = {
   database: process.env.DB_NAME || 'interncon_ph',
   waitForConnections: true,
   connectionLimit,
-  maxIdle: Math.min(connectionLimit, 5),
-  idleTimeout: 30000,
-  connectTimeout: 15000,
+  maxIdle: Math.min(connectionLimit, 10),
+  idleTimeout: 60000,
+  connectTimeout: 20000,
   queueLimit: 0,
   charset: 'utf8mb4',
   timezone: '+08:00',
@@ -65,5 +65,24 @@ pool.on('error', (err) => {
     console.error('[Database] Connection failed:', error.message);
   }
 })();
+
+/**
+ * Execute a callback within an isolated ACID database transaction.
+ * Automatically commits on success and rolls back on failure.
+ */
+export async function withTransaction(callback) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const result = await callback(connection);
+    await connection.commit();
+    return result;
+  } catch (err) {
+    await connection.rollback().catch(() => {});
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
 
 export default pool;

@@ -9,6 +9,7 @@ import multer from 'multer';
 import { getUploadStorage, processUploadedFile, formatFilePath } from '../utils/upload.helper.js';
 import { createMeetSpace, isGoogleMeetConfigured } from '../services/googleMeet.js';
 import { verifyTotpPayload } from '../utils/totp.helper.js';
+import { validate, Schemas } from '../middleware/validate.js';
 
 const router = express.Router();
 router.use(verifyToken);
@@ -1988,7 +1989,7 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
 });
 
 // POST /api/org/attendance/:id/verify - Workplace Mentor approves/rejects daily attendance
-router.post('/attendance/:id/verify', async (req, res) => {
+router.post('/attendance/:id/verify', validate(Schemas.verifyAttendance), async (req, res) => {
   const attendanceId = req.params.id;
   const { action, hours_rendered, rejection_notes } = req.body; // 'verify' or 'reject'
 

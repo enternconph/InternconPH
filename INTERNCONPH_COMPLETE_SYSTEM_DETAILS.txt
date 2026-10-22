@@ -1,0 +1,1784 @@
+========================================================================================================================
+                      INTERNCONPH: COMPREHENSIVE SYSTEM ARCHITECTURE & TECHNICAL SPECIFICATION
+========================================================================================================================
+Document Title:      InternConPH Complete System Details, Relational Data Architecture & Technical Reference Guide
+Target Platform:     InternConPH (Philippine OJT Coordination, SIPP Compliance & Lifelong Career Gateway)
+Document Purpose:    Definitive technical source of truth for creating high-accuracy, precision-grade project documentation,
+                     technical specifications, compliance manuals, and architectural diagrams.
+Release Version:     Production v1.2.0-totp-qr-certified
+Standard Compliance: CHED CMO No. 104 s. 2017 (SIPP), DOLE Labor & Internship Standards, RA 10173 (Data Privacy Act),
+                     Philippine Standard Geographic Code (PSGC - Regions, Provinces, Cities/Municipalities, Barangays)
+========================================================================================================================
+
+TABLE OF CONTENTS:
+------------------------------------------------------------------------------------------------------------------------
+1. EXECUTIVE OVERVIEW & PHILIPPINE LEGAL COMPLIANCE FRAMEWORK
+   1.1 Problem Statement & Strategic Mission
+   1.2 CHED CMO No. 104 Series of 2017 (SIPP) Mandates
+   1.3 DOLE Labor Standards & Anti-Student Exploitation Safeguards
+   1.4 RA 10173 Data Privacy Compliance & Whistleblower Shielding
+   1.5 Philippine Geographic Precision (PSGC & Phil-Address Engine)
+
+2. SYSTEM ARCHITECTURE & INFRASTRUCTURE TOPOLOGY
+   2.1 Multi-Tier Distributed Topology (Web SPA, Mobile App, REST API, Database, Storage)
+   2.2 Hosting Infrastructure (Vercel CDN, Render Web Service, Managed MySQL 8 Cluster)
+   2.3 Network Security, SSL/TLS, CORS Policies, & Ephemeral Container Resiliency
+   2.4 Dual-Strategy File Storage Architecture (Cloudinary + Local Disk + Database Blob Fallback)
+
+3. COMPLETE TECHNOLOGY STACK MATRIX (EXACT VERSIONS & ROLES)
+   3.1 Web Frontend Technologies & Dependencies (React 19, Vite 6, Tailwind CSS 3.4)
+   3.2 Backend Server Technologies & Dependencies (Node.js 20+, Express 4.19, MySQL2 3.9)
+   3.3 Mobile Application Technologies & Dependencies (React Native 0.76.2, AsyncStorage, SVG)
+   3.4 Development, Orchestration, Testing & CI/CD Tooling
+
+4. FULL PROJECT REPOSITORY DIRECTORY & FILE STRUCTURE
+   4.1 Workspace Root Configuration
+   4.2 Web Frontend (`/src`) Directory Breakdown
+   4.3 Backend Server (`/server`) Directory Breakdown
+   4.4 Mobile Application (`/mobile`) Directory Breakdown
+
+5. SYSTEM USERS, ROLES HIERARCHY & GRANULAR RBAC PERMISSIONS
+   5.1 System Administrator (`system_admin`)
+   5.2 Institution Director (`institution`)
+   5.3 Institution Staff (`institution_staff` - Coordinator, Registrar, Counselor, Dean)
+   5.4 Hiring Organization HR Administrator (`hiring_organization` / `hr_staff`)
+   5.5 Workplace Mentor / Supervisor (`workplace_mentor` / `mentor`)
+   5.6 Student Candidate (`student` - Classification & Dynamic Lifecycle Progression)
+   5.7 Role-Based Access Control (RBAC) Permission Matrix
+
+6. STEP-BY-STEP OPERATIONAL WORKFLOWS & STATE MACHINES
+   6.1 Workflow 1: Registration, Proof of Legitimacy & Admin Vetting Gate
+   6.2 Workflow 2: Cryptographic Access Codes & Delegated Invite Governance
+   6.3 Workflow 3: Student Intake, Classification, & Academic Registrar/Coordinator Clearance
+   6.4 Workflow 4: Tripartite Opportunity Clearance & Program Eligibility Matching
+   6.5 Workflow 5: Candidate Matching, Application Lifecycle, Interview Pipeline (Google Meet) & Formal Offers
+   6.6 Workflow 6: Active OJT Deployment, DTR Daily Attendance & Mentor Hour Certification
+   6.7 Workflow 7: Performance Evaluation & Automated Verifiable Career Portfolio Crediting
+   6.8 Workflow 8: Bidirectional Incident Reporting, Accident Logging & Whistleblower Grievance Shielding
+   6.9 Workflow 9: Official OJT Certificate Generation & Public Cryptographic Verification
+
+7. COMPLETE DATABASE ARCHITECTURE & RELATIONAL SCHEMA (61 TABLES)
+   7.1 Relational Architecture Diagram (ASCII Entity-Relationship Map)
+   7.2 Complete Catalog of 61 Database Tables (Fields, Types, Keys, Constraints, Descriptions)
+   7.3 Dynamic Self-Aligning Migration Engine (`migrate.js`) Specification
+
+8. REST API ENDPOINTS CATALOG (178 ENDPOINTS)
+   8.1 Authentication & Registration Routes (`/api/auth` - 10 Endpoints)
+   8.2 Student Operations & Lifecycle Routes (`/api/student` - 54 Endpoints)
+   8.3 Hiring Organization & Mentor Routes (`/api/org` - 38 Endpoints)
+   8.4 Institution & Academic Staff Routes (`/api/inst` - 31 Endpoints)
+   8.5 System Administrator Governance Routes (`/api/admin` - 26 Endpoints)
+   8.6 Public & Anonymous Catalog Routes (`/api/public` - 6 Endpoints)
+   8.7 User Account & Settings Routes (`/api/user` - 6 Endpoints)
+   8.8 Push & In-App Notification Routes (`/api/notifications` - 4 Endpoints)
+   8.9 Cryptographic OJT Certificate Routes (`/api/certificates` - 3 Endpoints)
+
+9. FRONTEND WEB APPLICATION ARCHITECTURE (REACT 19 + VITE)
+   9.1 Global State Providers (AuthContext, SocketContext, ThemeContext, TimeContext)
+   9.2 Client-Side Routing & Layout Wrappers (DashboardLayout, ProtectedRoute, ErrorBoundary)
+   9.3 Comprehensive Page Catalog (33 Pages: Public, Student, Org, Institution, Admin, Shared)
+   9.4 Specialized Custom UI Components (CrossDisciplineChart, Attendance Scanner, Address Selector)
+
+10. MOBILE APPLICATION ARCHITECTURE (REACT NATIVE 0.76)
+   10.1 Mobile Architecture & Intern-Exclusive Deployment Scope
+   10.2 Navigation & Tab Structure (Home, DTR, Journal, Clearance, Evaluations)
+   10.3 Dynamic TOTP QR Attendance Scanner Modal (`AttendanceQrModal.js`)
+   10.4 Offline Support, Local Session Caching, and Server Host Switching
+
+11. ADVANCED CORE SUBSYSTEMS & TECHNICAL HIGHLIGHTS
+   11.1 Subsystem 1: Time-Bound Dynamic QR Attendance & Hardware Device Token Binding
+   11.2 Subsystem 2: AI Career & Skills Recommendation Engine (Knowledge Graph + Gemini API)
+   11.3 Subsystem 3: Official OJT Completion Certificate Generation & Cryptographic Verification
+   11.4 Subsystem 4: Google Meet REST API v2 Integration with Domain-Wide Delegation
+   11.5 Subsystem 5: Real-Time WebSocket Event Bus (Socket.IO Matrix across 7 Entities)
+   11.6 Subsystem 6: Ephemeral Container File Recovery Architecture (`stored_uploads`)
+   11.7 Subsystem 7: Automated 5-Minute Interview Reminder Daemon
+
+12. ENVIRONMENT VARIABLES CONFIGURATION SPECIFICATION
+   12.1 Backend Environment Variables (`server/.env`)
+   12.2 Frontend Environment Variables (`.env`)
+   12.3 Mobile App Runtime Variables
+
+13. PRE-SEEDED TEST ACCOUNTS DIRECTORY & SAMPLE DATA MATRIX
+   13.1 Administrative, Institutional & Corporate Accounts
+   13.2 Cross-Discipline Student Directory Across 30+ Academic Degree Programs
+
+
+========================================================================================================================
+1. EXECUTIVE OVERVIEW & PHILIPPINE LEGAL COMPLIANCE FRAMEWORK
+========================================================================================================================
+
+1.1 PROBLEM STATEMENT & STRATEGIC MISSION:
+The internship and entry-level employment ecosystem in the Philippines has historically been fragmented, paper-reliant,
+and exposed to systemic risks:
+  - Students face exploitation (e.g., unpaid/unverified overtime, errand running unrelated to degree competencies).
+  - Unaccredited diploma mills and fraudulent businesses operate without legal vetting.
+  - SIPP requirements (tripartite agreements between schools, students, and employers) are difficult to track manually.
+  - Student DTRs (Daily Time Records) are prone to ghost hours, forged mentor signatures, and misplaced physical logbooks.
+  - Students facing workplace harassment or dangerous tasks have no safe channel to report issues without fearing retaliation.
+  - Graduating students receive paper certificates that recruiters cannot easily authenticate.
+
+InternConPH solves this by providing a unified digital infrastructure that enforces CHED, DOLE, and Data Privacy standards,
+automates tripartite oversight, authenticates attendance via dynamic hardware-bound TOTP QR codes, and converts verified
+internship achievements into permanent, cryptographically verifiable career portfolios.
+
+1.2 CHED CMO NO. 104, SERIES OF 2017 (SIPP) MANDATES:
+The Student Internship Program in the Philippines (SIPP) requires Higher Education Institutions (HEIs) and Host Training
+Establishments (HTEs) to enforce strict compliance:
+  - Tripartite Consensus: An internship cannot begin without approval from the HEI, HTE, and student.
+  - Memorandums of Agreement (MOA): Documented institutional tie-ups between school and company.
+  - Legitimate Host Establishments: Organizations must possess SEC/DTI registration, Mayor's Permit, and BIR Tax Registration.
+  - Legitimate HEIs: Higher education institutions must possess CHED Government Recognition (GR), TESDA Certificate of
+    Technical Program Registration (CTPR), or PACUCOA/AACCUP/PAASCU Level II/III accreditation.
+  - Mandatory Hours Tracking: Strict recording of required curriculum hours (e.g., BSIT 486 hrs, BSBA 600 hrs, BSHM 500 hrs).
+  - Grievance Committees: Established procedures for investigating internship disputes and safety hazards.
+
+InternConPH's database and API routes enforce these rules at code level. No student can view or apply for an OJT opening
+unless the institution has verified the student, approved the employer, and approved the specific job posting.
+
+1.3 DOLE LABOR STANDARDS & ANTI-STUDENT EXPLOITATION SAFEGUARDS:
+To uphold Department of Labor and Employment (DOLE) standards:
+  - Clear Distinction of Opportunities: Opportunities are segregated into 'ojt' (internship), 'career_job' (full-time/part-time
+    employment for graduates), and 'on_call' (short-term deliverable projects with stipends).
+  - Maximum Working Shift Enforcement: The attendance logging engine prohibits shifts exceeding 24 consecutive hours.
+  - Mandatory Workplace Mentors: Companies must assign a dedicated supervisor to oversee tasks and certify DTR logs.
+  - Automated Accident Reporting: Any on-site injury prompts an atomic incident report linking to medical facility details,
+    witnesses, and preventive measures.
+
+1.4 RA 10173 DATA PRIVACY COMPLIANCE & WHISTLEBLOWER SHIELDING:
+In compliance with Republic Act No. 10173 (Philippine Data Privacy Act of 2012):
+  - Anonymized Student Grievances: When a student reports workplace sexual harassment, safety hazards, or labor violations,
+    the report routes exclusively to their university Guidance Counselor and OJT Supervisor.
+  - Identity Masking: When the university forwards the complaint to the employer for formal response, the student's personal
+    identity is masked (`include_student_details = 0`). The employer sees: "Student Intern (Identity Protected by Institution)".
+  - Scoped Access Control: Registrars cannot access grievance files; counselors cannot alter academic grades; mentors cannot
+    view students' applications to competing organizations.
+
+1.5 PHILIPPINE GEOGRAPHIC PRECISION (PSGC & PHIL-ADDRESS ENGINE):
+Address inputs across all registrations, job postings, and student profiles are mapped to the Philippine Standard
+Geographic Code (PSGC):
+  - Standardized Regions (NCR, Region I to XIII, BARMM, CAR, CARAGA).
+  - Provinces, Cities, Municipalities, and Barangays parsed through `psgc`, `phil-address`, `zipcodes-ph`, and `use-postal-ph`.
+  - Phone validation strictly enforces Philippine mobile numbers (+63 9XX-XXX-XXXX format).
+
+
+========================================================================================================================
+2. SYSTEM ARCHITECTURE & INFRASTRUCTURE TOPOLOGY
+========================================================================================================================
+
+2.1 MULTI-TIER DISTRIBUTED TOPOLOGY:
+
+  [ USER CLIENTS ]
+        │
+        ├── Desktop / Tablet Web Browser ──> [ React 19 + Vite 6 Single Page Application (SPA) ]
+        │                                        Hosted on Vercel Global Edge CDN
+        │
+        └── Android / iOS Mobile Device  ──> [ React Native 0.76.2 Mobile Application ]
+                                                 Dedicated for Deployed OJT Students (DTR, Dynamic TOTP QR, Journal)
+                                                 │
+                                                 ▼ (HTTP REST & Bearer Tokens)
+  [ REVERSE PROXY / EDGE ]
+        │
+        ▼ (HTTPS / WSS Encrypted)
+  [ BACKEND APPLICATION CLUSTER ]
+        ├── Express.js 4.19.2 REST API Server (Node.js 20+ LTS)
+        ├── Socket.IO v4 Realtime WebSocket Server (Bidirectional Event Bus)
+        ├── Dynamic TOTP Cryptographic Engine (HMAC-SHA256, 30s Window, Constant-Time Verify)
+        ├── AI Skills & Career Recommendation Engine (Domain Knowledge Graph + Google Gemini API)
+        ├── Background Cron / Reminder Daemons (5-min Interview Alerts, Stale Session Pruning)
+        ├── Google Meet REST API v2 Integration (OAuth2 Service Account Domain-Wide Delegation)
+        └── Automated Database Self-Aligning Migration Engine (`migrate.js`)
+              │
+              ├── [ Managed MySQL 8.0 Relational Database Cluster ] (SSL/TLS, Connection Pool, Keep-Alive)
+              ├── [ Cloudinary Media CDN ] (Document Archives, Avatars, PDF Proofs)
+              └── [ Database Blob Fallback Storage (`stored_uploads`) ] (Container Disk Cache Re-Hydration)
+
+2.2 HOSTING INFRASTRUCTURE:
+  - Frontend Web Hosting: Vercel Global Edge Network (`https://internconph.vercel.app`).
+    - Configured with `vercel.json` rewrite rules (`/(.*)` -> `/index.html`) to prevent 404s on deep client routes.
+    - Automated zero-downtime deployments triggered by GitHub commits.
+  - Backend API Hosting: Render Cloud Container Web Service (`https://internconph.onrender.com`).
+    - Node.js 20 LTS managed environment with automatic process recovery.
+    - Startup routine executes `runMigrations()`, `pruneStaleSessions()`, `checkGoogleMeetConfigOnStartup()`, and
+      `startInterviewReminderService()`.
+  - Database Hosting: Remote Managed MySQL 8.x Cluster (Aiven / Render Managed MySQL / TiDB / PlanetScale).
+    - SSL/TLS mandatory encryption (`rejectUnauthorized: false`).
+    - utf8mb4 encoding and Asia/Manila (+08:00) standard timezone.
+  - Local Development Suite: Laragon WAMP Stack running on Windows.
+    - Local MySQL 8.0 on `127.0.0.1:3306` (database: `interncon_ph`).
+    - Dual runtime orchestrator via `npm run dev:all` (Vite port 5173, Express port 3000).
+
+2.3 NETWORK SECURITY, SSL/TLS & CORS GOVERNANCE:
+  - Cross-Origin Resource Sharing (CORS): Managed via dynamic origin callback in `server/src/config/cors.js`.
+    - Whitelists localhost development origins (`localhost:5173`, `localhost:3000`, `127.0.0.1`).
+    - Whitelists configured `FRONTEND_URL` and `ALLOWED_ORIGINS`.
+    - Uses regex patterns to safely permit all `*.vercel.app` preview branch deployments and `*.onrender.com` services.
+  - Session Security: JWT authentication tokens signed with HMAC-SHA256, with sessions recorded in `user_sessions`.
+  - Rate Limiting & Protection: Password hashing via `bcryptjs` (salt rounds: 10), SQL parameterized queries on all endpoints.
+
+2.4 DUAL-STRATEGY FILE STORAGE ARCHITECTURE:
+  Because cloud container instances on free/ephemeral tiers clear disk storage upon container spin-down/redeployment,
+  InternConPH implements a resilient dual-strategy storage layer:
+  1. Primary: Files (resumes, SEC/DTI registrations, BIR permits, MOAs) uploaded via `multer` to `/uploads`.
+  2. Persistent Backup: Every file upload is simultaneously saved to the `stored_uploads` MySQL table as `LONGBLOB` with
+     its MIME type, original filename, and file path.
+  3. Dynamic Re-Hydration: If an uploaded document is requested (`GET /uploads/:folder/:file`) and missing from local disk,
+     the backend retrieves the `file_data` from MySQL, re-creates the file on disk for fast future static serving, and
+     streams it to the client with appropriate `Content-Type` and `Cache-Control: 7d`.
+
+
+========================================================================================================================
+3. COMPLETE TECHNOLOGY STACK MATRIX (EXACT VERSIONS & ROLES)
+========================================================================================================================
+
+3.1 WEB FRONTEND TECHNOLOGIES (Root `package.json`):
+------------------------------------------------------------------------------------------------------------------------
+Package Name              Version     Category                 Primary Function / Operational Role
+------------------------------------------------------------------------------------------------------------------------
+react                     ^19.0.0     UI Framework             Modern declarative UI, concurrent rendering, hooks
+react-dom                 ^19.0.0     DOM Renderer             Mounts React 19 component tree into browser DOM
+vite                      ^6.0.7      Build Engine / Bundler   Lightning-fast HMR dev server & production Rollup packaging
+react-router-dom          ^7.1.3      Client-Side Routing      Declarative nested routing, route guards, URL parameters
+tailwindcss               ^3.4.17     CSS Styling Framework    Utility-first responsive styling and design system
+postcss                   ^8.4.49     CSS Postprocessor        Autoprefixes and compiles Tailwind stylesheets
+autoprefixer              ^10.4.20    CSS Tooling              Appends vendor prefixes for cross-browser compatibility
+framer-motion             ^13.2.0     Motion & Animation       Hardware-accelerated micro-interactions, page transitions
+lucide-react              ^1.16.0     Iconography              Unified vector icons across student, org, inst, admin UI
+socket.io-client          ^4.8.3      Realtime Client          Connects to backend WebSocket event bus
+html5-qrcode              ^2.3.8      Hardware QR Scanner      Browser camera QR scanner for HR on-site attendance
+qrcode                    ^1.5.4      QR Generator             Generates QR codes for certificates and verification
+clsx                      ^2.1.1      CSS Utility              Conditional class name concatenation
+tailwind-merge            ^3.0.2      CSS Utility              Merges Tailwind classes without specificity conflicts
+phil-address              ^2.0.1      Geographic Library       Philippine standard geographic address lookup
+psgc                      ^2.2.0      Geographic Library       Philippine Standard Geographic Code parser
+use-postal-ph             ^1.1.14     Geographic Hook          Postal codes lookup for Philippine provinces/cities
+zipcodes-ph               ^1.1.2      Geographic Library       Database of Philippine ZIP codes
+googleapis                ^182.0.0    Google API Client        Client-side Google Meet integration utilities
+concurrently              ^10.0.5     Dev Tooling              Runs frontend and backend servers concurrently (`dev:all`)
+playwright                ^1.63.0     Testing Framework        End-to-end browser automation for integration test suites
+------------------------------------------------------------------------------------------------------------------------
+
+3.2 BACKEND SERVER TECHNOLOGIES (`server/package.json`):
+------------------------------------------------------------------------------------------------------------------------
+Package Name              Version     Category                 Primary Function / Operational Role
+------------------------------------------------------------------------------------------------------------------------
+node                      >=20.0.0    Runtime Environment      Modern LTS Node.js engine with ES Module syntax (`import`)
+express                   ^4.19.2     Web Server Framework     High-throughput RESTful routing and middleware pipeline
+mysql2                    ^3.9.7      Database Driver          `mysql2/promise` connection pool with prepared statements
+socket.io                 ^4.8.3      WebSocket Server         Bidirectional realtime event bus across connected dashboards
+jsonwebtoken              ^9.0.2      Auth / Security          Cryptographic JWT creation, verification, and RBAC claims
+bcryptjs                  ^2.4.3      Password Hashing         Salted one-way password hashing (Cost factor 10)
+multer                    ^2.2.0      File Upload Engine       Handles `multipart/form-data` uploads with strict filters
+sharp                     ^0.35.4     Image Processing         High-speed image compression, resizing, and WebP transform
+cloudinary                ^2.11.0     Cloud Storage            Cloud document asset storage and CDN distribution
+compression               ^1.8.2      HTTP Optimization        Gzip/Deflate payload compression for API response bodies
+cors                      ^2.8.5      HTTP Security            Governs Cross-Origin Resource Sharing permissions
+cookie-parser             ^1.4.7      HTTP Utility             Parses signed and unsigned cookies
+dotenv                    ^16.4.5     Configuration            Loads environment variables from `.env` files
+googleapis                ^182.0.0    Google Cloud SDK         Server-side Google Meet API v2 & Workspace Delegation
+nodemon                   ^3.1.0      Dev Tooling              Auto-reloads backend daemon on code file modifications
+------------------------------------------------------------------------------------------------------------------------
+
+3.3 MOBILE APPLICATION TECHNOLOGIES (`mobile/package.json`):
+------------------------------------------------------------------------------------------------------------------------
+Package Name              Version     Category                 Primary Function / Operational Role
+------------------------------------------------------------------------------------------------------------------------
+react                     18.3.1      Mobile Framework Core    React core engine for React Native 0.76 runtime
+react-native              0.76.2      Mobile Framework         Native iOS and Android UI rendering engine
+@react-native-async-storage/async-storage ^1.23.1 Storage      Persistent local key-value storage for offline credentials
+lucide-react-native       ^0.453.0    Mobile Iconography       Mobile-optimized SVG icon components
+react-native-qrcode-svg   ^6.3.12     SVG QR Generator         Renders dynamic TOTP QR code vectors in real time
+react-native-svg          ^15.8.0     SVG Vector Engine        Underlying SVG rendering support for QR and icons
+react-native-safe-area-context ^4.12.0 UI Utility              Handles notches, status bars, and rounded device edges
+react-native-screens      ^3.35.0     Native Screen Primitives Native navigation memory optimization and view hierarchy
+@react-native-community/cli ^20.2.0   Build Tooling            React Native CLI command runner
+------------------------------------------------------------------------------------------------------------------------
+
+
+========================================================================================================================
+4. FULL PROJECT REPOSITORY DIRECTORY & FILE STRUCTURE
+========================================================================================================================
+
+```
+c:\laragon\www\internconph/
+├── .env                                       # Local Frontend Environment Variables (VITE_API_URL, VITE_SOCKET_URL)
+├── .env.example                               # Frontend Environment Variables Template for Vercel
+├── .gitignore                                 # Git Ignore Rules
+├── index.html                                 # HTML5 Entry Point (Google Fonts, Meta, Viewport, Root Element)
+├── package.json                               # Frontend NPM Configuration & Scripts (`dev`, `build`, `dev:all`)
+├── postcss.config.js                          # PostCSS Configuration for Tailwind & Autoprefixer
+├── tailwind.config.js                         # Custom Semantic Colors, Spacing, and Pinoy Design System Tokens
+├── vercel.json                                # Vercel SPA Rewrite Rules (URL redirection to index.html)
+├── vite.config.js                             # Vite Build Pipeline & React Plugin Configuration
+├── walkthrough.md                             # System Audit & Test Results Documentation
+├── User_Logins.docx                           # Official Seeded Account Credentials Documentation
+├── seed_mock_data.py                          # Python Utility for Massive Database Seeding & Testing
+│
+├── mobile/                                    # REACT NATIVE 0.76.2 STUDENT MOBILE APPLICATION
+│   ├── App.js                                 # Mobile Entry Component, Tab Navigator & Auth Gatekeeper
+│   ├── app.json                               # React Native Application Metadata (`internconph-student`)
+│   ├── babel.config.js                        # Babel Transpiler Configuration
+│   ├── index.js                               # React Native Register Root Component
+│   ├── metro.config.js                        # Metro Bundler Configuration
+│   ├── package.json                           # Mobile NPM Dependencies & Scripts (`android`, `ios`, `start`)
+│   └── src/
+│       ├── api/
+│       │   └── client.js                      # Mobile HTTP API Client (AsyncStorage Auth, Dynamic Server URL)
+│       ├── components/
+│       │   └── AttendanceQrModal.js           # Live Dynamic TOTP QR Generator (Hardware Token Bound, 30s Window)
+│       ├── contexts/
+│       │   └── AuthContext.js                 # Mobile Authentication Context (Offline Support & OJT Status Gate)
+│       ├── screens/
+│       │   ├── LoginScreen.js                 # Mobile Student Authentication Screen
+│       │   ├── AccessBlockedScreen.js         # Security Gate for Students Without Active Ongoing OJT
+│       │   ├── HomeScreen.js                  # Intern Dashboard (Hours Remaining, Quick Actions, Mentor Info)
+│       │   ├── DtrScreen.js                   # Daily Time Record Screen (Clock In/Out, History, Status Badges)
+│       │   ├── JournalScreen.js               # Daily Reflective OJT Journaling (Activities, Learnings, Comments)
+│       │   ├── ClearanceScreen.js             # Institutional OJT Requirements & Document Clearance Checklist
+│       │   └── EvaluationScreen.js            # Midterm & Final Mentor Rubric Performance Review Display
+│       └── utils/
+│           ├── theme.js                       # Mobile Design System Palette (Teal, Amber, Forest, Dark Slate)
+│           ├── timeUtils.js                   # Philippine Standard Time Formatters (12-hour, Dates, Durations)
+│           └── totpHelper.js                  # Mobile HMAC-SHA256 Cryptographic Signing & Device Token Utilities
+│
+├── server/                                    # EXPRESS.JS 4.19 & NODE.JS BACKEND REST API
+│   ├── .env                                   # Local Backend Environment Variables (DB, JWT, Meet, CORS)
+│   ├── .env.example                           # Backend Environment Variables Template for Render
+│   ├── package.json                           # Backend NPM Configuration (`dev`, `start`)
+│   ├── internconph.sql                        # Full Relational Database Schema Dump (48KB SQL DDL)
+│   ├── migrate.js                             # Standalone Database Migration Script
+│   ├── users_list.md                          # Directory of Pre-Seeded Demonstration Accounts & Passwords
+│   ├── test_all_endpoints.js                  # Regression Test Runner for Backend Routes
+│   ├── test_full_suite.js                     # 16-Point Comprehensive Validation & Security Test Suite
+│   ├── populate_discipline_skills.js          # Cross-Discipline Skills Ingestion Script
+│   ├── seed_massive_data.js                   # High-Volume Mock Data Generator (800+ Jobs, 70+ Schools, 160+ Orgs)
+│   ├── uploads/                               # Canonical Local Uploads Directory
+│   │   ├── avatars/                           # User Profile Avatars
+│   │   ├── institutions/                      # CHED Recognition, PACUCOA Accreditations, DepEd Charters
+│   │   ├── orgs/                              # SEC/DTI Certificates, Mayor's Permits, BIR Form 2303
+│   │   ├── portfolio/                         # Student Resumes, Project Artifacts, Certificates
+│   │   └── requirements/                      # OJT Medical Clearances, Waiver Forms, Endorsements
+│   └── src/
+│       ├── server.js                          # Express Application Entry Point, Middlewares, Sockets, Upload Fallback
+│       ├── config/
+│       │   ├── db.js                          # MySQL2 Connection Pool (SSL, utf8mb4, PST Timezone, Keep-Alive)
+│       │   ├── cors.js                        # Dynamic CORS Origin Whitelister (*.vercel.app, *.onrender.com)
+│       │   ├── socket.js                      # Socket.IO Server Initialization & Event Emitter (`emitUpdate`)
+│       │   └── migrate.js                     # Self-Aligning Database Migration Engine (Checks & Alters Tables)
+│       ├── middleware/
+│       │   └── auth.js                        # JWT Verification, Role-Based Access Control, Session Validation
+│       ├── routes/
+│       │   ├── auth.routes.js                 # Login, Registration (Student/Staff/Org/Inst/Mentor), Logout, Session
+│       │   ├── student.routes.js              # Student Dashboard, Jobs, Applications, DTR, QR, Skills, Portfolio
+│       │   ├── organization.routes.js         # Org Dashboard, Jobs, Applicants, Interviews, Offers, Mentors, OJT
+│       │   ├── institution.routes.js          # HEI Dashboard, Student Monitoring, Staff Management, Requirements
+│       │   ├── admin.routes.js                # System Admin Vetting, Audit Logs, Analytics, Account Governance
+│       │   ├── certificate.routes.js          # Certificate Querying, Rendering, and Public Verification API
+│       │   ├── user.routes.js                 # User Settings, Password Changes, Preferences, Avatar Uploads
+│       │   ├── notification.routes.js         # User Notification Retrieval & Read Status Updates
+│       │   └── public.routes.js               # Unauthenticated Statistical Metrics & Institutions/Program Catalog
+│       ├── services/
+│       │   ├── aiRecommendation.service.js    # AI Skills Knowledge Graph & Google Gemini API Career Recommendations
+│       │   ├── certificate.service.js         # Official OJT Completion Certificate Generator & Portfolio Binder
+│       │   ├── googleMeet.service.js          # Google Meet REST API v2 Automation (Domain-Wide Delegation)
+│       │   └── interviewReminder.service.js   # 5-Minute Automated Realtime Interview Reminder Daemon
+│       ├── utils/
+│       │   ├── email.js                       # System Email Dispatcher Utility
+│       │   ├── notification.helper.js         # Unified Notification Creator (Database Insert + Socket Dispatch)
+│       │   ├── session.js                     # User Session Manager & Stale Session Garbage Collector
+│       │   ├── totp.helper.js                 # Cryptographic HMAC-SHA256 TOTP Signer & Constant-Time Verifier
+│       │   └── upload.helper.js               # Multer Storage Config, File Type Whitelists & Blob Backup
+│       └── data/
+│           ├── disciplineSkillsData.js        # Comprehensive Skillsets Across 15 Academic Disciplines
+│           └── programSkillsData.js           # Degree-to-Skill Taxonomy Catalog
+│
+└── src/                                       # REACT 19 WEB FRONTEND SINGLE PAGE APPLICATION (SPA)
+    ├── App.jsx                                # Main Routing Router, AnimatePresence, Suspense, Providers
+    ├── main.jsx                               # React DOM Root Entry Point
+    ├── index.css                              # Custom Tailwind Utility Styles, Glassmorphism, Theme Variables
+    ├── api/
+    │   └── client.js                          # Web Axios-Equivalent Fetch API Client with Automatic Bearer Token
+    ├── contexts/
+    │   ├── AuthContext.jsx                    # User Session State, Role Parsing, Login/Logout Methods
+    │   ├── SocketContext.jsx                  # Socket.IO Realtime Connection & Global Event Subscription
+    │   ├── ThemeContext.jsx                   # Dark / Light Theme State with LocalStorage Persistence
+    │   └── TimeContext.jsx                    # Philippine Standard Time Clock & Formatting Context
+    ├── components/
+    │   ├── Layout/
+    │   │   ├── DashboardLayout.jsx            # Authenticated App Shell (Sidebar, Header, Content Area, Modals)
+    │   │   ├── DashboardHeader.jsx            # Top Navigation Bar (Breadcrumbs, Notification Bell, User Menu)
+    │   │   ├── Sidebar.jsx                    # Dynamic Role-Based Sidebar Navigation Links
+    │   │   ├── Header.jsx                     # Public Landing Page Navigation Header
+    │   │   ├── Footer.jsx                     # Public Landing Page Footer with Legal Links
+    │   │   ├── MobileBottomBar.jsx            # Responsive Mobile Bottom Tab Navigation for Web
+    │   │   ├── ProtectedRoute.jsx             # RBAC Route Guard Component (Redirects Unauthorized Roles)
+    │   │   └── PageTransition.jsx             # Framer Motion Smooth Page Transition Container
+    │   ├── Auth/
+    │   │   ├── DemoAccountsDrawer.jsx         # Quick-Switch Drawer with Pre-Seeded Accounts for All 6 Roles
+    │   │   ├── PasswordStrengthMeter.jsx      # Visual Real-Time Password Complexity Indicator
+    │   │   └── RegistrationAlerts.jsx         # Contextual Banners Explaining Proof-of-Legitimacy Requirements
+    │   ├── Student/
+    │   │   └── StudentAttendanceQrModal.jsx   # Web-Based Dynamic TOTP QR Generator with Live Countdown
+    │   ├── Organization/
+    │   │   ├── HrAttendanceScannerModal.jsx   # Camera-Powered QR Scanner for Clock-In/Clock-Out Verification
+    │   │   └── MentorPasscodeGeneratedModal.jsx # Passcode Display & Copy Modal for Inviting Mentors
+    │   ├── Institution/
+    │   │   └── PasscodeGeneratedModal.jsx     # Passcode Display Modal for Inviting Institution Staff
+    │   ├── admin/
+    │   │   └── CrossDisciplineChart.jsx       # Interactive SVG/Canvas Chart Visualizing Skill Supply vs Demand
+    │   ├── common/
+    │   │   └── ErrorBoundary.jsx              # React Error Boundary Catching Render Crashes Gracefully
+    │   └── ui/
+    │       ├── DetailDrawer.jsx               # Sliding Drawer for Inspecting Student/Job Dossiers
+    │       ├── EmailInput.jsx                 # Email Input Field with Real-Time Domain Autocomplete
+    │       ├── kit.jsx                        # Shared UI Tokens (Badges, Buttons, Cards, Inputs, Modals)
+    │       ├── LoadingSpinner.jsx             # Animated Brand Spinner
+    │       ├── Pagination.jsx                 # Full-Featured Pagination Bar with Rows-Per-Page Selector
+    │       ├── PhAddressSelector.jsx          # Cascading Dropdowns for Region -> Province -> City -> Barangay
+    │       ├── PhPhoneInput.jsx               # Formatted Philippine Mobile Number Input (+63 9XX...)
+    │       └── Skeleton.jsx                   # Modern Shimmering Placeholder Loading Cards
+    └── pages/
+        ├── public/
+        │   ├── LandingPage.jsx                # High-Conversion Public Homepage with Statistics & Value Props
+        │   ├── LoginPage.jsx                  # Unified Login Portal Supporting All 6 User Roles
+        │   ├── GetStartedPage.jsx             # Role Selection Landing Page for Prospective Users
+        │   ├── RegisterStudentPage.jsx        # Student Signup with Institutional Access Code Validation
+        │   ├── RegisterStaffPage.jsx          # Staff Signup (Supervisor, Registrar, Counselor, Dean)
+        │   ├── RegisterOrganizationPage.jsx   # Company Signup with SEC/DTI/BIR Proof-of-Legitimacy Uploads
+        │   ├── RegisterInstitutionPage.jsx    # HEI Signup with CHED/TESDA Recognition Document Uploads
+        │   └── RegisterMentorPage.jsx         # Workplace Mentor Signup with Corporate Access Code Validation
+        ├── shared/
+        │   └── UserSettingsPage.jsx           # Universal User Settings (Password, Avatar, Preferences)
+        ├── student/
+        │   ├── StudentDashboard.jsx           # Intern Overview (Hours, Application Status, Shortcuts)
+        │   ├── StudentJobs.jsx                # OJT & Career Opportunity Discovery with Skill-Match Badges
+        │   ├── StudentApplications.jsx        # Candidate Application Tracker & Interview Calendar
+        │   ├── StudentOJT.jsx                 # Active Deployment Hub (DTR Logbook, Dynamic QR, Requirements)
+        │   ├── StudentSkills.jsx              # Skill Competency Matrix & AI Career Recommendation Engine
+        │   ├── StudentPortfolio.jsx           # Verified Career Portfolio Builder (Projects, Badges, Certs)
+        │   ├── StudentComplaints.jsx          # Anonymized Student Grievance Filing & Whistleblower Shield
+        │   └── StudentProfile.jsx             # Academic Student Profile & Resume Manager
+        ├── organization/
+        │   ├── OrgDashboard.jsx               # Employer Overview (Active Interns, Open Jobs, Recent Applicants)
+        │   ├── OrgJobs.jsx                    # Opportunity Management (OJT, Career, On-Call Postings)
+        │   ├── OrgApplicants.jsx              # Candidate Review Pipeline (Review, Shortlist, Hire, Reject)
+        │   ├── OrgInterviews.jsx              # Interview Scheduling Center with Automated Google Meet Links
+        │   ├── OrgOffers.jsx                  # Formal OJT & Career Employment Offer Management
+        │   ├── OrgOJT.jsx                     # Active Intern Attendance Hub, HR QR Scanner & Hour Verification
+        │   ├── OrgEvaluations.jsx             # Standardized Midterm & Final Rubric Performance Evaluation Hub
+        │   ├── OrgMentors.jsx                 # Mentor Roster & Access Code Delegation Management
+        │   └── OrgGrievances.jsx              # Employer Grievance & Compliance Portal
+        ├── institution/
+        │   ├── InstitutionDashboard.jsx       # HEI Leadership Overview (Deployed Students, Partner Companies)
+        │   ├── InstStudents.jsx               # Student Intake Verification, Hour Allotment & Roster Audits
+        │   ├── InstStaff.jsx                  # Departmental Staff Delegation & Permission Passcode Generator
+        │   ├── InstPrograms.jsx               # Academic Degree Curricula & Mandatory OJT Hours Configuration
+        │   ├── InstRequirements.jsx           # SIPP Mandatory Clearance Document Management (MOA, Medicals)
+        │   ├── InstMonitoring.jsx             # Real-Time Intern Attendance, DTR Audits & Disciplinary Warnings
+        │   └── InstOJTOffers.jsx              # Tripartite Job Approval Gate (Review & Endorse Employer Postings)
+        └── admin/
+            ├── AdminDashboard.jsx             # Platform Overview, KPI Counters & Growth Analytics
+            ├── AdminInstitutions.jsx          # HEI Legal Accreditation Dossier Vetting & Approval
+            ├── AdminOrganizations.jsx         # Employer Legal Legitimacy Vetting (SEC, DTI, Mayor's, BIR)
+            ├── AdminJobs.jsx                  # Nationwide Opportunity Catalog Moderation (800+ Postings)
+            ├── AdminComplaints.jsx            # National Grievance Escalation & Accident Review Hub
+            ├── AdminAnalytics.jsx             # Cross-Discipline Skill Supply/Demand Analytics Dashboard
+            ├── AdminAuditLogs.jsx             # Immutable Security Audit Logs & Active User Session Monitor
+            └── AdminUsers.jsx                 # Nationwide User Directory, Status Toggles & Security Resets
+```
+
+
+========================================================================================================================
+5. SYSTEM USERS, ROLES HIERARCHY & GRANULAR RBAC PERMISSIONS
+========================================================================================================================
+
+InternConPH implements a strict 6-tier Role-Based Access Control (RBAC) hierarchy governed by the `roles` table and
+enforced at both backend middleware (`authenticateToken`, `requireRole`, `requireHROrAdmin`) and frontend client routes
+(`ProtectedRoute`).
+
+5.1 SYSTEM ADMINISTRATOR (`system_admin`):
+  - Highest platform authority; independent of universities and corporations.
+  - Vets and approves/rejects Institution and Organization registrations based on uploaded legal dossiers.
+  - Reviews nationwide analytics, cross-discipline skill demand/supply dynamics, and platform-wide audit trails.
+  - Adjudicates severe disputes escalated by HEIs against errant organizations.
+  - Has administrative override to suspend or deactivate fraudulent accounts.
+
+5.2 INSTITUTION DIRECTOR (`institution`):
+  - Represents the College, University, or Technical-Vocational Institute (e.g., University President, Dean, or SIPP Director).
+  - Configures institution profile, official campus address, and academic programs/curricula.
+  - Governs the tripartite clearance gate: reviews and approves/rejects job postings targeted at their students.
+  - Issues cryptographically hashed Access Passcodes to onboard Institution Staff with tailored permission sets.
+
+5.3 INSTITUTION STAFF (`institution_staff`):
+  - Sub-accounts operating under the HEI, categorized by official academic position:
+    a) OJT Coordinator / Supervisor:
+       - Monitors student progress during active deployment.
+       - Reviews verified DTR attendance logs, hours remaining, and performance evaluations.
+       - Issues academic warnings or schedules conferences upon receiving incident complaints from employers.
+    b) College Registrar:
+       - Verifies student identities, student numbers, and curriculum enrollment.
+       - Clears Returnees and Transferees requiring special prerequisite audits.
+       - Manages student clearance checklists and official academic certifications.
+    c) Guidance Counselor:
+       - Receives confidential student grievances and safety hazard reports.
+       - Conducts mediation with employer HR while shielding student identity to prevent retaliation.
+    d) Academic Dean:
+       - High-level departmental oversight across curricula, faculty coordinators, and student batches.
+       - Endorses college-wide internship agreements and industry tie-ups.
+
+5.4 HIRING ORGANIZATION HR ADMINISTRATOR (`hiring_organization` / `hr_staff`):
+  - Represents the corporate entity / Host Training Establishment (HTE).
+  - Posts opportunities across three tracks: OJT (internships), Career Jobs (graduates), and On-Call Projects (gig stipends).
+  - Designates which partner universities receive each opportunity posting.
+  - Evaluates applicant pools, reviews verified portfolios, schedules interviews, and issues formal OJT/job offers.
+  - Uses the on-site camera scanner (`HrAttendanceScannerModal`) to scan student dynamic TOTP QR codes.
+  - Generates mentor access codes to onboard department heads and leads.
+
+5.5 WORKPLACE MENTOR / SUPERVISOR (`workplace_mentor` / `mentor`):
+  - Department lead, project manager, or senior engineer within the hiring company.
+  - Directly supervises deployed interns on a day-to-day basis.
+  - Certifies or rejects Daily Time Records (DTR), clock-in/out stamps, and rendered hours.
+  - Submits Midterm and Final OJT Performance Evaluations with rubric ratings.
+  - Submits workplace incident/misconduct reports or accident records directly to the HEI coordinator.
+  - Prohibited from creating jobs, issuing legal employment offers, or editing corporate registration documents.
+
+5.6 STUDENT CANDIDATE (`student`):
+  - Candidates classified by enrollment status:
+    - Regular Student: Follows standard curriculum timeline.
+    - Returnee Student: Resuming studies after leave; requires registrar scholastic clearance.
+    - Transferee Student: Transferred from another HEI; requires credit transfer validation.
+  - Progresses across dynamic lifecycle states:
+    1. Starting OJT: Registered and cleared; searching for approved internship opportunities matching degree program.
+    2. Ongoing OJT Intern: Actively deployed at a verified HTE; logs daily DTR, presents dynamic TOTP QR, files journals.
+    3. OJT Completer: Required hours fulfilled (e.g., 486/486 hrs) and verified; unlocked certificate and recommendation badges.
+    4. Graduated Alumni / Career Candidate: Degree completed; unlocked to apply for full-time and part-time Career Jobs.
+
+5.7 ROLE-BASED ACCESS CONTROL (RBAC) PERMISSION MATRIX:
+------------------------------------------------------------------------------------------------------------------------
+System Capability / Operation          Admin    Inst Dir  Inst Staff  Org HR   Mentor   Student
+------------------------------------------------------------------------------------------------------------------------
+Vet Legal Registration Dossiers        YES      NO        NO          NO       NO       NO
+Create / Edit Academic Programs        NO       YES       YES (Dean)  NO       NO       NO
+Generate Staff Access Passcodes        NO       YES       NO          NO       NO       NO
+Clear / Verify Enrolled Students       NO       YES       YES (Reg)   NO       NO       NO
+Approve / Reject Job Postings (MOA)    NO       YES       YES (Coord) NO       NO       NO
+Post Opportunities (OJT / Career)      NO       NO        NO          YES      NO       NO
+Review Applicants & Schedule Interview NO       NO        NO          YES      NO       NO
+Issue Formal OJT / Job Offer           NO       NO        NO          YES      NO       NO
+Generate Mentor Access Passcodes       NO       NO        NO          YES      NO       NO
+Scan Student Dynamic TOTP QR Code      NO       NO        NO          YES      YES      NO
+Certify / Reject DTR Attendance Hours  NO       NO        NO          YES      YES      NO
+Submit Midterm/Final Rubric Evaluation NO       NO        NO          YES      YES      NO
+File Accident / Incident Report        NO       NO        NO          YES      YES      NO
+Apply for OJT Internship               NO       NO        NO          NO       NO       YES (OJT)
+Apply for Career Job (Full-Time)       NO       NO        NO          NO       NO       YES (Alumni)
+Present Dynamic TOTP QR Code           NO       NO        NO          NO       NO       YES (Active)
+Submit Reflective Daily Journal        NO       NO        NO          NO       NO       YES (Active)
+File Confidential Grievance (Shielded) NO       NO        NO          NO       NO       YES
+View Public Cryptographic Certificate  YES      YES       YES         YES      YES      YES
+Audit Logs & Session Revocation        YES      NO        NO          NO       NO       NO
+------------------------------------------------------------------------------------------------------------------------
+
+
+========================================================================================================================
+6. STEP-BY-STEP OPERATIONAL WORKFLOWS & STATE MACHINES
+========================================================================================================================
+
+------------------------------------------------------------------------------------------------------------------------
+WORKFLOW 1: REGISTRATION, PROOF OF LEGITIMACY & ADMIN VETTING GATE
+------------------------------------------------------------------------------------------------------------------------
+Step 1.1: An organization or university representative visits the registration portal.
+          - For Companies: Selects legal structure (Corporation, Sole Proprietorship, Partnership).
+            Must provide SEC / DTI Registration Number, Mayor's Business Permit Number, BIR TIN (Form 2303).
+            Must upload legal PDF documents via `POST /api/auth/register/organization`.
+          - For HEIs: Selects classification (State University, Private HEI, Tech-Voc).
+            Must provide CHED Institutional Code, Campus Address, and upload CHED Recognition / Charter Certificate
+            via `POST /api/auth/register/institution`.
+Step 1.2: System creates a record in `users` with `is_active = 0` (or `status = 'pending'`), records the entity in
+          `hiring_organizations` or `institutions`, and creates an entry in `entity_registrations`.
+Step 1.3: The user is locked out of operational dashboards and sees a waiting screen:
+          "Registration Submitted for Legal Verification by System Administrator."
+Step 1.4: System Administrator navigates to `/dashboard/admin/organizations` or `/dashboard/admin/institutions`.
+          Admin clicks "View Dossier", inspects uploaded government documents directly via `/api/admin/documents/:id/view`.
+Step 1.5: Admin clicks "Verify & Approve" or "Reject with Cause":
+          - If Approved: Backend updates `is_verified = 1`, `status = 'active'`, and dispatches a realtime WebSocket
+            notification (`notification_received`) and audit log entry. The user's full dashboard unlocks immediately.
+          - If Rejected: Backend records detailed rejection notes in `entity_registrations.rejection_reason`.
+
+------------------------------------------------------------------------------------------------------------------------
+WORKFLOW 2: CRYPTOGRAPHIC ACCESS CODES & DELEGATED INVITE GOVERNANCE
+------------------------------------------------------------------------------------------------------------------------
+To prevent unauthorized users from registering under official universities or companies, InternConPH uses cryptographic
+access passcodes:
+Step 2.1: An authorized executive (Institution Director or Org HR) clicks "Invite Staff" or "Invite Mentor".
+Step 2.2: Executive enters target user's details:
+          - Target Identifier (Employee ID, School ID, or Corporate Email).
+          - Intended Position (e.g., 'ojt_coordinator', 'registrar', 'counselor', 'mentor').
+          - Assigned Permissions (JSON object of granular permissions).
+Step 2.3: Backend generates a cryptographically secure random string, hashes it with SHA-256, and stores it in
+          `access_codes` with an expiration timestamp (`expires_at`, typically 7 to 30 days).
+Step 2.4: The executive securely provides the plaintext passcode (e.g., `INST-A8F2-99C1`) to the invitee.
+Step 2.5: The invitee visits `/register/staff`, `/register/mentor`, or `/register/student`, enters the passcode along
+          with their identifier.
+Step 2.6: Backend validates:
+          - Code exists, `is_used = 0`, and `expires_at > NOW()`.
+          - Target identifier matches the applicant's entered ID.
+          Upon successful registration, `access_codes.is_used` is set to 1, and `used_by_user_id` is linked.
+
+------------------------------------------------------------------------------------------------------------------------
+WORKFLOW 3: STUDENT INTAKE, CLASSIFICATION, & ACADEMIC REGISTRAR/COORDINATOR CLEARANCE
+------------------------------------------------------------------------------------------------------------------------
+Step 3.1: Student registers at `/register/student` using their university's access code.
+          Selects Academic Degree Program, Classification (Regular, Returnee, Transferee), and initial OJT status.
+Step 3.2: Record created in `students` with `is_verified = 0`.
+Step 3.3: Institution Staff dashboard (`/dashboard/institution/students`) displays the student intake queue:
+          - Regular students appear in the OJT Coordinator's queue for hours confirmation.
+          - Returnees and Transferees appear in the Registrar's queue for prerequisite clearance.
+Step 3.4: Staff reviews transcripts, confirms required hours quota (e.g., BSIT = 486 hrs), and clicks "Verify Student".
+Step 3.5: Student's profile updates to `is_verified = 1`. Student's dashboard unlocks to explore approved OJT openings.
+
+------------------------------------------------------------------------------------------------------------------------
+WORKFLOW 4: TRIPARTITE OPPORTUNITY CLEARANCE & PROGRAM ELIGIBILITY MATCHING
+------------------------------------------------------------------------------------------------------------------------
+Step 4.1: HR drafts an Opportunity in `/dashboard/organization/jobs`:
+          - Selects Track: `ojt` (Student Interns), `career_job` (Graduated Alumni), or `on_call` (Short-term Gig).
+          - Configures Work Setup (Onsite, Remote, Hybrid), slots, salary/allowance, required skills, and finish time.
+          - Designates the Workplace Mentor responsible for overseeing the position.
+Step 4.2: Tripartite HEI Selection:
+          - HR selects partner universities invited to receive this opportunity.
+          - System creates pending records in `institution_job_approvals` for each selected school.
+Step 4.3: The posting is completely hidden from students until an Institution Director or Coordinator reviews it!
+Step 4.4: Institution Coordinator visits `/dashboard/institution/ojt-offers`:
+          - Inspects job description, assigned mentor, working conditions, and safety measures.
+          - Clicks "Approve & Endorse for Curriculum".
+Step 4.5: System queries `job_required_programs` and alerts eligible students via realtime WebSocket push that an
+          approved, institution-cleared OJT opening is now live.
+
+------------------------------------------------------------------------------------------------------------------------
+WORKFLOW 5: CANDIDATE MATCHING, APPLICATION PIPELINE, INTERVIEW PIPELINE (GOOGLE MEET) & FORMAL OFFERS
+------------------------------------------------------------------------------------------------------------------------
+Step 5.1: Student discovers opportunities in `/dashboard/student/jobs`.
+          - System calculates an algorithmic match score based on `student_skills` vs `job_required_skills`.
+          - If an active OJT student attempts to apply for a `career_job`, the submission is blocked with an alert:
+            "Career jobs are strictly reserved for Graduated Alumni."
+Step 5.2: Student submits application (cover letter, verified portfolio items, active resume from `student_resumes`).
+Step 5.3: Application record inserted in `job_applications` with status `'pending'`.
+Step 5.4: HR reviews applicant dossiers in `/dashboard/organization/applicants`:
+          - Updates status: `'pending'` -> `'reviewing'` -> `'shortlisted'`.
+Step 5.5: HR clicks "Schedule Interview":
+          - Selects date, time, mode (`'online'`, `'onsite'`, `'phone'`).
+          - If mode is `'online'`, HR can click "Generate Google Meet Link".
+          - Backend calls Google Meet REST API v2 via Domain-Wide Delegation to auto-create a space, saving the link
+            in `interviews.meeting_link`. (If unconfigured, gracefully falls back to custom link entry).
+          - Interview record created in `interviews`. Realtime alert delivered to student.
+Step 5.6: Five minutes before the scheduled interview, the backend daemon (`interviewReminder.service.js`) dispatches
+          an automated reminder push notification to both student and recruiter with direct meeting link.
+Step 5.7: Formal Offer & Tripartite Deployment:
+          - If selected, HR issues an offer via `POST /api/org/offers` (stored in `ojt_deployment_offers`).
+          - Student accepts offer: System creates an official training program in `ojt_records`:
+            `required_hours` set to curriculum quota, `rendered_hours = 0.00`, status `'ongoing'`.
+          - Student transitions to "Ongoing OJT Intern".
+
+------------------------------------------------------------------------------------------------------------------------
+WORKFLOW 6: ACTIVE OJT DEPLOYMENT, DTR DAILY ATTENDANCE & MENTOR HOUR CERTIFICATION
+------------------------------------------------------------------------------------------------------------------------
+Step 6.1: Active interns log attendance through two synchronized methods:
+          Method A: Dynamic Hardware-Bound TOTP QR Code (Recommended On-Site Method):
+            - Student opens mobile app or web modal (`StudentAttendanceQrModal`).
+            - Client generates a 20/30-second rotating QR code payload containing `{ sid, dt, ts, sig }`, signed with
+              the student's unique secret key via HMAC-SHA256, bound to their locked hardware device token (`dt`).
+            - Recruiter/Mentor uses camera scanner (`HrAttendanceScannerModal`) to scan the QR code.
+            - Backend `verifyTotpPayload()` validates timestamp (rejects screenshots older than 30s) and hardware token.
+            - Automatically clocks the intern in or out in `ojt_attendance_logs`.
+          Method B: Self-Reported DTR Shift Submission:
+            - Intern submits log entry with `log_date`, `time_in`, `time_out`, `tasks_accomplished`, and `hours_rendered`.
+            - Status defaults to `'pending'`.
+Step 6.2: Workplace Mentor reviews attendance logs in `/dashboard/organization/ojt`:
+          - Mentor clicks "Verify & Credit":
+            * `ojt_attendance_logs.status` becomes `'verified'`.
+            * `ojt_records.rendered_hours` increments by the verified hours.
+            * `students.completed_ojt_hours` synchronizes.
+            * Student receives realtime alert of credited hours and remaining balance.
+          - Mentor can also add manual hours adjustments via `POST /api/org/interns/:ojtId/hours` for overtime or
+            special project credits with full audit logging.
+
+------------------------------------------------------------------------------------------------------------------------
+WORKFLOW 7: PERFORMANCE EVALUATION & AUTOMATED VERIFIABLE CAREER PORTFOLIO CREDITING
+------------------------------------------------------------------------------------------------------------------------
+Step 7.1: When `rendered_hours >= required_hours`, the student completes their hour quota.
+Step 7.2: Workplace Mentor submits Midterm / Final evaluation in `ojt_performance_records`:
+          - Evaluates standardized rubric criteria: Quality of Work, Dependability, Technical Skills, Ethics.
+          - System calculates numeric rating (e.g., 4.90 / 5.00) with written commendations.
+Step 7.3: Automated Certificate & Portfolio Generation (`checkAndGenerateCertificate()`):
+          - Upon evaluation submission and hour completion, system automatically generates an official certificate in
+            `ojt_certificates` with a unique serial code (`CERT-OJT-YYYY-XXXX-RAND`).
+          - Automatically binds the credential to the student's Career Portfolio (`portfolio_items`) with `is_verified = 1`,
+            linked to the authentic hiring organization ID.
+          - When the student graduates, future recruiters can inspect these verified badges with zero fraud risk.
+
+------------------------------------------------------------------------------------------------------------------------
+WORKFLOW 8: BIDIRECTIONAL INCIDENT REPORTING, ACCIDENT LOGGING & WHISTLEBLOWER GRIEVANCE SHIELDING
+------------------------------------------------------------------------------------------------------------------------
+Scenario A: Organization Filing Misconduct / Safety Report Against Intern:
+  - If intern commits unexcused absences, safety violations, or misconduct, HR/Mentor files report via `POST /api/org/complaints`.
+  - If a physical injury occurred on-site, an `accident_reports` record is atomically created (injury description, medical
+    attention given, facility, witnesses, preventive measures).
+  - Complaint is transmitted EXCLUSIVELY to the university OJT Coordinator.
+  - Coordinator investigates, schedules a conference, and records disciplinary notes or formal warnings.
+
+Scenario B: Student Filing Grievance Against Employer (Whistleblower Protection):
+  - If an intern encounters harassment, hazardous duties, or unpaid overtime, student files report via `POST /api/student/complaints`.
+  - Complaint routes directly and exclusively to the University Guidance Counselor.
+  - Privacy Shielding: When the counselor forwards the report to the employer for formal response, the university toggles
+    `include_student_details = 0`. The company sees: "Student Intern (Identity Protected by Institution)".
+  - If an employer exhibits repeat critical violations, the HEI escalates the dossier to the System Administrator to suspend
+    or revoke the company's platform accreditation.
+
+------------------------------------------------------------------------------------------------------------------------
+WORKFLOW 9: OFFICIAL OJT CERTIFICATE GENERATION & PUBLIC CRYPTOGRAPHIC VERIFICATION
+------------------------------------------------------------------------------------------------------------------------
+Step 9.1: An official certificate is generated upon fulfillment of hours and evaluation sign-off.
+Step 9.2: Certificate serial code format: `CERT-OJT-[YEAR]-[OJT_ID]-[4_CHAR_RANDOM_HASH]` (e.g. `CERT-OJT-2026-0042-8K9P`).
+Step 9.3: Anyone (student, prospective employer, accreditation auditor) can verify the certificate via two public endpoints:
+          - `GET /api/certificates/verify/:code` -> Returns JSON verification payload confirming student name, school,
+            company, rendered hours, rating, and issue timestamp.
+          - `GET /api/certificates/render/:code` -> Renders an official, printable SVG/HTML security certificate with
+            embossed seals, QR code, and Philippine SIPP compliance marks.
+
+
+========================================================================================================================
+7. COMPLETE DATABASE ARCHITECTURE & RELATIONAL SCHEMA (61 TABLES)
+========================================================================================================================
+
+7.1 RELATIONAL ARCHITECTURE MAP (ASCII ENTITY-RELATIONSHIP DIAGRAM):
+
+  [users] 1 ──── * [user_sessions]
+    │  1 ──── 1 [user_preferences]
+    │  1 ──── * [notifications]
+    │  1 ──── * [audit_logs]
+    │
+    ├── 1:1 ──> [institutions] (Main Account: Director)
+    │             │
+    │             ├── 1:* ──> [institution_documents] (CHED GR, CTPR, Charters)
+    │             ├── 1:* ──> [institution_staff] (Coordinators, Registrars, Counselors, Deans)
+    │             ├── 1:* ──> [programs] (Curricula, Degrees, OJT Quotas)
+    │             │             │
+    │             │             └── 1:* ──> [students]
+    │             │                           │
+    │             │                           ├── 1:1 ──> [student_portfolios] ── * [portfolio_items]
+    │             │                           ├── 1:* ──> [student_resumes]
+    │             │                           ├── 1:* ──> [student_skills] ──> [skills]
+    │             │                           ├── 1:* ──> [student_achievements]
+    │             │                           ├── 1:1 ──> [student_attendance_devices] (Dynamic TOTP Binding)
+    │             │                           ├── 1:* ──> [ojt_student_requirements]
+    │             │                           └── 1:* ──> [job_applications]
+    │             │                                         │
+    │             │                                         ├── 1:* ──> [interviews]
+    │             │                                         ├── 1:1 ──> [job_offers] (Career Jobs)
+    │             │                                         └── 1:1 ──> [ojt_deployment_offers] (OJT Internships)
+    │             │                                                       │
+    │             │                                                       ▼
+    │             ├── 1:* ──> [ojt_requirements]                   [ojt_records] (Active Internship Deployment)
+    │             └── 1:* ──> [institution_reports]                       │
+    │                                                                     ├── 1:* ──> [ojt_attendance_logs] (Daily DTR)
+    │                                                                     ├── 1:* ──> [ojt_daily_journals] (Daily Reflections)
+    │                                                                     ├── 1:* ──> [ojt_performance_records] (Rubric Evals)
+    │                                                                     └── 1:1 ──> [ojt_certificates] (Official Certificate)
+    │
+    └── 1:1 ──> [hiring_organizations] (Main Account: HR)
+                  │
+                  ├── 1:* ──> [organization_documents] (SEC, DTI, Mayor's Permit, BIR 2303)
+                  ├── 1:* ──> [organization_staff] (Workplace Mentors, HR Officers)
+                  ├── 1:* ──> [organization_warnings]
+                  ├── 1:* ──> [organization_suspensions]
+                  └── 1:* ──> [job_postings] (OJT, Career, On-Call Opportunities)
+                                │
+                                ├── 1:* ──> [institution_job_approvals] (Tripartite Academic Endorsement Gate)
+                                ├── 1:* ──> [job_required_programs] ──> [programs] (Curriculum Matching)
+                                ├── 1:* ──> [job_required_skills]   ──> [skills]   (Algorithmic Match Scoring)
+                                └── 1:* ──> [job_applications]
+
+  [complaints] (Grievance & Whistleblower Engine)
+    ├── 1:1 ──> [accident_reports] (On-site injury, medical facility, witnesses)
+    ├── 1:* ──> [complaint_evidence] (Uploaded photos, chat screenshots, medical slips)
+    └── 1:* ──> [complaint_reviews] (Guidance Counselor & OJT Coordinator investigation notes)
+
+  [access_codes] (Cryptographic Delegated Access Passcodes)
+    └── Binds Issuer User/Org/Inst -> Recipient Type -> Target Identifier (Employee / Student ID)
+
+7.2 COMPLETE CATALOG OF 61 DATABASE TABLES:
+
+1. `users`
+   - Primary Key: `user_id` (BIGINT UNSIGNED)
+   - Columns: `role_id` (INT), `email` (VARCHAR(150) UNIQUE), `password_hash` (VARCHAR(255)), `is_active` (TINYINT(1) DEFAULT 1),
+     `is_verified` (TINYINT(1) DEFAULT 0), `last_login_at` (DATETIME), `created_at` (DATETIME), `updated_at` (DATETIME)
+   - Function: Universal credentials and authentication anchor for all 6 system user roles.
+
+2. `roles`
+   - Primary Key: `role_id` (INT)
+   - Columns: `role_name` (ENUM('system_admin', 'institution', 'hiring_organization', 'student', 'workplace_mentor', 'institution_staff')),
+     `description` (VARCHAR(255)), `created_at`, `updated_at`
+   - Function: Master definition of primary system roles.
+
+3. `user_sessions`
+   - Primary Key: `session_id` (BIGINT UNSIGNED)
+   - Columns: `session_token_hash` (VARCHAR(64)), `user_id` (BIGINT UNSIGNED), `ip_address` (VARCHAR(45)), `user_agent` (TEXT),
+     `created_at` (DATETIME), `last_activity_at` (DATETIME), `expires_at` (DATETIME), `absolute_expires_at` (DATETIME),
+     `revoked_at` (DATETIME), `revoked_reason` (VARCHAR(100))
+   - Function: Tracks active login sessions, enforces idle timeouts (2 hours) and absolute timeouts (24 hours).
+
+4. `user_preferences`
+   - Primary Key: `preference_id` (BIGINT UNSIGNED)
+   - Columns: `user_id` (BIGINT UNSIGNED UNIQUE), `theme` (VARCHAR(20) DEFAULT 'light'), `email_notifications` (TINYINT(1)),
+     `sms_notifications` (TINYINT(1)), `browser_push` (TINYINT(1)), `sound_enabled` (TINYINT(1)), `compact_mode` (TINYINT(1)),
+     `language` (VARCHAR(10) DEFAULT 'en'), `created_at`, `updated_at`
+   - Function: Stores user dashboard custom preferences and notification toggles.
+
+5. `access_codes`
+   - Primary Key: `code_id` (BIGINT UNSIGNED)
+   - Columns: `code_hash` (VARCHAR(64) UNIQUE), `recipient_type` (ENUM('institution_staff', 'student', 'workplace_mentor')),
+     `institution_id` (BIGINT UNSIGNED NULL), `organization_id` (BIGINT UNSIGNED NULL), `program_id` (BIGINT UNSIGNED NULL),
+     `assigned_staff_id` (BIGINT UNSIGNED NULL), `target_identifier` (VARCHAR(100)), `intended_position` (VARCHAR(50)),
+     `intended_department` (VARCHAR(100)), `intended_classification` (VARCHAR(50)), `intended_status` (VARCHAR(50)),
+     `intended_email` (VARCHAR(150)), `assigned_permissions` (JSON), `created_by` (BIGINT UNSIGNED), `is_used` (TINYINT(1) DEFAULT 0),
+     `used_by_user_id` (BIGINT UNSIGNED NULL), `used_at` (DATETIME NULL), `expires_at` (DATETIME), `created_at` (DATETIME)
+   - Function: Cryptographic passcodes governing staff, mentor, and student registration invites.
+
+6. `entity_registrations`
+   - Primary Key: `registration_id` (BIGINT UNSIGNED)
+   - Columns: `entity_type` (ENUM('institution', 'hiring_organization', 'institution_staff', 'student', 'workplace_mentor')),
+     `entity_id` (BIGINT UNSIGNED), `user_id` (BIGINT UNSIGNED), `status` (ENUM('pending', 'verified', 'rejected')),
+     `reviewer_user_id` (BIGINT UNSIGNED NULL), `reviewed_at` (DATETIME NULL), `rejection_reason` (TEXT), `submitted_at` (DATETIME)
+   - Function: Unified legal compliance and vetting queue for System Administrators.
+
+7. `institutions`
+   - Primary Key: `institution_id` (BIGINT UNSIGNED)
+   - Columns: `institution_name` (VARCHAR(200)), `institution_code` (VARCHAR(30) UNIQUE), `address` (VARCHAR(255)),
+     `city` (VARCHAR(100)), `province` (VARCHAR(100)), `postal_code` (VARCHAR(10)), `contact_email` (VARCHAR(150)),
+     `contact_phone` (VARCHAR(20)), `website` (VARCHAR(255)), `status` (ENUM('pending', 'verified', 'rejected', 'suspended')),
+     `created_at`, `updated_at`
+   - Function: Higher Education Institutions (HEIs) and universities registered on the platform.
+
+8. `institution_documents`
+   - Primary Key: `document_id` (BIGINT UNSIGNED)
+   - Columns: `institution_id` (BIGINT UNSIGNED), `document_type` (ENUM('accreditation_certificate', 'ched_recognition', 'deped_permit', 'tesda_ctpr', 'other')),
+     `file_path` (VARCHAR(500)), `verified` (TINYINT(1) DEFAULT 0), `uploaded_at`, `created_at`, `updated_at`
+   - Function: Uploaded academic legitimacy certificates reviewed by System Admin.
+
+9. `institution_registrations`
+   - Primary Key: `registration_id` (BIGINT UNSIGNED)
+   - Columns: `institution_id` (BIGINT UNSIGNED), `submitted_by` (BIGINT UNSIGNED), `status` (ENUM('pending', 'approved', 'rejected')),
+     `reviewed_by` (BIGINT UNSIGNED), `review_notes` (TEXT), `submitted_at`, `reviewed_at`, `created_at`, `updated_at`
+   - Function: Specific submission audit record for HEI applications.
+
+10. `institution_staff`
+    - Primary Key: `staff_id` (BIGINT UNSIGNED)
+    - Columns: `user_id` (BIGINT UNSIGNED), `institution_id` (BIGINT UNSIGNED), `program_id` (BIGINT UNSIGNED NULL),
+      `position` (VARCHAR(50) DEFAULT 'ojt_coordinator'), `employee_id` (VARCHAR(30)), `staff_number` (VARCHAR(50)),
+      `first_name` (VARCHAR(100)), `last_name` (VARCHAR(100)), `contact_number` (VARCHAR(50)), `permissions` (JSON),
+      `is_active` (TINYINT(1) DEFAULT 1), `is_verified` (TINYINT(1) DEFAULT 0), `created_at`, `updated_at`
+    - Function: Faculty and administrative staff operating under an academic institution.
+
+11. `programs`
+    - Primary Key: `program_id` (BIGINT UNSIGNED)
+    - Columns: `institution_id` (BIGINT UNSIGNED), `program_name` (VARCHAR(150)), `program_code` (VARCHAR(30)),
+      `department` (VARCHAR(150)), `required_ojt_hours` (INT DEFAULT 486), `created_at`, `updated_at`
+    - Function: Academic degree programs offered by an institution with required SIPP internship hours.
+
+12. `master_programs`
+    - Primary Key: `master_program_id` (INT)
+    - Columns: `program_name` (VARCHAR(150)), `program_code` (VARCHAR(30)), `discipline` (VARCHAR(100)),
+      `default_ojt_hours` (INT), `description` (TEXT), `created_at`
+    - Function: CHED standard catalog of academic degree programs used for cross-institution standardization.
+
+13. `students`
+    - Primary Key: `student_id` (BIGINT UNSIGNED)
+    - Columns: `user_id` (BIGINT UNSIGNED), `institution_id` (BIGINT UNSIGNED), `program_id` (BIGINT UNSIGNED),
+      `student_number` (VARCHAR(50)), `category_id` (INT), `classification` (VARCHAR(50) DEFAULT 'regular'),
+      `ojt_status` (VARCHAR(50) DEFAULT 'starting_ojt'), `passcode_used` (VARCHAR(64)), `status_id` (INT),
+      `first_name` (VARCHAR(100)), `middle_name` (VARCHAR(100)), `last_name` (VARCHAR(100)), `birthdate` (DATE),
+      `gender` (ENUM('male', 'female', 'other')), `contact_number` (VARCHAR(20)), `address` (VARCHAR(255)),
+      `year_level` (TINYINT DEFAULT 4), `required_ojt_hours` (INT DEFAULT 486), `completed_ojt_hours` (INT DEFAULT 0),
+      `is_verified` (TINYINT(1) DEFAULT 0), `is_active` (TINYINT(1) DEFAULT 1), `created_at`, `updated_at`
+    - Function: Student profile entity tracking academic enrollment, SIPP lifecycle state, and completed hours.
+
+14. `student_categories`
+    - Primary Key: `category_id` (INT)
+    - Columns: `category_name` (VARCHAR(100)), `description` (VARCHAR(255)), `created_at`, `updated_at`
+    - Function: Categorization tags for students (e.g., Undergraduate, Tech-Voc, Bridging, Graduate).
+
+15. `student_statuses`
+    - Primary Key: `status_id` (INT)
+    - Columns: `status_name` (VARCHAR(50)), `description` (VARCHAR(255)), `created_at`, `updated_at`
+    - Function: Master lifecycle status definitions (Starting OJT, Ongoing, Completer, Graduated).
+
+16. `student_registrations`
+    - Primary Key: `registration_id` (BIGINT UNSIGNED)
+    - Columns: `student_id` (BIGINT UNSIGNED), `status` (ENUM('pending', 'verified', 'rejected')),
+      `verified_by` (BIGINT UNSIGNED), `verification_notes` (TEXT), `submitted_at`, `verified_at`, `created_at`, `updated_at`
+    - Function: Intake verification workflow managed by university coordinators and registrars.
+
+17. `student_documents`
+    - Primary Key: `document_id` (BIGINT UNSIGNED)
+    - Columns: `student_id` (BIGINT UNSIGNED), `document_type` (ENUM('resume', 'transcript', 'enrollment_certificate', 'medical_clearance', 'waiver', 'other')),
+      `file_path` (VARCHAR(500)), `verified` (TINYINT(1) DEFAULT 0), `uploaded_at`, `created_at`, `updated_at`
+    - Function: Institutional clearance documents uploaded by students.
+
+18. `student_resumes`
+    - Primary Key: `resume_id` (BIGINT UNSIGNED)
+    - Columns: `student_id` (BIGINT UNSIGNED), `file_path` (VARCHAR(500)), `version` (INT DEFAULT 1),
+      `is_active` (TINYINT(1) DEFAULT 1), `created_at`, `updated_at`
+    - Function: Student CV / resume versions submitted with job applications.
+
+19. `student_portfolios`
+    - Primary Key: `portfolio_id` (BIGINT UNSIGNED)
+    - Columns: `student_id` (BIGINT UNSIGNED UNIQUE), `title` (VARCHAR(200)), `summary` (TEXT), `created_at`, `updated_at`
+    - Function: Digital career portfolio container for authenticated lifelong achievements.
+
+20. `portfolio_items`
+    - Primary Key: `item_id` (BIGINT UNSIGNED)
+    - Columns: `portfolio_id` (BIGINT UNSIGNED), `title` (VARCHAR(200)), `description` (TEXT), `file_path` (VARCHAR(500)),
+      `item_type` (ENUM('project', 'certification', 'work_experience', 'ojt_certificate', 'award', 'other')),
+      `is_verified` (TINYINT(1) DEFAULT 0), `associated_org_id` (BIGINT UNSIGNED NULL), `associated_job_id` (BIGINT UNSIGNED NULL),
+      `created_at`, `updated_at`
+    - Function: Verifiable workplace badges and artifacts tied to verified employer IDs.
+
+21. `student_achievements`
+    - Primary Key: `achievement_id` (BIGINT UNSIGNED)
+    - Columns: `student_id` (BIGINT UNSIGNED), `title` (VARCHAR(200)), `description` (TEXT), `date_achieved` (DATE),
+      `created_at`, `updated_at`
+    - Function: Student honors, awards, hackathon wins, and dean's list recognitions.
+
+22. `skills`
+    - Primary Key: `skill_id` (INT)
+    - Columns: `skill_name` (VARCHAR(100) UNIQUE), `category_id` (INT), `created_at`, `updated_at`
+    - Function: Master repository of standardized technical and soft skills.
+
+23. `skill_categories`
+    - Primary Key: `category_id` (INT)
+    - Columns: `category_name` (VARCHAR(100)), `created_at`, `updated_at`
+    - Function: Taxonomy groupings for skills (Programming, Design, Finance, Healthcare, Engineering).
+
+24. `student_skills`
+    - Primary Key: `id` (BIGINT UNSIGNED)
+    - Columns: `student_id` (BIGINT UNSIGNED), `skill_id` (INT), `proficiency_level` (ENUM('beginner', 'intermediate', 'advanced', 'expert')),
+      `created_at`, `updated_at`
+    - Function: Maps skills claimed or verified for individual student candidates.
+
+25. `student_skill_recommendations`
+    - Primary Key: `recommendation_id` (BIGINT UNSIGNED)
+    - Columns: `student_id` (BIGINT UNSIGNED), `skill_id` (INT), `reason` (VARCHAR(255)), `score` (DECIMAL(5,2)),
+      `generated_at`, `created_at`
+    - Function: Stores AI-generated skill gap recommendations and career path companions.
+
+26. `skill_demand_statistics`
+    - Primary Key: `stat_id` (BIGINT UNSIGNED)
+    - Columns: `skill_id` (INT), `period_start` (DATE), `period_end` (DATE), `demand_count` (INT), `created_at`, `updated_at`
+    - Function: Aggregated market intelligence measuring hiring demand per skill across the Philippines.
+
+27. `student_staff_assignments`
+    - Primary Key: `assignment_id` (BIGINT UNSIGNED)
+    - Columns: `student_id` (BIGINT UNSIGNED), `staff_id` (BIGINT UNSIGNED), `assigned_at` (DATETIME),
+      `is_active` (TINYINT(1) DEFAULT 1), `created_at`, `updated_at`
+    - Function: Direct binding between an OJT coordinator / supervisor and an assigned batch of students.
+
+28. `student_attendance_devices`
+    - Primary Key: `device_id` (BIGINT UNSIGNED)
+    - Columns: `student_id` (BIGINT UNSIGNED), `device_token` (VARCHAR(64) UNIQUE), `device_name` (VARCHAR(150)),
+      `platform` (VARCHAR(50)), `totp_secret` (VARCHAR(64)), `is_locked` (TINYINT(1) DEFAULT 1),
+      `last_used_at` (DATETIME), `created_at`, `updated_at`
+    - Function: Hardware device registration binding student phones to dynamic TOTP QR code generation.
+
+29. `hiring_organizations`
+    - Primary Key: `organization_id` (BIGINT UNSIGNED)
+    - Columns: `organization_name` (VARCHAR(200)), `business_structure` (VARCHAR(50)), `industry` (VARCHAR(150)),
+      `address` (VARCHAR(255)), `city` (VARCHAR(100)), `province` (VARCHAR(100)), `sec_dti_number` (VARCHAR(100)),
+      `bir_tin` (VARCHAR(100)), `mayors_permit_number` (VARCHAR(100)), `contact_email` (VARCHAR(150)),
+      `contact_phone` (VARCHAR(20)), `website` (VARCHAR(255)), `status` (ENUM('pending', 'verified', 'rejected', 'suspended')),
+      `created_at`, `updated_at`
+    - Function: Corporate Host Training Establishments (HTEs) vetted for legal SIPP compliance.
+
+30. `organization_documents`
+    - Primary Key: `document_id` (BIGINT UNSIGNED)
+    - Columns: `organization_id` (BIGINT UNSIGNED), `document_type` (VARCHAR(100)), `document_name` (VARCHAR(255)),
+      `file_path` (VARCHAR(500)), `file_name` (VARCHAR(255)), `verified` (TINYINT(1) DEFAULT 0), `uploaded_at`,
+      `created_at`, `updated_at`
+    - Function: Uploaded SEC, DTI, Mayor's Permit, and BIR 2303 compliance files.
+
+31. `organization_registrations`
+    - Primary Key: `registration_id` (BIGINT UNSIGNED)
+    - Columns: `organization_id` (BIGINT UNSIGNED), `submitted_by` (BIGINT UNSIGNED), `status` (ENUM('pending', 'approved', 'rejected')),
+      `reviewed_by` (BIGINT UNSIGNED), `review_notes` (TEXT), `submitted_at`, `reviewed_at`, `created_at`, `updated_at`
+    - Function: Registration review dossier record for corporate entities.
+
+32. `organization_staff`
+    - Primary Key: `org_staff_id` (BIGINT UNSIGNED)
+    - Columns: `user_id` (BIGINT UNSIGNED), `organization_id` (BIGINT UNSIGNED), `staff_number` (VARCHAR(50)),
+      `title` (VARCHAR(20)), `first_name` (VARCHAR(100)), `middle_name` (VARCHAR(100)), `last_name` (VARCHAR(100)),
+      `suffix` (VARCHAR(20)), `position` (VARCHAR(50) DEFAULT 'mentor'), `job_title` (VARCHAR(100)),
+      `department` (VARCHAR(100)), `work_location` (VARCHAR(100)), `years_of_experience` (INT),
+      `contact_number` (VARCHAR(50)), `passcode_used` (VARCHAR(64)), `is_verified` (TINYINT(1) DEFAULT 0),
+      `rejection_reason` (TEXT), `created_at`, `updated_at`
+    - Function: HR personnel and Workplace Mentors operating under a corporate entity.
+
+33. `organization_status_history`
+    - Primary Key: `history_id` (BIGINT UNSIGNED)
+    - Columns: `organization_id` (BIGINT UNSIGNED), `old_status` (VARCHAR(30)), `new_status` (VARCHAR(30)),
+      `changed_by` (BIGINT UNSIGNED), `reason` (TEXT), `changed_at`, `created_at`
+    - Function: Audit trail tracking accreditation status changes (e.g. pending -> active -> suspended).
+
+34. `organization_warnings`
+    - Primary Key: `warning_id` (BIGINT UNSIGNED)
+    - Columns: `organization_id` (BIGINT UNSIGNED), `complaint_id` (BIGINT UNSIGNED NULL), `issued_by` (BIGINT UNSIGNED),
+      `reason` (TEXT), `issued_at`, `created_at`, `updated_at`
+    - Function: Official disciplinary warnings issued by universities or admin against errant employers.
+
+35. `organization_suspensions`
+    - Primary Key: `suspension_id` (BIGINT UNSIGNED)
+    - Columns: `organization_id` (BIGINT UNSIGNED), `complaint_id` (BIGINT UNSIGNED NULL), `issued_by` (BIGINT UNSIGNED),
+      `reason` (TEXT), `start_date` (DATE), `end_date` (DATE), `is_active` (TINYINT(1) DEFAULT 1), `created_at`, `updated_at`
+    - Function: Platform-wide operational suspensions revoking company job postings and recruitment access.
+
+36. `job_postings`
+    - Primary Key: `job_id` (BIGINT UNSIGNED)
+    - Columns: `organization_id` (BIGINT UNSIGNED), `mentor_id` (BIGINT UNSIGNED NULL), `title` (VARCHAR(200)),
+      `description` (TEXT), `requirements` (TEXT), `deliverables` (TEXT), `posting_type` (VARCHAR(50) DEFAULT 'ojt'),
+      `job_type` (VARCHAR(50) DEFAULT 'full_time'), `location` (VARCHAR(255)), `workplace_area` (VARCHAR(150)),
+      `finish_time` (VARCHAR(100)), `on_call_days` (INT), `salary_rate` (DECIMAL(10,2)), `salary_rate_type` (VARCHAR(50)),
+      `target_audience` (VARCHAR(50) DEFAULT 'ojt_students'), `work_setup` (VARCHAR(50) DEFAULT 'onsite'),
+      `slots_available` (INT DEFAULT 1), `status` (ENUM('draft', 'published', 'closed', 'archived')),
+      `posted_at` (DATETIME), `expires_at` (DATETIME), `created_at`, `updated_at`
+    - Function: Opportunity postings across three tracks: OJT Internships, Career Jobs, and On-Call Projects.
+
+37. `institution_job_approvals`
+    - Primary Key: `approval_id` (BIGINT UNSIGNED)
+    - Columns: `job_id` (BIGINT UNSIGNED), `institution_id` (BIGINT UNSIGNED), `approval_status` (ENUM('pending', 'approved', 'rejected')),
+      `reviewed_by` (BIGINT UNSIGNED NULL), `reviewed_at` (DATETIME NULL), `rejection_reason` (TEXT), `created_at` (DATETIME)
+    - Function: The tripartite academic endorsement gate. Students cannot view jobs without this approval!
+
+38. `job_required_programs`
+    - Primary Key: `id` (BIGINT UNSIGNED)
+    - Columns: `job_id` (BIGINT UNSIGNED), `program_id` (BIGINT UNSIGNED), `is_mandatory` (TINYINT(1) DEFAULT 1), `created_at`
+    - Function: Curricular targeting connecting jobs to specific academic degree programs.
+
+39. `job_required_skills`
+    - Primary Key: `id` (BIGINT UNSIGNED)
+    - Columns: `job_id` (BIGINT UNSIGNED), `skill_id` (INT), `importance` (ENUM('required', 'preferred')), `created_at`
+    - Function: Skill requirements used by the algorithmic recommendation engine for match scoring.
+
+40. `job_posting_reviews`
+    - Primary Key: `review_id` (BIGINT UNSIGNED)
+    - Columns: `job_id` (BIGINT UNSIGNED), `reviewed_by` (BIGINT UNSIGNED), `status` (ENUM('approved', 'rejected')),
+      `notes` (TEXT), `reviewed_at`, `created_at`, `updated_at`
+    - Function: Historical audit log of institutional reviews on job postings.
+
+41. `job_applications`
+    - Primary Key: `application_id` (BIGINT UNSIGNED)
+    - Columns: `job_id` (BIGINT UNSIGNED), `student_id` (BIGINT UNSIGNED), `status` (VARCHAR(50) DEFAULT 'pending'),
+      `accepted_at` (DATETIME NULL), `completed_at` (DATETIME NULL), `applied_at` (DATETIME), `created_at`, `updated_at`
+    - Function: Candidate applications submitted by students to specific opportunities.
+
+42. `interviews`
+    - Primary Key: `interview_id` (BIGINT UNSIGNED)
+    - Columns: `application_id` (BIGINT UNSIGNED), `schedule_at` (DATETIME), `mode` (ENUM('onsite', 'online', 'phone')),
+      `location_or_link` (VARCHAR(255)), `meeting_link` (VARCHAR(500)), `status` (ENUM('scheduled', 'completed', 'cancelled')),
+      `notes` (TEXT), `reminder_sent_5m` (TINYINT(1) DEFAULT 0), `created_at`, `updated_at`
+    - Function: Interview schedules with Google Meet integration and automated 5-minute reminder tracking.
+
+43. `job_offers`
+    - Primary Key: `offer_id` (BIGINT UNSIGNED)
+    - Columns: `application_id` (BIGINT UNSIGNED), `status` (ENUM('offered', 'accepted', 'rejected', 'expired')),
+      `offered_at` (DATETIME), `responded_at` (DATETIME NULL), `created_at`, `updated_at`
+    - Function: Formal employment contracts issued to graduated students for Career Jobs.
+
+44. `ojt_deployment_offers`
+    - Primary Key: `offer_id` (BIGINT UNSIGNED)
+    - Columns: `student_id` (BIGINT UNSIGNED), `organization_id` (BIGINT UNSIGNED), `job_id` (BIGINT UNSIGNED),
+      `status` (ENUM('offered', 'accepted', 'rejected', 'expired')), `offered_by` (BIGINT UNSIGNED),
+      `offered_at` (DATETIME), `responded_at` (DATETIME NULL), `created_at`, `updated_at`
+    - Function: Formal SIPP internship placement offers issued to eligible students.
+
+45. `ojt_records`
+    - Primary Key: `ojt_id` (BIGINT UNSIGNED)
+    - Columns: `student_id` (BIGINT UNSIGNED), `organization_id` (BIGINT UNSIGNED), `program_id` (BIGINT UNSIGNED),
+      `start_date` (DATE), `end_date` (DATE NULL), `required_hours` (INT DEFAULT 486), `rendered_hours` (DECIMAL(6,2) DEFAULT 0.00),
+      `status` (ENUM('ongoing', 'completed', 'terminated', 'cancelled')), `supervisor_name` (VARCHAR(150)),
+      `supervisor_contact` (VARCHAR(100)), `created_at`, `updated_at`
+    - Function: Active OJT deployment container tracking cumulative hours and official training status.
+
+46. `ojt_attendance_logs`
+    - Primary Key: `log_id` (BIGINT UNSIGNED)
+    - Columns: `ojt_id` (BIGINT UNSIGNED), `student_id` (BIGINT UNSIGNED), `organization_id` (BIGINT UNSIGNED),
+      `log_date` (DATE), `time_in` (DATETIME), `time_out` (DATETIME), `hours_rendered` (DECIMAL(5,2)),
+      `tasks_accomplished` (TEXT), `status` (ENUM('pending', 'verified', 'rejected') DEFAULT 'pending'),
+      `verified_by` (BIGINT UNSIGNED NULL), `verified_at` (DATETIME NULL), `verification_notes` (TEXT),
+      `created_at`, `updated_at`
+    - Function: Daily Time Record (DTR) shift entries certified by Workplace Mentors.
+
+47. `ojt_daily_journals`
+    - Primary Key: `journal_id` (BIGINT UNSIGNED)
+    - Columns: `ojt_id` (BIGINT UNSIGNED), `student_id` (BIGINT UNSIGNED), `journal_date` (DATE), `week_number` (INT),
+      `daily_activities` (TEXT), `learnings_acquired` (TEXT), `challenges_encountered` (TEXT), `solutions_applied` (TEXT),
+      `mentor_comments` (TEXT), `status` (ENUM('draft', 'submitted', 'reviewed') DEFAULT 'draft'),
+      `reviewed_by` (BIGINT UNSIGNED NULL), `reviewed_at` (DATETIME NULL), `created_at`, `updated_at`
+    - Function: Reflective learning journals submitted by interns for academic SIPP compliance.
+
+48. `ojt_performance_records`
+    - Primary Key: `record_id` (BIGINT UNSIGNED)
+    - Columns: `ojt_id` (BIGINT UNSIGNED), `evaluator_id` (BIGINT UNSIGNED), `evaluation_period` (ENUM('midterm', 'final')),
+      `rating` (DECIMAL(3,2)), `comments` (TEXT), `score_details` (JSON), `evaluated_at` (DATETIME),
+      `created_at`, `updated_at`
+    - Function: Standardized rubric performance reviews submitted by Workplace Mentors.
+
+49. `ojt_certificates`
+    - Primary Key: `certificate_id` (BIGINT UNSIGNED)
+    - Columns: `certificate_code` (VARCHAR(100) UNIQUE), `ojt_id` (BIGINT UNSIGNED), `student_id` (BIGINT UNSIGNED),
+      `institution_id` (BIGINT UNSIGNED), `organization_id` (BIGINT UNSIGNED), `program_id` (BIGINT UNSIGNED NULL),
+      `student_name` (VARCHAR(200)), `student_number` (VARCHAR(50)), `program_name` (VARCHAR(150)),
+      `institution_name` (VARCHAR(200)), `organization_name` (VARCHAR(200)), `rendered_hours` (DECIMAL(6,2)),
+      `required_hours` (DECIMAL(6,2)), `evaluation_rating` (DECIMAL(3,2)), `completion_date` (DATE),
+      `issued_at` (DATETIME), `certificate_data` (JSON), `created_at` (DATETIME)
+    - Function: Official cryptographic OJT completion certificates with public verification URLs.
+
+50. `ojt_requirements`
+    - Primary Key: `requirement_id` (BIGINT UNSIGNED)
+    - Columns: `institution_id` (BIGINT UNSIGNED), `requirement_name` (VARCHAR(150)), `description` (TEXT),
+      `document_template_url` (VARCHAR(500)), `is_mandatory` (TINYINT(1) DEFAULT 1), `created_at`, `updated_at`
+    - Function: Institutional checklist templates for OJT clearance (MOA, Medicals, Waivers).
+
+51. `ojt_student_requirements`
+    - Primary Key: `id` (BIGINT UNSIGNED)
+    - Columns: `ojt_id` (BIGINT UNSIGNED), `requirement_id` (BIGINT UNSIGNED), `status` (ENUM('pending', 'approved', 'rejected')),
+      `file_path` (VARCHAR(500)), `submitted_at` (DATETIME), `created_at`, `updated_at`
+    - Function: Student document submissions evaluated against institutional checklists.
+
+52. `complaints`
+    - Primary Key: `complaint_id` (BIGINT UNSIGNED)
+    - Columns: `student_id` (BIGINT UNSIGNED), `organization_id` (BIGINT UNSIGNED), `category_id` (INT),
+      `job_id` (BIGINT UNSIGNED NULL), `application_id` (BIGINT UNSIGNED NULL), `subject` (VARCHAR(200)),
+      `description` (TEXT), `complainant_type` (ENUM('student', 'organization') DEFAULT 'student'),
+      `is_accident` (TINYINT(1) DEFAULT 0), `forwarded_to_org` (TINYINT(1) DEFAULT 0),
+      `include_student_details` (TINYINT(1) DEFAULT 0),
+      `status` (ENUM('submitted', 'institution_review', 'admin_review', 'resolved') DEFAULT 'submitted'),
+      `filed_at` (DATETIME), `created_at`, `updated_at`
+    - Function: Bidirectional grievance engine with whistleblower shielding for student protection.
+
+53. `complaint_categories`
+    - Primary Key: `category_id` (INT)
+    - Columns: `category_name` (VARCHAR(100)), `description` (VARCHAR(255)), `created_at`, `updated_at`
+    - Function: Classification tags for complaints (Harassment, Labor Law, Unsafe Conditions, Ghosting).
+
+54. `complaint_evidence`
+    - Primary Key: `evidence_id` (BIGINT UNSIGNED)
+    - Columns: `complaint_id` (BIGINT UNSIGNED), `file_path` (VARCHAR(500)), `description` (VARCHAR(255)),
+      `uploaded_at`, `created_at`, `updated_at`
+    - Function: Uploaded evidence files (photos, medical reports, screenshots) supporting complaints.
+
+55. `complaint_reviews`
+    - Primary Key: `review_id` (BIGINT UNSIGNED)
+    - Columns: `complaint_id` (BIGINT UNSIGNED), `reviewed_by` (BIGINT UNSIGNED), `reviewer_role` (ENUM('institution', 'system_admin')),
+      `findings` (TEXT), `recommendation` (TEXT), `action_taken` (VARCHAR(255)), `reviewed_at`, `created_at`, `updated_at`
+    - Function: Official notes and resolutions logged by university guidance counselors and admins.
+
+56. `accident_reports`
+    - Primary Key: `accident_id` (BIGINT UNSIGNED)
+    - Columns: `complaint_id` (BIGINT UNSIGNED UNIQUE), `incident_date` (DATETIME), `location` (VARCHAR(255)),
+      `injury_description` (TEXT), `medical_attention_given` (TINYINT(1)), `medical_facility` (VARCHAR(200)),
+      `witnesses` (TEXT), `immediate_action_taken` (TEXT), `preventive_measures` (TEXT), `created_at`, `updated_at`
+    - Function: Detailed workplace safety reports for on-the-job physical injuries.
+
+57. `notifications`
+    - Primary Key: `notification_id` (BIGINT UNSIGNED)
+    - Columns: `user_id` (BIGINT UNSIGNED), `title` (VARCHAR(150)), `message` (TEXT),
+      `type` (ENUM('registration', 'job', 'application', 'ojt', 'complaint', 'system') DEFAULT 'system'),
+      `link` (VARCHAR(255)), `related_type` (VARCHAR(50)), `related_id` (BIGINT UNSIGNED),
+      `is_read` (TINYINT(1) DEFAULT 0), `created_at`, `updated_at`
+    - Function: System push and in-app notifications dispatched across dashboards.
+
+58. `audit_logs`
+    - Primary Key: `log_id` (BIGINT UNSIGNED)
+    - Columns: `user_id` (BIGINT UNSIGNED NULL), `action` (VARCHAR(100)), `table_name` (VARCHAR(100)),
+      `record_id` (BIGINT UNSIGNED NULL), `old_values` (JSON), `new_values` (JSON), `ip_address` (VARCHAR(45)),
+      `created_at` (DATETIME)
+    - Function: Immutable forensic audit trail tracking all high-risk administrative operations.
+
+59. `system_settings`
+    - Primary Key: `setting_id` (BIGINT UNSIGNED)
+    - Columns: `setting_key` (VARCHAR(100) UNIQUE), `setting_value` (TEXT), `description` (VARCHAR(255)),
+      `updated_by` (BIGINT UNSIGNED), `created_at`, `updated_at`
+    - Function: Platform configuration constants (maintenance mode, terms, registration limits).
+
+60. `institution_reports`
+    - Primary Key: `report_id` (BIGINT UNSIGNED)
+    - Columns: `institution_id` (BIGINT UNSIGNED), `report_type` (VARCHAR(100)), `title` (VARCHAR(200)),
+      `summary_data` (JSON), `generated_by` (BIGINT UNSIGNED), `created_at` (DATETIME)
+    - Function: Formal institutional reports (SIPP compliance, placement rates) for CHED submission.
+
+61. `stored_uploads`
+    - Primary Key: `upload_id` (BIGINT UNSIGNED)
+    - Columns: `file_path` (VARCHAR(500) UNIQUE), `file_name` (VARCHAR(255)), `mime_type` (VARCHAR(100)),
+      `file_size` (BIGINT UNSIGNED), `file_data` (LONGBLOB), `uploaded_by` (BIGINT UNSIGNED NULL),
+      `created_at` (DATETIME DEFAULT CURRENT_TIMESTAMP)
+    - Function: Database persistence layer for uploaded files to recover from ephemeral container restarts.
+
+7.3 DYNAMIC SELF-ALIGNING MIGRATION ENGINE (`server/src/config/migrate.js`):
+  InternConPH includes an automatic schema migration engine executed on server startup (`runMigrations()`).
+  Rather than requiring manual database intervention, it:
+  - Creates all 61 tables if they do not already exist (`CREATE TABLE IF NOT EXISTS`).
+  - Introspects existing table columns via `DESCRIBE [table_name]` and dynamically appends missing columns via `ALTER TABLE`.
+  - Ensures critical foreign keys and performance indexes (`idx_ac_lookup`, `idx_auditlog_user`, `idx_job_org`, etc.) exist.
+  - Automatically migrates and populates the master programs catalog (`master_programs`), role definitions (`roles`),
+    and standardized complaint categories (`complaint_categories`).
+
+
+========================================================================================================================
+8. REST API ENDPOINTS CATALOG (178 ENDPOINTS)
+========================================================================================================================
+
+Below is the complete, exhaustive catalog of all 178 API endpoints across the 9 router modules mounted in `server.js`.
+
+------------------------------------------------------------------------------------------------------------------------
+8.1 AUTHENTICATION & REGISTRATION ROUTES (10 Endpoints - Mounted at `/api/auth` and `/api`):
+------------------------------------------------------------------------------------------------------------------------
+1.  POST  /api/auth/login
+    - Auth Guard: Public
+    - Payload: `{ email, password }`
+    - Function: Authenticates credentials, verifies active status, issues JWT token, sets session cookie, logs audit.
+2.  POST  /api/auth/logout
+    - Auth Guard: Public / Bearer Token
+    - Function: Revokes active session in `user_sessions`, clears auth cookies, records logout event in `audit_logs`.
+3.  GET   /api/auth/me
+    - Auth Guard: Bearer Token
+    - Function: Returns authenticated user record, active role, permissions, and profile linkage.
+4.  GET   /api/auth/session
+    - Auth Guard: Bearer Token
+    - Function: Validates session token, checks expiry, returns user state.
+5.  GET   /api/auth/socket-token
+    - Auth Guard: Bearer Token
+    - Function: Issues a short-lived token specifically for authenticating WebSocket connections.
+6.  POST  /api/auth/register/student
+    - Auth Guard: Public
+    - Payload: Multipart form data with access code, school ID, personal details, and initial status.
+    - Function: Validates institutional access passcode, creates user and student records, sets pending status.
+7.  POST  /api/auth/register/organization
+    - Auth Guard: Public
+    - Payload: Multipart form data with company name, SEC/DTI number, BIR TIN, and uploaded legal proof PDFs.
+    - Function: Creates organization record, saves documents to `stored_uploads`, queues for admin vetting.
+8.  POST  /api/auth/register/institution
+    - Auth Guard: Public
+    - Payload: Multipart form data with HEI code, campus address, and CHED Government Recognition PDF.
+    - Function: Creates institution record, saves charter documents, queues for admin vetting.
+9.  POST  /api/auth/register/staff
+    - Auth Guard: Public
+    - Payload: `{ access_code, employee_id, first_name, last_name, email, password }`
+    - Function: Validates director-issued passcode, creates institution staff account with pre-assigned permissions.
+10. POST  /api/auth/register/mentor
+    - Auth Guard: Public
+    - Payload: `{ access_code, employee_id, first_name, last_name, email, password, department }`
+    - Function: Validates HR-issued mentor passcode, binds workplace mentor to hiring organization.
+
+------------------------------------------------------------------------------------------------------------------------
+8.2 STUDENT OPERATIONS & LIFECYCLE ROUTES (54 Endpoints - Mounted at `/api/student`):
+------------------------------------------------------------------------------------------------------------------------
+11. GET   /api/student/dashboard - Returns student overview, active OJT record, hours rendered, notifications.
+12. GET   /api/student/jobs - Discovers approved opportunities with algorithmic skill match scores.
+13. POST  /api/student/jobs/:id/apply - Submits application for an approved opening with resume and portfolio.
+14. DELETE /api/student/applications/:id - Withdraws an active job application.
+15. GET   /api/student/applications - Retrieves all student applications, interview schedules, and offer statuses.
+16. POST  /api/student/applications/:id/respond - Accepts or declines a formal job or OJT deployment offer.
+17. GET   /api/student/ojt - Returns active OJT deployment details, supervisor info, and required/rendered hours.
+18. GET   /api/student/attendance - Retrieves personal DTR logbook history and shift entries.
+19. DELETE /api/student/attendance/:id - Deletes an unverified pending attendance entry.
+20. GET   /api/student/attendance/qr-credentials - Fetches student TOTP secret and device binding status.
+21. GET   /api/student/attendance/credentials - Alias for qr-credentials.
+22. POST  /api/student/attendance/reset-device - Requests unbinding/resetting of locked attendance device.
+23. POST  /api/student/attendance/device - Registers or confirms hardware device token binding.
+24. POST  /api/student/attendance/clock-in - Self-service mobile clock-in fallback.
+25. POST  /api/student/attendance/clock-out - Self-service mobile clock-out fallback.
+26. GET   /api/student/profile - Retrieves full student biographical, academic, and contact profile.
+27. PUT   /api/student/profile - Updates personal contact info, address, and biographical details.
+28. PUT   /api/student/profile/password - Updates account login password.
+29. GET   /api/student/skills - Retrieves current verified and claimed skills.
+30. POST  /api/student/skills/ai-generate - Calls AI Recommendation Engine to analyze degree and suggest skill gaps.
+31. GET   /api/student/skills/market-intel - Fetches Philippine salary benchmarks and hiring demand statistics.
+32. POST  /api/student/skills - Adds a new skill competency to student profile.
+33. DELETE /api/student/skills/:id - Removes a skill from student profile.
+34. POST  /api/student/portfolio/upload - Uploads project artifact or certification file.
+35. GET   /api/student/portfolio - Retrieves career portfolio items, badges, and verified credentials.
+36. POST  /api/student/portfolio - Creates or updates main portfolio summary.
+37. POST  /api/student/portfolio/items - Creates an individual portfolio item (project, certification).
+38. PUT   /api/student/portfolio/items/:id - Edits a portfolio item.
+39. DELETE /api/student/portfolio/items/:id - Deletes a portfolio item.
+40. POST  /api/student/achievements - Adds student academic honor or achievement.
+41. PUT   /api/student/achievements/:id - Updates an achievement record.
+42. DELETE /api/student/achievements/:id - Deletes an achievement record.
+43. GET   /api/student/documents - Retrieves uploaded clearance documents.
+44. POST  /api/student/documents - Uploads institutional clearance document.
+45. DELETE /api/student/documents/:id - Deletes an uploaded document.
+46. GET   /api/student/resumes - Lists uploaded resume files.
+47. POST  /api/student/resumes - Uploads a new resume PDF.
+48. DELETE /api/student/resumes/:id - Deletes a resume version.
+49. POST  /api/student/requirements/upload - Uploads signed OJT waiver or medical clearance.
+50. GET   /api/student/requirements - Lists required institutional checklist items and approval status.
+51. POST  /api/student/requirements/:id/save - Saves draft requirement submission.
+52. POST  /api/student/requirements/:id/submit - Submits requirement for coordinator review.
+53. GET   /api/student/journals - Retrieves student daily reflective learning journals.
+54. POST  /api/student/journals - Creates a new reflective learning journal entry.
+55. PUT   /api/student/journals/:id - Edits a draft journal entry.
+56. DELETE /api/student/journals/:id - Deletes a draft journal entry.
+57. GET   /api/student/clearance - Returns comprehensive clearance checklist status.
+58. GET   /api/student/evaluations - Retrieves completed Midterm and Final rubric evaluations.
+59. GET   /api/student/certificates - Retrieves issued OJT completion certificates.
+60. GET   /api/student/certificates/ojt/:ojtId - Retrieves certificate for specific OJT record.
+61. GET   /api/student/complaints - Lists student-filed grievances and status updates.
+62. POST  /api/student/complaints - Submits confidential grievance with whistleblower shielding.
+63. DELETE /api/student/complaints/:id - Withdraws a pending grievance.
+64. GET   /api/student/notifications - Retrieves personal in-app notifications.
+
+------------------------------------------------------------------------------------------------------------------------
+8.3 HIRING ORGANIZATION & MENTOR ROUTES (38 Endpoints - Mounted at `/api/org`):
+------------------------------------------------------------------------------------------------------------------------
+65. GET   /api/org/dashboard - Organization overview (active interns, open positions, recent applicants).
+66. GET   /api/org/institutions - Retrieves list of accredited partner HEIs.
+67. GET   /api/org/programs - Retrieves academic programs offered by partner HEIs.
+68. GET   /api/org/jobs - Lists company opportunities (OJT, Career, On-Call).
+69. POST  /api/org/jobs - Creates new opportunity (Guarded: HR exclusive).
+70. POST  /api/org/jobs/upload-flyer - Uploads visual recruitment flyer image.
+71. PUT   /api/org/jobs/:id - Updates opportunity details (Guarded: HR exclusive).
+72. PUT   /api/org/jobs/:id/status - Toggles job status (published, closed, archived).
+73. DELETE /api/org/jobs/:id - Deletes an opportunity posting (Guarded: HR exclusive).
+74. GET   /api/org/applicants - Lists candidates across all job postings.
+75. GET   /api/org/applicants/:id/profile - Inspects applicant's academic profile and verified portfolio.
+76. POST  /api/org/applicants/:id/status - Updates application status (reviewing, shortlisted, hired, rejected).
+77. POST  /api/org/applicants/:id/accept-on-call - Accepts completed on-call project deliverable and credits portfolio.
+78. GET   /api/org/interns - Lists actively deployed OJT interns.
+79. GET   /api/org/interns/:id/profile - Retrieves intern's attendance summary and supervisors.
+80. POST  /api/org/interns/:ojtId/hours - Manually credits approved hours (overtime, special projects) with audit log.
+81. GET   /api/org/attendance - Retrieves DTR attendance logs across all interns.
+82. POST  /api/org/attendance/scan-qr - Verifies student dynamic TOTP QR code and clocks shift.
+83. POST  /api/org/attendance/:id/verify - Certifies or rejects an individual DTR log entry.
+84. POST  /api/org/interns/:ojtId/time-in - Manual clock-in entry by mentor.
+85. POST  /api/org/interns/:ojtId/time-out - Manual clock-out entry by mentor.
+86. POST  /api/org/interns/:ojtId/attendance - Batch attendance entry.
+87. PUT   /api/org/attendance/:id - Edits hours or tasks on an attendance record.
+88. GET   /api/org/evaluations - Retrieves all submitted and pending performance evaluations.
+89. POST  /api/org/evaluations - Submits Midterm or Final rubric evaluation (triggers certificate if complete).
+90. GET   /api/org/interviews - Lists scheduled candidate interviews.
+91. GET   /api/org/interviews/meet-status - Checks Google Meet API configuration status.
+92. POST  /api/org/interviews/generate-meet - Calls Google Meet API to auto-generate meeting space.
+93. POST  /api/org/interviews - Schedules candidate interview with location or meeting link.
+94. PUT   /api/org/interviews/:id - Updates interview status or schedule.
+95. GET   /api/org/offers - Lists issued OJT deployment and Career employment offers.
+96. POST  /api/org/offers - Issues formal OJT offer or Career Job contract.
+97. GET   /api/org/mentors - Lists registered workplace mentors in the company.
+98. POST  /api/org/mentors/access-code - Generates access passcode to invite workplace mentors.
+99. PUT   /api/org/mentors/:id/verify - Approves mentor registration.
+100. GET  /api/org/grievances - Retrieves grievance notices forwarded by universities.
+101. GET  /api/org/compliance - Retrieves company legal compliance documents and status.
+102. POST /api/org/complaints - Files formal incident / misconduct report or accident record against intern.
+
+------------------------------------------------------------------------------------------------------------------------
+8.4 INSTITUTION & ACADEMIC STAFF ROUTES (31 Endpoints - Mounted at `/api/inst`):
+------------------------------------------------------------------------------------------------------------------------
+103. GET  /api/inst/dashboard - HEI overview (enrolled interns, partner companies, pending reviews).
+104. PUT  /api/inst/students/:id/graduate - Flips student status to 'graduated' (unlocks career jobs).
+105. GET  /api/inst/students/:id/profile - Retrieves comprehensive student scholastic dossier.
+106. GET  /api/inst/students - Lists all enrolled students with filter by program, year, and OJT status.
+107. POST /api/inst/staff/access-code - Generates access passcode to invite faculty staff (Supervisor, Registrar, etc.).
+108. DELETE /api/inst/staff/access-code/:codeId - Revokes an unused staff access passcode.
+109. POST /api/inst/staff/access-code/:codeId/deactivate - Deactivates an access passcode.
+110. POST /api/inst/students/:id/verify - Verifies student intake credentials and unlocks student dashboard.
+111. POST /api/inst/students/:studentId/toggle-status - Toggles student active/inactive enrollment status.
+112. GET  /api/inst/staff - Lists all registered faculty and staff under the institution.
+113. PUT  /api/inst/staff/:id/verify - Verifies or updates staff member status.
+114. GET  /api/inst/catalog-programs - Retrieves standardized CHED master programs catalog.
+115. GET  /api/inst/programs - Lists academic degree programs offered by the institution.
+116. POST /api/inst/programs - Creates a new academic degree curriculum with required OJT hours.
+117. PUT  /api/inst/programs/:id - Updates curriculum details or hours quota.
+118. DELETE /api/inst/programs/:id - Deletes an academic degree program.
+119. GET  /api/inst/monitoring - Real-time monitoring hub of all actively deployed students and remaining hours.
+120. GET  /api/inst/requirements - Lists institutional clearance document templates.
+121. POST /api/inst/requirements/upload - Uploads template PDF for student clearance (e.g. MOA, Waiver).
+122. POST /api/inst/requirements - Creates a new clearance requirement checklist item.
+123. DELETE /api/inst/requirements/:id - Deletes a clearance requirement item.
+124. POST /api/inst/requirements/submissions/:id/verify - Approves or rejects student's clearance document submission.
+125. GET  /api/inst/certificates/ojt/:ojtId - Retrieves official certificate details for institutional auditing.
+126. POST /api/inst/complaints/:id/review - Records guidance counselor investigation findings.
+127. POST /api/inst/complaints/:id/forward-org - Forwards grievance to employer (supports whistleblower masking).
+128. POST /api/inst/complaints/:id/warn-student - Issues formal academic warning note to student.
+129. POST /api/inst/complaints/:id/escalate-admin - Escalates severe company violations to System Administrator.
+130. GET  /api/inst/ojt-offers - Lists employer opportunities awaiting tripartite institutional endorsement.
+131. PUT  /api/inst/ojt-offers/:id - Approves or rejects opportunity endorsement for institution students.
+132. POST /api/inst/students/access-code - Generates student access code for student enrollment batches.
+133. GET  /api/inst/access-codes - Lists all active, used, and expired access passcodes issued by HEI.
+
+------------------------------------------------------------------------------------------------------------------------
+8.5 SYSTEM ADMINISTRATOR GOVERNANCE ROUTES (26 Endpoints - Mounted at `/api/admin`):
+------------------------------------------------------------------------------------------------------------------------
+134. GET  /api/admin/dashboard - Nationwide KPI metrics (accredited HEIs, vetted employers, active interns).
+135. GET  /api/admin/institutions - Lists all registered HEIs with filter by accreditation status.
+136. GET  /api/admin/institutions/:id - Retrieves full HEI dossier and uploaded legal charters.
+137. POST /api/admin/institutions/:id/status - Approves, rejects, or suspends HEI accreditation.
+138. GET  /api/admin/organizations - Lists all registered employers with filter by business structure and status.
+139. GET  /api/admin/organizations/:id - Retrieves full company dossier, SEC/DTI, BIR 2303, and permits.
+140. POST /api/admin/organizations/:id/status - Approves, rejects, or suspends employer accreditation.
+141. GET  /api/admin/documents/:id/download - Downloads uploaded legal compliance document.
+142. GET  /api/admin/documents/:id/view - Streams uploaded PDF directly in browser for visual inspection.
+143. GET  /api/admin/institution-documents/:id/view - Streams institutional charter document.
+144. GET  /api/admin/institution-documents/:id/download - Downloads institutional charter document.
+145. GET  /api/admin/jobs - Nationwide catalog of all 800+ opportunities with search and moderation filters.
+146. PUT  /api/admin/jobs/:id/status - Moderates or closes non-compliant job postings.
+147. GET  /api/admin/users - Master directory of all user accounts across the platform.
+148. PUT  /api/admin/users/:id/status - Toggles account active status or forces password reset.
+149. GET  /api/admin/audit-logs - Queries immutable forensic audit log with filters by table, user, and date.
+150. GET  /api/admin/audit-logs/user-sessions - Inspects currently active user sessions and IP addresses.
+151. GET  /api/admin/audit-logs/user/:userId - Queries audit trail for specific user account.
+152. GET  /api/admin/complaints - Master queue of all nationwide complaints and accident reports.
+153. PATCH /api/admin/complaints/accidents/:id/read - Marks accident report as reviewed by admin.
+154. POST /api/admin/complaints/accidents/read-all - Marks all accident reports as reviewed.
+155. POST /api/admin/complaints/reports/:id/resolve - Formally resolves an escalated disciplinary case.
+156. GET  /api/admin/analytics/skills - Retrieves cross-discipline skill supply vs demand analytics.
+157. POST /api/admin/analytics/recalculate - Triggers recalculation of national skill demand indexes.
+158. GET  /api/admin/settings - Retrieves global system settings and feature toggles.
+159. PUT  /api/admin/settings - Updates global system settings.
+
+------------------------------------------------------------------------------------------------------------------------
+8.6 PUBLIC & ANONYMOUS CATALOG ROUTES (6 Endpoints - Mounted at `/api/public`):
+------------------------------------------------------------------------------------------------------------------------
+160. GET  /api/public/stats - Public statistical counters (total interns, accredited partners, placed candidates).
+161. GET  /api/public/institutions - Public directory of verified higher education institutions.
+162. GET  /api/public/programs/:institutionId - Public list of curricula offered by a university.
+163. GET  /api/public/institutions/:institutionId/programs - Alias for university curricula catalog.
+164. GET  /api/public/programs - Global master list of available academic degree programs.
+165. GET  /api/public/organizations - Public directory of verified Host Training Establishments.
+
+------------------------------------------------------------------------------------------------------------------------
+8.7 USER ACCOUNT & SETTINGS ROUTES (6 Endpoints - Mounted at `/api/user`):
+------------------------------------------------------------------------------------------------------------------------
+166. GET  /api/user/profile - Retrieves user account biographical and contact details.
+167. PUT  /api/user/profile - Updates account contact number, name, and biographical data.
+168. POST /api/user/avatar - Uploads profile avatar image (processed with Sharp, compressed to WebP).
+169. GET  /api/user/preferences - Retrieves user theme, audio, and notification preferences.
+170. PUT  /api/user/preferences - Updates user preferences in `user_preferences`.
+171. POST /api/user/change-password - Validates current password and updates to new salted hash.
+
+------------------------------------------------------------------------------------------------------------------------
+8.8 PUSH & IN-APP NOTIFICATION ROUTES (4 Endpoints - Mounted at `/api/notifications`):
+------------------------------------------------------------------------------------------------------------------------
+172. GET  /api/notifications - Retrieves user notification feed with pagination.
+173. GET  /api/notifications/unread-count - Returns number of unread notifications for badge counter.
+174. PUT  /api/notifications/read-all - Marks all user notifications as read.
+175. PUT  /api/notifications/:id/read - Marks an individual notification as read.
+
+------------------------------------------------------------------------------------------------------------------------
+8.9 CRYPTOGRAPHIC OJT CERTIFICATE ROUTES (3 Endpoints - Mounted at `/api/certificates`):
+------------------------------------------------------------------------------------------------------------------------
+176. GET  /api/certificates/:code - Returns JSON payload of certificate details by serial code.
+177. GET  /api/certificates/verify/:code - Public verification endpoint validating authenticity, dates, and hours.
+178. GET  /api/certificates/render/:code - Renders official high-resolution, printable SVG/HTML completion certificate.
+
+
+========================================================================================================================
+9. FRONTEND WEB APPLICATION ARCHITECTURE (REACT 19 + VITE)
+========================================================================================================================
+
+9.1 GLOBAL STATE PROVIDERS:
+  - `AuthProvider` (`src/contexts/AuthContext.jsx`): Manages authenticated user state, JWT tokens, parsed roles,
+    and login/logout actions.
+  - `SocketProvider` (`src/contexts/SocketContext.jsx`): Establishes and maintains the realtime Socket.IO connection,
+    exposing an event subscriber hook for instant dashboard synchronization.
+  - `ThemeProvider` (`src/contexts/ThemeContext.jsx`): Manages dark/light visual modes, toggling `.dark` class on the DOM
+    root with `localStorage` persistence.
+  - `TimeContext` (`src/contexts/TimeContext.jsx`): Provides consistent Philippine Standard Time (PST, UTC+8) clock ticks
+    and standardized date/time formatters across all components.
+
+9.2 CLIENT-SIDE ROUTING & LAYOUT WRAPPERS:
+  - `App.jsx`: Root router utilizing React Router DOM v7 with `Suspense` and `lazy` code-splitting for all 33 pages.
+  - `DashboardLayout.jsx`: Main authenticated shell rendering the persistent responsive sidebar (`Sidebar.jsx`),
+    header bar with notification drawer (`DashboardHeader.jsx`), breadcrumbs, and floating bottom navigation for mobile screens.
+  - `ProtectedRoute.jsx`: Role-Based Access Control gatekeeper that intercepts unauthorized route access and redirects users
+    to their appropriate role home.
+  - `ErrorBoundary.jsx`: Component boundary preventing white-screen crashes by displaying user-friendly recovery prompts.
+
+9.3 COMPREHENSIVE PAGE CATALOG (33 PAGES):
+  Public Suite (8 Pages):
+    1. `LandingPage.jsx`: Modern hero, value props, statistics counter, role cards, Philippine SIPP compliance showcase.
+    2. `LoginPage.jsx`: Unified login interface supporting all 6 roles with quick demo drawer trigger.
+    3. `GetStartedPage.jsx`: Visual role selector directing visitors to appropriate registration paths.
+    4. `RegisterStudentPage.jsx`: Student onboarding with access code gate and Philippine address selector.
+    5. `RegisterStaffPage.jsx`: Institution staff registration with director-issued passcode validation.
+    6. `RegisterOrganizationPage.jsx`: Company registration with SEC, DTI, Mayor's Permit, and BIR 2303 uploaders.
+    7. `RegisterInstitutionPage.jsx`: HEI registration with CHED recognition certificate uploader.
+    8. `RegisterMentorPage.jsx`: Workplace mentor registration with corporate passcode validation.
+  Shared Suite (1 Page):
+    9. `UserSettingsPage.jsx`: Universal user profile, avatar upload, password reset, and notification preferences.
+  Student Dashboard Suite (8 Pages):
+    10. `StudentDashboard.jsx`: Intern home with hours rendered bar, assigned mentor details, quick shortcuts.
+    11. `StudentJobs.jsx`: Searchable opportunity feed with skill match percentages and curriculum badges.
+    12. `StudentApplications.jsx`: Interactive application pipeline tracking reviewing, shortlisted, and offer stages.
+    13. `StudentOJT.jsx`: Active training hub with DTR logbook, daily task logging, and dynamic QR generator modal.
+    14. `StudentSkills.jsx`: Visual skill competency matrix with AI Recommendation Engine and labor market salary intelligence.
+    15. `StudentPortfolio.jsx`: Lifelong verified career portfolio builder with company-authenticated badges.
+    16. `StudentComplaints.jsx`: Confidential grievance portal with identity shielding toggles for safe reporting.
+    17. `StudentProfile.jsx`: Comprehensive academic profile, resume manager, and contact information.
+  Organization Dashboard Suite (9 Pages):
+    18. `OrgDashboard.jsx`: Recruiter overview with active intern metrics, open slots, and interview timeline.
+    19. `OrgJobs.jsx`: Opportunity creation and management for OJT internships, career jobs, and on-call gigs.
+    20. `OrgApplicants.jsx`: Candidate evaluation pipeline with resume viewers, rating tools, and status toggles.
+    21. `OrgInterviews.jsx`: Interview management center with automated Google Meet REST API space generation.
+    22. `OrgOffers.jsx`: Formal OJT placement and career employment contract issuance hub.
+    23. `OrgOJT.jsx`: Real-time attendance monitoring, camera QR code scanner, and DTR hour certification.
+    24. `OrgEvaluations.jsx`: Standardized Midterm and Final rubric performance evaluation forms.
+    25. `OrgMentors.jsx`: Workplace mentor directory and delegated passcode invitation manager.
+    26. `OrgGrievances.jsx`: Grievance and compliance portal for reviewing university notices.
+  Institution Dashboard Suite (7 Pages):
+    27. `InstitutionDashboard.jsx`: University leadership dashboard with placement rates and partner rosters.
+    28. `InstStudents.jsx`: Student enrollment verification queue, hour allotment, and scholastic clearance.
+    29. `InstStaff.jsx`: Departmental staff roster and permission-scoped access passcode generator.
+    30. `InstPrograms.jsx`: Academic degree curricula manager and mandatory OJT hours quota configurator.
+    31. `InstRequirements.jsx`: Institutional SIPP clearance checklist template uploader (MOA, Medicals, Waivers).
+    32. `InstMonitoring.jsx`: Live intern attendance audit hub with remaining balance alerts and warning tools.
+    33. `InstOJTOffers.jsx`: Tripartite opportunity endorsement gate for approving or rejecting corporate listings.
+  System Administrator Suite (8 Pages):
+    34. `AdminDashboard.jsx`: Platform-wide executive KPI counters, user distribution, and verification queues.
+    35. `AdminInstitutions.jsx`: HEI legal charter and CHED recognition dossier inspection hub.
+    36. `AdminOrganizations.jsx`: Corporate legal legitimacy vetting hub (SEC, DTI, Mayor's Permit, BIR 2303).
+    37. `AdminJobs.jsx`: Nationwide opportunity moderation catalog governing over 800+ live postings.
+    38. `AdminComplaints.jsx`: Central grievance adjudication and workplace accident review center.
+    39. `AdminAnalytics.jsx`: Interactive cross-discipline skill supply vs demand intelligence dashboard.
+    40. `AdminAuditLogs.jsx`: Immutable forensic security audit logs and live user session inspector.
+    41. `AdminUsers.jsx`: Nationwide user account directory with role management, status toggles, and password resets.
+
+
+========================================================================================================================
+10. MOBILE APPLICATION ARCHITECTURE (REACT NATIVE 0.76)
+========================================================================================================================
+
+10.1 PURPOSE & SCOPE:
+  The InternConPH Mobile Application (`internconph-student`) is built on React Native 0.76.2 specifically for deployed
+  OJT student interns on the go.
+  - Strict Operational Gate (`isOjtActive`): A student can log in, but if their OJT status is not ongoing/deployed, the app
+    displays `AccessBlockedScreen.js` ("Mobile App Reserved for Deployed OJT Interns") and directs them to the web portal.
+  - Eliminates Paper Logbooks: Enables interns to clock in/out, view verified hours balance, submit daily reflective journals,
+    and present tamper-proof dynamic QR codes directly to their workplace supervisors.
+
+10.2 NAVIGATION & SCREEN STRUCTURE:
+  - `App.js`: Root container wrapping `AuthProvider`, rendering a floating bottom pill navigation bar.
+  - Five Active Tab Screens:
+    1. `HomeScreen.js`: Overview of training progress, circular progress bar of rendered vs required hours, assigned mentor
+       contact card, and quick shortcut to launch the dynamic attendance QR modal.
+    2. `DtrScreen.js`: Daily Time Record logbook showing clock-in, clock-out, tasks accomplished, and verification badges
+       ('verified', 'pending', 'rejected').
+    3. `JournalScreen.js`: Daily reflective learning journal entry editor (daily activities, learnings acquired, challenges,
+       solutions, mentor feedback).
+    4. `ClearanceScreen.js`: Checklist of institutional SIPP requirements (medical clearance, waivers, parent consent).
+    5. `EvaluationScreen.js`: Displays supervisor's Midterm and Final rubric evaluations with numerical scores and feedback.
+
+10.3 ATTENDANCE QR MODAL (`AttendanceQrModal.js`):
+  - Tap "Present Attendance QR" opens a full-screen, high-security modal.
+  - Generates a real-time vector QR code via `react-native-qrcode-svg`.
+  - Encodes a 20-second rotating cryptographic payload: `{ sid, dt, ts, sig }`.
+  - Features an animated visual progress ring counting down 20 seconds, after which the QR code automatically re-signs and refreshes.
+  - Includes a drifting holographic watermark ("INTERNCONPH AUTHENTIC") across the QR canvas to make phone screen video/photo
+    capture impossible to replay.
+
+10.4 OFFLINE RESILIENCE & DYNAMIC SERVER SWITCHING:
+  - Local Storage (`AsyncStorage`): Caches session tokens (`@internconph_token`), student profile (`@internconph_user`),
+    and hardware device token (`@internconph_attendance_device_token`).
+  - Dynamic Base URL Switcher: Interns or testing evaluators can double-tap the connection banner on `LoginScreen.js` to
+    switch between the live cloud server (`https://internconph.onrender.com/api`) and a local network server (`http://192.168.x.x:3000/api`),
+    persisted under `@internconph_server_url`.
+
+
+========================================================================================================================
+11. ADVANCED CORE SUBSYSTEMS & TECHNICAL HIGHLIGHTS
+========================================================================================================================
+
+11.1 TIME-BOUND DYNAMIC QR ATTENDANCE & HARDWARE DEVICE TOKEN BINDING:
+  - Problem Solved: Buddy punching, screenshot sharing, and attendance forgery.
+  - Cryptographic Implementation (`server/src/utils/totp.helper.js`):
+    * Device Registration: When an intern first launches the QR modal, a unique 48-character hardware device token is
+      generated and locked to their device in `student_attendance_devices`.
+    * HMAC-SHA256 Signing: Client signs the payload `sid:dt:timestamp` using the student's unique 64-character secret.
+    * Time Window Verification: Server parses `{ sid, dt, ts, sig }`. It calculates `abs(currentServerTime - ts)`.
+      If the time difference exceeds 30 seconds, the scan is rejected:
+      "QR code expired. Screenshots are strictly prohibited. Please scan a live dynamic QR code."
+    * Constant-Time Signature Equality: Uses `crypto.timingSafeEqual()` to prevent timing attacks.
+    * Hardware Mismatch Protection: If a student screenshots their QR and sends it to a coworker on another phone, the
+      device token mismatch causes an immediate rejection.
+
+11.2 AI CAREER & SKILLS RECOMMENDATION ENGINE:
+  - Implementation (`server/src/services/aiRecommendation.service.js`):
+    * Multi-Discipline Domain Knowledge Graph: Encodes baseline skills, certifications, and industry standards across
+      15+ academic disciplines (BSIT, BSCS, BSCpE, BSA, BSBA, BSCE, BSEE, BSHM, BSTM, BSN, BSPSY, BSEd, etc.).
+    * Companion Synergy Matrix: Determines skill-to-skill synergy scores (e.g., React.js + Node.js = 99% Full-Stack synergy;
+      AutoCAD + Revit = 98% BIM synergy; Financial Accounting + QuickBooks = 99% Cloud Accounting synergy).
+    * Philippine Labor Market Intelligence: Embeds entry-level Philippine salary ranges (PHP) and hiring demand rankings.
+    * Dual-Engine Architecture: Calls Google Gemini API (`gemini-1.5-flash`) for real-time generative career path synthesis,
+      with an automatic zero-latency fallback to the internal semantic knowledge graph if API keys are unconfigured.
+
+11.3 OFFICIAL OJT COMPLETION CERTIFICATE GENERATION & VERIFICATION ENGINE:
+  - Implementation (`server/src/services/certificate.service.js` & `server/src/routes/certificate.routes.js`):
+    * Automatic Trigger: Fired immediately when an intern's rendered hours meet or exceed the curriculum quota and the
+      workplace mentor submits the final rubric evaluation.
+    * Unique Serial Generation: Produces formatted serial `CERT-OJT-[YEAR]-[OJT_ID]-[RANDOM_HASH]`.
+    * Automatic Portfolio Crediting: Automatically injects an authenticated credential into the student's lifelong
+      Career Portfolio (`portfolio_items`) with `is_verified = 1`, bound to the authentic hiring organization ID.
+    * Public Verification Endpoints:
+      - `GET /api/certificates/verify/:code` -> Returns verified JSON payload.
+      - `GET /api/certificates/render/:code` -> Renders official certificate view with Philippine SIPP compliance seals.
+
+11.4 GOOGLE MEET REST API V2 INTEGRATION WITH DOMAIN-WIDE DELEGATION:
+  - Implementation (`server/src/services/googleMeet.service.js`):
+    * Direct Server-Side Integration: Communicates directly with `https://meet.googleapis.com/v2/spaces`.
+    * Authentication Schemes: Supports Google Workspace Service Account with Domain-Wide Delegation (native RSA-SHA256
+      JWT assertion with user impersonation) or OAuth2 Refresh Token exchange.
+    * Fault Tolerance & Graceful Degradation: If Google credentials are not configured, the interview scheduler seamlessly
+      and gracefully falls back to custom meeting links (Zoom, Teams, manual Meet links) without throwing errors.
+
+11.5 REAL-TIME WEBSOCKET EVENT BUS (SOCKET.IO V4 MATRIX):
+  - Events emitted across entities via `emitUpdate(entity, id, action, data)`:
+    * `job_updated`: Pushed when an opportunity is created, edited, or endorsed by an institution.
+    * `application_updated`: Pushed when a candidate applies, is shortlisted, or receives an offer.
+    * `interview_updated`: Pushed when an interview schedule is created or modified.
+    * `offer_updated`: Pushed when an OJT deployment or career employment offer is dispatched or answered.
+    * `ojt_updated`: Pushed when an intern clocks in/out or a mentor certifies attendance hours.
+    * `complaint_updated`: Urgent dispatch of incident reports or safety notices to coordinators.
+    * `notification_received`: Triggers the red notification badge on the user's header in real time.
+
+11.6 EPHEMERAL CONTAINER FILE RECOVERY ARCHITECTURE (`stored_uploads`):
+  - Solves the problem of ephemeral disk resets on cloud container platforms (e.g. Render restarts).
+  - Every file uploaded to `/uploads` is simultaneously saved as a `LONGBLOB` in `stored_uploads`.
+  - When a file request arrives and is missing from disk, Express intercepts the 404, retrieves the binary data from MySQL,
+    writes the file back to the disk cache, and streams it with full headers (`Cache-Control: public, max-age=604800`).
+
+11.7 AUTOMATED 5-MINUTE INTERVIEW REMINDER DAEMON:
+  - Implementation (`server/src/services/interviewReminder.service.js`):
+    * Background interval checks the `interviews` table for scheduled sessions starting within the next 5 minutes.
+    * Dispatches instant push notifications to both the student candidate and recruiter user accounts with direct meeting link.
+    * Sets `reminder_sent_5m = 1` atomically to guarantee zero duplicate alerts across concurrent clusters.
+
+
+========================================================================================================================
+12. ENVIRONMENT VARIABLES CONFIGURATION SPECIFICATION
+========================================================================================================================
+
+12.1 BACKEND ENVIRONMENT VARIABLES (`server/.env`):
+------------------------------------------------------------------------------------------------------------------------
+Variable Key                        Required    Example / Default Value               Purpose
+------------------------------------------------------------------------------------------------------------------------
+NODE_ENV                            Yes         production / development              Defines execution environment
+PORT                                No          3000                                  HTTP server listen port
+DB_HOST                             Yes         127.0.0.1 / your-db.aivencloud.com    MySQL host server address
+DB_PORT                             No          3306                                  MySQL port
+DB_USER                             Yes         root / avnadmin                       MySQL username
+DB_PASS                             Yes         your_password                         MySQL password
+DB_NAME                             Yes         interncon_ph                          MySQL database name
+DB_SSL                              No          true / false                          Enables SSL/TLS database transport
+JWT_SECRET                          Yes         internconph_jwt_secret_2026_super_key Cryptographic secret for JWT signing
+FRONTEND_URL                        No          https://internconph.vercel.app        Primary frontend origin for CORS
+ALLOWED_ORIGINS                     No          https://internconph.vercel.app        Comma-separated CORS origins
+GOOGLE_MEET_SERVICE_ACCOUNT_KEY     No          {"type": "service_account", ...}      Google Workspace service account JSON
+GOOGLE_WORKSPACE_ADMIN_EMAIL        No          admin@yourdomain.edu.ph               Impersonated Workspace admin email
+GOOGLE_CLIENT_ID                    No          your_oauth_client_id                  Google OAuth2 client ID
+GOOGLE_CLIENT_SECRET                No          your_oauth_client_secret              Google OAuth2 client secret
+GOOGLE_REFRESH_TOKEN                No          your_oauth_refresh_token              Google OAuth2 refresh token
+CLOUDINARY_CLOUD_NAME               No          your_cloudinary_cloud_name            Cloudinary storage cloud name
+CLOUDINARY_API_KEY                  No          your_cloudinary_api_key               Cloudinary API key
+CLOUDINARY_API_SECRET               No          your_cloudinary_api_secret            Cloudinary API secret
+------------------------------------------------------------------------------------------------------------------------
+
+12.2 FRONTEND ENVIRONMENT VARIABLES (`.env`):
+------------------------------------------------------------------------------------------------------------------------
+Variable Key                        Required    Example Value                         Purpose
+------------------------------------------------------------------------------------------------------------------------
+VITE_API_URL                        Yes         https://internconph.onrender.com/api  Backend REST API base URL (no slash)
+VITE_SOCKET_URL                     Yes         https://internconph.onrender.com      Backend WebSocket server root URL
+------------------------------------------------------------------------------------------------------------------------
+
+12.3 MOBILE RUNTIME STORAGE KEYS:
+  - `@internconph_token`: Stored user JWT authentication token.
+  - `@internconph_user`: Stored user biographical and role data JSON.
+  - `@internconph_ojt_active`: Cached boolean flag of active deployment status.
+  - `@internconph_ojt_status`: Cached OJT lifecycle status (`ongoing`, `active`, `starting_ojt`).
+  - `@internconph_attendance_device_token`: Locked 48-character hardware device token for dynamic QR signing.
+  - `@internconph_server_url`: Optional custom API endpoint override for local/cloud network switching.
+
+
+========================================================================================================================
+13. PRE-SEEDED TEST ACCOUNTS DIRECTORY & SAMPLE DATA MATRIX
+========================================================================================================================
+
+Universal Default Password for all seeded accounts: `Password123!`
+
+13.1 ADMINISTRATIVE, INSTITUTIONAL & CORPORATE ACCOUNTS:
+------------------------------------------------------------------------------------------------------------------------
+Role                    Name                  Email Address              Affiliation / Organization
+------------------------------------------------------------------------------------------------------------------------
+System Administrator    System Admin          admin@interncon.ph         InternConPH National HQ
+System Administrator    System Admin (Alias)  admin@gmail.com            InternConPH National HQ
+Institution Director    School Coordinator    institution@gmail.com      Notre Dame of Marbel University (NDMU)
+Institution Director    School Coordinator    seait@gmail.com            South East Asian Institute of Tech (SEAIT)
+Institution Staff       Dean / Supervisor     staff@gmail.com            Notre Dame of Marbel University (NDMU)
+Institution Staff       Academic Dean         dean@ndmu.edu.ph           Notre Dame of Marbel University (NDMU)
+Hiring Organization HR  HR Supervisor         kcc123@gmail.com           KCC Malls Inc.
+Hiring Organization HR  HR Supervisor         organization@gmail.com     InternCon Demo Corporate Partner
+Workplace Mentor        Technical Lead        mentor@gmail.com           MarbelWorx Digital Solutions
+Workplace Mentor        Senior Lead Engineer  mentor@marbelworx.com      MarbelWorx Digital Solutions
+Student Candidate       Denmark Catolico      student@gmail.com          NDMU (BS Information Technology)
+------------------------------------------------------------------------------------------------------------------------
+
+13.2 CROSS-DISCIPLINE STUDENT DIRECTORY (ACROSS 30+ ACADEMIC DEGREE PROGRAMS):
+All student accounts possess pre-verified registrations, starting degree competencies, sample portfolios, and active programs:
+
+A. Computing & Information Technology:
+  - BSIT (BS Information Technology):           Denmark Catolico          `student.it@interncon.ph` / `student.it@gmail.com` (NDMU)
+  - BSCS (BS Computer Science):                 Carlo Miguel Dizon        `student.cs@interncon.ph` / `student.cs@gmail.com` (SEAIT)
+  - BSCpE (BS Computer Engineering):            Raphael John Villanueva   `student.cpe@interncon.ph` (UP Diliman)
+  - BSDSA (BS Data Science and Analytics):      Patricia Mae Gomez        `student.data@interncon.ph` (UST)
+  - BSCSB (BS Cybersecurity):                   Christian Paul Cruz       `student.cyber@interncon.ph` (DLSU)
+
+B. Business, Management & Accountancy:
+  - BSA (BS Accountancy):                       Alyssa Marie Santos       `student.bsa@interncon.ph` / `student.bsa@gmail.com` (DLSU)
+  - BSAIS (BS Accounting Information Systems):  John Vincent Alcantara    `student.ais@interncon.ph` (UST)
+  - BSBA-FM (BSBA Financial Management):        Bea Bianca Alonzo         `student.finance@interncon.ph` (Ateneo ADMU)
+  - BSBA-MM (BSBA Marketing Management):        Gabriel Vance Lim         `student.marketing@interncon.ph` (PUP)
+  - BSBA-HRM (BSBA Human Resource Management):  Camille Joy Flores        `student.hr@interncon.ph` (NDMU)
+
+C. Engineering & Architecture:
+  - BSCE (BS Civil Engineering):                Joshua Ramos              `student.civil@interncon.ph` (UP Diliman)
+  - BSME (BS Mechanical Engineering):           Marco Antonio Perez       `student.mechanical@interncon.ph` (DLSU)
+  - BSEE (BS Electrical Engineering):           Angelo Gabriel Reyes      `student.electrical@interncon.ph` (TUP)
+  - BSARCH (BS Architecture):                   Janine Louise Tolentino   `student.architecture@interncon.ph` (UST)
+  - BSCHE (BS Chemical Engineering):            Leah Joy Hernandez        `student.chemical@interncon.ph` (UP Diliman)
+
+D. Health & Medical Sciences:
+  - BSN (BS Nursing):                           Angela Nicole Soriano     `student.nursing@interncon.ph` (UST)
+  - BSPHARM (BS Pharmacy):                      Samantha Faith Dela Rosa  `student.pharmacy@interncon.ph` (USC)
+  - BSMLS (BS Medical Laboratory Science):      Kevin Dave Villanueva     `student.medtech@interncon.ph` (Xavier Univ XU)
+
+E. Hospitality, Tourism & Culinary Arts:
+  - BSHM (BS Hospitality Management):           Kimberly Anne Bautista    `student.hospitality@interncon.ph` (GVCFI)
+  - BSTM (BS Tourism Management):               Francesca Mae Del Rosario `student.tourism@interncon.ph` (PUP)
+  - BSCM (BS Culinary Management):              Lorenzo Mendoza           `student.culinary@interncon.ph` (SEAIT)
+
+F. Teacher Education & Pedagogy:
+  - BSED-ENG (BSED Major in English):           Kristine Joy Ocampo       `student.education@interncon.ph` (PUP)
+  - BSED-MATH (BSED Major in Mathematics):      Renz Marion Estrada       `student.math.ed@interncon.ph` (NDMU)
+  - BEED (Bachelor of Elementary Education):    Grace Elena Salazar       `student.elementary@interncon.ph` (GVCFI)
+
+G. Arts, Media & Fine Arts:
+  - BMMA (Bachelor of Multimedia Arts):         Dominic Xavier Pascual    `student.multimedia@interncon.ph` (DLS-CSB)
+  - BFA (Bachelor of Fine Arts):                Clarisse Marie Valenzuela `student.finearts@interncon.ph` (UP CFA)
+
+H. Criminology, Law & Social Sciences:
+  - BSCRIM (BS Criminology):                    Cadet Rodolfo Macaraeg    `student.criminology@interncon.ph` (PLM)
+  - BSPSY (BS Psychology):                      Hannah Danielle Castillo  `student.psychology@interncon.ph` (Ateneo ADMU)
+
+I. Agriculture & Maritime Transportation:
+  - BSAGRI (BS Agriculture):                    Emilio Jose Laurel        `student.agriculture@interncon.ph` (CLSU)
+  - BSMT (BS Marine Transportation):            Cadet Christian Noel Silva `student.maritime@interncon.ph` (TUP)
+
+========================================================================================================================
+                                                END OF SPECIFICATION DOCUMENT
+========================================================================================================================

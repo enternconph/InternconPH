@@ -11,6 +11,7 @@ import { emitUpdate } from '../config/socket.js';
 import { sendNotification } from '../utils/notification.helper.js';
 import { createSession, revokeSession, getSessionCookieOptions } from '../utils/session.js';
 import { isValidEmail, normalizeEmail } from '../utils/email.js';
+import { validate, Schemas } from '../middleware/validate.js';
 
 const router = express.Router();
 
@@ -87,7 +88,7 @@ export function validatePhPhoneNumber(phone, allowLandline = false) {
 }
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', validate(Schemas.login), async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');

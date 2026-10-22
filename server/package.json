@@ -6,7 +6,10 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon --watch src src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "node test_enterprise_suite.js",
+    "test:all": "node test_all_endpoints.js",
+    "migrate": "node src/config/migrate.js"
   },
   "engines": {
     "node": ">=20"

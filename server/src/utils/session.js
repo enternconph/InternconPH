@@ -7,6 +7,50 @@ export const INACTIVITY_TIMEOUT_MINUTES = parseInt(process.env.SESSION_INACTIVIT
 export const ABSOLUTE_LIFETIME_DAYS = parseInt(process.env.SESSION_ABSOLUTE_LIFETIME_DAYS, 10) || 7; // 7 days
 export const ACTIVITY_THROTTLE_MINUTES = parseInt(process.env.SESSION_ACTIVITY_THROTTLE_MINUTES, 10) || 5; // 5 minutes
 
+// High-Speed In-Memory Session & Permissions Acceleration Cache
+const sessionMemoryCache = new Map();
+const DEFAULT_CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes sliding TTL
+
+export function getCachedUser(tokenHash) {
+  if (!tokenHash) return null;
+  const entry = sessionMemoryCache.get(tokenHash);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    sessionMemoryCache.delete(tokenHash);
+    return null;
+  }
+  return entry.data;
+}
+
+export function setCachedUser(tokenHash, data, ttlMs = DEFAULT_CACHE_TTL_MS) {
+  if (!tokenHash || !data) return;
+  // Prevent unbounded growth (keep up to 5,000 active sessions in memory)
+  if (sessionMemoryCache.size >= 5000) {
+    const oldestKey = sessionMemoryCache.keys().next().value;
+    sessionMemoryCache.delete(oldestKey);
+  }
+  sessionMemoryCache.set(tokenHash, {
+    data,
+    userId: data.user?.user_id,
+    expiresAt: Date.now() + ttlMs
+  });
+}
+
+export function invalidateSessionCache(tokenHash) {
+  if (tokenHash) {
+    sessionMemoryCache.delete(tokenHash);
+  }
+}
+
+export function invalidateUserCache(userId) {
+  if (!userId) return;
+  for (const [key, entry] of sessionMemoryCache.entries()) {
+    if (entry.userId === userId) {
+      sessionMemoryCache.delete(key);
+    }
+  }
+}
+
 /**
  * Generate a cryptographically secure 256-bit random session token
  */
@@ -174,6 +218,7 @@ export async function validateSession(rawToken, req) {
 export async function revokeSession(rawToken, reason = 'logout') {
   if (!rawToken) return false;
   const tokenHash = hashSessionToken(rawToken);
+  invalidateSessionCache(tokenHash);
   const [result] = await pool.query(
     'UPDATE user_sessions SET revoked_at = NOW(), revoked_reason = ? WHERE session_token_hash = ? AND revoked_at IS NULL',
     [reason, tokenHash]
@@ -186,6 +231,7 @@ export async function revokeSession(rawToken, reason = 'logout') {
  */
 export async function revokeAllUserSessions(userId, reason = 'revoked_all') {
   if (!userId) return false;
+  invalidateUserCache(userId);
   const [result] = await pool.query(
     'UPDATE user_sessions SET revoked_at = NOW(), revoked_reason = ? WHERE user_id = ? AND revoked_at IS NULL',
     [reason, userId]

@@ -1,6 +1,12 @@
 import jwt from 'jsonwebtoken';
 import pool from '../config/db.js';
-import { validateSession, getSessionCookieOptions } from '../utils/session.js';
+import { 
+  validateSession, 
+  getSessionCookieOptions, 
+  hashSessionToken, 
+  getCachedUser, 
+  setCachedUser 
+} from '../utils/session.js';
 
 export const verifyToken = async (req, res, next) => {
   // Prevent any browser/proxy caching of authenticated session requests
@@ -25,6 +31,16 @@ export const verifyToken = async (req, res, next) => {
 
   if (!token) {
     return res.status(401).json({ success: false, message: 'Authentication required.' });
+  }
+
+  // Check In-Memory Session & Permissions Acceleration Cache (sub-millisecond fast path)
+  const tokenHash = hashSessionToken(token);
+  const cached = getCachedUser(tokenHash);
+  if (cached && cached.user) {
+    req.user = cached.user;
+    req.sessionId = cached.sessionId;
+    req.sessionToken = token;
+    return next();
   }
 
   try {
@@ -239,6 +255,12 @@ export const verifyToken = async (req, res, next) => {
       is_active: authUser.is_active,
       is_verified: authUser.is_verified
     };
+
+    // Store fully resolved session in acceleration cache (3 min TTL)
+    setCachedUser(tokenHash, {
+      user: req.user,
+      sessionId: req.sessionId
+    });
 
     next();
   } catch (error) {
