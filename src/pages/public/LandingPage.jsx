@@ -5,10 +5,8 @@ import Header from '../../components/Layout/Header';
 import Footer from '../../components/Layout/Footer';
 import api from '../../api/client';
 import PageTransition from '../../components/Layout/PageTransition';
-import { useTheme } from '../../contexts/ThemeContext';
 
 export default function LandingPage() {
-  const { isDark } = useTheme();
   const location = useLocation();
   const [stats, setStats] = useState({
     students: 10000,
@@ -267,21 +265,9 @@ export default function LandingPage() {
     }
   }, [location.hash, location.pathname]);
 
-  // Activate #737373 body canvas when in classic mode (dark mode disabled) on landing page
-  useEffect(() => {
-    if (!isDark) {
-      document.body.classList.add('landing-page-classic-active');
-    } else {
-      document.body.classList.remove('landing-page-classic-active');
-    }
-    return () => {
-      document.body.classList.remove('landing-page-classic-active');
-    };
-  }, [isDark]);
-
   return (
     <PageTransition>
-      <div className={`flex flex-col min-h-screen ${!isDark ? 'landing-page-classic bg-[#737373] text-white' : ''}`}>
+      <div className="flex flex-col min-h-screen">
         <Header />
 
         <main className="flex-grow">
@@ -446,9 +432,7 @@ export default function LandingPage() {
           {/* ========================================================================= */}
           <section
             id="about"
-            className={`py-10 sm:py-14 md:py-16 ${
-              !isDark ? 'bg-[#737373] border-b border-white/15' : 'bg-surface-container-lowest/80 border-b border-outline-variant/30'
-            } scroll-mt-20 transition-colors`}
+            className="py-10 sm:py-14 md:py-16 bg-surface-container-lowest/80 border-b border-outline-variant/30 scroll-mt-20 transition-colors"
             onClick={() => setActiveMember(null)}
           >
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 md:space-y-10">
@@ -502,16 +486,10 @@ export default function LandingPage() {
                           setActiveMember(isRevealed ? null : idx);
                         }
                       }}
-                      className={`group relative rounded-2xl sm:rounded-3xl overflow-hidden ${
-                        !isDark ? 'bg-[#737373] border-white/20' : 'bg-white dark:bg-neutral-900 border-outline-variant/30'
-                      } hover:border-vibrant-orange/60 focus:border-vibrant-orange focus:ring-2 focus:ring-vibrant-orange/40 transition-all duration-300 outline-none cursor-pointer select-none shadow-xs hover:shadow-2xl`}
+                      className="group relative rounded-2xl sm:rounded-3xl overflow-hidden bg-white dark:bg-neutral-900 border border-outline-variant/30 hover:border-vibrant-orange/60 focus:border-vibrant-orange focus:ring-2 focus:ring-vibrant-orange/40 transition-all duration-300 outline-none cursor-pointer select-none shadow-xs hover:shadow-2xl"
                     >
                       {/* Photo Container: Clean cutout on plain background, edge-to-edge */}
-                      <div className={`relative w-full h-[280px] sm:h-[320px] md:h-[350px] lg:h-[380px] flex items-end justify-center overflow-hidden ${
-                        !isDark
-                          ? 'bg-gradient-to-b from-transparent via-[#737373]/40 to-[#606060]/70'
-                          : 'bg-gradient-to-b from-transparent via-neutral-50/60 to-neutral-100/80 dark:from-transparent dark:via-neutral-900/60 dark:to-neutral-950/80'
-                      }`}>
+                      <div className="relative w-full h-[280px] sm:h-[320px] md:h-[350px] lg:h-[380px] flex items-end justify-center overflow-hidden bg-gradient-to-b from-transparent via-neutral-50/60 to-neutral-100/80 dark:from-transparent dark:via-neutral-900/60 dark:to-neutral-950/80">
                         <img
                           src={member.image}
                           alt={member.role}
@@ -684,12 +662,7 @@ export default function LandingPage() {
           {/* ========================================================================= */}
           {/* 3. MISSION & OJT TO CAREER TRANSITION (1 Consolidated Paragraph)           */}
           {/* ========================================================================= */}
-          <section
-            id="opportunities"
-            className={`py-12 sm:py-16 px-4 md:px-8 ${
-              !isDark ? 'bg-[#737373] border-y border-white/15' : 'bg-surface-container-lowest border-y border-outline-variant'
-            } scroll-mt-20`}
-          >
+          <section id="opportunities" className="py-12 sm:py-16 px-4 md:px-8 bg-surface-container-lowest border-y border-outline-variant scroll-mt-20">
             <div className="max-w-5xl mx-auto">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -910,12 +883,7 @@ export default function LandingPage() {
           {/* ========================================================================= */}
           {/* 5. POLICIES & COMPLIANCE SECTION (6 Legal & Ethical Safeguards)           */}
           {/* ========================================================================= */}
-          <section
-            id="policies"
-            className={`py-12 sm:py-16 px-4 md:px-8 ${
-              !isDark ? 'bg-[#737373] border-y border-white/15' : 'bg-surface-container-lowest border-y border-outline-variant'
-            } scroll-mt-20`}
-          >
+          <section id="policies" className="py-12 sm:py-16 px-4 md:px-8 bg-surface-container-lowest border-y border-outline-variant scroll-mt-20">
             <div className="max-w-7xl mx-auto space-y-8 sm:space-y-10">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
