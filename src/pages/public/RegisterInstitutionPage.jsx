@@ -172,22 +172,22 @@ export default function RegisterInstitutionPage() {
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-surface-container-lowest flex items-center justify-center p-4 sm:p-8 relative overflow-hidden">
+      <div className="min-h-[100dvh] bg-surface-container-lowest flex items-center justify-center p-2.5 sm:p-4 md:p-6 relative overflow-y-auto">
         
         {/* Decorative background blobs */}
-        <div className="absolute top-[-10%] left-[-5%] w-[500px] h-[500px] bg-orange-tint rounded-full mix-blend-multiply filter blur-3xl opacity-60"></div>
-        <div className="absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-green-tint rounded-full mix-blend-multiply filter blur-3xl opacity-60"></div>
+        <div className="absolute top-[-10%] left-[-5%] w-[450px] h-[450px] bg-orange-tint rounded-full mix-blend-multiply filter blur-3xl opacity-60"></div>
+        <div className="absolute bottom-[-10%] right-[-5%] w-[450px] h-[450px] bg-green-tint rounded-full mix-blend-multiply filter blur-3xl opacity-60"></div>
 
         {/* Floating Card */}
-        <div className="w-full max-w-[1100px] bg-surface rounded-2xl sm:rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden flex relative z-10 border border-outline-variant/30 min-h-0 lg:min-h-[700px]">
+        <div className="w-full max-w-[1020px] max-h-[min(94vh,760px)] bg-surface rounded-2xl sm:rounded-[1.75rem] shadow-[0_16px_40px_rgba(0,0,0,0.08)] overflow-hidden flex relative z-10 border border-outline-variant/30 my-auto">
           
           {/* LEFT PANEL - Form */}
-          <div className="w-full lg:w-3/5 p-4 sm:p-8 md:p-10 lg:p-12 flex flex-col relative bg-surface max-h-none lg:max-h-[85vh] overflow-y-auto custom-scrollbar">
+          <div className="w-full lg:w-3/5 p-4 sm:p-6 md:p-8 flex flex-col relative bg-surface max-h-[min(94vh,760px)] overflow-y-auto custom-scrollbar">
             
             {/* Top Back Button */}
             <Link 
               to="/get-started" 
-              className="inline-flex items-center gap-1.5 text-sm font-bold text-on-surface-variant hover:text-vibrant-orange transition-colors mb-6 w-fit"
+              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-on-surface-variant hover:text-vibrant-orange transition-colors mb-4 w-fit"
             >
               <span className="material-symbols-outlined text-[18px]">arrow_back</span>
               Back to Roles
@@ -195,17 +195,17 @@ export default function RegisterInstitutionPage() {
 
             <div className="flex-grow flex flex-col justify-center">
               {/* Header */}
-              <div className="space-y-3 mb-8">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-tint text-vibrant-orange font-bold text-xs mb-2">
-                  <span className="material-symbols-outlined text-[15px]">school</span>
+              <div className="space-y-1.5 mb-5 sm:mb-6">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-tint text-vibrant-orange font-bold text-xs mb-1">
+                  <span className="material-symbols-outlined text-[14px]">school</span>
                   CHED / TESDA / DepEd Verified
                 </div>
-                <h1 className="text-3xl font-bold text-on-surface tracking-tight">Institution Registration</h1>
-                <p className="text-sm text-on-surface-variant">Register your educational institution's main account to manage staff, programs, and OJT cohorts.</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">Institution Registration</h1>
+                <p className="text-xs sm:text-sm text-on-surface-variant">Register your educational institution's main account to manage staff, programs, and OJT cohorts.</p>
               </div>
 
               {error && (
-                <div className="p-3 mb-6 bg-error-container text-error rounded-xl text-xs font-medium flex items-center gap-2">
+                <div className="p-2.5 sm:p-3 mb-4 bg-error-container text-error rounded-xl text-xs font-medium flex items-center gap-2">
                   <span className="material-symbols-outlined text-[18px]">error</span>
                   <span>{error}</span>
                 </div>
@@ -213,7 +213,7 @@ export default function RegisterInstitutionPage() {
 
               <MissingFieldsBanner missingList={missingList} onClear={() => { setMissingList([]); setFieldErrors({}); }} />
 
-              <form onSubmit={handleSubmit} noValidate autoComplete="off" className="space-y-6">
+              <form onSubmit={handleSubmit} noValidate autoComplete="off" className="space-y-4">
                 {/* Hidden anti-autofill dummy traps to absorb browser credential autofill */}
                 <div style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }} aria-hidden="true">
                   <input type="text" name="fake_username_prevent_autofill" tabIndex={-1} autoComplete="off" />
@@ -488,7 +488,7 @@ export default function RegisterInstitutionPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-4 mt-6 bg-vibrant-orange text-white rounded-xl font-bold text-sm hover:bg-deep-orange transition-all disabled:opacity-50 shadow-md hover:shadow-lg active:scale-[0.98] flex justify-center items-center gap-2"
+                  className="w-full py-3 sm:py-3.5 mt-5 bg-vibrant-orange text-white rounded-xl font-bold text-xs sm:text-sm hover:bg-deep-orange transition-all disabled:opacity-50 shadow-md hover:shadow-lg active:scale-[0.98] flex justify-center items-center gap-2"
                 >
                   {loading ? (
                     <>
@@ -501,8 +501,8 @@ export default function RegisterInstitutionPage() {
                 </button>
               </form>
               
-              <div className="pt-6 text-center">
-                <p className="text-sm text-on-surface-variant">
+              <div className="pt-4 sm:pt-5 text-center">
+                <p className="text-xs sm:text-sm text-on-surface-variant">
                   Already registered?{' '}
                   <Link to="/login" className="text-vibrant-orange font-bold hover:underline">
                     Sign In
@@ -527,9 +527,9 @@ export default function RegisterInstitutionPage() {
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
             
             {/* Contextual Text on Image */}
-            <div className="absolute bottom-12 left-10 right-10 text-white">
-              <h3 className="text-2xl font-bold mb-2">Elevate Education</h3>
-              <p className="text-sm text-white/80 leading-relaxed">
+            <div className="absolute bottom-8 left-8 right-8 text-white">
+              <h3 className="text-xl sm:text-2xl font-bold mb-1.5">Elevate Education</h3>
+              <p className="text-xs sm:text-sm text-white/80 leading-relaxed">
                 Connect your students with premium industry partners. Monitor OJT progress in real-time, streamline curriculum compliance, and manage everything in one unified dashboard.
               </p>
             </div>

@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 
 export default function Footer() {
   return (
-    <footer className="border-t border-outline-variant bg-surface-container-lowest py-12 px-4 md:px-8">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
+    <footer className="border-t border-outline-variant bg-surface-container-lowest py-8 sm:py-10 md:py-12 px-4 md:px-8">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-8">
         <div className="space-y-4">
           <Link to="/" className="text-xl font-bold text-vibrant-orange flex items-center gap-2">
             <img src="/logo.png" alt="internconPH Logo" className="h-8 w-auto object-contain" loading="lazy" decoding="async" />
