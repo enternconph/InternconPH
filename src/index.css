@@ -724,3 +724,110 @@ html.dark .divide-outline-variant > :not([hidden]) ~ :not([hidden]) {
 .field-error-glow {
   animation: fieldErrorPulse 1.8s ease-in-out infinite;
 }
+
+/* =============================================================================
+   LANDING PAGE CLASSIC MODE (#737373 BACKGROUND INSTEAD OF WHITE)
+   When dark mode is disabled on the landing page, the white background (#ffffff)
+   is replaced with #737373 across the canvas, cards, sections, header, and footer.
+   ============================================================================= */
+body.landing-page-classic-active {
+  background-color: #737373 !important;
+  color: #ffffff !important;
+}
+
+body.landing-page-classic-active::before {
+  opacity: 0.08 !important;
+}
+
+.landing-page-classic {
+  --surface-rgb: 115, 115, 115;                  /* #737373 */
+  --surface-container-lowest-rgb: 115, 115, 115; /* #737373 */
+  --surface-container-low-rgb: 115, 115, 115;    /* #737373 */
+  --surface-container-rgb: 92, 92, 92;           /* #5C5C5C for subtle inset contrast */
+  --surface-container-high-rgb: 82, 82, 82;
+  --surface-container-highest-rgb: 72, 72, 72;
+
+  --on-surface-rgb: 255, 255, 255;               /* pure crisp white text */
+  --on-surface-variant-rgb: 240, 240, 240;       /* light gray secondary text */
+  --outline-variant-rgb: 160, 160, 160;          /* subtle light border */
+  --outline-rgb: 190, 190, 190;
+
+  --accent-text-rgb: 255, 180, 51;               /* radiant amber text/accents on #737373 */
+  --vibrant-orange-rgb: 255, 180, 51;
+  --deep-orange-rgb: 229, 162, 46;
+  --orange-tint: rgba(255, 180, 51, 0.22);
+  --success-tint: rgba(16, 185, 129, 0.22);
+  --brand-mint-rgb: 255, 180, 51;
+
+  background-color: #737373 !important;
+  color: #ffffff !important;
+}
+
+/* Ensure all cards, surfaces, and previously white backgrounds render in #737373 */
+.landing-page-classic .bento-card,
+.landing-page-classic .card {
+  background-color: #737373 !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.18) !important;
+}
+
+.landing-page-classic .bento-card:hover,
+.landing-page-classic .card:hover {
+  border-color: rgba(255, 180, 51, 0.6) !important;
+}
+
+.landing-page-classic .bg-white:not([data-preserve-white]) {
+  background-color: #737373 !important;
+}
+
+.landing-page-classic .bg-surface-container-lowest {
+  background-color: #737373 !important;
+}
+
+.landing-page-classic .bg-surface {
+  background-color: #737373 !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.landing-page-classic .bg-surface-container {
+  background-color: rgba(0, 0, 0, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Header & Footer in landing page classic mode */
+.landing-page-classic header {
+  background-color: rgba(115, 115, 115, 0.95) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.landing-page-classic footer {
+  background-color: #737373 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Text and border contrast enhancements on #737373 */
+.landing-page-classic .text-on-surface {
+  color: #ffffff !important;
+}
+
+.landing-page-classic .text-on-surface-variant {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+.landing-page-classic .border-outline-variant {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.landing-page-classic .text-pinoy-green {
+  color: #4ade80 !important;
+}
+
+.landing-page-classic .text-blue-600 {
+  color: #93c5fd !important;
+}
+
+.landing-page-classic .text-teal-500 {
+  color: #5eead4 !important;
+}
+

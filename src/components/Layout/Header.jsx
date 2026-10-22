@@ -46,8 +46,14 @@ export default function Header() {
     }
   };
 
+  const isLandingClassic = location.pathname === '/' && !isDark;
+
   return (
-    <header className="w-full top-0 sticky z-50 bg-surface-container-lowest/95 backdrop-blur-md transition-colors">
+    <header className={`w-full top-0 sticky z-50 backdrop-blur-md transition-colors ${
+      isLandingClassic
+        ? 'bg-[#737373]/95 border-b border-white/15 text-white'
+        : 'bg-surface-container-lowest/95'
+    }`}>
       <div className="flex items-center justify-between h-14 sm:h-16 px-4 sm:px-6 md:px-8 max-w-[1360px] mx-auto gap-4">
         {/* Left: Logo */}
         <div className="flex-1 flex items-center justify-start min-w-0">
@@ -59,10 +65,12 @@ export default function Header() {
               decoding="async"
             />
             <div className="flex flex-col text-left">
-              <span className="text-lg sm:text-xl font-bold tracking-tight leading-tight text-on-surface">
+              <span className={`text-lg sm:text-xl font-bold tracking-tight leading-tight ${isLandingClassic ? 'text-white' : 'text-on-surface'}`}>
                 interncon<span className="text-[#F59E0B]">ph</span>
               </span>
-              <span className="text-[9px] sm:text-[10px] font-semibold tracking-wider text-teal-500 uppercase leading-none mt-0.5">
+              <span className={`text-[9px] sm:text-[10px] font-semibold tracking-wider uppercase leading-none mt-0.5 ${
+                isLandingClassic ? 'text-teal-300' : 'text-teal-500'
+              }`}>
                 INTERNSHIP CONNECTIVITY
               </span>
             </div>
@@ -237,7 +245,11 @@ export default function Header() {
 
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-outline-variant bg-surface-container-lowest/98 backdrop-blur-lg px-4 py-5 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className={`md:hidden border-t px-4 py-5 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 ${
+          isLandingClassic
+            ? 'border-white/15 bg-[#737373]/98 backdrop-blur-lg text-white'
+            : 'border-outline-variant bg-surface-container-lowest/98 backdrop-blur-lg'
+        }`}>
           <nav className="flex flex-col space-y-2">
             <button
               type="button"
