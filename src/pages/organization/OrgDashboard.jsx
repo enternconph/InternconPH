@@ -445,45 +445,69 @@ export default function OrgDashboard() {
 
         {data?.jobs?.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-outline-variant/60">
-            <table className="w-full text-left text-sm min-w-[500px]">
+            <table className="w-full text-left text-sm min-w-[760px]">
               <thead>
                 <tr className="border-b border-outline-variant bg-surface-container-low/60 text-on-surface-variant text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
-                  <th className="py-3 px-4">Opportunity Details</th>
+                  <th className="py-3 px-4">Opportunity</th>
+                  <th className="py-3 px-4">Workplace Area / Dept</th>
+                  <th className="py-3 px-4">Work Setup</th>
+                  <th className="py-3 px-4">Slots Available</th>
                   <th className="py-3 px-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/40">
                 {data.jobs.map((job) => {
                   const pType = job.posting_type || 'ojt';
+                  const setupNorm = (job.work_setup || 'on_site').toLowerCase();
 
                   return (
                     <tr key={job.job_id} className="hover:bg-surface-container-low/70 transition-colors text-xs group">
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-sm text-on-surface group-hover:text-vibrant-orange transition-colors">{job.title}</p>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-semibold capitalize ${
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize shrink-0 ${
                             pType === 'ojt'
-                              ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                              ? 'bg-blue-500/15 text-blue-500 dark:text-blue-400 border border-blue-500/30'
                               : pType === 'on_call'
-                              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                              ? 'bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30'
+                              : 'bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30'
                           }`}>
                             {pType === 'ojt' ? 'OJT' : pType === 'on_call' ? 'On-Call' : 'Career'}
                           </span>
                         </div>
-                        <div className="text-[11px] text-on-surface-variant flex items-center flex-wrap gap-1.5 mt-1 font-medium">
-                          {job.workplace_area && (
-                            <>
-                              <span className="inline-flex items-center gap-0.5 text-on-surface font-semibold">
-                                <span className="material-symbols-outlined text-[13px] text-vibrant-orange">meeting_room</span>
-                                <span>{job.workplace_area}</span>
-                              </span>
-                              <span className="text-outline-variant">•</span>
-                            </>
-                          )}
-                          <span className="capitalize">{job.work_setup || 'On-Site'}</span>
-                          <span className="text-outline-variant">•</span>
-                          <span>{job.slots_available || 1} {job.slots_available === 1 ? 'slot' : 'slots'}</span>
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 font-semibold text-on-surface text-xs">
+                          <span className="material-symbols-outlined text-[15px] text-vibrant-orange">meeting_room</span>
+                          <span>{job.workplace_area || 'General Workplace'}</span>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${
+                          setupNorm.includes('remote')
+                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                            : setupNorm.includes('hybrid')
+                            ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30'
+                            : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                        }`}>
+                          <span className="material-symbols-outlined text-[13px]">
+                            {setupNorm.includes('remote')
+                              ? 'home_work'
+                              : setupNorm.includes('hybrid')
+                              ? 'swap_horiz'
+                              : 'business'}
+                          </span>
+                          <span>{(job.work_setup || 'On-Site').replace(/_/g, '-')}</span>
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container border border-outline-variant/60 text-xs font-bold text-on-surface">
+                          <span className="material-symbols-outlined text-[14px] text-vibrant-orange">group</span>
+                          <span>{job.slots_available || 1}</span>
+                          <span className="text-[11px] font-medium text-on-surface-variant">{job.slots_available === 1 ? 'slot' : 'slots'}</span>
                         </div>
                       </td>
 
