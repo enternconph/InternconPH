@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import PhAddressSelector from '../../components/ui/PhAddressSelector';
-import { resolveFileUrl } from '../../utils/fileHelper';
+import { resolveFileUrl, formatAddress } from '../../utils/fileHelper';
 import { DetailDrawer, DetailRow, DetailLink } from '../../components/ui';
 
 export default function OrgJobs() {
@@ -513,29 +513,28 @@ export default function OrgJobs() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm min-w-[700px]">
+          <div className="overflow-x-auto rounded-xl border border-outline-variant/60">
+            <table className="w-full text-left text-sm min-w-[760px]">
               <thead>
-                <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
+                <tr className="border-b border-outline-variant bg-surface-container-low/60 text-on-surface-variant text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
                   <th className="py-3 px-4">Opportunity</th>
-                  <th className="py-3 px-4">Setup & Slots</th>
-                  <th className="py-3 px-4">Status & Approvals</th>
+                  <th className="py-3 px-4">Workplace Area / Dept</th>
+                  <th className="py-3 px-4">Work Setup</th>
+                  <th className="py-3 px-4">Slots Available</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-container">
+              <tbody className="divide-y divide-outline-variant/40">
                 {filteredJobs.map((job) => {
                   const pType = job.posting_type || 'ojt';
-                  const approvals = job.institution_approvals || [];
-                  const approvedCount = approvals.filter(a => a.approval_status === 'approved').length;
-                  const totalApprovals = approvals.length;
+                  const setupNorm = (job.work_setup || 'on_site').toLowerCase();
 
                   return (
-                    <tr key={job.job_id} className="hover:bg-surface-container-low transition-colors">
-                      {/* Title & Type */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-start gap-3">
-                          {job.flyer_image_url && (
+                    <tr key={job.job_id} className="hover:bg-surface-container-low/70 transition-colors text-xs group">
+                      {/* Opportunity: Title & Type */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-3">
+                          {job.flyer_image_url ? (
                             <img
                               src={resolveFileUrl(job.flyer_image_url)}
                               alt="Flyer thumbnail"
@@ -546,96 +545,97 @@ export default function OrgJobs() {
                                 e.target.style.display = 'none';
                               }}
                             />
-                          )}
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-bold text-on-surface text-sm truncate">{job.title}</p>
-                              <span className={`inline-flex items-center gap-0.5 px-2 py-0.2 rounded-full text-[10px] font-bold capitalize ${
-                                pType === 'ojt'
-                                  ? 'bg-blue-500/10 text-blue-600'
-                                  : pType === 'on_call'
-                                  ? 'bg-amber-500/10 text-amber-700'
-                                  : 'bg-green-tint text-pinoy-green'
-                              }`}>
-                                <span className="material-symbols-outlined text-[11px]">
-                                  {pType === 'ojt' ? 'badge' : pType === 'on_call' ? 'bolt' : 'work'}
-                                </span>
-                                {pType === 'ojt' ? 'OJT' : pType === 'on_call' ? 'On-Call' : 'Career'}
+                          ) : (
+                            <div className="w-10 h-10 rounded-xl bg-orange-tint/70 border border-vibrant-orange/20 flex items-center justify-center text-vibrant-orange shrink-0">
+                              <span className="material-symbols-outlined text-[20px]">
+                                {pType === 'ojt' ? 'school' : pType === 'on_call' ? 'bolt' : 'work'}
                               </span>
                             </div>
-                            <div className="mt-1">
-                              <DetailLink onClick={() => setSelectedJobForDetail(job)}>
-                                View Details
-                              </DetailLink>
-                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-bold text-sm text-on-surface truncate group-hover:text-vibrant-orange transition-colors">
+                              {job.title}
+                            </p>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize mt-0.5 shrink-0 ${
+                              pType === 'ojt'
+                                ? 'bg-blue-500/15 text-blue-500 dark:text-blue-400 border border-blue-500/30'
+                                : pType === 'on_call'
+                                ? 'bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30'
+                                : 'bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30'
+                            }`}>
+                              {pType === 'ojt' ? 'OJT Internship' : pType === 'on_call' ? 'On-Call' : 'Career Opening'}
+                            </span>
                           </div>
                         </div>
                       </td>
 
-                      {/* Setup & Slots */}
-                      <td className="py-3 px-4 text-xs">
-                        <div className="font-semibold text-on-surface capitalize">{job.work_setup || 'On-site'}</div>
-                        <div className="text-[11px] text-on-surface-variant flex items-center gap-1 mt-0.5 flex-wrap">
-                          {job.workplace_area && (
-                            <span className="font-semibold text-vibrant-orange">Area: {job.workplace_area} • </span>
-                          )}
-                          <span>{job.slots_available || 1} slot(s)</span>
+                      {/* Workplace Area / Dept */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 font-semibold text-on-surface text-xs">
+                          <span className="material-symbols-outlined text-[15px] text-vibrant-orange">meeting_room</span>
+                          <span>{job.workplace_area || 'General Workplace'}</span>
                         </div>
                       </td>
 
-                      {/* Status & Approvals */}
-                      <td className="py-3 px-4 text-xs">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            job.status === 'active' ? 'bg-green-tint text-pinoy-green' : 'bg-surface-container text-on-surface-variant'
-                          }`}>
-                            {job.status}
+                      {/* Work Setup */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${
+                          setupNorm.includes('remote')
+                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                            : setupNorm.includes('hybrid')
+                            ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30'
+                            : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                        }`}>
+                          <span className="material-symbols-outlined text-[13px]">
+                            {setupNorm.includes('remote')
+                              ? 'home_work'
+                              : setupNorm.includes('hybrid')
+                              ? 'swap_horiz'
+                              : 'business'}
                           </span>
-                          <span className="text-[11px] font-medium text-on-surface">
-                            {job.applicant_count || 0} candidate(s)
-                          </span>
-                        </div>
-                        <div className="mt-1">
-                          {totalApprovals === 0 ? (
-                            <span className="text-[10px] text-on-surface-variant">Global Approvals</span>
-                          ) : (
-                            <button
-                              onClick={() => setShowApprovalsModal(job)}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-[10px] font-bold hover:bg-surface-container-high border border-outline-variant transition-colors"
-                            >
-                              <span className="material-symbols-outlined text-[12px] text-pinoy-green">verified</span>
-                              <span>{approvedCount}/{totalApprovals} Approved</span>
-                            </button>
-                          )}
+                          <span>{(job.work_setup || 'On-Site').replace(/_/g, '-')}</span>
+                        </span>
+                      </td>
+
+                      {/* Slots Available */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container border border-outline-variant/60 text-xs font-bold text-on-surface">
+                          <span className="material-symbols-outlined text-[14px] text-vibrant-orange">group</span>
+                          <span>{job.slots_available || 1}</span>
+                          <span className="text-[11px] font-medium text-on-surface-variant">{job.slots_available === 1 ? 'slot' : 'slots'}</span>
                         </div>
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5">
                           <button
+                            type="button"
                             onClick={() => setSelectedJobForDetail(job)}
                             title="View all details"
-                            className="p-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-vibrant-orange/10 hover:bg-vibrant-orange text-vibrant-orange hover:text-white transition-all text-xs font-bold border border-vibrant-orange/30 shadow-xs"
                           >
-                            <span className="material-symbols-outlined text-[16px]">visibility</span>
+                            <span className="material-symbols-outlined text-[15px]">visibility</span>
+                            <span>Details</span>
                           </button>
 
                           <button
+                            type="button"
                             onClick={() => handleOpenEdit(job)}
                             title="Edit opportunity details"
-                            className="p-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface transition-colors"
+                            className="p-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface transition-colors border border-outline-variant/60 shadow-xs"
                           >
                             <span className="material-symbols-outlined text-[16px]">edit</span>
                           </button>
 
                           <button
+                            type="button"
                             onClick={() => handleToggleStatus(job.job_id, job.status)}
-                            title={job.status === 'active' ? 'Close opening' : 'Reactivate'}
-                            className={`p-1.5 rounded-lg transition-colors ${
+                            title={job.status === 'active' ? 'Pause / Close opportunity' : 'Reactivate opportunity'}
+                            className={`p-1.5 rounded-lg transition-colors border shadow-xs ${
                               job.status === 'active'
-                                ? 'bg-amber-500/10 text-amber-700 hover:bg-amber-500/20'
-                                : 'bg-green-tint text-pinoy-green hover:bg-green-200'
+                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 border-amber-500/30'
+                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/30'
                             }`}
                           >
                             <span className="material-symbols-outlined text-[16px]">
@@ -644,9 +644,10 @@ export default function OrgJobs() {
                           </button>
 
                           <button
+                            type="button"
                             onClick={() => handleDeleteJob(job.job_id)}
-                            title="Delete opening"
-                            className="p-1.5 rounded-lg bg-error-container text-error hover:bg-red-200 transition-colors"
+                            title="Delete opportunity"
+                            className="p-1.5 rounded-lg bg-error-container/20 text-error hover:bg-error-container/40 transition-colors border border-error/30 shadow-xs"
                           >
                             <span className="material-symbols-outlined text-[16px]">delete</span>
                           </button>
@@ -718,42 +719,152 @@ export default function OrgJobs() {
               </div>
             )}
 
-            <div className="card-inset p-4 space-y-2">
-              <DetailRow label="Opportunity Type">
-                <span className="capitalize font-bold text-on-surface">
-                  {selectedJobForDetail.posting_type === 'ojt' ? 'OJT Internship' : selectedJobForDetail.posting_type === 'on_call' ? 'On-Call Opportunity' : 'Career Job'}
+            {/* Status & Approvals Section */}
+            <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/60 space-y-3">
+              <div className="flex items-center justify-between border-b border-outline-variant/40 pb-2.5">
+                <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] text-vibrant-orange">verified_user</span>
+                  Status & Approvals
+                </span>
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
+                  (selectedJobForDetail.status || 'active').toLowerCase() === 'active'
+                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-surface-container text-on-surface-variant border border-outline-variant'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    (selectedJobForDetail.status || 'active').toLowerCase() === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'
+                  }`} />
+                  {selectedJobForDetail.status || 'Active'}
+                </span>
+              </div>
+
+              <DetailRow label="Candidates Applied">
+                <span className="font-bold text-on-surface">
+                  {selectedJobForDetail.applicant_count || 0} candidate{selectedJobForDetail.applicant_count === 1 ? '' : 's'}
                 </span>
               </DetailRow>
-              <DetailRow label="Status">
-                <span className={`chip ${selectedJobForDetail.status === 'active' ? 'chip-success' : 'chip-neutral'}`}>
-                  {selectedJobForDetail.status}
-                </span>
+
+              <DetailRow label="Institution Approvals">
+                {(selectedJobForDetail.institution_approvals || []).length > 0 ? (
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                    (selectedJobForDetail.institution_approvals || []).filter(a => a.approval_status === 'approved').length === (selectedJobForDetail.institution_approvals || []).length
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      : (selectedJobForDetail.institution_approvals || []).filter(a => a.approval_status === 'approved').length > 0
+                      ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                      : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                  }`}>
+                    <span className="material-symbols-outlined text-[14px]">
+                      {(selectedJobForDetail.institution_approvals || []).filter(a => a.approval_status === 'approved').length === (selectedJobForDetail.institution_approvals || []).length ? 'verified' : 'hourglass_top'}
+                    </span>
+                    <span>
+                      {(selectedJobForDetail.institution_approvals || []).filter(a => a.approval_status === 'approved').length}/{(selectedJobForDetail.institution_approvals || []).length} Approved
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-xs text-on-surface-variant font-medium">Global Access (All Partner Institutions)</span>
+                )}
               </DetailRow>
-              <DetailRow label="Slots Available">
-                <span>{selectedJobForDetail.slots_available || 1} slot(s)</span>
-              </DetailRow>
-              <DetailRow label="Candidates">
-                <span>{selectedJobForDetail.applicant_count || 0} applicant(s)</span>
-              </DetailRow>
-              <DetailRow label="Work Setup">
-                <span className="capitalize">{selectedJobForDetail.work_setup || 'On-Site'}</span>
-              </DetailRow>
-              {selectedJobForDetail.workplace_area && (
-                <DetailRow label="Workplace Area">
-                  <span>{selectedJobForDetail.workplace_area}</span>
-                </DetailRow>
+
+              {(selectedJobForDetail.institution_approvals || []).length > 0 && (
+                <div className="pt-2 border-t border-outline-variant/30 space-y-1.5">
+                  <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Institution Endorsement Breakdown</p>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {(selectedJobForDetail.institution_approvals || []).map((app, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-surface-container/70 border border-outline-variant/40">
+                        <span className="font-semibold text-on-surface truncate mr-2" title={app.institution_name}>
+                          {app.institution_name || app.institution_code || 'Academic Partner'}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold uppercase tracking-wider shrink-0 ${
+                          app.approval_status === 'approved'
+                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                            : app.approval_status === 'rejected'
+                            ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                            : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                        }`}>
+                          {app.approval_status || 'Pending'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
 
-            <div className="card-inset p-4 space-y-1">
-              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Workplace Address</p>
-              <p className="text-sm font-semibold text-on-surface">
-                {selectedJobForDetail.location || 'On-site / Hybrid arrangement'}
-              </p>
+            {/* Target Programs & Audience Section */}
+            {(selectedJobForDetail.target_programs || []).length > 0 && (
+              <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/60 space-y-3">
+                <div className="flex items-center justify-between border-b border-outline-variant/40 pb-2.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-vibrant-orange">school</span>
+                    Target Programs & Audience
+                  </span>
+                  <span className="text-xs font-bold text-on-surface">
+                    {selectedJobForDetail.target_programs.length} Program{selectedJobForDetail.target_programs.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {selectedJobForDetail.target_programs.map((p, idx) => {
+                    const code = p.program_code || (typeof p === 'string' ? p : '');
+                    const name = p.program_name || '';
+                    return (
+                      <div
+                        key={idx}
+                        className="px-3 py-1.5 rounded-lg bg-surface-container text-on-surface border border-outline-variant/60 flex items-center gap-2"
+                      >
+                        <span className="material-symbols-outlined text-[14px] text-vibrant-orange">check_circle</span>
+                        <div>
+                          {code && <span className="font-bold text-xs mr-1.5">{code}</span>}
+                          {name && <span className="text-[11px] text-on-surface-variant">{name}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Placement Specs & Location Section */}
+            <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/60 space-y-3">
+              <div className="flex items-center justify-between border-b border-outline-variant/40 pb-2.5">
+                <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] text-vibrant-orange">location_on</span>
+                  Workplace Location & Specifications
+                </span>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Physical Address / Work Location</p>
+                <p className="text-sm font-semibold text-on-surface leading-snug">
+                  {formatAddress(selectedJobForDetail.location) || selectedJobForDetail.location || 'On-site / Hybrid arrangement'}
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-outline-variant/30 space-y-2">
+                <DetailRow label="Opportunity Type">
+                  <span className="capitalize font-bold text-on-surface">
+                    {selectedJobForDetail.posting_type === 'ojt' ? 'OJT Internship' : selectedJobForDetail.posting_type === 'on_call' ? 'On-Call Opportunity' : 'Career Job'}
+                  </span>
+                </DetailRow>
+                <DetailRow label="Work Setup">
+                  <span className="capitalize font-semibold text-on-surface">{selectedJobForDetail.work_setup || 'On-Site'}</span>
+                </DetailRow>
+                {selectedJobForDetail.workplace_area && (
+                  <DetailRow label="Workplace Area / Dept">
+                    <span className="font-semibold text-on-surface">{selectedJobForDetail.workplace_area}</span>
+                  </DetailRow>
+                )}
+                <DetailRow label="Slots Available">
+                  <span className="font-bold text-on-surface">{selectedJobForDetail.slots_available || 1} {selectedJobForDetail.slots_available === 1 ? 'slot' : 'slots'}</span>
+                </DetailRow>
+              </div>
             </div>
 
-            <div className="card-inset p-4 space-y-2">
-              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Supervision & Shift</p>
+            {/* Supervision & Shift */}
+            <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/60 space-y-2">
+              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[16px] text-vibrant-orange">supervisor_account</span>
+                Supervision & Shift
+              </p>
               <DetailRow label="Assigned Mentor">
                 {selectedJobForDetail.mentor_first_name ? (
                   <span className="font-bold text-on-surface">
@@ -769,31 +880,8 @@ export default function OrgJobs() {
               </DetailRow>
             </div>
 
-            <div className="card-inset p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Institution Approvals</p>
-                <span className="text-xs font-bold text-pinoy-green">
-                  {(selectedJobForDetail.institution_approvals || []).filter(a => a.approval_status === 'approved').length}/{(selectedJobForDetail.institution_approvals || []).length} Approved
-                </span>
-              </div>
-              {(selectedJobForDetail.institution_approvals || []).length > 0 ? (
-                <div className="space-y-1.5 pt-1">
-                  {selectedJobForDetail.institution_approvals.map((app, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-outline-variant/30 last:border-0">
-                      <span className="font-medium text-on-surface">{app.institution_name}</span>
-                      <span className={`chip chip-sm ${app.approval_status === 'approved' ? 'chip-success' : 'chip-warning'}`}>
-                        {app.approval_status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-on-surface-variant">Global posting accessible by all partner institutions.</p>
-              )}
-            </div>
-
             {selectedJobForDetail.description && (
-              <div className="card-inset p-4 space-y-1">
+              <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/60 space-y-1.5">
                 <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Description</p>
                 <p className="text-xs text-on-surface-variant whitespace-pre-wrap leading-relaxed">
                   {selectedJobForDetail.description}
@@ -802,7 +890,7 @@ export default function OrgJobs() {
             )}
 
             {selectedJobForDetail.requirements && (
-              <div className="card-inset p-4 space-y-1">
+              <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/60 space-y-1.5">
                 <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Requirements</p>
                 <p className="text-xs text-on-surface-variant whitespace-pre-wrap leading-relaxed">
                   {selectedJobForDetail.requirements}
