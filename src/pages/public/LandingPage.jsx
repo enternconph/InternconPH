@@ -436,375 +436,105 @@ export default function LandingPage() {
           </section>
 
           {/* ========================================================================= */}
-          {/* 1.5 CLIENT LOGOS STRIP & ABOUT / TEAM SECTION (EXIT FIVE BENTO REDESIGN)  */}
+          {/* 1.5 ABOUT / CORE TEAM SECTION (NATIVE STITCH DESIGN SYSTEM)               */}
           {/* ========================================================================= */}
           <section
             id="about"
-            className="relative py-16 sm:py-20 md:py-24 bg-[#071310] text-white border-y border-white/10 scroll-mt-20 overflow-hidden"
+            className="py-12 sm:py-16 md:py-20 px-4 md:px-8 max-w-7xl mx-auto scroll-mt-20"
           >
-            {/* Ambient Lighting & Glow Mesh (Exit Five aesthetic) */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[450px] bg-[radial-gradient(ellipse_at_top,rgba(56,229,135,0.15),transparent_70%)] pointer-events-none -z-0" />
-            <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none -z-0" />
-            <div className="absolute -top-24 -right-24 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none -z-0" />
-
-            <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10 md:space-y-12">
-              
-              {/* Centered Exit Five Style Header */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5 }}
-                className="text-center max-w-3xl mx-auto space-y-4"
-              >
-                {/* Eyebrow Pill */}
-                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#38E587] text-[#071310] text-[11px] sm:text-xs font-black tracking-wider uppercase shadow-md shadow-emerald-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#071310] animate-pulse" />
-                  <span>The Core Engineering & Design Team</span>
-                </div>
-
-                {/* Big Headline */}
-                <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-[3.25rem] font-black text-white tracking-tight leading-[1.12]">
-                  Real builders.{' '}
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#38E587] via-teal-300 to-amber-300">
-                    Real connections.
-                  </span>
-                </h2>
-
-                {/* Subtitle */}
-                <p className="text-xs sm:text-sm md:text-base text-white/80 max-w-2xl mx-auto font-normal leading-relaxed">
-                  Inside, meet the multidisciplinary engineering, design, and growth team connecting students across the Philippines with verified OJT pathways, automated DTR governance, and real career trajectories.
-                </p>
-
-                {/* CTA Button */}
-                <div className="pt-2 flex items-center justify-center">
-                  <a
-                    href="#how-it-works"
-                    className="inline-flex items-center gap-2 px-6 sm:px-7 py-2.5 sm:py-3 rounded-full bg-[#38E587] hover:bg-[#2fd378] text-[#071310] font-black text-xs sm:text-sm transition-all hover:scale-105 active:scale-95 shadow-lg shadow-emerald-500/25 cursor-pointer"
-                  >
-                    <span>Explore System Architecture</span>
-                    <span className="material-symbols-outlined text-[18px]">arrow_downward</span>
-                  </a>
-                </div>
-              </motion.div>
-
-              {/* Bento Photo & Stat Grid (Exit Five Layout) */}
-              <div id="team" className="pt-2">
-                {/* Desktop 4-Column Layout (>= 1024px) */}
-                <div className="hidden lg:grid lg:grid-cols-4 gap-4 xl:gap-5">
-                  
-                  {/* Column 1: Dev 1 (The Hacker) + Accent Card 1 (Students) */}
-                  <div className="flex flex-col gap-4 h-[460px]">
-                    {/* Dev 1 Card */}
-                    <motion.div
-                      initial={{ opacity: 0, y: 25 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.4 }}
-                      onClick={() => setSelectedRoleDetail(teamMembers[0])}
-                      className="group relative h-[270px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#0e2730] via-[#091b22] to-[#051116] border border-white/10 hover:border-[#38bdf8]/60 transition-all duration-300 cursor-pointer shadow-xl hover:shadow-2xl hover:scale-[1.01] flex flex-col justify-end"
-                    >
-                      {/* Aura glow behind head */}
-                      <div className="absolute top-12 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full bg-sky-500/15 blur-2xl pointer-events-none" />
-
-                      {/* Photo Cutout */}
-                      <div className="relative w-full h-[195px] flex items-end justify-center select-none pointer-events-none">
-                        <img
-                          src={teamMembers[0].image}
-                          alt={teamMembers[0].role}
-                          loading="lazy"
-                          className="h-full w-auto max-w-[85%] object-contain object-bottom drop-shadow-[0_8px_16px_rgba(0,0,0,0.7)] group-hover:scale-105 transition-transform duration-500 ease-out"
-                        />
-                      </div>
-
-                      {/* Bottom Overlay with Quote and Role */}
-                      <div className="relative z-10 p-4 bg-gradient-to-t from-black via-black/85 to-transparent text-left space-y-1.5">
-                        <p className="text-[11.5px] italic text-white/95 leading-snug line-clamp-2 font-normal">
-                          &ldquo;{teamMembers[0].quote}&rdquo;
-                        </p>
-                        <div className="flex items-center justify-between pt-0.5 border-t border-white/10">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-[#38bdf8] bg-[#38bdf8]/15 px-2 py-0.5 rounded-full border border-[#38bdf8]/30">
-                            {teamMembers[0].emoji} {teamMembers[0].role}
-                          </span>
-                          <span className="text-[10.5px] font-medium text-white/75 truncate max-w-[130px]">
-                            {teamMembers[0].author}
-                          </span>
-                        </div>
-                      </div>
-                    </motion.div>
-
-                    {/* Accent Card 1: 10,000+ Students */}
-                    <motion.div
-                      initial={{ opacity: 0, y: 25 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.4, delay: 0.08 }}
-                      className="h-[174px] rounded-3xl p-5 bg-[#38E587] text-[#071310] flex flex-col justify-between shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.01]"
-                    >
-                      <div className="w-9 h-9 rounded-xl border border-[#071310]/25 flex items-center justify-center text-[#071310] bg-[#071310]/5">
-                        <span className="material-symbols-outlined text-[20px]">groups</span>
-                      </div>
-                      <div>
-                        <div className="text-3xl font-black tracking-tight leading-none text-[#071310]">
-                          {(stats?.students ?? 10000).toLocaleString()}+
-                        </div>
-                        <p className="text-xs font-semibold leading-tight text-[#071310]/85 mt-2">
-                          Current and future student interns across accredited universities nationwide.
-                        </p>
-                      </div>
-                    </motion.div>
-                  </div>
-
-                  {/* Column 2: Tall Hero Dev 2 (The Hipster - Lead Designer) */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 25 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.4, delay: 0.12 }}
-                    onClick={() => setSelectedRoleDetail(teamMembers[1])}
-                    className="group relative h-[460px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#201435] via-[#130b22] to-[#051116] border border-white/10 hover:border-[#c084fc]/60 transition-all duration-300 cursor-pointer shadow-xl hover:shadow-2xl hover:scale-[1.01] flex flex-col justify-end"
-                  >
-                    {/* Aura glow behind head */}
-                    <div className="absolute top-16 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full bg-purple-500/15 blur-2xl pointer-events-none" />
-
-                    {/* Tall Photo Cutout */}
-                    <div className="relative w-full h-[320px] flex items-end justify-center select-none pointer-events-none">
-                      <img
-                        src={teamMembers[1].image}
-                        alt={teamMembers[1].role}
-                        loading="lazy"
-                        className="h-full w-auto max-w-[90%] object-contain object-bottom drop-shadow-[0_12px_24px_rgba(0,0,0,0.8)] group-hover:scale-105 transition-transform duration-500 ease-out"
-                      />
-                    </div>
-
-                    {/* Bottom Overlay with Quote and Role */}
-                    <div className="relative z-10 p-5 bg-gradient-to-t from-black via-black/85 to-transparent text-left space-y-2">
-                      <p className="text-xs sm:text-[13px] italic text-white/95 leading-relaxed line-clamp-3 font-normal">
-                        &ldquo;{teamMembers[1].quote}&rdquo;
-                      </p>
-                      <div className="flex items-center justify-between pt-1 border-t border-white/10">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-[#c084fc] bg-[#c084fc]/15 px-2.5 py-0.5 rounded-full border border-[#c084fc]/30">
-                          {teamMembers[1].emoji} {teamMembers[1].role}
-                        </span>
-                        <span className="text-[11px] font-bold text-white/80">
-                          {teamMembers[1].author}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-
-                  {/* Column 3: Tall Hero Dev 3 (The Hipster - Product & UX) */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 25 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.4, delay: 0.16 }}
-                    onClick={() => setSelectedRoleDetail(teamMembers[2])}
-                    className="group relative h-[460px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#2d1124] via-[#1a0815] to-[#051116] border border-white/10 hover:border-[#fb7185]/60 transition-all duration-300 cursor-pointer shadow-xl hover:shadow-2xl hover:scale-[1.01] flex flex-col justify-end"
-                  >
-                    {/* Aura glow behind head */}
-                    <div className="absolute top-16 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full bg-rose-500/15 blur-2xl pointer-events-none" />
-
-                    {/* Tall Photo Cutout */}
-                    <div className="relative w-full h-[320px] flex items-end justify-center select-none pointer-events-none">
-                      <img
-                        src={teamMembers[2].image}
-                        alt={teamMembers[2].role}
-                        loading="lazy"
-                        className="h-full w-auto max-w-[90%] object-contain object-bottom drop-shadow-[0_12px_24px_rgba(0,0,0,0.8)] group-hover:scale-105 transition-transform duration-500 ease-out"
-                      />
-                    </div>
-
-                    {/* Bottom Overlay with Quote and Role */}
-                    <div className="relative z-10 p-5 bg-gradient-to-t from-black via-black/85 to-transparent text-left space-y-2">
-                      <p className="text-xs sm:text-[13px] italic text-white/95 leading-relaxed line-clamp-3 font-normal">
-                        &ldquo;{teamMembers[2].quote}&rdquo;
-                      </p>
-                      <div className="flex items-center justify-between pt-1 border-t border-white/10">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-[#fb7185] bg-[#fb7185]/15 px-2.5 py-0.5 rounded-full border border-[#fb7185]/30">
-                          {teamMembers[2].emoji} {teamMembers[2].role}
-                        </span>
-                        <span className="text-[11px] font-bold text-white/80">
-                          {teamMembers[2].author}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-
-                  {/* Column 4: Accent Card 2 (CHED & DOLE) + Dev 4 (The Hustler) */}
-                  <div className="flex flex-col gap-4 h-[460px]">
-                    {/* Accent Card 2: 100% Certified */}
-                    <motion.div
-                      initial={{ opacity: 0, y: 25 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.4, delay: 0.2 }}
-                      className="h-[174px] rounded-3xl p-5 bg-[#FFB433] text-[#132320] flex flex-col justify-between shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.01]"
-                    >
-                      <div className="w-9 h-9 rounded-xl border border-[#132320]/25 flex items-center justify-center text-[#132320] bg-[#132320]/5">
-                        <span className="material-symbols-outlined text-[20px]">verified_user</span>
-                      </div>
-                      <div>
-                        <div className="text-3xl font-black tracking-tight leading-none text-[#132320]">
-                          100% Certified
-                        </div>
-                        <p className="text-xs font-semibold leading-tight text-[#132320]/85 mt-2">
-                          CHED CMO 104 & DOLE SIPP compliant with automated DTR governance.
-                        </p>
-                      </div>
-                    </motion.div>
-
-                    {/* Dev 4 Card */}
-                    <motion.div
-                      initial={{ opacity: 0, y: 25 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.4, delay: 0.24 }}
-                      onClick={() => setSelectedRoleDetail(teamMembers[3])}
-                      className="group relative h-[270px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#2d1b0c] via-[#1c1107] to-[#051116] border border-white/10 hover:border-[#fbbf24]/60 transition-all duration-300 cursor-pointer shadow-xl hover:shadow-2xl hover:scale-[1.01] flex flex-col justify-end"
-                    >
-                      {/* Aura glow behind head */}
-                      <div className="absolute top-12 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full bg-amber-500/15 blur-2xl pointer-events-none" />
-
-                      {/* Photo Cutout */}
-                      <div className="relative w-full h-[195px] flex items-end justify-center select-none pointer-events-none">
-                        <img
-                          src={teamMembers[3].image}
-                          alt={teamMembers[3].role}
-                          loading="lazy"
-                          className="h-full w-auto max-w-[85%] object-contain object-bottom drop-shadow-[0_8px_16px_rgba(0,0,0,0.7)] group-hover:scale-105 transition-transform duration-500 ease-out"
-                        />
-                      </div>
-
-                      {/* Bottom Overlay with Quote and Role */}
-                      <div className="relative z-10 p-4 bg-gradient-to-t from-black via-black/85 to-transparent text-left space-y-1.5">
-                        <p className="text-[11.5px] italic text-white/95 leading-snug line-clamp-2 font-normal">
-                          &ldquo;{teamMembers[3].quote}&rdquo;
-                        </p>
-                        <div className="flex items-center justify-between pt-0.5 border-t border-white/10">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-[#fbbf24] bg-[#fbbf24]/15 px-2 py-0.5 rounded-full border border-[#fbbf24]/30">
-                            {teamMembers[3].emoji} {teamMembers[3].role}
-                          </span>
-                          <span className="text-[10.5px] font-medium text-white/75 truncate max-w-[130px]">
-                            {teamMembers[3].author}
-                          </span>
-                        </div>
-                      </div>
-                    </motion.div>
-                  </div>
-
-                </div>
-
-                {/* Tablet / Mobile Layout (< 1024px) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:hidden">
-                  {/* Item 1: Dev 1 */}
-                  <div
-                    onClick={() => setSelectedRoleDetail(teamMembers[0])}
-                    className="relative h-[290px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#0e2730] via-[#091b22] to-[#051116] border border-white/10 shadow-xl flex flex-col justify-end cursor-pointer"
-                  >
-                    <div className="relative w-full h-[190px] flex items-end justify-center">
-                      <img src={teamMembers[0].image} alt={teamMembers[0].role} className="h-full w-auto max-w-[85%] object-contain object-bottom" />
-                    </div>
-                    <div className="p-4 bg-gradient-to-t from-black via-black/85 to-transparent text-left space-y-1.5">
-                      <p className="text-xs italic text-white/95 leading-snug line-clamp-2">&ldquo;{teamMembers[0].quote}&rdquo;</p>
-                      <div className="flex items-center justify-between pt-1 border-t border-white/10">
-                        <span className="text-[10px] font-black uppercase text-[#38bdf8] bg-[#38bdf8]/15 px-2 py-0.5 rounded-full">
-                          {teamMembers[0].emoji} {teamMembers[0].role}
-                        </span>
-                        <span className="text-[10px] font-bold text-white/75">{teamMembers[0].author}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Item 2: Accent 1 */}
-                  <div className="h-[200px] sm:h-auto rounded-3xl p-5 bg-[#38E587] text-[#071310] flex flex-col justify-between shadow-xl">
-                    <div className="w-9 h-9 rounded-xl border border-[#071310]/25 flex items-center justify-center text-[#071310] bg-[#071310]/5">
-                      <span className="material-symbols-outlined text-[20px]">groups</span>
-                    </div>
-                    <div>
-                      <div className="text-3xl font-black tracking-tight leading-none text-[#071310]">
-                        {(stats?.students ?? 10000).toLocaleString()}+
-                      </div>
-                      <p className="text-xs font-semibold leading-tight text-[#071310]/85 mt-2">
-                        Current and future student interns across accredited universities nationwide.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Item 3: Dev 2 */}
-                  <div
-                    onClick={() => setSelectedRoleDetail(teamMembers[1])}
-                    className="relative h-[320px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#201435] via-[#130b22] to-[#051116] border border-white/10 shadow-xl flex flex-col justify-end cursor-pointer"
-                  >
-                    <div className="relative w-full h-[220px] flex items-end justify-center">
-                      <img src={teamMembers[1].image} alt={teamMembers[1].role} className="h-full w-auto max-w-[85%] object-contain object-bottom" />
-                    </div>
-                    <div className="p-4 bg-gradient-to-t from-black via-black/85 to-transparent text-left space-y-1.5">
-                      <p className="text-xs italic text-white/95 leading-snug line-clamp-2">&ldquo;{teamMembers[1].quote}&rdquo;</p>
-                      <div className="flex items-center justify-between pt-1 border-t border-white/10">
-                        <span className="text-[10px] font-black uppercase text-[#c084fc] bg-[#c084fc]/15 px-2 py-0.5 rounded-full">
-                          {teamMembers[1].emoji} {teamMembers[1].role}
-                        </span>
-                        <span className="text-[10px] font-bold text-white/75">{teamMembers[1].author}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Item 4: Dev 3 */}
-                  <div
-                    onClick={() => setSelectedRoleDetail(teamMembers[2])}
-                    className="relative h-[320px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#2d1124] via-[#1a0815] to-[#051116] border border-white/10 shadow-xl flex flex-col justify-end cursor-pointer"
-                  >
-                    <div className="relative w-full h-[220px] flex items-end justify-center">
-                      <img src={teamMembers[2].image} alt={teamMembers[2].role} className="h-full w-auto max-w-[85%] object-contain object-bottom" />
-                    </div>
-                    <div className="p-4 bg-gradient-to-t from-black via-black/85 to-transparent text-left space-y-1.5">
-                      <p className="text-xs italic text-white/95 leading-snug line-clamp-2">&ldquo;{teamMembers[2].quote}&rdquo;</p>
-                      <div className="flex items-center justify-between pt-1 border-t border-white/10">
-                        <span className="text-[10px] font-black uppercase text-[#fb7185] bg-[#fb7185]/15 px-2 py-0.5 rounded-full">
-                          {teamMembers[2].emoji} {teamMembers[2].role}
-                        </span>
-                        <span className="text-[10px] font-bold text-white/75">{teamMembers[2].author}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Item 5: Accent 2 */}
-                  <div className="h-[200px] sm:h-auto rounded-3xl p-5 bg-[#FFB433] text-[#132320] flex flex-col justify-between shadow-xl">
-                    <div className="w-9 h-9 rounded-xl border border-[#132320]/25 flex items-center justify-center text-[#132320] bg-[#132320]/5">
-                      <span className="material-symbols-outlined text-[20px]">verified_user</span>
-                    </div>
-                    <div>
-                      <div className="text-3xl font-black tracking-tight leading-none text-[#132320]">
-                        100% Certified
-                      </div>
-                      <p className="text-xs font-semibold leading-tight text-[#132320]/85 mt-2">
-                        CHED CMO 104 & DOLE SIPP compliant with automated DTR governance.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Item 6: Dev 4 */}
-                  <div
-                    onClick={() => setSelectedRoleDetail(teamMembers[3])}
-                    className="relative h-[290px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#2b1b0b] via-[#1b1107] to-[#051116] border border-white/10 shadow-xl flex flex-col justify-end cursor-pointer"
-                  >
-                    <div className="relative w-full h-[190px] flex items-end justify-center">
-                      <img src={teamMembers[3].image} alt={teamMembers[3].role} className="h-full w-auto max-w-[85%] object-contain object-bottom" />
-                    </div>
-                    <div className="p-4 bg-gradient-to-t from-black via-black/85 to-transparent text-left space-y-1.5">
-                      <p className="text-xs italic text-white/95 leading-snug line-clamp-2">&ldquo;{teamMembers[3].quote}&rdquo;</p>
-                      <div className="flex items-center justify-between pt-1 border-t border-white/10">
-                        <span className="text-[10px] font-black uppercase text-[#fbbf24] bg-[#fbbf24]/15 px-2 py-0.5 rounded-full">
-                          {teamMembers[3].emoji} {teamMembers[3].role}
-                        </span>
-                        <span className="text-[10px] font-bold text-white/75">{teamMembers[3].author}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            {/* Header: Native Stitch Style */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="text-center max-w-3xl mx-auto mb-10 sm:mb-12 space-y-2.5"
+            >
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-tint text-vibrant-orange text-[11px] sm:text-xs font-bold">
+                <span className="material-symbols-outlined text-[15px]">code_blocks</span>
+                <span>The Core Engineering & Design Team</span>
               </div>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-on-surface">
+                The Minds Behind InternConPH
+              </h2>
+              <p className="text-xs sm:text-sm md:text-base text-on-surface-variant max-w-2xl mx-auto leading-relaxed">
+                Meet the multidisciplinary builders connecting students across the Philippines with verified OJT pathways, automated DTR governance, and real career readiness.
+              </p>
+            </motion.div>
 
+            {/* 4 Developer Cards: Pure Stitch Bento Grid */}
+            <div id="team" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
+              {teamMembers.map((member, idx) => (
+                <motion.div
+                  key={member.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.4, delay: idx * 0.08 }}
+                  onClick={() => setSelectedRoleDetail(member)}
+                  className="bento-card p-4 sm:p-5 flex flex-col justify-between group hover:border-vibrant-orange hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                >
+                  <div className="space-y-3.5">
+                    {/* Portrait Showcase Inset Container */}
+                    <div className="relative h-64 sm:h-72 w-full rounded-2xl overflow-hidden bg-surface-container flex items-end justify-center pt-3 px-2 border border-outline-variant/40">
+                      {/* Ambient Role Glow */}
+                      <div
+                        className="absolute inset-0 pointer-events-none opacity-30"
+                        style={{
+                          background: `radial-gradient(circle at 50% 35%, ${member.badgeColor}, transparent 65%)`
+                        }}
+                      />
+
+                      {/* Floating Role Pill Badge */}
+                      <div className="absolute top-3 left-3 z-10">
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-black uppercase tracking-wider shadow-xs backdrop-blur-md"
+                          style={{
+                            backgroundColor: member.badgeBg,
+                            color: member.badgeColor,
+                            border: `1px solid ${member.badgeBorder}`
+                          }}
+                        >
+                          <span>{member.emoji}</span>
+                          <span>{member.role}</span>
+                        </span>
+                      </div>
+
+                      {/* Photo Cutout */}
+                      <img
+                        src={member.image}
+                        alt={member.author}
+                        loading="lazy"
+                        className="relative z-0 h-full w-auto max-w-[90%] object-contain object-bottom drop-shadow-[0_8px_16px_rgba(0,0,0,0.12)] dark:drop-shadow-[0_8px_20px_rgba(0,0,0,0.5)] group-hover:scale-105 transition-transform duration-500 ease-out select-none pointer-events-none"
+                      />
+                    </div>
+
+                    {/* Developer Info */}
+                    <div className="space-y-1 text-left">
+                      <p className="text-[11px] sm:text-xs font-bold text-vibrant-orange uppercase tracking-wide">
+                        {member.author}
+                      </p>
+                      <h3 className="text-base sm:text-lg font-black text-on-surface group-hover:text-vibrant-orange transition-colors">
+                        {member.roleSubtitle}
+                      </h3>
+                      <p className="text-xs text-on-surface-variant italic leading-relaxed line-clamp-3 pt-1">
+                        &ldquo;{member.quote}&rdquo;
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card Action / View Profile Footer */}
+                  <div className="pt-3.5 mt-3.5 border-t border-outline-variant/50 flex items-center justify-between text-xs font-bold text-on-surface group-hover:text-vibrant-orange transition-colors">
+                    <span className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px]">visibility</span>
+                      <span>View Profile</span>
+                    </span>
+                    <span className="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">
+                      arrow_forward
+                    </span>
+                  </div>
+                </motion.div>
+              ))}
             </div>
           </section>
 
