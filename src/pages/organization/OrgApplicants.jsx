@@ -324,7 +324,7 @@ export default function OrgApplicants() {
                     <th className="py-3 px-4">Candidate & School</th>
                     <th className="py-3 px-4">Position Applied</th>
                     <th className="py-3 px-4">Status & Standing</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-3 px-4 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-container">
@@ -405,9 +405,9 @@ export default function OrgApplicants() {
                           </div>
                         </td>
 
-                        {/* Actions */}
+                        {/* Action */}
                         <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <div className="flex items-center justify-end">
                             <button
                               type="button"
                               onClick={() => handleInspectCandidate(app.application_id)}
@@ -417,27 +417,6 @@ export default function OrgApplicants() {
                             >
                               <span className="material-symbols-outlined text-[18px]">visibility</span>
                             </button>
-
-                            {app.status !== 'accepted' && app.status !== 'rejected' && (
-                              <button
-                                onClick={() => handleRequestInterview(app)}
-                                className="px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors border border-blue-200 flex items-center gap-1 shrink-0 cursor-pointer"
-                                title="Go to Interviews module to schedule and send invitation"
-                              >
-                                <span className="material-symbols-outlined text-[13px]">event_available</span>
-                                <span>{app.status === 'interview' ? 'Reschedule' : 'Interview'}</span>
-                              </button>
-                            )}
-
-                            {isOnCall && app.status !== 'accepted' && (
-                              <button
-                                onClick={() => handleAcceptOnCall(app.application_id)}
-                                className="px-2.5 py-1 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm cursor-pointer"
-                              >
-                                <span className="material-symbols-outlined text-[14px]">verified</span>
-                                <span>Accept</span>
-                              </button>
-                            )}
                           </div>
                         </td>
                       </tr>
