@@ -4,7 +4,6 @@ import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, isPdfFile, formatPortfolioTitle, formatFileSubtitle, formatCleanFileName, formatAddress } from '../../utils/fileHelper';
 import Pagination from '../../components/ui/Pagination';
-import { DetailLink } from '../../components/ui';
 
 export default function OrgApplicants() {
   const navigate = useNavigate();
@@ -338,20 +337,27 @@ export default function OrgApplicants() {
                         {/* Candidate Name & School */}
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-vibrant-orange/10 text-vibrant-orange font-bold flex items-center justify-center text-xs shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleInspectCandidate(app.application_id)}
+                              className="w-8 h-8 rounded-full bg-vibrant-orange/10 hover:bg-vibrant-orange text-vibrant-orange hover:text-white font-bold flex items-center justify-center text-xs shrink-0 transition-colors cursor-pointer"
+                              title="View Candidate Details"
+                            >
                               {app.first_name?.[0] || 'A'}
-                            </div>
+                            </button>
                             <div>
-                              <p className="font-bold text-on-surface text-xs leading-tight">{app.first_name} {app.last_name}</p>
+                              <button
+                                type="button"
+                                onClick={() => handleInspectCandidate(app.application_id)}
+                                className="font-bold text-on-surface hover:text-vibrant-orange text-xs leading-tight text-left transition-colors cursor-pointer block"
+                                title="View Candidate Details"
+                              >
+                                {app.first_name} {app.last_name}
+                              </button>
                               <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant mt-0.5">
                                 <span className="truncate max-w-[170px]" title={app.institution_name}>{app.institution_name || 'Academic Institution'}</span>
                                 <span>•</span>
                                 <span className="font-mono">#{app.student_number || 'N/A'}</span>
-                              </div>
-                              <div className="mt-1">
-                                <DetailLink onClick={() => handleInspectCandidate(app.application_id)}>
-                                  View Details
-                                </DetailLink>
                               </div>
                             </div>
                           </div>
@@ -403,12 +409,13 @@ export default function OrgApplicants() {
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5 flex-wrap">
                             <button
+                              type="button"
                               onClick={() => handleInspectCandidate(app.application_id)}
-                              className="px-2.5 py-1 bg-surface-container hover:bg-surface-container-high rounded-lg text-xs font-bold transition-colors border border-outline-variant flex items-center gap-1"
-                              title="View Full Profile Details"
+                              className="w-8 h-8 bg-surface-container hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-vibrant-orange transition-all border border-outline-variant hover:border-vibrant-orange/40 inline-flex items-center justify-center shrink-0 cursor-pointer shadow-xs"
+                              title="View Candidate Details"
+                              aria-label="View Candidate Details"
                             >
-                              <span className="material-symbols-outlined text-[14px]">info</span>
-                              <span>Details</span>
+                              <span className="material-symbols-outlined text-[18px]">visibility</span>
                             </button>
 
                             {app.status !== 'accepted' && app.status !== 'rejected' && (
