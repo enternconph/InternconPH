@@ -5,7 +5,7 @@ import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, formatPortfolioTitle, formatFileSubtitle, formatCleanFileName } from '../../utils/fileHelper';
 import Pagination from '../../components/ui/Pagination';
 import HrAttendanceScannerModal from '../../components/Organization/HrAttendanceScannerModal';
-import { DetailDrawer, DetailRow, DetailLink } from '../../components/ui';
+import { DetailDrawer, DetailRow } from '../../components/ui';
 
 export default function OrgOJT() {
   const { user } = useAuth();
@@ -532,20 +532,27 @@ export default function OrgOJT() {
                       {/* Intern Name, ID & Role */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-vibrant-orange/10 text-vibrant-orange font-bold flex items-center justify-center text-xs shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedInternForDetail(intern)}
+                            className="w-8 h-8 rounded-full bg-vibrant-orange/10 hover:bg-vibrant-orange text-vibrant-orange hover:text-white font-bold flex items-center justify-center text-xs shrink-0 transition-colors cursor-pointer"
+                            title="View Complete Intern Details"
+                          >
                             {intern.first_name?.[0] || 'I'}
-                          </div>
+                          </button>
                           <div>
-                            <p className="font-bold text-on-surface text-xs leading-tight">{intern.first_name} {intern.last_name}</p>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedInternForDetail(intern)}
+                              className="font-bold text-on-surface hover:text-vibrant-orange text-xs leading-tight text-left transition-colors cursor-pointer block"
+                              title="View Complete Intern Details"
+                            >
+                              {intern.first_name} {intern.last_name}
+                            </button>
                             <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant mt-0.5">
                               <span className="font-semibold text-on-surface">{intern.position_title || intern.job_title || 'Intern'}</span>
                               <span>•</span>
                               <span className="font-mono">#{intern.student_number}</span>
-                            </div>
-                            <div className="mt-1">
-                              <DetailLink onClick={() => setSelectedInternForDetail(intern)}>
-                                View Details
-                              </DetailLink>
                             </div>
                           </div>
                         </div>
