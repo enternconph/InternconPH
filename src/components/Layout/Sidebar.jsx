@@ -126,7 +126,7 @@ export default function Sidebar() {
             <img
               src="/logo.png"
               alt="InternConPH logo"
-              className="h-10 w-10 rounded-xl object-contain shrink-0 bg-white border border-black/5 shadow-sm"
+              className="h-9 w-9 object-contain shrink-0"
               loading="lazy"
               decoding="async"
             />

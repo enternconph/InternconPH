@@ -60,10 +60,13 @@ export default function LoginPage() {
         <header className="w-full relative z-20 px-4 sm:px-8 py-4">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 rounded-xl bg-white shadow-sm p-1.5 shrink-0 flex items-center justify-center border border-black/5 transition-transform group-hover:scale-105">
-                <img src="/logo.png" alt="InternconPH Logo" className="w-full h-full object-contain" decoding="async" />
-              </div>
+            <Link to="/" className="flex items-center gap-2.5 group">
+              <img
+                src="/logo.png"
+                alt="InternconPH Logo"
+                className="h-8 sm:h-9 w-auto object-contain shrink-0 transition-transform group-hover:scale-105"
+                decoding="async"
+              />
               <div className="flex flex-col">
                 <span className={`text-lg sm:text-xl font-bold tracking-tight leading-tight transition-colors ${
                   isDark ? 'text-white' : 'text-[#0c1f1c]'

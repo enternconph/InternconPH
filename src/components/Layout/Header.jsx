@@ -52,9 +52,12 @@ export default function Header() {
         {/* Left: Logo */}
         <div className="flex-1 flex items-center justify-start min-w-0">
           <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
-            <div className="w-10 h-10 rounded-xl bg-white shadow-sm p-1.5 shrink-0 flex items-center justify-center border border-black/5 transition-transform group-hover:scale-105">
-              <img src="/logo.png" alt="InternconPH Logo" className="w-full h-full object-contain" decoding="async" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="InternconPH Logo"
+              className="h-8 sm:h-9 w-auto object-contain shrink-0 transition-transform group-hover:scale-105"
+              decoding="async"
+            />
             <div className="flex flex-col text-left">
               <span className="text-lg sm:text-xl font-bold tracking-tight leading-tight text-on-surface">
                 interncon<span className="text-[#F59E0B]">ph</span>
