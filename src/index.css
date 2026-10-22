@@ -4,26 +4,32 @@
 
 /* Root base scaling: ensures layout fits properly at 100% browser zoom across laptops and desktops */
 html {
-  font-size: 15px;
+  font-size: 14px;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
 
-@media (min-width: 1536px) {
-  html {
-    font-size: 15.5px;
-  }
-}
-
-@media (max-height: 800px) and (min-width: 768px) {
+@media (min-width: 1280px) {
   html {
     font-size: 14.5px;
   }
 }
 
-@media (max-height: 700px) and (min-width: 768px) {
+@media (min-width: 1536px) {
   html {
-    font-size: 14px;
+    font-size: 15px;
+  }
+}
+
+@media (max-height: 820px) and (min-width: 768px) {
+  html {
+    font-size: 13.5px;
+  }
+}
+
+@media (max-height: 720px) and (min-width: 768px) {
+  html {
+    font-size: 13px;
   }
 }
 
@@ -128,21 +134,6 @@ html.dark,
 }
 
 @layer base {
-  html {
-    font-size: 15px;
-  }
-
-  @media (min-width: 1536px) {
-    html {
-      font-size: 16px;
-    }
-  }
-
-  @media (max-height: 800px) and (min-width: 768px) {
-    html {
-      font-size: 14.5px;
-    }
-  }
 
   html,
   body,

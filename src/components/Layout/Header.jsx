@@ -48,7 +48,7 @@ export default function Header() {
 
   return (
     <header className="w-full top-0 sticky z-50 bg-surface-container-lowest/95 backdrop-blur-md transition-colors">
-      <div className="flex items-center justify-between h-16 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto gap-4">
+      <div className="flex items-center justify-between h-14 sm:h-16 px-4 sm:px-6 md:px-8 max-w-[1360px] mx-auto gap-4">
         {/* Left: Logo */}
         <div className="flex-1 flex items-center justify-start min-w-0">
           <Link to="/" className="flex items-center gap-2.5 shrink-0 group">

@@ -274,8 +274,8 @@ export default function LandingPage() {
           {/* ========================================================================= */}
           {/* 1. HERO SECTION (Immersive Video Card with Cinematic Dark Overlay)         */}
           {/* ========================================================================= */}
-          <section className="relative px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-6 sm:pb-10 max-w-[1440px] mx-auto">
-            <div className="relative rounded-[28px] sm:rounded-[36px] md:rounded-[44px] overflow-hidden shadow-2xl border border-white/15 dark:border-white/10 min-h-[580px] sm:min-h-[640px] md:min-h-[720px] flex flex-col justify-between p-6 sm:p-10 md:p-14 lg:p-16 bg-black">
+          <section className="relative px-3 sm:px-6 lg:px-8 pt-2 sm:pt-4 pb-3 sm:pb-5 max-w-[1360px] mx-auto w-full">
+            <div className="relative rounded-[24px] sm:rounded-[32px] md:rounded-[36px] overflow-hidden shadow-2xl border border-white/15 dark:border-white/10 md:h-[calc(100vh-5.5rem)] min-h-[480px] md:min-h-[520px] md:max-h-[660px] xl:max-h-[720px] flex flex-col justify-between p-5 sm:p-7 md:p-8 lg:p-9 bg-black">
               
               {/* Background Video */}
               <video
@@ -296,29 +296,29 @@ export default function LandingPage() {
 
               {/* Top Floating Badge */}
               <div className="relative z-20 flex items-center justify-between">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white/90 text-xs font-semibold shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white/90 text-[11px] sm:text-xs font-semibold shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                   <span>CHED CMO 104 & DOLE SIPP Certified Platform</span>
                 </div>
               </div>
 
               {/* Center/Left Hero Typography & CTAs */}
               <motion.div
-                initial={{ opacity: 0, y: 30 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, ease: 'easeOut' }}
-                className="relative z-20 max-w-3xl my-auto space-y-6 pt-8 pb-12 text-left"
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+                className="relative z-20 max-w-2xl my-auto space-y-3 sm:space-y-4 py-1 sm:py-2 text-left"
               >
                 {/* Eyebrow */}
-                <div className="flex items-center gap-3">
-                  <span className="w-8 sm:w-12 h-[2.5px] bg-gradient-to-r from-amber-400 to-vibrant-orange rounded-full shadow-sm" />
-                  <span className="text-amber-300 sm:text-amber-400 font-bold tracking-[0.2em] text-xs sm:text-sm uppercase">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-6 sm:w-10 h-[2px] bg-gradient-to-r from-amber-400 to-vibrant-orange rounded-full shadow-sm" />
+                  <span className="text-amber-300 sm:text-amber-400 font-bold tracking-[0.2em] text-[11px] sm:text-xs uppercase">
                     YOUR DREAM CAREER AWAITS
                   </span>
                 </div>
 
                 {/* Main Headline */}
-                <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-white leading-[1.08] tracking-tight drop-shadow-lg">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-[3.25rem] font-black text-white leading-[1.1] tracking-tight drop-shadow-lg">
                   Find Your <br className="hidden sm:inline" />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-vibrant-orange to-orange-500">
                     Perfect Opportunity.
@@ -326,31 +326,31 @@ export default function LandingPage() {
                 </h1>
 
                 {/* Subtitle description */}
-                <p className="text-base sm:text-lg md:text-xl text-white/85 max-w-xl font-normal leading-relaxed drop-shadow">
+                <p className="text-xs sm:text-sm md:text-base text-white/85 max-w-lg font-normal leading-relaxed drop-shadow">
                   Modern internships, verified partner employers, automated DTR tracking, and graduate pathways. We help Filipino students connect with real-world careers.
                 </p>
 
                 {/* Action CTA Buttons */}
-                <div className="flex flex-wrap items-center gap-3.5 pt-2">
+                <div className="flex flex-wrap items-center gap-3 pt-1">
                   <Link
                     to="/get-started"
-                    className="px-7 sm:px-8 py-3.5 sm:py-4 rounded-full bg-[#FFB433] hover:bg-[#ffa71a] text-[#132320] font-black text-sm sm:text-base hover:brightness-110 shadow-xl shadow-amber-500/25 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group cursor-pointer"
+                    className="px-6 sm:px-7 py-2.5 sm:py-3 rounded-full bg-[#FFB433] hover:bg-[#ffa71a] text-[#132320] font-black text-xs sm:text-sm hover:brightness-110 shadow-lg shadow-amber-500/25 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group cursor-pointer"
                   >
                     <span>Get Started</span>
-                    <span className="material-symbols-outlined text-[20px] transition-transform duration-200 group-hover:translate-x-1">
+                    <span className="material-symbols-outlined text-[18px] transition-transform duration-200 group-hover:translate-x-1">
                       arrow_forward
                     </span>
                   </Link>
 
                   <a
                     href="#how-it-works"
-                    className="px-6 sm:px-7 py-3.5 sm:py-4 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/25 text-white font-bold text-sm sm:text-base transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group cursor-pointer"
+                    className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/25 text-white font-bold text-xs sm:text-sm transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group cursor-pointer"
                   >
-                    <span className="material-symbols-outlined text-[20px] text-amber-300">
+                    <span className="material-symbols-outlined text-[18px] text-amber-300">
                       explore
                     </span>
                     <span>How It Works</span>
-                    <span className="material-symbols-outlined text-[18px] opacity-70 transition-transform duration-200 group-hover:translate-x-0.5">
+                    <span className="material-symbols-outlined text-[16px] opacity-70 transition-transform duration-200 group-hover:translate-x-0.5">
                       arrow_forward
                     </span>
                   </a>
@@ -358,54 +358,54 @@ export default function LandingPage() {
               </motion.div>
 
               {/* Bottom Metrics & Scroll Indicator Strip */}
-              <div className="relative z-20 pt-6 border-t border-white/15 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="relative z-20 pt-3 sm:pt-4 border-t border-white/15 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
                 {/* Metric Badges */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-8 items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-amber-300 shrink-0">
-                      <span className="material-symbols-outlined text-[22px]">school</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 lg:gap-8 items-center">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-amber-300 shrink-0">
+                      <span className="material-symbols-outlined text-[18px] sm:text-[20px]">school</span>
                     </div>
                     <div>
-                      <span className="text-xl sm:text-2xl font-black text-white block leading-tight">
+                      <span className="text-lg sm:text-xl font-black text-white block leading-tight">
                         {(stats?.students ?? 10000).toLocaleString()}+
                       </span>
-                      <span className="text-white/70 text-[11px] sm:text-xs font-medium">Students Enrolled</span>
+                      <span className="text-white/70 text-[10px] sm:text-[11px] font-medium leading-none block mt-0.5">Students Enrolled</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-amber-300 shrink-0">
-                      <span className="material-symbols-outlined text-[22px]">work</span>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-amber-300 shrink-0">
+                      <span className="material-symbols-outlined text-[18px] sm:text-[20px]">work</span>
                     </div>
                     <div>
-                      <span className="text-xl sm:text-2xl font-black text-white block leading-tight">
+                      <span className="text-lg sm:text-xl font-black text-white block leading-tight">
                         {(stats?.jobs ?? 500).toLocaleString()}+
                       </span>
-                      <span className="text-white/70 text-[11px] sm:text-xs font-medium">Verified Positions</span>
+                      <span className="text-white/70 text-[10px] sm:text-[11px] font-medium leading-none block mt-0.5">Verified Positions</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-amber-300 shrink-0">
-                      <span className="material-symbols-outlined text-[22px]">corporate_fare</span>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-amber-300 shrink-0">
+                      <span className="material-symbols-outlined text-[18px] sm:text-[20px]">corporate_fare</span>
                     </div>
                     <div>
-                      <span className="text-xl sm:text-2xl font-black text-white block leading-tight">
+                      <span className="text-lg sm:text-xl font-black text-white block leading-tight">
                         {(stats?.organizations ?? 100).toLocaleString()}+
                       </span>
-                      <span className="text-white/70 text-[11px] sm:text-xs font-medium">Partner Employers</span>
+                      <span className="text-white/70 text-[10px] sm:text-[11px] font-medium leading-none block mt-0.5">Partner Employers</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-amber-300 shrink-0">
-                      <span className="material-symbols-outlined text-[22px]">account_balance</span>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-amber-300 shrink-0">
+                      <span className="material-symbols-outlined text-[18px] sm:text-[20px]">account_balance</span>
                     </div>
                     <div>
-                      <span className="text-xl sm:text-2xl font-black text-white block leading-tight">
+                      <span className="text-lg sm:text-xl font-black text-white block leading-tight">
                         {(stats?.institutions ?? 50).toLocaleString()}+
                       </span>
-                      <span className="text-white/70 text-[11px] sm:text-xs font-medium">Accredited HEIs</span>
+                      <span className="text-white/70 text-[10px] sm:text-[11px] font-medium leading-none block mt-0.5">Accredited HEIs</span>
                     </div>
                   </div>
                 </div>
@@ -413,14 +413,14 @@ export default function LandingPage() {
                 {/* Scroll Indicator on Bottom Right */}
                 <a
                   href="#how-it-works"
-                  className="hidden md:flex items-center gap-2.5 text-white/75 hover:text-white transition-colors group cursor-pointer shrink-0"
+                  className="hidden md:flex items-center gap-2 text-white/75 hover:text-white transition-colors group cursor-pointer shrink-0"
                 >
-                  <div className="w-9 h-9 rounded-full border border-white/30 group-hover:border-white flex items-center justify-center backdrop-blur-sm bg-white/5 transition-all group-hover:bg-white/15">
-                    <span className="material-symbols-outlined text-[18px] animate-bounce">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-white/30 group-hover:border-white flex items-center justify-center backdrop-blur-sm bg-white/5 transition-all group-hover:bg-white/15">
+                    <span className="material-symbols-outlined text-[16px] animate-bounce">
                       arrow_downward
                     </span>
                   </div>
-                  <span className="text-xs font-semibold tracking-wide">Scroll Down to Explore</span>
+                  <span className="text-[11px] font-semibold tracking-wide">Scroll Down to Explore</span>
                 </a>
               </div>
 
@@ -432,10 +432,10 @@ export default function LandingPage() {
           {/* ========================================================================= */}
           <section
             id="about"
-            className="py-16 sm:py-20 md:py-24 bg-surface-container-lowest/80 border-b border-outline-variant/30 scroll-mt-20 transition-colors"
+            className="py-10 sm:py-14 md:py-16 bg-surface-container-lowest/80 border-b border-outline-variant/30 scroll-mt-20 transition-colors"
             onClick={() => setActiveMember(null)}
           >
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-14 md:space-y-18">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 md:space-y-10">
               
               {/* Centered Heading: InternConPH Developer */}
               <motion.div
@@ -443,13 +443,13 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5 }}
-                className="text-center max-w-3xl mx-auto space-y-3"
+                className="text-center max-w-3xl mx-auto space-y-2.5"
               >
-                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-orange-tint text-vibrant-orange text-xs font-bold shadow-xs">
-                  <span className="material-symbols-outlined text-[16px]">terminal</span>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-tint text-vibrant-orange text-[11px] sm:text-xs font-bold shadow-xs">
+                  <span className="material-symbols-outlined text-[15px]">terminal</span>
                   <span>CORE ENGINEERING & DESIGN</span>
                 </div>
-                <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-on-surface tracking-tight">
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-on-surface tracking-tight">
                   InternConPH Developer
                 </h2>
                 <p className="text-xs sm:text-sm text-on-surface-variant max-w-xl mx-auto font-medium">
@@ -460,7 +460,7 @@ export default function LandingPage() {
               {/* 4 Team Member Photos in a Row (Edge-to-Edge Photo Strip) */}
               <div
                 id="team"
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 pt-2"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 pt-1"
               >
                 {teamMembers.map((member, idx) => {
                   const isRevealed = activeMember === idx;
@@ -489,7 +489,7 @@ export default function LandingPage() {
                       className="group relative rounded-2xl sm:rounded-3xl overflow-hidden bg-white dark:bg-neutral-900 border border-outline-variant/30 hover:border-vibrant-orange/60 focus:border-vibrant-orange focus:ring-2 focus:ring-vibrant-orange/40 transition-all duration-300 outline-none cursor-pointer select-none shadow-xs hover:shadow-2xl"
                     >
                       {/* Photo Container: Clean cutout on plain background, edge-to-edge */}
-                      <div className="relative w-full h-[380px] sm:h-[420px] md:h-[460px] lg:h-[480px] flex items-end justify-center overflow-hidden bg-gradient-to-b from-transparent via-neutral-50/60 to-neutral-100/80 dark:from-transparent dark:via-neutral-900/60 dark:to-neutral-950/80">
+                      <div className="relative w-full h-[280px] sm:h-[320px] md:h-[350px] lg:h-[380px] flex items-end justify-center overflow-hidden bg-gradient-to-b from-transparent via-neutral-50/60 to-neutral-100/80 dark:from-transparent dark:via-neutral-900/60 dark:to-neutral-950/80">
                         <img
                           src={member.image}
                           alt={member.role}
@@ -563,23 +563,23 @@ export default function LandingPage() {
           {/* ========================================================================= */}
           {/* 2. HOW INTERNCONPH WORKS (9 Comprehensive Pillars)                         */}
           {/* ========================================================================= */}
-          <section id="how-it-works" className="py-20 px-4 md:px-8 max-w-7xl mx-auto scroll-mt-20">
+          <section id="how-it-works" className="py-12 sm:py-16 px-4 md:px-8 max-w-7xl mx-auto scroll-mt-20">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
-              className="text-center max-w-3xl mx-auto mb-16 space-y-3"
+              className="text-center max-w-3xl mx-auto mb-10 sm:mb-12 space-y-2.5"
             >
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-tint text-vibrant-orange text-xs font-bold">
-                <span className="material-symbols-outlined text-[16px]">account_tree</span>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-tint text-vibrant-orange text-[11px] sm:text-xs font-bold">
+                <span className="material-symbols-outlined text-[15px]">account_tree</span>
                 <span>CHED CMO 104 & DOLE Compliant Architecture</span>
               </div>
-              <h2 className="text-3xl md:text-4xl font-black text-on-surface">How InternConPH Works</h2>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-on-surface">How InternConPH Works</h2>
             </motion.div>
 
             {/* 9 Process Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
               {[
                 {
                   step: '01',
@@ -642,16 +642,16 @@ export default function LandingPage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.4, delay: idx * 0.05 }}
-                  className="bento-card p-6 flex flex-col justify-between space-y-4 hover:border-vibrant-orange hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+                  className="bento-card p-5 sm:p-6 flex flex-col justify-between space-y-3.5 hover:border-vibrant-orange hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
                 >
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <div className="w-12 h-12 rounded-2xl bg-orange-tint text-vibrant-orange flex items-center justify-center font-black text-sm shadow-xs">
-                        <span className="material-symbols-outlined text-[24px]">{item.icon}</span>
+                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-orange-tint text-vibrant-orange flex items-center justify-center font-black text-sm shadow-xs">
+                        <span className="material-symbols-outlined text-[20px] sm:text-[22px]">{item.icon}</span>
                       </div>
-                      <span className="text-xs font-black text-on-surface-variant/50 tracking-widest">{item.step}</span>
+                      <span className="text-[11px] font-black text-on-surface-variant/50 tracking-widest">{item.step}</span>
                     </div>
-                    <h3 className="text-base font-bold text-on-surface">{item.title}</h3>
+                    <h3 className="text-sm sm:text-base font-bold text-on-surface">{item.title}</h3>
                     <p className="text-xs text-on-surface-variant leading-relaxed">{item.desc}</p>
                   </div>
                 </motion.div>
@@ -662,14 +662,14 @@ export default function LandingPage() {
           {/* ========================================================================= */}
           {/* 3. MISSION & OJT TO CAREER TRANSITION (1 Consolidated Paragraph)           */}
           {/* ========================================================================= */}
-          <section id="opportunities" className="py-20 px-4 md:px-8 bg-surface-container-lowest border-y border-outline-variant scroll-mt-20">
+          <section id="opportunities" className="py-12 sm:py-16 px-4 md:px-8 bg-surface-container-lowest border-y border-outline-variant scroll-mt-20">
             <div className="max-w-5xl mx-auto">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5 }}
-                className="bento-card p-8 md:p-12 space-y-6 bg-gradient-to-br from-surface via-surface-container-low to-orange-500/5 border border-vibrant-orange/30 shadow-xl"
+                className="bento-card p-6 sm:p-8 md:p-10 space-y-5 bg-gradient-to-br from-surface via-surface-container-low to-orange-500/5 border border-vibrant-orange/30 shadow-xl"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-2xl bg-vibrant-orange text-white flex items-center justify-center font-bold shadow-md shrink-0">
@@ -705,7 +705,7 @@ export default function LandingPage() {
           {/* ========================================================================= */}
           {/* 4. DETAILED ROLE MODULES (For Students, Organizations, Institutions)      */}
           {/* ========================================================================= */}
-          <section className="py-20 px-4 md:px-8 max-w-7xl mx-auto space-y-16">
+          <section className="py-12 sm:py-16 px-4 md:px-8 max-w-7xl mx-auto space-y-10 sm:space-y-12">
             
             {/* For Students */}
             <motion.div
@@ -714,48 +714,48 @@ export default function LandingPage() {
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
               id="for-students"
-              className="bento-card grid grid-cols-1 lg:grid-cols-2 gap-8 items-center p-8 md:p-12 scroll-mt-20 hover:border-vibrant-orange hover:shadow-xl transition-all duration-300"
+              className="bento-card grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 items-center p-6 sm:p-8 md:p-9 scroll-mt-20 hover:border-vibrant-orange hover:shadow-xl transition-all duration-300"
             >
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 <span className="px-3.5 py-1 rounded-full text-xs font-bold bg-orange-tint text-vibrant-orange">
                   🎓 For Students & Candidates
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-black text-on-surface">Launch Your Career with Verified OJTs & On-Call Gigs</h2>
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-on-surface">Launch Your Career with Verified OJTs & On-Call Gigs</h2>
                 <p className="text-on-surface-variant text-xs sm:text-sm leading-relaxed">
                   Direct access to accredited host organizations pre-cleared by your university. Build a comprehensive career portfolio and graduate with verifiable job-ready skills.
                 </p>
-                <div className="pt-2">
-                  <Link to="/login" className="inline-flex items-center gap-2 px-6 py-3 bg-vibrant-orange text-white rounded-2xl font-bold text-xs sm:text-sm hover:bg-deep-orange transition-all shadow-md active:scale-95">
+                <div className="pt-1.5">
+                  <Link to="/login" className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-vibrant-orange text-white rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:bg-deep-orange transition-all shadow-md active:scale-95">
                     <span>Explore Student Portal</span>
                     <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                   </Link>
                 </div>
               </div>
 
-              <div className="bg-surface-container p-6 rounded-2xl space-y-3 text-xs">
+              <div className="bg-surface-container p-5 sm:p-6 rounded-2xl space-y-2.5 text-xs">
                 <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-pinoy-green text-[20px] shrink-0">check_circle</span>
+                  <span className="material-symbols-outlined text-pinoy-green text-[18px] sm:text-[20px] shrink-0 mt-0.5">check_circle</span>
                   <div>
                     <span className="font-bold text-on-surface block">Accredited Three-Track Opportunities:</span>
                     <span className="text-on-surface-variant">Apply for approved OJT internships, flexible on-call gigs with instant portfolio crediting, and career jobs.</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-pinoy-green text-[20px] shrink-0">check_circle</span>
+                  <span className="material-symbols-outlined text-pinoy-green text-[18px] sm:text-[20px] shrink-0 mt-0.5">check_circle</span>
                   <div>
                     <span className="font-bold text-on-surface block">Digital Time Record (DTR) & Hours Tracking:</span>
                     <span className="text-on-surface-variant">Live login/logout logs, overtime computation safeguards, and automatic supervisor hour confirmation.</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-pinoy-green text-[20px] shrink-0">check_circle</span>
+                  <span className="material-symbols-outlined text-pinoy-green text-[18px] sm:text-[20px] shrink-0 mt-0.5">check_circle</span>
                   <div>
                     <span className="font-bold text-on-surface block">Unified Digital Career Portfolio:</span>
                     <span className="text-on-surface-variant">Showcase academic projects, uploaded transcripts, formatted resumes, and auto-generated OJT Completion Certificates.</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-pinoy-green text-[20px] shrink-0">check_circle</span>
+                  <span className="material-symbols-outlined text-pinoy-green text-[18px] sm:text-[20px] shrink-0 mt-0.5">check_circle</span>
                   <div>
                     <span className="font-bold text-on-surface block">Workplace Safety & Grievance Protection:</span>
                     <span className="text-on-surface-variant">Direct dispute filing to institution guidance counselors and OJT coordinators under CHED CMO 104 guidelines.</span>
@@ -771,48 +771,48 @@ export default function LandingPage() {
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
               id="for-organizations"
-              className="bento-card grid grid-cols-1 lg:grid-cols-2 gap-8 items-center p-8 md:p-12 scroll-mt-20 hover:border-pinoy-green hover:shadow-xl transition-all duration-300"
+              className="bento-card grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 items-center p-6 sm:p-8 md:p-9 scroll-mt-20 hover:border-pinoy-green hover:shadow-xl transition-all duration-300"
             >
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 <span className="px-3.5 py-1 rounded-full text-xs font-bold bg-green-tint text-pinoy-green">
                   🏢 For Hiring Organizations & Employers
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-black text-on-surface">Hire, Supervise, and Retain Top College Talent</h2>
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-on-surface">Hire, Supervise, and Retain Top College Talent</h2>
                 <p className="text-on-surface-variant text-xs sm:text-sm leading-relaxed">
                   Streamline intern recruitment, mentor assignments, time tracking, and performance evaluations on one unified platform with direct institutional partner integration.
                 </p>
-                <div className="pt-2">
-                  <Link to="/login" className="inline-flex items-center gap-2 px-6 py-3 bg-pinoy-green text-white rounded-2xl font-bold text-xs sm:text-sm hover:opacity-90 transition-all shadow-md active:scale-95">
+                <div className="pt-1.5">
+                  <Link to="/login" className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-pinoy-green text-white rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:opacity-90 transition-all shadow-md active:scale-95">
                     <span>Explore Employer Portal</span>
                     <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                   </Link>
                 </div>
               </div>
 
-              <div className="bg-surface-container p-6 rounded-2xl space-y-3 text-xs">
+              <div className="bg-surface-container p-5 sm:p-6 rounded-2xl space-y-2.5 text-xs">
                 <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-pinoy-green text-[20px] shrink-0">check_circle</span>
+                  <span className="material-symbols-outlined text-pinoy-green text-[18px] sm:text-[20px] shrink-0 mt-0.5">check_circle</span>
                   <div>
                     <span className="font-bold text-on-surface block">Pre-Screened Talent Pipeline:</span>
                     <span className="text-on-surface-variant">Access enrolled candidates from accredited universities matched by specific course requirements and skills.</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-pinoy-green text-[20px] shrink-0">check_circle</span>
+                  <span className="material-symbols-outlined text-pinoy-green text-[18px] sm:text-[20px] shrink-0 mt-0.5">check_circle</span>
                   <div>
                     <span className="font-bold text-on-surface block">Delegated Workplace Mentorship:</span>
                     <span className="text-on-surface-variant">Authorize department supervisors with scoped access codes to supervise DTR hours and conduct midterm/final evaluations.</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-pinoy-green text-[20px] shrink-0">check_circle</span>
+                  <span className="material-symbols-outlined text-pinoy-green text-[18px] sm:text-[20px] shrink-0 mt-0.5">check_circle</span>
                   <div>
                     <span className="font-bold text-on-surface block">Formal Dispatch & Offer Management:</span>
                     <span className="text-on-surface-variant">Issue customized interview invitations, official digital offer letters, and manage on-call assignments.</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-pinoy-green text-[20px] shrink-0">check_circle</span>
+                  <span className="material-symbols-outlined text-pinoy-green text-[18px] sm:text-[20px] shrink-0 mt-0.5">check_circle</span>
                   <div>
                     <span className="font-bold text-on-surface block">Verified Credential Endorsement:</span>
                     <span className="text-on-surface-variant">Auto-credit student deliverables upon assignment completion, establishing strong university partnership ties.</span>
@@ -828,48 +828,48 @@ export default function LandingPage() {
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
               id="for-institutions"
-              className="bento-card grid grid-cols-1 lg:grid-cols-2 gap-8 items-center p-8 md:p-12 scroll-mt-20 hover:border-blue-500 hover:shadow-xl transition-all duration-300"
+              className="bento-card grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 items-center p-6 sm:p-8 md:p-9 scroll-mt-20 hover:border-blue-500 hover:shadow-xl transition-all duration-300"
             >
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 <span className="px-3.5 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600">
                   🏛️ For Universities & Higher Education Institutions
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-black text-on-surface">Effortless OJT Coordination, Monitoring & CHED Compliance</h2>
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-on-surface">Effortless OJT Coordination, Monitoring & CHED Compliance</h2>
                 <p className="text-on-surface-variant text-xs sm:text-sm leading-relaxed">
                   Complete departmental oversight of student cohorts across all academic degree programs. Inspect employer opportunities, enforce clearance requirements, and audit time logs.
                 </p>
-                <div className="pt-2">
-                  <Link to="/login" className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold text-xs sm:text-sm hover:bg-blue-700 transition-all shadow-md active:scale-95">
+                <div className="pt-1.5">
+                  <Link to="/login" className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:bg-blue-700 transition-all shadow-md active:scale-95">
                     <span>Explore Academic Portal</span>
                     <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                   </Link>
                 </div>
               </div>
 
-              <div className="bg-surface-container p-6 rounded-2xl space-y-3 text-xs">
+              <div className="bg-surface-container p-5 sm:p-6 rounded-2xl space-y-2.5 text-xs">
                 <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-pinoy-green text-[20px] shrink-0">check_circle</span>
+                  <span className="material-symbols-outlined text-pinoy-green text-[18px] sm:text-[20px] shrink-0 mt-0.5">check_circle</span>
                   <div>
                     <span className="font-bold text-on-surface block">Academic Governance:</span>
                     <span className="text-on-surface-variant">Dedicated portals for Institution OJT Heads and OJT Coordinators.</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-pinoy-green text-[20px] shrink-0">check_circle</span>
+                  <span className="material-symbols-outlined text-pinoy-green text-[18px] sm:text-[20px] shrink-0 mt-0.5">check_circle</span>
                   <div>
                     <span className="font-bold text-on-surface block">Pre-OJT Clearance Enforcement:</span>
                     <span className="text-on-surface-variant">Verify student readiness, academic prerequisites, medical clearances, and parent consent forms before matching.</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-pinoy-green text-[20px] shrink-0">check_circle</span>
+                  <span className="material-symbols-outlined text-pinoy-green text-[18px] sm:text-[20px] shrink-0 mt-0.5">check_circle</span>
                   <div>
                     <span className="font-bold text-on-surface block">Curricular Opportunity Vetting:</span>
                     <span className="text-on-surface-variant">Review dispatched employer job requisitions to ensure learning outcomes align with program syllabi.</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-pinoy-green text-[20px] shrink-0">check_circle</span>
+                  <span className="material-symbols-outlined text-pinoy-green text-[18px] sm:text-[20px] shrink-0 mt-0.5">check_circle</span>
                   <div>
                     <span className="font-bold text-on-surface block">Auditable Rendered Hours & Grading:</span>
                     <span className="text-on-surface-variant">Real-time attendance logs, incident reports, and mentor evaluations for seamless CHED CMO 104 compliance audits.</span>
@@ -883,26 +883,26 @@ export default function LandingPage() {
           {/* ========================================================================= */}
           {/* 5. POLICIES & COMPLIANCE SECTION (6 Legal & Ethical Safeguards)           */}
           {/* ========================================================================= */}
-          <section id="policies" className="py-20 px-4 md:px-8 bg-surface-container-lowest border-y border-outline-variant scroll-mt-20">
-            <div className="max-w-7xl mx-auto space-y-12">
+          <section id="policies" className="py-12 sm:py-16 px-4 md:px-8 bg-surface-container-lowest border-y border-outline-variant scroll-mt-20">
+            <div className="max-w-7xl mx-auto space-y-8 sm:space-y-10">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5 }}
-                className="text-center max-w-3xl mx-auto space-y-3"
+                className="text-center max-w-3xl mx-auto space-y-2.5"
               >
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-tint text-pinoy-green font-bold text-xs">
-                  <span className="material-symbols-outlined text-[16px]">gavel</span>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-tint text-pinoy-green font-bold text-[11px] sm:text-xs">
+                  <span className="material-symbols-outlined text-[15px]">gavel</span>
                   <span>Philippine Legal & Regulatory Compliance</span>
                 </div>
-                <h2 className="text-3xl md:text-4xl font-black text-on-surface">Platform Policies & Governance</h2>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-on-surface">Platform Policies & Governance</h2>
                 <p className="text-on-surface-variant text-xs sm:text-sm leading-relaxed">
                   InternConPH strictly implements the guidelines of the Commission on Higher Education (CHED), Department of Labor and Employment (DOLE), and the National Privacy Commission (NPC) to safeguard students, universities, and industry partners.
                 </p>
               </motion.div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
                 {[
                   {
                     key: 'verification',
@@ -953,13 +953,13 @@ export default function LandingPage() {
                     whileInView={{ opacity: 1, scale: 1 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.4, delay: idx * 0.05 }}
-                    className="bento-card p-6 flex flex-col justify-between space-y-4 hover:border-vibrant-orange hover:shadow-xl hover:-translate-y-1 transition-all"
+                    className="bento-card p-5 sm:p-6 flex flex-col justify-between space-y-3.5 hover:border-vibrant-orange hover:shadow-xl hover:-translate-y-1 transition-all"
                   >
-                    <div className="space-y-3">
-                      <div className="w-12 h-12 rounded-xl bg-orange-tint text-vibrant-orange flex items-center justify-center">
-                        <span className="material-symbols-outlined text-2xl">{pol.icon}</span>
+                    <div className="space-y-2.5">
+                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-orange-tint text-vibrant-orange flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[20px] sm:text-[22px]">{pol.icon}</span>
                       </div>
-                      <h3 className="text-base font-bold text-on-surface">{pol.title}</h3>
+                      <h3 className="text-sm sm:text-base font-bold text-on-surface">{pol.title}</h3>
                       <p className="text-xs text-on-surface-variant leading-relaxed">{pol.desc}</p>
                     </div>
                     <div className="pt-2 border-t border-outline-variant flex items-center justify-between">
