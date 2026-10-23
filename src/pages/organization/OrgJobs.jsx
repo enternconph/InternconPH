@@ -1131,7 +1131,7 @@ export default function OrgJobs() {
               </div>
 
               {/* PHILIPPINE GEOGRAPHIC ADDRESS SELECTOR */}
-              <div className="p-3.5 bg-slate-50 rounded-xl border border-outline-variant space-y-3">
+              <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="font-bold text-on-surface flex items-center gap-1.5 text-xs">
                     <span className="material-symbols-outlined text-[16px] text-vibrant-orange">location_on</span>
@@ -1160,7 +1160,7 @@ export default function OrgJobs() {
                   placeholder="e.g. Office, Kitchen, Front Desk, Accounting, IT Lab"
                   value={formData.workplace_area}
                   onChange={(e) => setFormData({ ...formData, workplace_area: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-white text-on-surface outline-none focus:border-vibrant-orange"
+                  className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container text-on-surface outline-none focus:border-vibrant-orange"
                 />
                 <datalist id="workplace-area-options">
                   <option value="Office" />
@@ -1184,7 +1184,7 @@ export default function OrgJobs() {
                       className={`text-[10px] px-1.5 py-0.5 rounded font-medium border transition-colors ${
                         formData.workplace_area === tag
                           ? 'bg-orange-tint text-vibrant-orange border-vibrant-orange font-bold'
-                          : 'bg-slate-100 text-on-surface-variant border-slate-200 hover:bg-slate-200'
+                          : 'bg-surface-container text-on-surface-variant border-outline-variant hover:bg-surface-container-high'
                       }`}
                     >
                       + {tag}
@@ -1194,8 +1194,7 @@ export default function OrgJobs() {
               </div>
 
               {/* DIGITAL OPPORTUNITY FLYER / PROMOTIONAL POSTER */}
-              {/* Digital Opportunity Flyer / Promotional Poster */}
-              <div className="p-3.5 bg-gradient-to-br from-orange-50/50 to-slate-50 rounded-xl border border-orange-200/60 space-y-3">
+              <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <label className="font-bold text-on-surface flex items-center gap-1.5 text-xs">
@@ -1207,7 +1206,7 @@ export default function OrgJobs() {
                     </p>
                   </div>
                   {formData.flyer_image_url && (
-                    <span className="text-[10px] bg-green-tint text-pinoy-green font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="text-[10px] bg-green-tint text-pinoy-green font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-pinoy-green/30">
                       <span className="material-symbols-outlined text-[12px]">check_circle</span>
                       Flyer Uploaded
                     </span>
@@ -1216,7 +1215,7 @@ export default function OrgJobs() {
 
                 <div className="flex flex-col sm:flex-row items-center gap-4">
                   {/* Preview Container */}
-                  <div className="w-full sm:w-40 h-40 rounded-xl border-2 border-dashed border-outline-variant bg-white flex items-center justify-center overflow-hidden shrink-0 relative group shadow-xs">
+                  <div className="w-full sm:w-40 h-40 rounded-xl border-2 border-dashed border-outline-variant bg-surface-container flex items-center justify-center overflow-hidden shrink-0 relative group shadow-xs">
                     {formData.flyer_image_url ? (
                       <>
                         <img
@@ -1232,7 +1231,7 @@ export default function OrgJobs() {
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, flyer_image_url: '' }))}
-                          className="absolute top-1.5 right-1.5 p-1 bg-black/70 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-1.5 right-1.5 p-1 bg-black/70 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                           title="Remove flyer image"
                         >
                           <span className="material-symbols-outlined text-[14px]">close</span>
@@ -1240,15 +1239,15 @@ export default function OrgJobs() {
                       </>
                     ) : (
                       <div className="text-center p-3 text-on-surface-variant">
-                        <span className="material-symbols-outlined text-[32px] text-slate-300">add_photo_alternate</span>
-                        <p className="text-[10px] text-slate-400 font-medium mt-1">No Flyer Selected</p>
+                        <span className="material-symbols-outlined text-[32px] text-on-surface-variant/40">add_photo_alternate</span>
+                        <p className="text-[10px] text-on-surface-variant/70 font-medium mt-1">No Flyer Selected</p>
                       </div>
                     )}
                   </div>
 
                   {/* Upload Controls */}
                   <div className="flex-1 space-y-2.5 w-full">
-                    <label className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-vibrant-orange/40 bg-orange-50/40 hover:bg-orange-50 cursor-pointer font-bold text-xs text-vibrant-orange transition-all w-full sm:w-auto shadow-xs ${
+                    <label className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-vibrant-orange/50 bg-vibrant-orange/10 hover:bg-vibrant-orange/20 cursor-pointer font-bold text-xs text-vibrant-orange transition-all w-full sm:w-auto shadow-xs ${
                       flyerUploading ? 'opacity-50 pointer-events-none' : ''
                     }`}>
                       <span className="material-symbols-outlined text-[20px] text-vibrant-orange">
@@ -1267,11 +1266,11 @@ export default function OrgJobs() {
                     </label>
 
                     <div className="text-[11px] text-on-surface-variant space-y-0.5">
-                      <p className="font-medium text-slate-600 flex items-center gap-1">
+                      <p className="font-medium text-on-surface flex items-center gap-1">
                         <span className="material-symbols-outlined text-[13px] text-pinoy-green">verified</span>
                         Accepted Formats: PNG, JPG, JPEG, WEBP
                       </p>
-                      <p className="text-[10px] text-slate-400">
+                      <p className="text-[10px] text-on-surface-variant/70">
                         Recommended size: 1200x630 or square 1080x1080. Max file size: 10MB.
                       </p>
                     </div>
@@ -1281,13 +1280,13 @@ export default function OrgJobs() {
 
               {/* Dynamic Schedule Inputs based on Posting Type */}
               {formData.posting_type === 'ojt' && (
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-outline-variant space-y-3">
+                <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-vibrant-orange flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[16px]">schedule</span>
                       <span>Standard Daily Work Schedule (Philippine Time - UTC+8)</span>
                     </span>
-                    <span className="text-[10px] bg-orange-tint text-vibrant-orange font-semibold px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] bg-orange-tint text-vibrant-orange font-semibold px-2 py-0.5 rounded-full border border-vibrant-orange/20">
                       PST Clock Target
                     </span>
                   </div>
@@ -1301,11 +1300,11 @@ export default function OrgJobs() {
                         type="time"
                         value={formData.start_time || '08:00'}
                         onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-lg border border-outline-variant bg-white text-on-surface outline-none focus:border-vibrant-orange font-mono text-xs"
+                        className="w-full px-3 py-1.5 rounded-lg border border-outline-variant bg-surface-container text-on-surface outline-none focus:border-vibrant-orange font-mono text-xs"
                         required
                       />
                       <p className="text-[10px] text-on-surface-variant mt-0.5">
-                        Students clocking in after this will be marked <span className="font-semibold text-amber-700">Late</span>.
+                        Students clocking in after this will be marked <span className="font-semibold text-amber-600 dark:text-amber-400">Late</span>.
                       </p>
                     </div>
 
@@ -1317,20 +1316,20 @@ export default function OrgJobs() {
                         type="time"
                         value={formData.finish_time || '17:00'}
                         onChange={(e) => setFormData({ ...formData, finish_time: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-lg border border-outline-variant bg-white text-on-surface outline-none focus:border-vibrant-orange font-mono text-xs"
+                        className="w-full px-3 py-1.5 rounded-lg border border-outline-variant bg-surface-container text-on-surface outline-none focus:border-vibrant-orange font-mono text-xs"
                         required
                       />
                       <p className="text-[10px] text-on-surface-variant mt-0.5">
-                        Clock-out before is <span className="font-semibold text-amber-700">Early</span>. Overtime is capped & not credited.
+                        Clock-out before is <span className="font-semibold text-amber-600 dark:text-amber-400">Early</span>. Overtime is capped & not credited.
                       </p>
                     </div>
                   </div>
                   
-                  <div className="p-2 bg-blue-50/70 border border-blue-200/60 rounded-lg flex items-start gap-2 text-[11px] text-blue-900">
-                    <span className="material-symbols-outlined text-[16px] text-blue-600 mt-0.5 shrink-0">info</span>
-                    <span>
-                      <strong>Automated Attendance Policy:</strong> Intern clock-ins/outs are strictly timed via Philippine Standard Time (PST). If an intern works overtime beyond the standard finish time, the additional overtime will not be credited to OJT required hours.
-                    </span>
+                  <div className="p-3 bg-blue-500/10 dark:bg-blue-950/40 border border-blue-500/25 dark:border-blue-500/30 rounded-xl flex items-start gap-2.5 text-[11px] text-blue-950 dark:text-blue-200">
+                    <span className="material-symbols-outlined text-[18px] text-blue-600 dark:text-blue-400 mt-0.5 shrink-0">info</span>
+                    <p className="leading-relaxed">
+                      <strong className="font-bold text-blue-950 dark:text-blue-100">Automated Attendance Policy:</strong> Intern clock-ins/outs are strictly timed via Philippine Standard Time (PST). If an intern works overtime beyond the standard finish time, the additional overtime will not be credited to OJT required hours.
+                    </p>
                   </div>
                 </div>
               )}
@@ -1618,7 +1617,7 @@ export default function OrgJobs() {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-slate-100 text-on-surface rounded-lg font-bold text-xs hover:bg-slate-200 transition-colors"
+                  className="px-4 py-2 bg-surface-container text-on-surface rounded-lg font-bold text-xs hover:bg-surface-container-high border border-outline-variant transition-colors"
                 >
                   Cancel
                 </button>
