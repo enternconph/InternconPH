@@ -557,28 +557,55 @@ export default function InstStaff() {
               </div>
 
               <div>
-                <label className="block font-bold text-on-surface-variant uppercase mb-1 text-[11px]">
-                  Staff Position / Role
-                </label>
-                <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
-                  <div className="w-7 h-7 rounded-md bg-pinoy-green/15 text-pinoy-green flex items-center justify-center shrink-0">
-                    <span className="material-symbols-outlined text-[18px]">badge</span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-xs text-on-surface">OJT Coordinator</span>
-                      <span className="px-2 py-0.5 rounded text-[9.5px] uppercase font-extrabold bg-green-tint text-pinoy-green border border-pinoy-green/30">
-                        Default Role
-                      </span>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-bold text-on-surface-variant uppercase text-[11px] tracking-wider">
+                    Staff Position & Role
+                  </label>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-pinoy-green bg-pinoy-green/10 px-2 py-0.5 rounded-full border border-pinoy-green/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-pinoy-green" />
+                    Appointed Role
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl border border-outline-variant bg-surface-container-low/70 space-y-2.5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-pinoy-green/15 text-pinoy-green flex items-center justify-center shrink-0 border border-pinoy-green/20">
+                      <span className="material-symbols-outlined text-[20px]">manage_accounts</span>
                     </div>
-                    <p className="text-[10.5px] text-on-surface-variant truncate">
-                      Full Coordination, Verification & Clearance Authority
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-on-surface">OJT Coordinator</span>
+                        <span className="px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-surface-container-high text-on-surface-variant border border-outline-variant/60">
+                          Standard
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant font-medium">
+                        Academic Supervisor & Student Coordinator
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-outline-variant/50">
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[10.5px] text-on-surface-variant">
+                      <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[13px] text-pinoy-green shrink-0">check_circle</span>
+                        <span className="truncate">Student Verification</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[13px] text-pinoy-green shrink-0">check_circle</span>
+                        <span className="truncate">Clearance Sign-off</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[13px] text-pinoy-green shrink-0">check_circle</span>
+                        <span className="truncate">DTR Monitoring</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[13px] text-pinoy-green shrink-0">check_circle</span>
+                        <span className="truncate">Grievance Handling</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <p className="text-[10px] text-on-surface-variant mt-1 leading-normal">
-                  OJT Coordinators possess full institutional authority across student verification, clearance requirements, DTR monitoring, grievance handling, and opportunity approvals.
-                </p>
               </div>
 
               {/* Department / Program Selection */}
