@@ -1014,13 +1014,12 @@ export default function InstStaff() {
                 <>
                   {/* Desktop & Tablet Organized Table View */}
                   <div className="hidden md:block overflow-x-auto rounded-xl border border-outline-variant bg-surface">
-                    <table className="w-full text-left text-xs min-w-[700px]">
+                    <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="border-b border-outline-variant bg-surface-container-low text-on-surface-variant whitespace-nowrap font-bold">
                           <th className="py-3.5 px-4">Staff Member & Contact</th>
-                          <th className="py-3.5 px-4">Role & Academic Scope</th>
-                          <th className="py-3.5 px-4 text-center">Status</th>
-                          <th className="py-3.5 px-4 text-right">Actions</th>
+                          <th className="py-3.5 px-4 w-[220px]">Assigned Role</th>
+                          <th className="py-3.5 px-4 text-right w-[120px]">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-outline-variant/60">
@@ -1041,7 +1040,7 @@ export default function InstStaff() {
                                   </div>
                                   <div className="text-[11px] text-on-surface-variant flex items-center gap-1.5">
                                     <span className="material-symbols-outlined text-[13px] text-on-surface-variant/70">mail</span>
-                                    <span className="truncate max-w-[240px]">{s.email}</span>
+                                    <span className="truncate max-w-[260px]">{s.email}</span>
                                   </div>
                                   <div className="text-[11px] font-mono text-on-surface-variant flex items-center gap-1">
                                     <span className="text-[10px] uppercase font-bold text-on-surface-variant/70">Staff ID:</span>
@@ -1050,9 +1049,9 @@ export default function InstStaff() {
                                 </div>
                               </td>
 
-                              {/* Role & Scope */}
+                              {/* Role */}
                               <td className="py-3.5 px-4 align-middle">
-                                <div className="space-y-1.5 max-w-[320px]">
+                                <div className="space-y-1.5">
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wide ${posBadge.color}`}>
                                       {posBadge.label}
@@ -1067,29 +1066,6 @@ export default function InstStaff() {
                                       </span>
                                     )}
                                   </div>
-                                  <div className="text-[11px] text-on-surface-variant space-y-0.5">
-                                    {s.program_name && (
-                                      <p className="flex items-center gap-1 text-on-surface font-medium truncate" title={s.program_name}>
-                                        <span className="material-symbols-outlined text-[13px] text-vibrant-orange shrink-0">school</span>
-                                        <span className="truncate">{s.program_name}</span>
-                                      </p>
-                                    )}
-                                    {s.department_name && (
-                                      <p className="flex items-center gap-1 text-[10.5px] truncate" title={s.department_name}>
-                                        <span className="material-symbols-outlined text-[13px] text-on-surface-variant/70 shrink-0">domain</span>
-                                        <span className="truncate">Dept: {s.department_name}</span>
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              </td>
-
-                              {/* Clean, Uniform Status Indicator */}
-                              <td className="py-3.5 px-4 align-middle text-center whitespace-nowrap">
-                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-green-tint text-pinoy-green border border-pinoy-green/30 shadow-2xs whitespace-nowrap">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-pinoy-green animate-pulse" />
-                                  <span className="material-symbols-outlined text-[14px]">verified</span>
-                                  <span>Active & Verified</span>
                                 </div>
                               </td>
 
@@ -1130,10 +1106,14 @@ export default function InstStaff() {
                                 <span className="font-bold text-on-surface">{s.staff_number || s.employee_id || 'N/A'}</span>
                               </div>
                             </div>
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-tint text-pinoy-green border border-pinoy-green/30 whitespace-nowrap shrink-0">
-                              <span className="w-1.5 h-1.5 rounded-full bg-pinoy-green animate-pulse" />
-                              <span>Active & Verified</span>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedStaff(s)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-container-high text-on-surface hover:bg-surface-container-highest rounded-lg font-bold text-xs transition-colors border border-outline-variant cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">info</span>
+                              <span>Details</span>
+                            </button>
                           </div>
 
                           <div className="space-y-1.5 text-xs">
@@ -1149,35 +1129,10 @@ export default function InstStaff() {
                               )}
                             </div>
 
-                            <div className="p-2.5 bg-surface-container-low rounded-lg text-[11px] text-on-surface-variant space-y-1">
-                              <p className="flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-[13px] text-on-surface-variant/70">mail</span>
-                                <span className="truncate">{s.email}</span>
-                              </p>
-                              {s.program_name && (
-                                <p className="flex items-center gap-1.5 text-on-surface font-medium">
-                                  <span className="material-symbols-outlined text-[13px] text-vibrant-orange shrink-0">school</span>
-                                  <span className="truncate">{s.program_name}</span>
-                                </p>
-                              )}
-                              {s.department_name && (
-                                <p className="flex items-center gap-1.5 text-[10.5px]">
-                                  <span className="material-symbols-outlined text-[13px] text-on-surface-variant/70 shrink-0">domain</span>
-                                  <span className="truncate">Dept: {s.department_name}</span>
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="pt-1 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedStaff(s)}
-                              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-surface-container-high text-on-surface hover:bg-surface-container-highest rounded-lg font-bold text-xs transition-colors border border-outline-variant"
-                            >
-                              <span className="material-symbols-outlined text-[15px]">info</span>
-                              <span>View Staff Details</span>
-                            </button>
+                            <p className="flex items-center gap-1.5 text-[11px] text-on-surface-variant">
+                              <span className="material-symbols-outlined text-[13px] text-on-surface-variant/70">mail</span>
+                              <span className="truncate">{s.email}</span>
+                            </p>
                           </div>
                         </div>
                       );
@@ -1697,6 +1652,30 @@ export default function InstStaff() {
 
               {/* Modal Body: Complete Personal Info Display */}
               <div className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs">
+                
+                {/* Account Status Banner */}
+                <div className="flex items-center justify-between p-3.5 bg-surface-container rounded-xl border border-outline-variant">
+                  <div>
+                    <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
+                      Account Status
+                    </span>
+                    <span className="font-bold text-on-surface text-xs">
+                      {selectedStaff.is_verified ? 'Verified & Authorized Institutional Staff' : 'Pending Verification'}
+                    </span>
+                  </div>
+                  {selectedStaff.is_verified ? (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-green-tint text-pinoy-green border border-pinoy-green/30 shadow-2xs whitespace-nowrap">
+                      <span className="w-2 h-2 rounded-full bg-pinoy-green animate-pulse" />
+                      <span className="material-symbols-outlined text-[15px]">verified</span>
+                      <span>Active & Verified</span>
+                    </div>
+                  ) : (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/30 whitespace-nowrap">
+                      <span className="material-symbols-outlined text-[15px]">hourglass_empty</span>
+                      <span>Pending Verification</span>
+                    </div>
+                  )}
+                </div>
                 
                 {/* PROMINENT TOP WARNING ALERT IF UNMATCHED DATA DETECTED */}
                 {hasAnyMismatch && (
