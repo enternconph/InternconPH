@@ -31,6 +31,7 @@ export default function InstStaff() {
   const [passcodeStatusFilter, setPasscodeStatusFilter] = useState('all'); // 'all', 'active', 'used', 'expired'
   const [copiedCodeId, setCopiedCodeId] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: 'delete', code: null });
+  const [selectedPasscode, setSelectedPasscode] = useState(null); // For detailed passcode & claim modal
 
   // Active Staff Management UX State
   const [activeStaffSearch, setActiveStaffSearch] = useState('');
@@ -1369,25 +1370,24 @@ export default function InstStaff() {
                   {/* Desktop Table View */}
                   <div className="hidden md:block overflow-x-auto rounded-xl border border-outline-variant bg-surface">
                     <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="border-b border-outline-variant bg-surface-container-low text-on-surface-variant whitespace-nowrap font-bold">
-                          <th className="py-3 px-3.5">Passcode & Target ID</th>
-                          <th className="py-3 px-3.5">Assigned Role & Scope</th>
-                          <th className="py-3 px-3.5">Claim Status & Expiration</th>
-                          <th className="py-3 px-3.5 text-right">Actions</th>
+                      <thead className="bg-surface-container-low text-on-surface-variant font-bold border-b border-outline-variant whitespace-nowrap">
+                        <tr>
+                          <th className="py-3 px-4">Passcode & Target ID</th>
+                          <th className="py-3 px-4">Assigned Role & Academic Scope</th>
+                          <th className="py-3 px-4 text-center">Status</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-outline-variant/60">
                         {filteredAccessCodes.map((c) => {
-                          const expInfo = formatExpiration(c.expires_at, c.is_used);
                           const roleInfo = formatPosition(c.intended_position);
                           const isExpired = new Date(c.expires_at) <= new Date();
 
                           return (
                             <tr key={c.code_id} className="hover:bg-surface-container-low/80 transition-colors">
                               {/* Passcode & Target ID */}
-                              <td className="py-3 px-3.5">
-                                <div className="space-y-1">
+                              <td className="py-3.5 px-4 align-middle">
+                                <div className="space-y-0.5">
                                   <div className="flex items-center gap-1.5">
                                     <span className="font-mono font-extrabold text-vibrant-orange text-sm tracking-wide">
                                       {c.code_hash}
@@ -1396,10 +1396,11 @@ export default function InstStaff() {
                                       type="button"
                                       onClick={() => handleCopy(c.code_hash, c.code_id)}
                                       title="Click to copy passcode"
-                                      className={`p-1 rounded transition-colors ${copiedCodeId === c.code_id
+                                      className={`p-1 rounded transition-colors cursor-pointer ${
+                                        copiedCodeId === c.code_id
                                           ? 'bg-green-tint text-pinoy-green'
                                           : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
-                                        }`}
+                                      }`}
                                     >
                                       <span className="material-symbols-outlined text-[14px]">
                                         {copiedCodeId === c.code_id ? 'check' : 'content_copy'}
@@ -1414,76 +1415,89 @@ export default function InstStaff() {
                               </td>
 
                               {/* Role & Scope */}
-                              <td className="py-3 px-3.5">
-                                <div className="space-y-1 max-w-[240px]">
+                              <td className="py-3.5 px-4 align-middle">
+                                <div className="space-y-1 max-w-[280px]">
                                   <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] uppercase font-bold ${roleInfo.color}`}>
                                     {roleInfo.label}
                                   </span>
                                   {c.intended_position === 'dean' ? (
                                     <p
-                                      className="text-[11px] font-bold text-vibrant-orange flex items-center gap-1"
+                                      className="text-[11px] font-bold text-vibrant-orange flex items-center gap-1 truncate"
                                       title={c.intended_department || c.program_name || 'Academic Department'}
                                     >
-                                      <span className="material-symbols-outlined text-[13px]">domain</span>
+                                      <span className="material-symbols-outlined text-[13px] shrink-0">domain</span>
                                       <span className="truncate">Dept: {c.intended_department || c.program_name || 'Department-Wide'}</span>
                                     </p>
                                   ) : (
-                                    <p className="text-[11px] text-on-surface-variant truncate" title={c.program_name || c.intended_department || 'All Programs'}>
-                                      {c.program_name
-                                        ? `Prog: ${c.program_name}`
-                                        : c.intended_department
-                                        ? `Dept: ${c.intended_department}`
-                                        : 'Scope: Institution-Wide'}
+                                    <p
+                                      className="text-[11px] text-on-surface-variant truncate flex items-center gap-1"
+                                      title={c.program_name || c.intended_department || 'All Programs'}
+                                    >
+                                      {c.program_name ? (
+                                        <>
+                                          <span className="material-symbols-outlined text-[13px] text-vibrant-orange shrink-0">school</span>
+                                          <span className="truncate">{c.program_name}</span>
+                                        </>
+                                      ) : c.intended_department ? (
+                                        <>
+                                          <span className="material-symbols-outlined text-[13px] shrink-0">domain</span>
+                                          <span className="truncate">Dept: {c.intended_department}</span>
+                                        </>
+                                      ) : (
+                                        <span>Scope: Institution-Wide</span>
+                                      )}
                                     </p>
                                   )}
                                 </div>
                               </td>
 
-                              {/* Claim Status & Expiry */}
-                              <td className="py-3 px-3.5">
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${expInfo.badge}`}>
-                                      <span className="material-symbols-outlined text-[12px]">{expInfo.icon}</span>
-                                      <span>{expInfo.label}</span>
-                                    </span>
-                                  </div>
-                                  <div className="text-[11px] text-on-surface-variant">
-                                    {c.is_used ? (
-                                      <span className="text-pinoy-green font-bold flex items-center gap-1">
-                                        <span className="material-symbols-outlined text-[13px]">account_circle</span>
-                                        <span className="truncate max-w-[180px]">{c.used_by_email || 'Registered coordinator'}</span>
-                                      </span>
-                                    ) : c.intended_email ? (
-                                      <span className="text-on-surface font-medium truncate max-w-[180px] block">
-                                        For: {c.intended_email}
-                                      </span>
-                                    ) : (
-                                      <span className="italic text-[10.5px]">Open to any institutional email</span>
-                                    )}
-                                  </div>
-                                  <div className="text-[10px] text-on-surface-variant">
-                                    {expInfo.sub}
-                                  </div>
-                                </div>
+                              {/* Clean, Uniform Status Indicator */}
+                              <td className="py-3.5 px-4 align-middle text-center whitespace-nowrap">
+                                {c.is_used ? (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-green-tint text-pinoy-green border border-pinoy-green/30 shadow-2xs whitespace-nowrap">
+                                    <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                                    <span>Claimed</span>
+                                  </span>
+                                ) : isExpired ? (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-surface-container-high text-on-surface-variant border border-outline-variant shadow-2xs whitespace-nowrap">
+                                    <span className="material-symbols-outlined text-[13px]">history</span>
+                                    <span>Expired</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 shadow-2xs whitespace-nowrap">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                    <span>Active</span>
+                                  </span>
+                                )}
                               </td>
 
                               {/* Actions */}
-                              <td className="py-3 px-3.5 text-right">
+                              <td className="py-3.5 px-4 align-middle text-right whitespace-nowrap">
                                 <div className="inline-flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedPasscode(c)}
+                                    title="View Full Passcode & Claim Details"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-high text-on-surface hover:bg-surface-container-highest rounded-lg font-bold text-xs transition-colors border border-outline-variant hover:border-vibrant-orange/40 shadow-2xs cursor-pointer"
+                                  >
+                                    <span className="material-symbols-outlined text-[15px]">info</span>
+                                    <span>Details</span>
+                                  </button>
+
                                   <button
                                     type="button"
                                     onClick={() => handleCopy(c.code_hash, c.code_id)}
                                     title="Copy Passcode"
-                                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border ${copiedCodeId === c.code_id
+                                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border cursor-pointer ${
+                                      copiedCodeId === c.code_id
                                         ? 'bg-green-tint text-pinoy-green border-pinoy-green/30'
                                         : 'bg-surface-container text-on-surface hover:bg-surface-container-high border-outline-variant'
-                                      }`}
+                                    }`}
                                   >
                                     <span className="material-symbols-outlined text-[14px]">
                                       {copiedCodeId === c.code_id ? 'check' : 'content_copy'}
                                     </span>
-                                    <span>{copiedCodeId === c.code_id ? 'Copied' : 'Copy'}</span>
+                                    <span className="hidden xl:inline">{copiedCodeId === c.code_id ? 'Copied' : 'Copy'}</span>
                                   </button>
 
                                   {!c.is_used && !isExpired && (
@@ -1492,7 +1506,7 @@ export default function InstStaff() {
                                       disabled={actionLoading}
                                       onClick={() => setConfirmModal({ isOpen: true, type: 'deactivate', code: c })}
                                       title="Deactivate passcode immediately"
-                                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 border border-outline-variant hover:border-rose-300 transition-colors"
+                                      className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-500/10 border border-outline-variant hover:border-amber-300 transition-colors cursor-pointer"
                                     >
                                       <span className="material-symbols-outlined text-[16px]">block</span>
                                     </button>
@@ -1503,7 +1517,7 @@ export default function InstStaff() {
                                     disabled={actionLoading}
                                     onClick={() => setConfirmModal({ isOpen: true, type: 'delete', code: c })}
                                     title="Delete passcode and free Staff ID"
-                                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 border border-outline-variant hover:border-red-300 transition-colors"
+                                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 border border-outline-variant hover:border-red-300 transition-colors cursor-pointer"
                                   >
                                     <span className="material-symbols-outlined text-[16px]">delete</span>
                                   </button>
@@ -1519,16 +1533,15 @@ export default function InstStaff() {
                   {/* Mobile Cards View (Hidden on Desktop) */}
                   <div className="md:hidden space-y-3">
                     {filteredAccessCodes.map((c) => {
-                      const expInfo = formatExpiration(c.expires_at, c.is_used);
                       const roleInfo = formatPosition(c.intended_position);
                       const isExpired = new Date(c.expires_at) <= new Date();
 
                       return (
                         <div
                           key={c.code_id}
-                          className="p-4 bg-surface-container rounded-xl border border-outline-variant space-y-3 text-xs"
+                          className="p-4 bg-surface rounded-xl border border-outline-variant space-y-3 shadow-xs text-xs"
                         >
-                          <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start justify-between gap-2 border-b border-outline-variant/60 pb-2.5">
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="font-mono font-extrabold text-vibrant-orange text-base tracking-wide">
@@ -1548,10 +1561,25 @@ export default function InstStaff() {
                                 Staff ID: <span className="font-bold text-on-surface">{c.target_identifier}</span>
                               </p>
                             </div>
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${expInfo.badge}`}>
-                              <span className="material-symbols-outlined text-[12px]">{expInfo.icon}</span>
-                              <span>{expInfo.label}</span>
-                            </span>
+
+                            <div className="shrink-0">
+                              {c.is_used ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-tint text-pinoy-green border border-pinoy-green/30 whitespace-nowrap">
+                                  <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                                  <span>Claimed</span>
+                                </span>
+                              ) : isExpired ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-surface-container-high text-on-surface-variant border border-outline-variant whitespace-nowrap">
+                                  <span className="material-symbols-outlined text-[12px]">history</span>
+                                  <span>Expired</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 whitespace-nowrap">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                  <span>Active</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           <div className="flex items-center gap-2 flex-wrap text-[11px]">
@@ -1574,25 +1602,20 @@ export default function InstStaff() {
                             ) : null}
                           </div>
 
-                          <div className="p-2.5 bg-surface-container-low rounded-lg text-[11px] space-y-1 text-on-surface-variant">
-                            {c.is_used ? (
-                              <p className="text-pinoy-green font-bold flex items-center gap-1">
-                                <span className="material-symbols-outlined text-[13px]">account_circle</span>
-                                <span>Used by: {c.used_by_email || 'Registered coordinator'}</span>
-                              </p>
-                            ) : c.intended_email ? (
-                              <p>Restricted to: <span className="text-on-surface font-semibold">{c.intended_email}</span></p>
-                            ) : (
-                              <p>Restricted to: <span className="text-on-surface font-semibold">Any email</span></p>
-                            )}
-                            <p>{expInfo.sub} (Expires {new Date(c.expires_at).toLocaleDateString()})</p>
-                          </div>
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-outline-variant/60">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPasscode(c)}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-surface-container-high text-on-surface hover:bg-surface-container-highest rounded-lg font-bold text-xs transition-colors border border-outline-variant cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">info</span>
+                              <span>View Details</span>
+                            </button>
 
-                          <div className="flex items-center justify-end gap-2 pt-1 border-t border-outline-variant/60">
                             <button
                               type="button"
                               onClick={() => handleCopy(c.code_hash, c.code_id)}
-                              className="px-3 py-1.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface rounded-lg font-bold transition-colors flex items-center gap-1 text-[11px]"
+                              className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface rounded-lg font-bold transition-colors flex items-center gap-1 text-[11px] border border-outline-variant cursor-pointer"
                             >
                               <span className="material-symbols-outlined text-[14px]">
                                 {copiedCodeId === c.code_id ? 'check' : 'content_copy'}
@@ -1605,10 +1628,10 @@ export default function InstStaff() {
                                 type="button"
                                 disabled={actionLoading}
                                 onClick={() => setConfirmModal({ isOpen: true, type: 'deactivate', code: c })}
-                                className="px-3 py-1.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg font-bold transition-colors flex items-center gap-1 text-[11px] disabled:opacity-50"
+                                className="p-1.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg font-bold transition-colors disabled:opacity-50 cursor-pointer"
+                                title="Deactivate Passcode"
                               >
-                                <span className="material-symbols-outlined text-[14px]">block</span>
-                                <span>Deactivate</span>
+                                <span className="material-symbols-outlined text-[16px]">block</span>
                               </button>
                             )}
 
@@ -1616,10 +1639,10 @@ export default function InstStaff() {
                               type="button"
                               disabled={actionLoading}
                               onClick={() => setConfirmModal({ isOpen: true, type: 'delete', code: c })}
-                              className="px-3 py-1.5 bg-red-500/10 text-red-600 hover:bg-red-500/20 border border-red-500/30 rounded-lg font-bold transition-colors flex items-center gap-1 text-[11px] disabled:opacity-50"
+                              className="p-1.5 bg-red-500/10 text-red-600 hover:bg-red-500/20 border border-red-500/30 rounded-lg font-bold transition-colors disabled:opacity-50 cursor-pointer"
+                              title="Delete Passcode"
                             >
-                              <span className="material-symbols-outlined text-[14px]">delete</span>
-                              <span>Delete</span>
+                              <span className="material-symbols-outlined text-[16px]">delete</span>
                             </button>
                           </div>
                         </div>
@@ -1627,6 +1650,7 @@ export default function InstStaff() {
                     })}
                   </div>
                 </>
+
               )}
             </div>
           )}
@@ -2029,6 +2053,362 @@ export default function InstStaff() {
                     </button>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* PASSCODE DETAILS MODAL WITH CLAIM STATUS, EXPIRATION & SCOPE */}
+      {selectedPasscode && (() => {
+        const code = selectedPasscode;
+        const isUsed = Boolean(code.is_used);
+        const isExpired = new Date(code.expires_at) <= new Date();
+        const roleInfo = formatPosition(code.intended_position);
+        const expInfo = formatExpiration(code.expires_at, code.is_used);
+
+        // Look up matching staff coordinator if redeemed or registered
+        const redeemingStaff = isUsed
+          ? data.verifiedStaff.find(
+              (s) =>
+                s.email === code.used_by_email ||
+                s.employee_id === code.target_identifier ||
+                s.staff_number === code.target_identifier ||
+                s.passcode_used === code.code_hash
+            ) ||
+            data.pendingStaff.find(
+              (s) =>
+                s.email === code.used_by_email ||
+                s.employee_id === code.target_identifier ||
+                s.staff_number === code.target_identifier ||
+                s.passcode_used === code.code_hash
+            ) ||
+            data.staff.find(
+              (s) =>
+                s.email === code.used_by_email ||
+                s.employee_id === code.target_identifier ||
+                s.staff_number === code.target_identifier
+            )
+          : null;
+
+        // Parse permissions
+        let perms = {
+          can_verify_students: true,
+          can_manage_ojt_records: true,
+          can_handle_grievances: true,
+          can_approve_job_offers: true
+        };
+        const rawPerms = code.assigned_permissions || code.permissions;
+        if (typeof rawPerms === 'string') {
+          try {
+            perms = { ...perms, ...JSON.parse(rawPerms) };
+          } catch (e) {}
+        } else if (typeof rawPerms === 'object' && rawPerms !== null) {
+          perms = { ...perms, ...rawPerms };
+        }
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-surface max-w-2xl w-full rounded-2xl shadow-2xl border border-outline-variant overflow-hidden flex flex-col animate-scale-up max-h-[90dvh]">
+              {/* Modal Header */}
+              <div className="p-5 border-b border-outline-variant bg-surface-container-low flex items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-vibrant-orange/15 text-vibrant-orange flex items-center justify-center font-bold shrink-0">
+                    <span className="material-symbols-outlined text-[24px]">vpn_key</span>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-on-surface">Staff Passcode & Claim Details</h3>
+                    <p className="text-xs text-on-surface-variant">
+                      Detailed claim logs, expiration schedule, and assignment scope
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPasscode(null)}
+                  className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[20px]">close</span>
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-5 space-y-4 overflow-y-auto text-xs max-h-[calc(90dvh-130px)]">
+                {/* Hero Banner: Passcode & Status */}
+                <div className="p-4 bg-surface-container rounded-xl border border-outline-variant flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
+                      Official Access Passcode
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-extrabold text-vibrant-orange text-lg tracking-wider">
+                        {code.code_hash}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(code.code_hash, code.code_id)}
+                        title="Copy Passcode"
+                        className={`px-2 py-1 rounded text-xs font-bold transition-all flex items-center gap-1 border cursor-pointer ${
+                          copiedCodeId === code.code_id
+                            ? 'bg-green-tint text-pinoy-green border-pinoy-green/30'
+                            : 'bg-surface text-on-surface hover:bg-surface-container-high border-outline-variant'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[13px]">
+                          {copiedCodeId === code.code_id ? 'check' : 'content_copy'}
+                        </span>
+                        <span>{copiedCodeId === code.code_id ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant font-mono">
+                      Target Staff ID: <span className="font-bold text-on-surface">{code.target_identifier}</span>
+                    </p>
+                  </div>
+
+                  <div className="sm:text-right shrink-0">
+                    <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block mb-1">
+                      Passcode Status
+                    </span>
+                    {isUsed ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-green-tint text-pinoy-green border border-pinoy-green/30 shadow-2xs">
+                        <span className="material-symbols-outlined text-[15px]">verified</span>
+                        <span>Claimed & Redeemed</span>
+                      </span>
+                    ) : isExpired ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-surface-container-high text-on-surface-variant border border-outline-variant shadow-2xs">
+                        <span className="material-symbols-outlined text-[15px]">history</span>
+                        <span>Expired</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 shadow-2xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                        <span>Active & Ready</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Section 1: Claim Status & Expiration Schedule */}
+                <div className="space-y-2">
+                  <h4 className="font-bold text-[11px] uppercase tracking-wider text-vibrant-orange flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px]">verified_user</span>
+                    <span>Claim Status & Expiration Schedule</span>
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Redemption Status Card */}
+                    <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+                      <span className="text-on-surface-variant block text-[10px] font-bold uppercase tracking-wider">
+                        Redemption Status
+                      </span>
+                      <span className="font-bold text-on-surface text-sm block">
+                        {isUsed ? 'Redeemed by Coordinator' : isExpired ? 'Expired Unclaimed' : 'Awaiting Registration'}
+                      </span>
+                      <p className="text-[11px] text-on-surface-variant">
+                        {isUsed
+                          ? `Claimed on ${code.used_at ? new Date(code.used_at).toLocaleString() : 'Registered account'}`
+                          : isExpired
+                          ? 'This passcode was not claimed before its deadline.'
+                          : 'Can be used by the coordinator during sign-up.'}
+                      </p>
+                    </div>
+
+                    {/* Redeemed By / Account Card */}
+                    <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+                      <span className="text-on-surface-variant block text-[10px] font-bold uppercase tracking-wider">
+                        {isUsed ? 'Redeemed By Coordinator' : 'Permitted Registrant'}
+                      </span>
+                      {isUsed ? (
+                        <div className="space-y-0.5">
+                          {redeemingStaff && (
+                            <span className="font-bold text-on-surface text-sm block">
+                              {redeemingStaff.salutation || 'Prof.'} {redeemingStaff.first_name} {redeemingStaff.last_name} {redeemingStaff.suffix || ''}
+                            </span>
+                          )}
+                          <span className="font-bold text-pinoy-green text-xs flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">account_circle</span>
+                            <span>{code.used_by_email || redeemingStaff?.email || 'Registered coordinator'}</span>
+                          </span>
+                        </div>
+                      ) : code.intended_email ? (
+                        <div>
+                          <span className="font-bold text-on-surface text-sm block font-mono">
+                            {code.intended_email}
+                          </span>
+                          <span className="text-[10.5px] text-amber-600 block">Strictly restricted to this email</span>
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="font-bold text-on-surface text-sm block">
+                            Any Institutional Email
+                          </span>
+                          <span className="text-[10.5px] text-on-surface-variant block">Open to authorized domain</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Expiration Date Card */}
+                    <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+                      <span className="text-on-surface-variant block text-[10px] font-bold uppercase tracking-wider">
+                        Expiration Date & Time
+                      </span>
+                      <span className={`font-bold text-sm block ${isExpired ? 'text-red-600' : 'text-on-surface'}`}>
+                        {code.expires_at ? new Date(code.expires_at).toLocaleString() : 'N/A'}
+                      </span>
+                      <p className="text-[11px] text-on-surface-variant">
+                        {expInfo.sub}
+                      </p>
+                    </div>
+
+                    {/* Creation Date Card */}
+                    <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+                      <span className="text-on-surface-variant block text-[10px] font-bold uppercase tracking-wider">
+                        Date Issued / Created
+                      </span>
+                      <span className="font-bold text-on-surface text-sm block">
+                        {code.created_at ? new Date(code.created_at).toLocaleString() : 'Recent'}
+                      </span>
+                      <p className="text-[11px] text-on-surface-variant font-mono">
+                        Passcode Record ID: #{code.code_id}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Assigned Role & Academic Scope */}
+                <div className="space-y-2">
+                  <h4 className="font-bold text-[11px] uppercase tracking-wider text-vibrant-orange flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px]">school</span>
+                    <span>Assigned Role & Academic Scope</span>
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Position */}
+                    <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+                      <span className="text-on-surface-variant block text-[10px] font-bold uppercase tracking-wider">
+                        Designated Role
+                      </span>
+                      <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] uppercase font-bold mt-1 ${roleInfo.color}`}>
+                        {roleInfo.label}
+                      </span>
+                    </div>
+
+                    {/* Academic Department */}
+                    <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+                      <span className="text-on-surface-variant block text-[10px] font-bold uppercase tracking-wider">
+                        College / Department
+                      </span>
+                      <span className="font-bold text-on-surface text-sm block mt-1">
+                        {code.intended_department || code.program_name || 'Department-Wide'}
+                      </span>
+                    </div>
+
+                    {/* Academic Program */}
+                    <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-1">
+                      <span className="text-on-surface-variant block text-[10px] font-bold uppercase tracking-wider">
+                        Degree Program
+                      </span>
+                      <span className="font-bold text-on-surface text-sm block mt-1">
+                        {code.program_name || (code.intended_position === 'dean' ? 'All Department Programs' : 'Institution-Wide')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3: Granted Coordinator Permissions */}
+                <div className="space-y-2">
+                  <h4 className="font-bold text-[11px] uppercase tracking-wider text-vibrant-orange flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px]">admin_panel_settings</span>
+                    <span>Granted Coordinator Permissions</span>
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="flex items-center gap-2 p-2.5 bg-surface-container-low rounded-lg border border-outline-variant/60">
+                      <span className={`material-symbols-outlined text-[18px] ${perms.can_verify_students ? 'text-pinoy-green' : 'text-on-surface-variant/40'}`}>
+                        {perms.can_verify_students ? 'check_circle' : 'cancel'}
+                      </span>
+                      <span className="text-[11px] font-medium text-on-surface">
+                        Verify & accept student registrations
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 p-2.5 bg-surface-container-low rounded-lg border border-outline-variant/60">
+                      <span className={`material-symbols-outlined text-[18px] ${perms.can_manage_ojt_records ? 'text-pinoy-green' : 'text-on-surface-variant/40'}`}>
+                        {perms.can_manage_ojt_records ? 'check_circle' : 'cancel'}
+                      </span>
+                      <span className="text-[11px] font-medium text-on-surface">
+                        Manage OJT records & hours tracking
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 p-2.5 bg-surface-container-low rounded-lg border border-outline-variant/60">
+                      <span className={`material-symbols-outlined text-[18px] ${perms.can_handle_grievances ? 'text-pinoy-green' : 'text-on-surface-variant/40'}`}>
+                        {perms.can_handle_grievances ? 'check_circle' : 'cancel'}
+                      </span>
+                      <span className="text-[11px] font-medium text-on-surface">
+                        Handle student grievances & concerns
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 p-2.5 bg-surface-container-low rounded-lg border border-outline-variant/60">
+                      <span className={`material-symbols-outlined text-[18px] ${perms.can_approve_job_offers ? 'text-pinoy-green' : 'text-on-surface-variant/40'}`}>
+                        {perms.can_approve_job_offers ? 'check_circle' : 'cancel'}
+                      </span>
+                      <span className="text-[11px] font-medium text-on-surface">
+                        Approve job offers & MOA agreements
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-outline-variant bg-surface-container-low flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPasscode(null)}
+                  className="px-4 py-2 bg-surface-container text-on-surface-variant hover:text-on-surface rounded-lg font-bold text-xs transition-colors text-center cursor-pointer"
+                >
+                  Close
+                </button>
+
+                <div className="flex items-center justify-end gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(code.code_hash, code.code_id)}
+                    className="px-3.5 py-2 bg-surface-container-high hover:bg-surface-container-highest text-on-surface rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1.5 border border-outline-variant cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">
+                      {copiedCodeId === code.code_id ? 'check' : 'content_copy'}
+                    </span>
+                    <span>{copiedCodeId === code.code_id ? 'Passcode Copied' : 'Copy Passcode'}</span>
+                  </button>
+
+                  {!isUsed && !isExpired && (
+                    <button
+                      type="button"
+                      disabled={actionLoading}
+                      onClick={() => {
+                        setSelectedPasscode(null);
+                        setConfirmModal({ isOpen: true, type: 'deactivate', code });
+                      }}
+                      className="px-3.5 py-2 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">block</span>
+                      <span>Deactivate</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={() => {
+                      setSelectedPasscode(null);
+                      setConfirmModal({ isOpen: true, type: 'delete', code });
+                    }}
+                    className="px-3.5 py-2 bg-red-500/10 text-red-600 hover:bg-red-500/20 border border-red-500/30 rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                    <span>Delete</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
