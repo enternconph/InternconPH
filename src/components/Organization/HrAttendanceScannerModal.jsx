@@ -7,20 +7,140 @@ import { formatPHT12Hour } from '../../utils/timeFormat';
 export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSuccess }) {
   const [scannerActive, setScannerActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  const [cameras, setCameras] = useState([]);
+  const [selectedCameraId, setSelectedCameraId] = useState('');
   const [scanResult, setScanResult] = useState(null);
   const [scanFeedback, setScanFeedback] = useState(null);
   const [recentScans, setRecentScans] = useState([]);
   const [loading, setLoading] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [currentTimePHT, setCurrentTimePHT] = useState('');
 
   const scannerRef = useRef(null);
   const isProcessingRef = useRef(false);
   const isStoppingRef = useRef(false);
+  const resetTimerRef = useRef(null);
   const qrRegionId = 'hr-attendance-qr-reader';
+
+  // Live PHT Clock ticker
+  useEffect(() => {
+    const updateTime = () => {
+      try {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-US', {
+          timeZone: 'Asia/Manila',
+          hour: 'numeric',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true
+        });
+        setCurrentTimePHT(timeStr);
+      } catch (_) {
+        setCurrentTimePHT(new Date().toLocaleTimeString());
+      }
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Helper to append to session activity log
   const addRecentScan = (entry) => {
     setRecentScans((prev) => [entry, ...prev].slice(0, 5));
+  };
+
+  // Diagnostic warning explanation helper
+  const getWarningDiagnostic = (message) => {
+    const msg = String(message || '').toLowerCase();
+
+    if (
+      msg.includes('expired') ||
+      msg.includes('totp') ||
+      msg.includes('token') ||
+      msg.includes('time-bound') ||
+      msg.includes('signature')
+    ) {
+      return {
+        category: 'EXPIRED_OR_STALE_QR',
+        title: 'Expired Dynamic Security Token',
+        icon: 'timer_off',
+        badge: 'Time-Bound Token Expiry',
+        color: 'amber',
+        explanation:
+          'Attendance QR codes dynamically refresh every 30 seconds to prevent attendance proxying and photo/screenshot sharing. This token was presented after its validity window elapsed.',
+        actionStep:
+          'Instruct the intern to pull down to refresh or tap "Regenerate QR" on their mobile app, then present the active code immediately.'
+      };
+    }
+
+    if (
+      msg.includes('not currently enrolled') ||
+      msg.includes('not enrolled') ||
+      msg.includes('placement') ||
+      msg.includes('not found') ||
+      msg.includes('unauthorized')
+    ) {
+      return {
+        category: 'UNAUTHORIZED_PLACEMENT',
+        title: 'Unassigned or Inactive Placement',
+        icon: 'person_cancel',
+        badge: 'Placement Mismatch',
+        color: 'red',
+        explanation:
+          'This student does not have an active, ongoing internship registered with your organization in the InternConPH database.',
+        actionStep:
+          'Verify that the student was officially accepted into your organization and that their placement status is marked as "Ongoing".'
+      };
+    }
+
+    if (
+      msg.includes('already completed') ||
+      msg.includes('already clocked out') ||
+      msg.includes('completed their shift')
+    ) {
+      return {
+        category: 'SHIFT_ALREADY_COMPLETED',
+        title: 'Daily Shift Already Concluded',
+        icon: 'event_available',
+        badge: 'Shift Concluded',
+        color: 'blue',
+        explanation:
+          'This intern has already recorded both Time-In and Time-Out for today. The attendance policy allows one automated shift cycle per training day.',
+        actionStep:
+          'If the student is working an authorized split shift or overtime, their workplace mentor can manually log or certify the extra hours.'
+      };
+    }
+
+    if (
+      msg.includes('credentials') ||
+      msg.includes('device') ||
+      msg.includes('not initialized') ||
+      msg.includes('bound')
+    ) {
+      return {
+        category: 'DEVICE_NOT_INITIALIZED',
+        title: 'Unpaired Attendance Device',
+        icon: 'phonelink_lock',
+        badge: 'Security Device Registration',
+        color: 'amber',
+        explanation:
+          'The student has not completed cryptographic device pairing on their phone. Attendance credentials must be generated on their registered handset.',
+        actionStep:
+          'Instruct the student to visit Student Dashboard > Attendance Settings to initialize and pair their mobile device.'
+      };
+    }
+
+    return {
+      category: 'GENERAL_VERIFICATION_FAILURE',
+      title: 'Verification Rejected',
+      icon: 'warning',
+      badge: 'Security Validation Error',
+      color: 'red',
+      explanation:
+        message || 'The submitted attendance payload failed cryptographic signature and placement verification.',
+      actionStep:
+        'Ensure the student displays their QR directly on screen with brightness set to 50% or higher. Hold steady 6-10 inches from camera.'
+    };
   };
 
   // Process QR Payload via backend API
@@ -29,6 +149,11 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
     isProcessingRef.current = true;
     setLoading(true);
     setScanResult(null);
+
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
+    }
 
     const currentTimeLabel = new Date().toLocaleTimeString('en-US', {
       timeZone: 'Asia/Manila',
@@ -43,8 +168,11 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
       });
 
       if (res.status === 404) {
-        try { playAttendanceErrorChime(); } catch (_) {}
-        const errMsg = 'The attendance QR scanner service is currently updating. Please wait ~15-30 seconds and try again.';
+        try {
+          playAttendanceErrorChime();
+        } catch (_) {}
+        const errMsg =
+          'The attendance QR scanner service is currently updating. Please wait ~15-30 seconds and try again.';
         setScanResult({
           type: 'error',
           message: errMsg
@@ -59,7 +187,9 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
           time: currentTimeLabel
         });
       } else if (res.success) {
-        try { playAttendanceSuccessChime(); } catch (_) {}
+        try {
+          playAttendanceSuccessChime();
+        } catch (_) {}
         setScanResult({
           type: 'success',
           action: res.action,
@@ -70,7 +200,10 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
           status: 'success',
           action: res.action,
           intern: res.data?.student_name,
-          time: res.action === 'time_in' ? formatPHT12Hour(res.data?.time_in) : formatPHT12Hour(res.data?.time_out)
+          time:
+            res.action === 'time_in'
+              ? formatPHT12Hour(res.data?.time_in)
+              : formatPHT12Hour(res.data?.time_out)
         });
         addRecentScan({
           id: Date.now(),
@@ -78,17 +211,27 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
           action: res.action,
           internName: res.data?.student_name,
           studentNumber: res.data?.student_number,
-          detail: res.action === 'time_in'
-            ? `In: ${formatPHT12Hour(res.data?.time_in)} (${res.data?.time_in_status === 'late' ? 'Late' : 'On-Time'})`
-            : `Out: ${formatPHT12Hour(res.data?.time_out)} (${res.data?.hours_rendered || 0} hrs)`,
+          detail:
+            res.action === 'time_in'
+              ? `In: ${formatPHT12Hour(res.data?.time_in)} (${
+                  res.data?.time_in_status === 'late' ? 'Late' : 'On-Time'
+                })`
+              : `Out: ${formatPHT12Hour(res.data?.time_out)} (${res.data?.hours_rendered || 0} hrs)`,
           time: currentTimeLabel
         });
-        // Real-time automatic background refresh
+
         if (onScanSuccess) {
           onScanSuccess(res);
         }
+
+        // Auto reset scan status after 7 seconds if no new scan
+        resetTimerRef.current = setTimeout(() => {
+          setScanFeedback(null);
+        }, 7000);
       } else {
-        try { playAttendanceErrorChime(); } catch (_) {}
+        try {
+          playAttendanceErrorChime();
+        } catch (_) {}
         const failMsg = res.message || 'Verification failed. QR is invalid or expired.';
         setScanResult({
           type: 'error',
@@ -105,7 +248,9 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
         });
       }
     } catch (err) {
-      try { playAttendanceErrorChime(); } catch (_) {}
+      try {
+        playAttendanceErrorChime();
+      } catch (_) {}
       const netMsg = err.message || 'Network error scanning QR code.';
       setScanResult({
         type: 'error',
@@ -122,7 +267,7 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
       });
     } finally {
       setLoading(false);
-      // Wait 3.5 seconds before allowing next scan to avoid duplicate scans
+      // Wait 3.5 seconds cooldown before allowing next scan to avoid camera double-fire
       setTimeout(() => {
         isProcessingRef.current = false;
       }, 3500);
@@ -143,7 +288,9 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
           if (videos[i].srcObject) {
             const stream = videos[i].srcObject;
             stream.getTracks().forEach((track) => {
-              try { track.stop(); } catch (_) {}
+              try {
+                track.stop();
+              } catch (_) {}
             });
             videos[i].srcObject = null;
           }
@@ -159,19 +306,41 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
         if (instance.isScanning) {
           await instance.stop();
         }
-      } catch (e) {
-        // Silent ignore stopping error
-      }
+      } catch (_) {}
       try {
         instance.clear();
-      } catch (e) {
-        // Silent ignore clear error
-      }
+      } catch (_) {}
     }
 
     setScannerActive(false);
     isStoppingRef.current = false;
   }, [qrRegionId]);
+
+  // Enumerate cameras when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    Html5Qrcode.getCameras()
+      .then((devices) => {
+        if (devices && devices.length > 0) {
+          setCameras(devices);
+          // Pick environment or back camera by default if available
+          const backCam = devices.find((d) =>
+            d.label.toLowerCase().includes('back') ||
+            d.label.toLowerCase().includes('environment') ||
+            d.label.toLowerCase().includes('rear')
+          );
+          if (backCam) {
+            setSelectedCameraId(backCam.id);
+          } else {
+            setSelectedCameraId(devices[0].id);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not enumerate cameras:', err);
+      });
+  }, [isOpen]);
 
   // Start Camera QR Scanner
   useEffect(() => {
@@ -187,21 +356,30 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
 
     const startScanner = async () => {
       try {
-        // Wait for DOM element to exist
+        await stopScannerSafely();
+        // Allow DOM container to render
         await new Promise((r) => setTimeout(r, 180));
         if (!isMounted || !document.getElementById(qrRegionId)) return;
 
         const html5QrCode = new Html5Qrcode(qrRegionId);
         scannerRef.current = html5QrCode;
 
+        // Modern responsive QR Box configuration (without restrictive aspectRatio constraint)
         const config = {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-          aspectRatio: 1.0
+          fps: 15,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const edge = Math.floor(minEdge * 0.72);
+            return { width: Math.max(220, edge), height: Math.max(220, edge) };
+          }
         };
 
+        const cameraSource = selectedCameraId
+          ? { deviceId: { exact: selectedCameraId } }
+          : { facingMode: 'environment' };
+
         await html5QrCode.start(
-          { facingMode: 'environment' },
+          cameraSource,
           config,
           (decodedText) => {
             if (!isProcessingRef.current && isMounted) {
@@ -209,7 +387,7 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
             }
           },
           () => {
-            // QR code scanning frame tick - silent
+            // Frame tick - silent
           }
         );
 
@@ -217,7 +395,9 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
       } catch (err) {
         console.warn('Camera scanner startup warning:', err);
         if (isMounted) {
-          setCameraError(err.message || 'Unable to access camera. Please allow camera permissions in your browser.');
+          setCameraError(
+            err.message || 'Unable to access camera. Please allow camera permissions in your browser.'
+          );
         }
       }
     };
@@ -228,299 +408,693 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
       isMounted = false;
       stopScannerSafely();
     };
-  }, [isOpen, stopScannerSafely]);
+  }, [isOpen, selectedCameraId, stopScannerSafely]);
+
+  // Reset scan display and allow immediate scan
+  const handleResetForNextIntern = () => {
+    setScanResult(null);
+    setScanFeedback(null);
+    isProcessingRef.current = false;
+  };
 
   // Clean state on modal close
   const handleClose = async () => {
     if (closing) return;
     setClosing(true);
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
+    }
     await stopScannerSafely();
     setScanResult(null);
+    setScanFeedback(null);
     onClose();
     setClosing(false);
   };
 
   if (!isOpen) return null;
 
+  const warningDiagnostic =
+    scanResult?.type === 'error' ? getWarningDiagnostic(scanResult.message) : null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="bg-surface rounded-3xl border border-outline-variant shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Header */}
-        <div className="p-5 pb-4 bg-gradient-to-b from-vibrant-orange/10 to-transparent border-b border-outline-variant flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
+      {/* Scoped CSS to enforce edge-to-edge video coverage & holographic reticle */}
+      <style>{`
+        #hr-attendance-qr-reader {
+          width: 100% !important;
+          height: 100% !important;
+          position: relative !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          overflow: hidden !important;
+          border: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          background-color: #030807 !important;
+        }
+        #hr-attendance-qr-reader video {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: cover !important;
+          object-position: center !important;
+          position: absolute !important;
+          inset: 0 !important;
+          margin: auto !important;
+          border-radius: inherit !important;
+        }
+        #hr-attendance-qr-reader canvas {
+          display: none !important;
+        }
+        #hr-attendance-qr-reader img {
+          display: none !important;
+        }
+        #hr-attendance-qr-reader__scan_region {
+          width: 100% !important;
+          height: 100% !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          overflow: hidden !important;
+          position: relative !important;
+          border: none !important;
+        }
+        #hr-attendance-qr-reader__scan_region video {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: cover !important;
+          position: absolute !important;
+          inset: 0 !important;
+        }
+        #hr-attendance-qr-reader__dashboard {
+          display: none !important;
+        }
+        #hr-attendance-qr-reader__header_message {
+          display: none !important;
+        }
+
+        @keyframes qrLaserSweep {
+          0%, 100% {
+            top: 8%;
+            opacity: 0.95;
+          }
+          50% {
+            top: 88%;
+            opacity: 0.95;
+          }
+        }
+
+        .qr-laser-beam {
+          position: absolute;
+          left: 10%;
+          right: 10%;
+          height: 3px;
+          background: linear-gradient(90deg, transparent, rgba(255, 180, 51, 0.7), #FFB433, rgba(255, 180, 51, 0.7), transparent);
+          box-shadow: 0 0 15px #FFB433, 0 0 30px rgba(255, 180, 51, 0.6);
+          animation: qrLaserSweep 2.2s ease-in-out infinite;
+          pointer-events: none;
+          z-index: 15;
+        }
+
+        .qr-laser-beam-success {
+          background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.8), #10b981, rgba(16, 185, 129, 0.8), transparent) !important;
+          box-shadow: 0 0 18px #10b981, 0 0 35px rgba(16, 185, 129, 0.65) !important;
+        }
+
+        .qr-laser-beam-failed {
+          background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.8), #ef4444, rgba(239, 68, 68, 0.8), transparent) !important;
+          box-shadow: 0 0 18px #ef4444, 0 0 35px rgba(239, 68, 68, 0.65) !important;
+        }
+      `}</style>
+
+      {/* Wider Executive Modal Shell (max-w-5xl) */}
+      <div className="bg-surface rounded-3xl border border-outline-variant shadow-2xl max-w-5xl w-full overflow-hidden flex flex-col max-h-[94vh] my-auto">
+        {/* Header Bar */}
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-vibrant-orange/15 via-surface-container-high/60 to-transparent border-b border-outline-variant flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-vibrant-orange text-white flex items-center justify-center shadow-md">
-              <span className="material-symbols-outlined text-[24px]">qr_code_scanner</span>
+            <div className="w-11 h-11 rounded-2xl bg-vibrant-orange text-white flex items-center justify-center shadow-md shrink-0">
+              <span className="material-symbols-outlined text-[26px]">qr_code_scanner</span>
             </div>
             <div>
-              <h3 className="font-bold text-base text-on-surface flex items-center gap-2">
-                <span>HR Attendance Desk Scanner</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-orange-tint text-vibrant-orange border border-vibrant-orange/20">
-                  HR Role Exclusive
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-bold text-base sm:text-lg text-on-surface">
+                  HR Attendance Desk Scanner
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-orange-tint text-vibrant-orange border border-vibrant-orange/30 tracking-wide">
+                  HR Premises Terminal
                 </span>
-              </h3>
-              <p className="text-xs text-on-surface-variant">
-                Physical premises scanner • Validates Time-In & Time-Out
+              </div>
+              <p className="text-xs text-on-surface-variant flex items-center gap-2">
+                <span>Physical premises validation • Automated Time-In & Time-Out</span>
+                <span className="hidden sm:inline font-mono text-[11px] font-bold text-pinoy-green">
+                  • {currentTimePHT} PHT
+                </span>
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            disabled={closing}
-            className="w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors disabled:opacity-50"
-            title="Close scanner"
-          >
-            <span className="material-symbols-outlined text-[20px]">close</span>
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleClose}
+              disabled={closing}
+              className="w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors disabled:opacity-50 cursor-pointer"
+              title="Close scanner"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+          </div>
         </div>
 
-        {/* Content Body */}
-        <div className="p-6 space-y-4 overflow-y-auto">
-          {/* Dedicated Full Camera Scanner View with Dynamic Status Glow */}
-          <div className="space-y-2">
-            <div
-              className={`relative bg-black rounded-2xl overflow-hidden aspect-square max-h-[300px] mx-auto flex items-center justify-center border-4 transition-all duration-300 shadow-inner ${
-                scanFeedback?.status === 'success'
-                  ? 'border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.55)]'
-                  : scanFeedback?.status === 'failed'
-                  ? 'border-red-500 shadow-[0_0_25px_rgba(239,68,68,0.55)]'
-                  : 'border-dashed border-vibrant-orange/50'
-              }`}
-            >
-              <div id={qrRegionId} className="w-full h-full"></div>
+        {/* 2-Column Wide Desk Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-outline-variant/70 overflow-y-auto">
+          {/* LEFT COLUMN: Camera Scanner Bay (md:col-span-6 lg:col-span-5) */}
+          <div className="p-4 sm:p-6 md:col-span-6 lg:col-span-5 space-y-4 bg-surface-container-lowest/50 flex flex-col justify-between">
+            <div className="space-y-3">
+              {/* Camera Header Status & Controls */}
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-on-surface">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      scannerActive ? 'bg-pinoy-green animate-pulse' : 'bg-amber-500'
+                    }`}
+                  />
+                  <span>{scannerActive ? 'Camera Feed Active' : 'Initializing Hardware...'}</span>
+                </div>
 
-              {/* Real-time Viewfinder Status Overlay Banner */}
-              {scanFeedback && (
-                <div
-                  className={`absolute top-3 inset-x-3 z-20 py-2 px-3 rounded-xl backdrop-blur-md text-white flex items-center justify-between shadow-lg transition-all animate-fade-in ${
-                    scanFeedback.status === 'success'
-                      ? 'bg-emerald-600/95 border border-emerald-400'
-                      : 'bg-red-600/95 border border-red-400'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <span className="material-symbols-outlined text-[22px] shrink-0">
-                      {scanFeedback.status === 'success' ? 'check_circle' : 'error'}
+                {cameras.length > 1 && (
+                  <div className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px] text-on-surface-variant">
+                      videocam
                     </span>
-                    <div className="text-left truncate">
-                      <p className="text-xs font-black uppercase tracking-wide">
-                        {scanFeedback.status === 'success'
-                          ? scanFeedback.action === 'time_in'
-                            ? 'Time-In Successful'
-                            : 'Time-Out Successful'
-                          : 'Attendance Scan Failed'}
-                      </p>
-                      <p className="text-[10px] text-white/90 truncate">
-                        {scanFeedback.status === 'success'
-                          ? `${scanFeedback.intern || 'Intern'} • ${scanFeedback.time || ''}`
-                          : scanFeedback.message}
-                      </p>
+                    <select
+                      value={selectedCameraId}
+                      onChange={(e) => setSelectedCameraId(e.target.value)}
+                      className="text-[11px] font-medium bg-surface-container rounded-lg border border-outline-variant px-2 py-1 text-on-surface outline-none focus:ring-1 focus:ring-vibrant-orange cursor-pointer max-w-[150px] truncate"
+                    >
+                      {cameras.map((c, idx) => (
+                        <option key={c.id} value={c.id}>
+                          {c.label || `Camera ${idx + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* High-Tech Camera Viewport with Futuristic HUD */}
+              <div
+                className={`relative bg-[#030807] rounded-2xl overflow-hidden aspect-[4/3] sm:aspect-square md:aspect-[4/3] w-full flex items-center justify-center border-2 transition-all duration-300 shadow-xl ${
+                  scanFeedback?.status === 'success'
+                    ? 'border-emerald-500 shadow-[0_0_35px_rgba(16,185,129,0.5)]'
+                    : scanFeedback?.status === 'failed'
+                    ? 'border-red-500 shadow-[0_0_35px_rgba(239,68,68,0.5)]'
+                    : 'border-outline-variant/80 hover:border-vibrant-orange/60'
+                }`}
+              >
+                {/* The html5-qrcode video is injected here and forced to object-cover */}
+                <div id={qrRegionId} className="w-full h-full" />
+
+                {/* Laser scanline animation */}
+                {scannerActive && !cameraError && (
+                  <div
+                    className={`qr-laser-beam ${
+                      scanFeedback?.status === 'success'
+                        ? 'qr-laser-beam-success'
+                        : scanFeedback?.status === 'failed'
+                        ? 'qr-laser-beam-failed'
+                        : ''
+                    }`}
+                  />
+                )}
+
+                {/* Corner reticle targeting brackets HUD */}
+                <div className="absolute inset-4 sm:inset-6 pointer-events-none z-10 flex flex-col justify-between">
+                  <div className="flex justify-between">
+                    <div
+                      className={`w-7 h-7 border-t-3 border-l-3 rounded-tl-lg transition-colors ${
+                        scanFeedback?.status === 'success'
+                          ? 'border-emerald-400'
+                          : scanFeedback?.status === 'failed'
+                          ? 'border-red-400'
+                          : 'border-vibrant-orange/80'
+                      }`}
+                    />
+                    <div
+                      className={`w-7 h-7 border-t-3 border-r-3 rounded-tr-lg transition-colors ${
+                        scanFeedback?.status === 'success'
+                          ? 'border-emerald-400'
+                          : scanFeedback?.status === 'failed'
+                          ? 'border-red-400'
+                          : 'border-vibrant-orange/80'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Center Target Indicator Crosshair */}
+                  <div className="self-center flex items-center justify-center opacity-40">
+                    <div className="w-10 h-10 border border-white/40 rounded-full flex items-center justify-center">
+                      <div className="w-2 h-2 bg-white/70 rounded-full" />
                     </div>
                   </div>
-                  <span
-                    className={`text-[9px] font-mono uppercase font-black px-2 py-0.5 rounded-full shrink-0 ${
-                      scanFeedback.status === 'success' ? 'bg-white text-emerald-700' : 'bg-white text-red-700'
-                    }`}
-                  >
-                    {scanFeedback.status === 'success' ? 'SUCCESS' : 'FAILED'}
+
+                  <div className="flex justify-between">
+                    <div
+                      className={`w-7 h-7 border-b-3 border-l-3 rounded-bl-lg transition-colors ${
+                        scanFeedback?.status === 'success'
+                          ? 'border-emerald-400'
+                          : scanFeedback?.status === 'failed'
+                          ? 'border-red-400'
+                          : 'border-vibrant-orange/80'
+                      }`}
+                    />
+                    <div
+                      className={`w-7 h-7 border-b-3 border-r-3 rounded-br-lg transition-colors ${
+                        scanFeedback?.status === 'success'
+                          ? 'border-emerald-400'
+                          : scanFeedback?.status === 'failed'
+                          ? 'border-red-400'
+                          : 'border-vibrant-orange/80'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {/* Camera Startup Spinner */}
+                {!scannerActive && !cameraError && (
+                  <div className="absolute inset-0 z-20 flex flex-col items-center justify-center text-white space-y-2 bg-[#030807]/80 p-4 text-center backdrop-blur-xs">
+                    <div className="animate-spin rounded-full h-9 w-9 border-3 border-vibrant-orange border-t-transparent" />
+                    <p className="text-xs font-bold tracking-wide">Connecting Optical Camera Feed...</p>
+                  </div>
+                )}
+
+                {/* Camera Hardware Permission Error */}
+                {cameraError && (
+                  <div className="absolute inset-0 z-20 flex flex-col items-center justify-center text-error space-y-2 bg-[#030807]/95 p-6 text-center">
+                    <span className="material-symbols-outlined text-4xl text-red-500">no_photography</span>
+                    <p className="text-xs font-bold text-red-400">{cameraError}</p>
+                    <p className="text-[11px] text-white/70">
+                      Please allow camera device permissions in your browser address bar.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Instructions under camera */}
+              <div className="p-3 bg-surface-container rounded-xl border border-outline-variant text-[11px] text-on-surface-variant flex items-center gap-2.5">
+                <span className="material-symbols-outlined text-[18px] text-vibrant-orange shrink-0">
+                  center_focus_strong
+                </span>
+                <span>
+                  Align the intern's live dynamic QR within the reticle. The system auto-captures and verifies in ~0.5 seconds.
+                </span>
+              </div>
+            </div>
+
+            {/* Separation of Duties Policy Note */}
+            <div className="pt-2">
+              <div className="p-3 bg-surface-container rounded-xl border border-outline-variant flex items-start gap-2.5 text-xs text-on-surface-variant">
+                <span className="material-symbols-outlined text-[18px] text-pinoy-green shrink-0 mt-0.5">
+                  verified_user
+                </span>
+                <div className="space-y-0.5 text-[11px]">
+                  <p className="font-bold text-on-surface">Separation of Duties Enforced</p>
+                  <p className="leading-relaxed">
+                    HR staff oversees the physical scanner at desk premises to eliminate proxying. Mentors independently validate and certify training hours upon shift conclusion.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: Indicator Desk, Diagnostic Explanations & Activity Feed (md:col-span-6 lg:col-span-7) */}
+          <div className="p-4 sm:p-6 md:col-span-6 lg:col-span-7 space-y-4 bg-surface flex flex-col justify-between">
+            <div className="space-y-4">
+              {/* Desk Section Header */}
+              <div className="flex items-center justify-between pb-2 border-b border-outline-variant">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[20px] text-vibrant-orange">
+                    badge
+                  </span>
+                  <span className="font-bold text-xs uppercase tracking-wider text-on-surface">
+                    Verification & Verification Status
                   </span>
                 </div>
-              )}
 
-              {!scannerActive && !cameraError && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-white space-y-2 bg-black/60 p-4 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-3 border-vibrant-orange border-t-transparent"></div>
-                  <p className="text-xs font-bold">Activating Camera Stream...</p>
-                </div>
-              )}
-              {cameraError && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-error space-y-2 bg-black/90 p-4 text-center">
-                  <span className="material-symbols-outlined text-3xl">no_photography</span>
-                  <p className="text-xs font-bold">{cameraError}</p>
-                  <p className="text-[11px] text-white/70">Please check browser camera permissions.</p>
-                </div>
-              )}
-            </div>
-            <p className="text-center text-[11px] text-on-surface-variant">
-              Position intern's live dynamic QR code within the camera frame. Attendance logs automatically.
-            </p>
-          </div>
+                {/* Live Status Tag */}
+                {loading ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    <span>Verifying Cryptographic TOTP...</span>
+                  </span>
+                ) : scanResult?.type === 'success' ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-green-tint text-pinoy-green border border-pinoy-green/30 shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-pinoy-green animate-pulse" />
+                    <span>Scan Confirmed</span>
+                  </span>
+                ) : scanResult?.type === 'error' ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-red-500/15 text-red-600 border border-red-500/30">
+                    <span className="material-symbols-outlined text-[14px]">warning</span>
+                    <span>Verification Blocked</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-surface-container text-on-surface-variant border border-outline-variant">
+                    <span className="w-1.5 h-1.5 rounded-full bg-pinoy-green" />
+                    <span>Standby • Ready for QR</span>
+                  </span>
+                )}
+              </div>
 
-          {/* Loading Indicator during camera scan verification */}
-          {loading && (
-            <div className="p-3 bg-surface-container rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-vibrant-orange animate-pulse">
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-vibrant-orange border-t-transparent"></div>
-              <span>Verifying TOTP signature and recording attendance...</span>
-            </div>
-          )}
-
-          {/* High-Visibility Scan Results Card */}
-          {scanResult && (
-            <div
-              className={`p-4 rounded-2xl border transition-all animate-fade-in ${
-                scanResult.type === 'success'
-                  ? 'bg-emerald-50/95 dark:bg-emerald-950/40 border-emerald-500/50 text-emerald-950 dark:text-emerald-100 shadow-sm'
-                  : 'bg-red-50/95 dark:bg-red-950/40 border-red-500/50 text-red-950 dark:text-red-100 shadow-sm'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <span
-                  className={`material-symbols-outlined text-[28px] shrink-0 mt-0.5 ${
-                    scanResult.type === 'success' ? 'text-emerald-600' : 'text-red-600'
-                  }`}
-                >
-                  {scanResult.type === 'success' ? 'check_circle' : 'cancel'}
-                </span>
-                <div className="space-y-1.5 flex-1">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          scanResult.type === 'success'
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-red-600 text-white'
-                        }`}
-                      >
-                        {scanResult.type === 'success' ? 'SUCCESS' : 'FAILED'}
-                      </span>
-                      <h4 className="font-bold text-sm">
-                        {scanResult.type === 'success'
-                          ? scanResult.action === 'time_in'
-                            ? 'Time-In Recorded Successfully'
-                            : 'Time-Out Recorded Successfully'
-                          : 'Attendance Verification Failed'}
-                      </h4>
-                    </div>
-                    {scanResult.data?.action && (
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase font-mono ${
-                          scanResult.data.action === 'time_in'
-                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/60 dark:text-emerald-200'
-                            : 'bg-orange-tint text-vibrant-orange border border-vibrant-orange/30'
-                        }`}
-                      >
-                        {scanResult.data.action === 'time_in' ? 'CLOCK-IN' : 'CLOCK-OUT'}
-                      </span>
-                    )}
+              {/* STATE 1: IDLE / WAITING FOR QR */}
+              {!loading && !scanResult && (
+                <div className="p-6 bg-surface-container-low rounded-2xl border border-outline-variant/80 text-center space-y-4 py-8">
+                  <div className="w-14 h-14 rounded-2xl bg-orange-tint text-vibrant-orange mx-auto flex items-center justify-center shadow-sm">
+                    <span className="material-symbols-outlined text-3xl">sensors</span>
+                  </div>
+                  <div className="space-y-1 max-w-sm mx-auto">
+                    <h4 className="font-bold text-base text-on-surface">Scanner Ready for Intern</h4>
+                    <p className="text-xs text-on-surface-variant leading-relaxed">
+                      Instruct the intern to display their dynamic QR code from their mobile screen under the camera.
+                    </p>
                   </div>
 
-                  <p className="text-xs leading-relaxed font-medium">{scanResult.message}</p>
+                  <div className="grid grid-cols-2 gap-2 text-left pt-2 max-w-md mx-auto">
+                    <div className="p-2.5 bg-surface rounded-xl border border-outline-variant/60 text-[11px] space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-on-surface">
+                        <span className="material-symbols-outlined text-[15px] text-vibrant-orange">
+                          update
+                        </span>
+                        <span>Auto Time In/Out</span>
+                      </div>
+                      <p className="text-[10px] text-on-surface-variant leading-tight">
+                        Automatically recognizes whether to check in or check out.
+                      </p>
+                    </div>
 
+                    <div className="p-2.5 bg-surface rounded-xl border border-outline-variant/60 text-[11px] space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-on-surface">
+                        <span className="material-symbols-outlined text-[15px] text-pinoy-green">
+                          lock_clock
+                        </span>
+                        <span>Rolling 30s TOTP</span>
+                      </div>
+                      <p className="text-[10px] text-on-surface-variant leading-tight">
+                        Stops attendance proxying and photo screenshot sharing.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STATE 2: LOADING / CRYPTOGRAPHIC VERIFICATION */}
+              {loading && (
+                <div className="p-6 bg-surface-container rounded-2xl border border-vibrant-orange/40 text-center space-y-4 py-10 animate-fade-in shadow-inner">
+                  <div className="animate-spin rounded-full h-12 w-12 border-3 border-vibrant-orange border-t-transparent mx-auto" />
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-sm text-on-surface">
+                      Verifying Cryptographic TOTP Signature...
+                    </h4>
+                    <p className="text-xs text-on-surface-variant">
+                      Validating student identity, registered device token, and placement enrollment.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* STATE 3: SUCCESS RESULT (PROMINENT, EXPANDED & EXECUTIVE) */}
+              {scanResult?.type === 'success' && (
+                <div className="p-5 rounded-2xl border-2 border-emerald-500/50 bg-gradient-to-br from-emerald-500/10 via-surface-container-low to-surface-container text-on-surface shadow-lg animate-fade-in space-y-4">
+                  {/* Top Status Header */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-md shrink-0">
+                        <span className="material-symbols-outlined text-[28px]">check_circle</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-2xs">
+                            SUCCESS
+                          </span>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase font-mono border ${
+                              scanResult.action === 'time_in'
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/60 dark:text-emerald-200'
+                                : 'bg-orange-tint text-vibrant-orange border-vibrant-orange/40'
+                            }`}
+                          >
+                            {scanResult.action === 'time_in' ? 'CLOCK-IN' : 'CLOCK-OUT'}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-base sm:text-lg text-emerald-900 dark:text-emerald-200 mt-0.5">
+                          {scanResult.action === 'time_in'
+                            ? 'Time-In Logged Successfully'
+                            : 'Time-Out Logged Successfully'}
+                        </h4>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleResetForNextIntern}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-container-high border border-outline-variant text-xs font-bold text-on-surface transition-colors shadow-2xs cursor-pointer"
+                      title="Ready for next intern"
+                    >
+                      <span className="material-symbols-outlined text-[15px] text-pinoy-green">
+                        refresh
+                      </span>
+                      <span>Next Intern</span>
+                    </button>
+                  </div>
+
+                  {/* Student Details Card */}
                   {scanResult.data && (
-                    <div className="pt-2 mt-2 border-t border-emerald-500/20 grid grid-cols-2 gap-2 text-[11px]">
-                      <div>
-                        <span className="text-on-surface-variant block text-[10px]">Intern</span>
-                        <span className="font-bold">{scanResult.data.student_name}</span>
-                        <span className="text-[10px] text-on-surface-variant block">#{scanResult.data.student_number}</span>
+                    <div className="p-3.5 bg-surface rounded-xl border border-outline-variant/80 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
+                          Intern Identity
+                        </span>
+                        <p className="font-bold text-sm text-on-surface">
+                          {scanResult.data.student_name}
+                        </p>
+                        <p className="text-[11px] font-mono text-on-surface-variant">
+                          Student ID: #{scanResult.data.student_number || scanResult.data.student_id}
+                        </p>
                       </div>
-                      <div>
-                        <span className="text-on-surface-variant block text-[10px]">
-                          {scanResult.data.action === 'time_in' ? 'Time-In (PST)' : 'Rendered Hours'}
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block">
+                          Shift Record & Timestamp
                         </span>
-                        <span className="font-bold font-mono">
-                          {scanResult.data.action === 'time_in'
-                            ? formatPHT12Hour(scanResult.data.time_in)
-                            : `${scanResult.data.hours_rendered} hrs`}
-                        </span>
-                        <span className="text-[10px] text-on-surface-variant block">
-                          Supervisor: {scanResult.data.mentor_name}
-                        </span>
+                        <p className="font-mono font-bold text-sm text-on-surface flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[16px] text-vibrant-orange">
+                            schedule
+                          </span>
+                          <span>
+                            {scanResult.data.action === 'time_in'
+                              ? `${formatPHT12Hour(scanResult.data.time_in)} (${
+                                  scanResult.data.time_in_status === 'late' ? 'Late' : 'On-Time'
+                                })`
+                              : `${formatPHT12Hour(scanResult.data.time_out)} (${
+                                  scanResult.data.hours_rendered
+                                } hrs rendered)`}
+                          </span>
+                        </p>
+                        <p className="text-[11px] text-on-surface-variant">
+                          Supervisor: {scanResult.data.mentor_name || 'Assigned Workplace Mentor'}
+                        </p>
                       </div>
                     </div>
                   )}
 
-                  {scanResult.data?.action === 'time_out' && (
-                    <div className="p-2 bg-emerald-100/60 dark:bg-emerald-900/40 rounded-xl text-[10px] text-emerald-800 dark:text-emerald-200 mt-2 flex items-center gap-1.5 font-medium">
-                      <span className="material-symbols-outlined text-[14px] text-emerald-600">notification_important</span>
-                      <span>Workplace mentor has been notified to validate this shift.</span>
-                    </div>
-                  )}
+                  {/* Operational Next Steps Note */}
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-950 dark:text-emerald-200 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] text-emerald-600 shrink-0">
+                      info
+                    </span>
+                    <span className="leading-relaxed">
+                      {scanResult.action === 'time_in'
+                        ? "Intern's daily attendance entry is created. Shift counter is officially active."
+                        : 'Shift completed. Digital validation notice has been sent to the workplace mentor to certify rendered hours.'}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {/* Session Attendance Activity Log (Last 5 scans) */}
-          {recentScans.length > 0 && (
-            <div className="p-3 bg-surface-container-low rounded-2xl border border-outline-variant space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-on-surface">
-                <span className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[16px] text-vibrant-orange">history</span>
-                  <span>Session Scan History</span>
-                </span>
-                <span className="text-[10px] font-mono text-on-surface-variant">Last {recentScans.length} scans</span>
-              </div>
-              <div className="space-y-1.5">
-                {recentScans.map((scan) => (
-                  <div
-                    key={scan.id}
-                    className="p-2 bg-surface rounded-xl border border-outline-variant/60 flex items-center justify-between gap-2 text-[11px]"
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <span
-                        className={`material-symbols-outlined text-[16px] shrink-0 ${
-                          scan.status === 'success' ? 'text-emerald-600' : 'text-red-600'
-                        }`}
-                      >
-                        {scan.status === 'success' ? 'check_circle' : 'cancel'}
-                      </span>
-                      <div className="truncate">
-                        <span className="font-bold text-on-surface truncate block">{scan.internName}</span>
-                        <span className="text-[10px] text-on-surface-variant block">{scan.detail}</span>
+              {/* STATE 4: FAILED RESULT WITH IN-DEPTH DIAGNOSTIC WARNING EXPLANATION */}
+              {scanResult?.type === 'error' && warningDiagnostic && (
+                <div className="p-5 rounded-2xl border-2 border-red-500/50 bg-gradient-to-br from-red-500/10 via-surface-container-low to-surface-container text-on-surface shadow-lg animate-fade-in space-y-4">
+                  {/* Alert Header */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-red-500 text-white flex items-center justify-center shadow-md shrink-0">
+                        <span className="material-symbols-outlined text-[28px]">gpp_bad</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-red-600 text-white shadow-2xs">
+                            REJECTED
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30">
+                            {warningDiagnostic.badge}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-base sm:text-lg text-red-950 dark:text-red-200 mt-0.5">
+                          {warningDiagnostic.title}
+                        </h4>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <span
-                        className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase font-mono ${
-                          scan.status === 'success'
-                            ? scan.action === 'time_in'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-orange-tint text-vibrant-orange'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {scan.status === 'success' ? (scan.action === 'time_in' ? 'IN' : 'OUT') : 'FAIL'}
+
+                    <button
+                      type="button"
+                      onClick={handleResetForNextIntern}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-container-high border border-outline-variant text-xs font-bold text-on-surface transition-colors shadow-2xs cursor-pointer"
+                      title="Try scan again"
+                    >
+                      <span className="material-symbols-outlined text-[15px] text-vibrant-orange">
+                        refresh
                       </span>
-                      <span className="text-[9px] text-on-surface-variant block font-mono">{scan.time}</span>
+                      <span>Retry Scan</span>
+                    </button>
+                  </div>
+
+                  {/* System Error String */}
+                  <div className="p-3 bg-surface rounded-xl border border-red-500/20 text-xs text-red-700 dark:text-red-300 font-medium">
+                    <div className="flex items-center gap-1.5 font-bold mb-0.5">
+                      <span className="material-symbols-outlined text-[15px]">error_outline</span>
+                      <span>System Rejection Message:</span>
+                    </div>
+                    <p className="leading-relaxed pl-5">{scanResult.message}</p>
+                  </div>
+
+                  {/* Dedicated Warning Explanation Box */}
+                  <div className="p-4 bg-amber-500/10 border-2 border-amber-500/30 rounded-xl space-y-2.5 text-xs">
+                    <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300">
+                      <span className="material-symbols-outlined text-[18px]">lightbulb</span>
+                      <span>Why Did This Happen?</span>
+                    </div>
+                    <p className="text-on-surface-variant leading-relaxed">
+                      {warningDiagnostic.explanation}
+                    </p>
+
+                    <div className="pt-2 border-t border-amber-500/20 flex items-start gap-2 text-amber-900 dark:text-amber-200">
+                      <span className="material-symbols-outlined text-[16px] text-amber-600 shrink-0 mt-0.5">
+                        arrow_circle_right
+                      </span>
+                      <div>
+                        <span className="font-bold">Recommended Resolution: </span>
+                        <span>{warningDiagnostic.actionStep}</span>
+                      </div>
                     </div>
                   </div>
-                ))}
+                </div>
+              )}
+
+              {/* Session Scan History (Last 4 Scans) */}
+              {recentScans.length > 0 && (
+                <div className="p-3.5 bg-surface-container-low rounded-2xl border border-outline-variant space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-on-surface">
+                    <span className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px] text-vibrant-orange">
+                        history
+                      </span>
+                      <span>Session Scans Activity</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-on-surface-variant">
+                      Last {recentScans.length} events
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {recentScans.slice(0, 4).map((scan) => (
+                      <div
+                        key={scan.id}
+                        className="p-2 bg-surface rounded-xl border border-outline-variant/60 flex items-center justify-between gap-2 text-[11px]"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span
+                            className={`material-symbols-outlined text-[16px] shrink-0 ${
+                              scan.status === 'success' ? 'text-emerald-600' : 'text-red-500'
+                            }`}
+                          >
+                            {scan.status === 'success' ? 'check_circle' : 'cancel'}
+                          </span>
+                          <div className="truncate">
+                            <span className="font-bold text-on-surface truncate block">
+                              {scan.internName}
+                            </span>
+                            <span className="text-[10px] text-on-surface-variant block">
+                              {scan.detail}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase font-mono ${
+                              scan.status === 'success'
+                                ? scan.action === 'time_in'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-orange-tint text-vibrant-orange'
+                                : 'bg-red-100 text-red-800'
+                            }`}
+                          >
+                            {scan.status === 'success'
+                              ? scan.action === 'time_in'
+                                ? 'IN'
+                                : 'OUT'
+                              : 'FAIL'}
+                          </span>
+                          <span className="text-[9px] text-on-surface-variant block font-mono">
+                            {scan.time}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Footer Actions */}
+            <div className="pt-3 border-t border-outline-variant flex items-center justify-between gap-2">
+              <span className="text-[11px] text-on-surface-variant font-medium">
+                {closing
+                  ? 'Releasing camera hardware...'
+                  : scannerActive
+                  ? '🟢 Optical scanning engine live'
+                  : 'Scanner paused'}
+              </span>
+
+              <div className="flex items-center gap-2">
+                {scanResult && (
+                  <button
+                    type="button"
+                    onClick={handleResetForNextIntern}
+                    className="px-4 py-2 bg-surface-container hover:bg-surface-container-high text-on-surface rounded-xl text-xs font-bold transition-all border border-outline-variant cursor-pointer"
+                  >
+                    Clear Display
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  disabled={closing}
+                  className="px-5 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {closing ? (
+                    <>
+                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
+                      <span>Closing...</span>
+                    </>
+                  ) : (
+                    <span>Done</span>
+                  )}
+                </button>
               </div>
             </div>
-          )}
-
-          {/* Operational Policy Note */}
-          <div className="p-3 bg-surface-container rounded-2xl border border-outline-variant flex items-start gap-2.5 text-xs text-on-surface-variant">
-            <span className="material-symbols-outlined text-[18px] text-vibrant-orange shrink-0 mt-0.5">verified_user</span>
-            <div className="space-y-0.5 text-[11px]">
-              <p className="font-bold text-on-surface">HR Scanner & Mentor Separation of Duties</p>
-              <p className="leading-relaxed">
-                HR staff handles the physical scanner at premises to prevent attendance proxying. After student clock-out, workplace mentors validate and certify the shift hours.
-              </p>
-            </div>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 bg-surface-container-low border-t border-outline-variant flex items-center justify-between">
-          <span className="text-[11px] text-on-surface-variant">
-            {closing ? 'Stopping camera...' : scannerActive ? '🟢 Scanner ready for next intern' : 'Scanner inactive'}
-          </span>
-          <button
-            type="button"
-            onClick={handleClose}
-            disabled={closing}
-            className="px-5 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
-          >
-            {closing ? (
-              <>
-                <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent"></div>
-                <span>Closing...</span>
-              </>
-            ) : (
-              <span>Done</span>
-            )}
-          </button>
         </div>
       </div>
     </div>
