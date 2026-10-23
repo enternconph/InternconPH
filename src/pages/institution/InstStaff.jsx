@@ -557,16 +557,25 @@ export default function InstStaff() {
               </div>
 
               <div>
-                <label className="block font-bold text-on-surface-variant uppercase mb-1">
-                  Staff Position / Role *
+                <label className="block font-bold text-on-surface-variant uppercase mb-1 text-[11px]">
+                  Staff Position / Role
                 </label>
-                <select
-                  value={position}
-                  disabled
-                  className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container text-on-surface font-bold outline-none cursor-not-allowed"
-                >
-                  <option value="ojt_coordinator">OJT Coordinator (Full Coordination, Verification & Clearance)</option>
-                </select>
+                <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
+                  <div className="w-7 h-7 rounded-md bg-pinoy-green/15 text-pinoy-green flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-[18px]">badge</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-on-surface">OJT Coordinator</span>
+                      <span className="px-2 py-0.5 rounded text-[9.5px] uppercase font-extrabold bg-green-tint text-pinoy-green border border-pinoy-green/30">
+                        Default Role
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-on-surface-variant truncate">
+                      Full Coordination, Verification & Clearance Authority
+                    </p>
+                  </div>
+                </div>
                 <p className="text-[10px] text-on-surface-variant mt-1 leading-normal">
                   OJT Coordinators possess full institutional authority across student verification, clearance requirements, DTR monitoring, grievance handling, and opportunity approvals.
                 </p>
@@ -1372,24 +1381,22 @@ export default function InstStaff() {
                     <table className="w-full text-left text-xs">
                       <thead className="bg-surface-container-low text-on-surface-variant font-bold border-b border-outline-variant whitespace-nowrap">
                         <tr>
-                          <th className="py-3 px-4">Passcode & Target ID</th>
-                          <th className="py-3 px-4">Assigned Role & Academic Scope</th>
-                          <th className="py-3 px-4 text-center">Status</th>
-                          <th className="py-3 px-4 text-right">Actions</th>
+                          <th className="py-3 px-4 w-[240px]">Passcode & Target ID</th>
+                          <th className="py-3 px-4">Assigned Academic Scope</th>
+                          <th className="py-3 px-4 text-right w-[200px]">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-outline-variant/60">
                         {filteredAccessCodes.map((c) => {
-                          const roleInfo = formatPosition(c.intended_position);
                           const isExpired = new Date(c.expires_at) <= new Date();
 
                           return (
                             <tr key={c.code_id} className="hover:bg-surface-container-low/80 transition-colors">
                               {/* Passcode & Target ID */}
-                              <td className="py-3.5 px-4 align-middle">
+                              <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                                 <div className="space-y-0.5">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-mono font-extrabold text-vibrant-orange text-sm tracking-wide">
+                                  <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                    <span className="font-mono font-extrabold text-vibrant-orange text-sm tracking-wide whitespace-nowrap">
                                       {c.code_hash}
                                     </span>
                                     <button
@@ -1407,68 +1414,39 @@ export default function InstStaff() {
                                       </span>
                                     </button>
                                   </div>
-                                  <div className="flex items-center gap-1 text-[11px] text-on-surface-variant font-mono">
+                                  <div className="flex items-center gap-1 text-[11px] text-on-surface-variant font-mono whitespace-nowrap">
                                     <span className="text-[10px] uppercase font-bold text-on-surface-variant/70">Staff ID:</span>
                                     <span className="font-bold text-on-surface">{c.target_identifier}</span>
                                   </div>
                                 </div>
                               </td>
 
-                              {/* Role & Scope */}
+                              {/* Academic Scope */}
                               <td className="py-3.5 px-4 align-middle">
-                                <div className="space-y-1 max-w-[280px]">
-                                  <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] uppercase font-bold ${roleInfo.color}`}>
-                                    {roleInfo.label}
-                                  </span>
-                                  {c.intended_position === 'dean' ? (
-                                    <p
-                                      className="text-[11px] font-bold text-vibrant-orange flex items-center gap-1 truncate"
-                                      title={c.intended_department || c.program_name || 'Academic Department'}
-                                    >
-                                      <span className="material-symbols-outlined text-[13px] shrink-0">domain</span>
-                                      <span className="truncate">Dept: {c.intended_department || c.program_name || 'Department-Wide'}</span>
-                                    </p>
+                                <div className="space-y-0.5">
+                                  {c.program_name ? (
+                                    <div className="flex items-center gap-1.5 font-bold text-on-surface text-xs" title={c.program_name}>
+                                      <span className="material-symbols-outlined text-[15px] text-vibrant-orange shrink-0">school</span>
+                                      <span className="truncate">{c.program_name}</span>
+                                    </div>
+                                  ) : c.intended_department ? (
+                                    <div className="flex items-center gap-1.5 font-bold text-on-surface text-xs" title={c.intended_department}>
+                                      <span className="material-symbols-outlined text-[15px] text-vibrant-orange shrink-0">domain</span>
+                                      <span className="truncate">{c.intended_department}</span>
+                                    </div>
                                   ) : (
-                                    <p
-                                      className="text-[11px] text-on-surface-variant truncate flex items-center gap-1"
-                                      title={c.program_name || c.intended_department || 'All Programs'}
-                                    >
-                                      {c.program_name ? (
-                                        <>
-                                          <span className="material-symbols-outlined text-[13px] text-vibrant-orange shrink-0">school</span>
-                                          <span className="truncate">{c.program_name}</span>
-                                        </>
-                                      ) : c.intended_department ? (
-                                        <>
-                                          <span className="material-symbols-outlined text-[13px] shrink-0">domain</span>
-                                          <span className="truncate">Dept: {c.intended_department}</span>
-                                        </>
-                                      ) : (
-                                        <span>Scope: Institution-Wide</span>
-                                      )}
+                                    <div className="flex items-center gap-1.5 font-bold text-on-surface text-xs">
+                                      <span className="material-symbols-outlined text-[15px] text-vibrant-orange shrink-0">corporate_fare</span>
+                                      <span>Institution-Wide (All Programs)</span>
+                                    </div>
+                                  )}
+                                  {c.intended_department && c.program_name && (
+                                    <p className="text-[10.5px] text-on-surface-variant flex items-center gap-1 truncate" title={c.intended_department}>
+                                      <span className="material-symbols-outlined text-[12px] text-on-surface-variant/70 shrink-0">domain</span>
+                                      <span className="truncate">Dept: {c.intended_department}</span>
                                     </p>
                                   )}
                                 </div>
-                              </td>
-
-                              {/* Clean, Uniform Status Indicator */}
-                              <td className="py-3.5 px-4 align-middle text-center whitespace-nowrap">
-                                {c.is_used ? (
-                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-green-tint text-pinoy-green border border-pinoy-green/30 shadow-2xs whitespace-nowrap">
-                                    <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                                    <span>Claimed</span>
-                                  </span>
-                                ) : isExpired ? (
-                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-surface-container-high text-on-surface-variant border border-outline-variant shadow-2xs whitespace-nowrap">
-                                    <span className="material-symbols-outlined text-[13px]">history</span>
-                                    <span>Expired</span>
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 shadow-2xs whitespace-nowrap">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                                    <span>Active</span>
-                                  </span>
-                                )}
                               </td>
 
                               {/* Actions */}
@@ -1533,7 +1511,6 @@ export default function InstStaff() {
                   {/* Mobile Cards View (Hidden on Desktop) */}
                   <div className="md:hidden space-y-3">
                     {filteredAccessCodes.map((c) => {
-                      const roleInfo = formatPosition(c.intended_position);
                       const isExpired = new Date(c.expires_at) <= new Date();
 
                       return (
@@ -1544,7 +1521,7 @@ export default function InstStaff() {
                           <div className="flex items-start justify-between gap-2 border-b border-outline-variant/60 pb-2.5">
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="font-mono font-extrabold text-vibrant-orange text-base tracking-wide">
+                                <span className="font-mono font-extrabold text-vibrant-orange text-base tracking-wide whitespace-nowrap">
                                   {c.code_hash}
                                 </span>
                                 <button
@@ -1561,45 +1538,31 @@ export default function InstStaff() {
                                 Staff ID: <span className="font-bold text-on-surface">{c.target_identifier}</span>
                               </p>
                             </div>
-
-                            <div className="shrink-0">
-                              {c.is_used ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-tint text-pinoy-green border border-pinoy-green/30 whitespace-nowrap">
-                                  <span className="material-symbols-outlined text-[12px]">check_circle</span>
-                                  <span>Claimed</span>
-                                </span>
-                              ) : isExpired ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-surface-container-high text-on-surface-variant border border-outline-variant whitespace-nowrap">
-                                  <span className="material-symbols-outlined text-[12px]">history</span>
-                                  <span>Expired</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 whitespace-nowrap">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                                  <span>Active</span>
-                                </span>
-                              )}
-                            </div>
                           </div>
 
-                          <div className="flex items-center gap-2 flex-wrap text-[11px]">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${roleInfo.color}`}>
-                              {roleInfo.label}
-                            </span>
-                            {c.intended_position === 'dean' ? (
-                              <span className="text-vibrant-orange font-bold truncate max-w-[220px] flex items-center gap-1">
-                                <span className="material-symbols-outlined text-[13px]">domain</span>
-                                <span>Dept: {c.intended_department || c.program_name || 'Department-Wide'}</span>
-                              </span>
-                            ) : c.program_name ? (
-                              <span className="text-on-surface-variant truncate max-w-[180px]">
-                                • {c.program_name}
-                              </span>
+                          <div className="space-y-0.5 text-[11px]">
+                            {c.program_name ? (
+                              <div className="flex items-center gap-1.5 font-bold text-on-surface text-xs" title={c.program_name}>
+                                <span className="material-symbols-outlined text-[15px] text-vibrant-orange shrink-0">school</span>
+                                <span className="truncate">{c.program_name}</span>
+                              </div>
                             ) : c.intended_department ? (
-                              <span className="text-on-surface-variant truncate max-w-[180px]">
-                                • Dept: {c.intended_department}
-                              </span>
-                            ) : null}
+                              <div className="flex items-center gap-1.5 font-bold text-on-surface text-xs" title={c.intended_department}>
+                                <span className="material-symbols-outlined text-[15px] text-vibrant-orange shrink-0">domain</span>
+                                <span className="truncate">{c.intended_department}</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 font-bold text-on-surface text-xs">
+                                <span className="material-symbols-outlined text-[15px] text-vibrant-orange shrink-0">corporate_fare</span>
+                                <span>Institution-Wide (All Programs)</span>
+                              </div>
+                            )}
+                            {c.intended_department && c.program_name && (
+                              <p className="text-[10.5px] text-on-surface-variant flex items-center gap-1 truncate" title={c.intended_department}>
+                                <span className="material-symbols-outlined text-[12px] text-on-surface-variant/70 shrink-0">domain</span>
+                                <span className="truncate">Dept: {c.intended_department}</span>
+                              </p>
+                            )}
                           </div>
 
                           <div className="flex items-center justify-between gap-2 pt-1 border-t border-outline-variant/60">
