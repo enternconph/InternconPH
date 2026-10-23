@@ -1036,11 +1036,31 @@ router.post('/register/organization', orgUpload, async (req, res) => {
     );
 
     // 4. Save uploaded softcopy legal documents
+    const bs = (business_structure || '').toLowerCase();
+    let regDocType = 'sec_registration';
+    let regDocName = 'SEC Certificate of Registration';
+    if (bs.includes('sole_proprietorship')) {
+      regDocType = 'dti_registration';
+      regDocName = 'DTI Certificate of Business Name Registration';
+    } else if (bs.includes('cooperative')) {
+      regDocType = 'cda_registration';
+      regDocName = 'CDA Certificate of Registration';
+    } else if (bs.includes('government')) {
+      regDocType = 'agency_charter';
+      regDocName = 'Government Charter / Official Mandate';
+    } else if (bs.includes('one_person')) {
+      regDocType = 'sec_registration';
+      regDocName = 'SEC Certificate of Registration (One Person Corporation)';
+    } else if (bs.includes('non_profit') || bs === 'ngo') {
+      regDocType = 'sec_registration';
+      regDocName = 'SEC Certificate of Registration (Non-Stock / Non-Profit)';
+    }
+
     const docMapping = [
       {
         field: 'sec_dti_file',
-        type: business_structure === 'sole_proprietorship' ? 'dti_registration' : 'sec_registration',
-        name: business_structure === 'sole_proprietorship' ? 'DTI Certificate of Business Name Registration' : 'SEC Certificate of Registration'
+        type: regDocType,
+        name: regDocName
       },
       {
         field: 'mayors_permit_file',

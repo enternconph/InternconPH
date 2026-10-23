@@ -254,7 +254,7 @@ export default function InstOJTOffers() {
                 <div className="flex items-center gap-2 text-xs font-bold text-on-surface-variant flex-wrap">
                   <span className="text-vibrant-orange">{selectedOffer.organization_name}</span>
                   {selectedOffer.industry && <span>• {selectedOffer.industry}</span>}
-                  {selectedOffer.business_structure && <span>• ({selectedOffer.business_structure})</span>}
+                  {selectedOffer.business_structure && <span className="capitalize">• ({selectedOffer.business_structure.replace(/_/g, ' ')})</span>}
                 </div>
               </div>
 
@@ -425,7 +425,7 @@ export default function InstOJTOffers() {
                 <div className="space-y-2 min-w-0">
                   <p><strong className="text-on-surface font-semibold">Registered Business:</strong> <span className="text-on-surface">{selectedOffer.organization_name}</span></p>
                   <p><strong className="text-on-surface font-semibold">Industry:</strong> {selectedOffer.industry || 'General Commerce'}</p>
-                  <p><strong className="text-on-surface font-semibold">Corporate Structure:</strong> <span className="capitalize">{selectedOffer.business_structure || 'Corporation'}</span></p>
+                  <p><strong className="text-on-surface font-semibold">Corporate Structure:</strong> <span className="capitalize">{(selectedOffer.business_structure || 'Corporation').replace(/_/g, ' ')}</span></p>
                   <p className="leading-relaxed"><strong className="text-on-surface font-semibold">Office Address:</strong> {formatAddress(selectedOffer.org_address || selectedOffer.location)}</p>
                 </div>
                 <div className="space-y-2 min-w-0">

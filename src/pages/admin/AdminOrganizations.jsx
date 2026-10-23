@@ -28,6 +28,25 @@ export default function AdminOrganizations() {
     }
   };
 
+  const formatLegalStructure = (val) => {
+    const map = {
+      sole_proprietorship: 'Sole Proprietorship',
+      partnership: 'Partnership',
+      corporation: 'Corporation',
+      one_person_corporation: 'One Person Corporation',
+      cooperative: 'Cooperative',
+      non_profit: 'Non-Stock / Non-Profit',
+      government_gocc: 'Government Agency / GOCC',
+      corporation_sec: 'Corporation (SEC)',
+      partnership_sec: 'Partnership (SEC)',
+      sole_proprietorship_dti: 'Sole Proprietorship (DTI)',
+      ngo: 'NGO / Foundation',
+      government: 'Government Agency'
+    };
+    if (!val) return 'Corporation';
+    return map[val] || val.replace(/_/g, ' ');
+  };
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
@@ -243,8 +262,8 @@ export default function AdminOrganizations() {
 
                         {/* Structure & Industry */}
                         <td className="py-3 px-4">
-                          <span className="text-xs font-bold text-on-surface block capitalize">
-                            {(org.business_structure || 'corporation').replace('_', ' ')}
+                          <span className="text-xs font-bold text-on-surface block">
+                            {formatLegalStructure(org.business_structure)}
                           </span>
                           <span className="text-[11px] text-on-surface-variant">{org.industry || 'General Industry'}</span>
                         </td>
@@ -349,7 +368,7 @@ export default function AdminOrganizations() {
                     Employer Partner Business Credentials
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-on-surface-variant">
-                    <p>Legal Structure: <strong className="text-on-surface capitalize">{(selectedOrg.business_structure || 'corporation').replace('_', ' ')}</strong></p>
+                    <p>Legal Structure: <strong className="text-on-surface">{formatLegalStructure(selectedOrg.business_structure)}</strong></p>
                     <p>Industry: <strong className="text-on-surface">{selectedOrg.industry || 'N/A'}</strong></p>
                     <p>HR / Official Email: <strong className="text-on-surface break-all">{selectedOrg.contact_email}</strong></p>
                     <p>Contact Phone: <strong className="text-on-surface">{selectedOrg.contact_phone || 'N/A'}</strong></p>

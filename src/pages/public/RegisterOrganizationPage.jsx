@@ -12,6 +12,71 @@ import EmailInput from '../../components/ui/EmailInput';
 import { validateEmail } from '../../utils/email';
 import RegistrationLayout from '../../components/Auth/RegistrationLayout';
 
+export const LEGAL_STRUCTURE_OPTIONS = [
+  { value: 'sole_proprietorship', label: 'Sole Proprietorship' },
+  { value: 'partnership', label: 'Partnership' },
+  { value: 'corporation', label: 'Corporation' },
+  { value: 'one_person_corporation', label: 'One Person Corporation' },
+  { value: 'cooperative', label: 'Cooperative' },
+  { value: 'non_profit', label: 'Non-Stock / Non-Profit Organization' },
+  { value: 'government_gocc', label: 'Government Agency / GOCC' },
+  { value: 'corporation_sec', label: 'Corporation (SEC)' },
+  { value: 'partnership_sec', label: 'Partnership (SEC)' },
+  { value: 'sole_proprietorship_dti', label: 'Sole Proprietorship (DTI)' },
+  { value: 'ngo', label: 'NGO / Foundation' },
+  { value: 'government', label: 'Government Agency' }
+];
+
+export const getRegistrationDocInfo = (structure) => {
+  const s = (structure || '').toLowerCase();
+  if (s.includes('sole_proprietorship')) {
+    return {
+      label: 'DTI Business Name Registration Certificate',
+      shortLabel: 'DTI Business Name Registration',
+      placeholder: 'DTI Reg No. (e.g. 1234567)',
+      missingMsg: 'DTI Business Name Registration Certificate'
+    };
+  }
+  if (s.includes('cooperative')) {
+    return {
+      label: 'CDA Certificate of Registration',
+      shortLabel: 'CDA Certificate of Registration',
+      placeholder: 'CDA Reg No. (e.g. 9520-XXXX)',
+      missingMsg: 'CDA Certificate of Registration'
+    };
+  }
+  if (s.includes('government')) {
+    return {
+      label: 'Agency Charter / Enabling Law (Republic Act / EO)',
+      shortLabel: 'Agency Charter / Official Mandate',
+      placeholder: 'Mandate / RA / Charter No.',
+      missingMsg: 'Agency Charter or Enabling Document'
+    };
+  }
+  if (s.includes('one_person')) {
+    return {
+      label: 'SEC Certificate of Registration (One Person Corporation)',
+      shortLabel: 'SEC Certificate of Registration (OPC)',
+      placeholder: 'SEC OPC Reg No.',
+      missingMsg: 'SEC Certificate of Registration (OPC)'
+    };
+  }
+  if (s.includes('non_profit') || s === 'ngo') {
+    return {
+      label: 'SEC Certificate of Registration (Non-Stock / Non-Profit)',
+      shortLabel: 'SEC Non-Stock Registration Certificate',
+      placeholder: 'SEC Reg No. (Non-Stock)',
+      missingMsg: 'SEC Certificate of Registration (Non-Stock)'
+    };
+  }
+  return {
+    label: 'SEC Certificate of Registration',
+    shortLabel: 'SEC Certificate of Registration',
+    placeholder: 'SEC Reg No. (e.g. CS2020XXXXX)',
+    missingMsg: 'SEC Certificate of Registration'
+  };
+};
+
 export default function RegisterOrganizationPage() {
   const navigate = useNavigate();
   const emailInputRef = useRef(null);
@@ -85,10 +150,12 @@ export default function RegisterOrganizationPage() {
     e.preventDefault();
     setError('');
 
+    const regDocInfo = getRegistrationDocInfo(formData.business_structure);
+
     // Comprehensive required fields check
     const validation = validateRequiredFields([
       { key: 'organization_name', label: 'Company Name', value: formData.organization_name },
-      { key: 'sec_dti_number', label: 'SEC/DTI Reg No.', value: formData.sec_dti_number },
+      { key: 'sec_dti_number', label: `${regDocInfo.shortLabel} No.`, value: formData.sec_dti_number },
       { key: 'mayors_permit_number', label: "Mayor's Permit No.", value: formData.mayors_permit_number },
       { key: 'bir_tin', label: 'BIR TIN', value: formData.bir_tin },
       { key: 'email', label: 'HR Email', value: formData.email },
@@ -116,7 +183,7 @@ export default function RegisterOrganizationPage() {
     }
 
     const missingDocs = [];
-    if (!files.sec_dti_file) missingDocs.push(formData.business_structure === 'sole_proprietorship' ? 'DTI Registration Certificate' : 'SEC Certificate of Registration');
+    if (!files.sec_dti_file) missingDocs.push(regDocInfo.missingMsg);
     if (!files.mayors_permit_file) missingDocs.push("Mayor's / Business Operating Permit");
     if (!files.bir_tin_file) missingDocs.push('BIR Form 2303 (TIN Certificate)');
 
@@ -241,11 +308,11 @@ export default function RegisterOrganizationPage() {
                         onChange={(e) => setFormData({ ...formData, business_structure: e.target.value })}
                         className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface text-sm focus:ring-2 focus:ring-vibrant-orange outline-none transition-all"
                       >
-                        <option value="corporation">Corporation (SEC)</option>
-                        <option value="partnership">Partnership (SEC)</option>
-                        <option value="sole_proprietorship">Sole Proprietorship (DTI)</option>
-                        <option value="ngo">NGO / Foundation</option>
-                        <option value="government">Government Agency</option>
+                        {LEGAL_STRUCTURE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -313,13 +380,13 @@ export default function RegisterOrganizationPage() {
                   
                   {/* SEC/DTI */}
                   <div className="p-4 bg-surface-container rounded-xl border border-outline-variant space-y-3">
-                    <label className="block text-xs font-bold text-on-surface">1. {formData.business_structure === 'sole_proprietorship' ? 'DTI Business Name Registration' : 'SEC Certificate of Registration'} *</label>
+                    <label className="block text-xs font-bold text-on-surface">1. {getRegistrationDocInfo(formData.business_structure).shortLabel} *</label>
                     <div className="flex flex-col md:flex-row gap-3">
                       <input
                         type="text"
                         required
                         data-field="sec_dti_number"
-                        placeholder={formData.business_structure === 'sole_proprietorship' ? 'DTI Reg No.' : 'SEC Reg No.'}
+                        placeholder={getRegistrationDocInfo(formData.business_structure).placeholder}
                         value={formData.sec_dti_number}
                         onChange={(e) => handleFieldChange('sec_dti_number', e.target.value)}
                         className={`w-full md:w-1/2 px-4 py-3 rounded-xl border bg-surface-container-lowest text-on-surface text-sm outline-none transition-all ${getFieldValidationClass(!!fieldErrors.sec_dti_number)}`}
