@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
@@ -38,19 +39,30 @@ function StudentDetailDrawer({ studentId, onClose }) {
       .then(res => { if (res.success) setProfile(res.data); })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [studentId]);
+
+    const onKey = (e) => e.key === 'Escape' && onClose?.();
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [studentId, onClose]);
 
   const stu = profile?.student;
   const port = profile?.portfolio;
   const reg  = profile?.registration;
 
-  return (
-    <>
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-end lg:items-stretch lg:justify-end" role="dialog" aria-modal="true">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-md transition-opacity animate-fade-in" onClick={onClose} aria-hidden="true" />
 
       {/* Drawer */}
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-xl bg-surface-container-lowest dark:bg-surface text-on-surface shadow-2xl flex flex-col overflow-hidden border-l border-outline-variant">
+      <div className="relative z-10 w-full max-w-xl h-full bg-surface-container-lowest dark:bg-surface text-on-surface shadow-2xl flex flex-col overflow-hidden border-l border-outline-variant animate-drawer-in-right">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant bg-surface-container-low/80 backdrop-blur flex-shrink-0">
           <div>
@@ -500,7 +512,8 @@ function StudentDetailDrawer({ studentId, onClose }) {
           </div>
         );
       })()}
-    </>
+    </div>,
+    document.body
   );
 }
 

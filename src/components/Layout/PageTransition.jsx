@@ -10,6 +10,9 @@ const pageVariants = {
   in: {
     opacity: 1,
     y: 0,
+    transitionEnd: {
+      transform: 'none',
+    },
   },
   out: {
     opacity: 0,

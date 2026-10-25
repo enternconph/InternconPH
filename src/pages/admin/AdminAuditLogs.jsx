@@ -122,7 +122,7 @@ function UserActivityModal({ userId, onClose }) {
 
   if (loading) {
     return createPortal(
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center" onClick={onClose}>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9999] flex items-center justify-center" onClick={onClose}>
         <div className="bg-surface-container-high rounded-2xl p-8" onClick={(e) => e.stopPropagation()}>
           <LoadingSpinner message="Fetching user activity..." />
         </div>
@@ -132,7 +132,7 @@ function UserActivityModal({ userId, onClose }) {
   }
 
   return createPortal(
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9999] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-surface-container-high rounded-2xl border border-outline-variant max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="p-5 border-b border-outline-variant flex items-center justify-between">

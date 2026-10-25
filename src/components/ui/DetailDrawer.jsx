@@ -21,11 +21,11 @@ export default function DetailDrawer({ open, onClose, title, subtitle, footer, c
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-end lg:items-stretch lg:justify-end" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={onClose} aria-hidden="true" />
+    <div className="fixed inset-0 z-[9999] flex items-end lg:items-stretch lg:justify-end" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-md animate-fade-in" onClick={onClose} aria-hidden="true" />
       <aside
         className={`relative w-full ${width} max-h-[88dvh] lg:max-h-none lg:h-full flex flex-col bg-surface-container-lowest text-on-surface
-          rounded-t-sheet lg:rounded-t-none lg:rounded-l-sheet shadow-overlay animate-sheet-in-up lg:animate-drawer-in-right`}
+          rounded-t-sheet lg:rounded-t-none lg:rounded-l-sheet shadow-overlay animate-sheet-in-up lg:animate-drawer-in-right z-10`}
       >
         <div className="lg:hidden mx-auto mt-2 h-1.5 w-10 rounded-full bg-outline-variant" />
         <header className="flex items-start justify-between gap-3 px-6 pt-4 pb-3 border-b border-outline-variant/60">
@@ -46,11 +46,13 @@ export default function DetailDrawer({ open, onClose, title, subtitle, footer, c
 }
 
 /** Label/value row for use inside the drawer. */
-export function DetailRow({ label, children }) {
+export function DetailRow({ label, children, value }) {
+  const content = children !== undefined ? children : value;
+  const displayValue = content !== undefined && content !== null && content !== '' ? content : '—';
   return (
     <div className="flex items-start justify-between gap-4 py-2 border-b border-outline-variant/40 last:border-0">
       <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide shrink-0">{label}</span>
-      <span className="text-sm font-medium text-on-surface text-right break-words min-w-0">{children || '—'}</span>
+      <span className="text-sm font-medium text-on-surface text-right break-words min-w-0">{displayValue}</span>
     </div>
   );
 }

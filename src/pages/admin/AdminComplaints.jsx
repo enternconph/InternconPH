@@ -813,7 +813,7 @@ export default function AdminComplaints() {
       {/* MODAL 1: RESOLVE INSTITUTION REPORT & ENFORCE REPEAT-OFFENSE POLICY */}
       {selectedReport && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9999] flex items-center justify-center p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedReport(null);
           }}
@@ -999,7 +999,7 @@ export default function AdminComplaints() {
       {/* MODAL 2: FULL DOSSIER VIEWER */}
       {viewingReport && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9999] flex items-center justify-center p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) setViewingReport(null);
           }}
@@ -1075,7 +1075,7 @@ export default function AdminComplaints() {
       {/* MODAL 3: ACCIDENT REPORT DETAIL VIEWER */}
       {viewingAccident && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9999] flex items-center justify-center p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) setViewingAccident(null);
           }}
