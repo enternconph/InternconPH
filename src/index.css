@@ -718,6 +718,34 @@ html.dark .divide-outline-variant > :not([hidden]) ~ :not([hidden]) {
   border-color: rgb(var(--outline-variant-rgb)) !important;
 }
 
+/* Smooth Classic <-> Dark Mode View Transition & Synchronized Fallback */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  mix-blend-mode: normal;
+}
+
+html.theme-view-transition,
+html.theme-view-transition *,
+html.theme-view-transition *::before,
+html.theme-view-transition *::after {
+  transition: none !important;
+}
+
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition:
+    background-color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    fill 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    stroke 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
 /* Registration Form Required Field Error Animations & Highlighting */
 @keyframes fieldErrorShake {
   0%, 100% { transform: translateX(0); }
