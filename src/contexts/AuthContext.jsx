@@ -78,14 +78,50 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email, password, portal) => {
     // Purge any residual or previous session state before logging in
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
 
-    const res = await api.post('/auth/login', { email, password });
+    const payload = portal ? { email, password, portal } : { email, password };
+    const res = await api.post('/auth/login', payload);
     if (res.success && (res.token || res.session_token)) {
+      const userRole = res.user?.role_name || res.user?.role;
+
+      // Client-side defense-in-depth portal isolation check
+      if (portal && userRole && userRole !== 'system_admin') {
+        const portalAllowedRoles = {
+          student: ['student'],
+          institution: ['institution', 'institution_staff'],
+          organization: ['hiring_organization', 'workplace_mentor', 'mentor', 'hr_staff'],
+        };
+        const allowedForPortal = portalAllowedRoles[portal];
+        if (allowedForPortal && !allowedForPortal.includes(userRole)) {
+          const portalNames = {
+            student: 'Student Login Portal',
+            institution: 'Institution Login Portal',
+            organization: 'Hiring Organization Login Portal',
+          };
+          const correctPortalName =
+            userRole === 'student'
+              ? 'Student Login Portal (/login/student)'
+              : ['institution', 'institution_staff'].includes(userRole)
+                ? 'Institution Login Portal (/login/institution)'
+                : 'Hiring Organization Login Portal (/login/organization)';
+          try {
+            await api.post('/auth/logout');
+          } catch (_) {}
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setUser(null);
+          return {
+            success: false,
+            message: `Access Denied: This account is not authorized to sign in through the ${portalNames[portal] || portal}. Please use the ${correctPortalName}.`,
+          };
+        }
+      }
+
       const activeToken = res.token || res.session_token;
       localStorage.setItem('token', activeToken);
       localStorage.setItem('user', JSON.stringify(res.user));
@@ -123,8 +159,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const getLoginUrl = (role) => {
+    switch (role) {
+      case 'student':
+        return '/login/student';
+      case 'institution':
+      case 'institution_staff':
+        return '/login/institution';
+      case 'hiring_organization':
+      case 'workplace_mentor':
+      case 'mentor':
+      case 'hr_staff':
+        return '/login/organization';
+      default:
+        return '/login/student';
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, setUser, login, logout, loading, getDashboardUrl }}>
+    <AuthContext.Provider value={{ user, setUser, login, logout, loading, getDashboardUrl, getLoginUrl }}>
       {children}
     </AuthContext.Provider>
   );

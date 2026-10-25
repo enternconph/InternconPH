@@ -97,7 +97,14 @@ export async function apiRequest(endpoint, options = {}) {
 
     if (!isAuthCheck && isProtectedRoute && !isRedirectingToLogin) {
       isRedirectingToLogin = true;
-      window.location.href = '/login';
+      const path = window.location.pathname;
+      if (path.startsWith('/dashboard/institution')) {
+        window.location.href = '/login/institution';
+      } else if (path.startsWith('/dashboard/organization')) {
+        window.location.href = '/login/organization';
+      } else {
+        window.location.href = '/login/student';
+      }
     }
   }
 

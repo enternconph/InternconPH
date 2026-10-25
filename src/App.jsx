@@ -74,8 +74,9 @@ function AnimatedRoutes() {
         <Routes location={location} key={location.pathname}>
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/get-started" element={<GetStartedPage />} />
+          <Route path="/login" element={<Navigate to="/login/student" replace />} />
+          <Route path="/login/:portal" element={<LoginPage />} />
+          <Route path="/get-started" element={<GetStartedPage />} />
         <Route path="/register/student" element={<RegisterStudentPage />} />
         <Route path="/register/staff" element={<RegisterStaffPage />} />
         <Route path="/register/organization" element={<RegisterOrganizationPage />} />

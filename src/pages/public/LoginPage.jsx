@@ -1,11 +1,65 @@
-import React, { useState, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import PageTransition from '../../components/Layout/PageTransition';
 import { validateEmail } from '../../utils/email';
 
+const PORTAL_CONFIG = {
+  student: {
+    key: 'student',
+    tabLabel: 'Student',
+    icon: 'school',
+    badge: 'STUDENT LOGIN PORTAL',
+    title: 'Welcome back',
+    subtitle: 'Sign in to your Student Portal to manage applications, DTR hours, and career portfolio.',
+    placeholder: 'student@university.edu.ph',
+    forgotNotice:
+      'For secure credential verification, student password resets are processed by your University OJT Coordinator or Registrar.',
+    registerLabel: 'Create Student Account',
+    registerTo: '/register/student',
+    secondaryRegisterLabel: null,
+    secondaryRegisterTo: null,
+    pillLabel: 'Student Sign In',
+  },
+  institution: {
+    key: 'institution',
+    tabLabel: 'Institution',
+    icon: 'account_balance',
+    badge: 'INSTITUTION LOGIN PORTAL',
+    title: 'Welcome back',
+    subtitle: 'Sign in to your Academic Institution & OJT Coordinator Portal.',
+    placeholder: 'coordinator@university.edu.ph',
+    forgotNotice:
+      'For secure credential verification, coordinator password resets are processed by your Institution OJT Head or System Administrator.',
+    registerLabel: 'Register Institution',
+    registerTo: '/register/institution',
+    secondaryRegisterLabel: 'Register Coordinator',
+    secondaryRegisterTo: '/register/staff',
+    pillLabel: 'Institution Sign In',
+  },
+  organization: {
+    key: 'organization',
+    tabLabel: 'Organization',
+    icon: 'apartment',
+    badge: 'ORGANIZATION LOGIN PORTAL',
+    title: 'Welcome back',
+    subtitle: 'Sign in to your Hiring Organization & Workplace Mentor Portal.',
+    placeholder: 'hr@company.com.ph',
+    forgotNotice:
+      'For secure credential verification, password resets are processed by your Organization HR Administrator or System Administrator.',
+    registerLabel: 'Register Organization',
+    registerTo: '/register/organization',
+    secondaryRegisterLabel: 'Register Mentor',
+    secondaryRegisterTo: '/register/mentor',
+    pillLabel: 'Organization Sign In',
+  },
+};
+
 export default function LoginPage() {
+  const { portal } = useParams();
+  const activePortal = (portal || 'student').toLowerCase();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -18,6 +72,18 @@ export default function LoginPage() {
   const { login, getDashboardUrl } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    setError('');
+    setEmailError(null);
+    setShowForgotNotice(false);
+  }, [activePortal]);
+
+  if (!PORTAL_CONFIG[activePortal]) {
+    return <Navigate to="/login/student" replace />;
+  }
+
+  const currentPortal = PORTAL_CONFIG[activePortal];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,7 +98,7 @@ export default function LoginPage() {
 
     setLoading(true);
 
-    const res = await login(email, password);
+    const res = await login(email, password, activePortal);
     setLoading(false);
 
     if (res.success && res.user) {
@@ -103,8 +169,8 @@ export default function LoginPage() {
                   ? 'border-emerald-500/30 bg-[#0c2420] text-emerald-300' 
                   : 'border-emerald-600/30 bg-emerald-50 text-emerald-800'
               }`}>
-                <span className="material-symbols-outlined text-[16px]">person</span>
-                <span>Sign In</span>
+                <span className="material-symbols-outlined text-[16px]">{currentPortal.icon}</span>
+                <span>{currentPortal.pillLabel}</span>
               </div>
             </div>
           </div>
@@ -123,36 +189,66 @@ export default function LoginPage() {
             <div className={`w-full lg:w-1/2 p-6 sm:p-9 md:p-10 flex flex-col justify-center relative ${
               isDark ? 'bg-[#091714]' : 'bg-white'
             }`}>
+
+              {/* Portal Switcher Bar (/login/student | /login/institution | /login/organization) */}
+              <div className={`grid grid-cols-3 gap-1 p-1 rounded-xl mb-5 border ${
+                isDark
+                  ? 'bg-[#061210] border-[#163830]'
+                  : 'bg-[#F1F5F4] border-gray-200/80'
+              }`}>
+                {Object.values(PORTAL_CONFIG).map((item) => {
+                  const isActive = item.key === activePortal;
+                  return (
+                    <Link
+                      key={item.key}
+                      to={`/login/${item.key}`}
+                      className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${
+                        isActive
+                          ? isDark
+                            ? 'bg-[#0e3831] text-[#2dd4bf] border border-[#2dd4bf]/25 shadow-sm'
+                            : 'bg-white text-[#0d9488] border border-teal-500/20 shadow-sm'
+                          : isDark
+                            ? 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                            : 'text-gray-500 hover:text-gray-800 hover:bg-white/60'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[15px]">{item.icon}</span>
+                      <span>{item.tabLabel}</span>
+                    </Link>
+                  );
+                })}
+              </div>
               
               {/* Badge */}
-              <div className="mb-4">
+              <div className="mb-3">
                 <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] sm:text-[11px] font-extrabold uppercase tracking-widest ${
                   isDark 
                     ? 'bg-[#0e3831] text-[#2dd4bf] border border-[#2dd4bf]/20' 
                     : 'bg-[#e6f7f5] text-[#0d9488] border border-[#0d9488]/20'
                 }`}>
-                  WELCOME BACK
+                  <span className="material-symbols-outlined text-[14px]">{currentPortal.icon}</span>
+                  <span>{currentPortal.badge}</span>
                 </span>
               </div>
 
               {/* Title & Subtitle */}
-              <div className="space-y-1.5 mb-6">
+              <div className="space-y-1.5 mb-5">
                 <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${
                   isDark ? 'text-white' : 'text-[#0c1f1c]'
                 }`}>
-                  Welcome back<span className="text-[#2dd4bf]">.</span>
+                  {currentPortal.title}<span className="text-[#2dd4bf]">.</span>
                 </h1>
                 <p className={`text-xs sm:text-sm ${
                   isDark ? 'text-[#94a3b8]' : 'text-gray-500'
                 }`}>
-                  Sign in to continue your journey with InternConPH.
+                  {currentPortal.subtitle}
                 </p>
               </div>
 
               {/* Error Message */}
               {error && (
-                <div className="p-3 mb-4 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl text-xs font-medium flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px]">error</span>
+                <div className="p-3 mb-4 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl text-xs font-medium flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
                   <span>{error}</span>
                 </div>
               )}
@@ -181,7 +277,7 @@ export default function LoginPage() {
                         setEmail(e.target.value);
                         if (emailError) setEmailError(null);
                       }}
-                      placeholder="name@university.edu.ph"
+                      placeholder={currentPortal.placeholder}
                       className={`w-full pl-10 pr-4 py-3 rounded-xl text-xs sm:text-sm outline-none transition-all ${
                         isDark 
                           ? 'bg-[#061210] border border-[#163830] text-white placeholder-gray-500 focus:border-[#2dd4bf] focus:ring-1 focus:ring-[#2dd4bf]' 
@@ -250,7 +346,7 @@ export default function LoginPage() {
 
                   {showForgotNotice && (
                     <div className="mt-2 p-2.5 rounded-lg bg-teal-500/10 border border-teal-500/20 text-xs text-teal-300 leading-relaxed">
-                      For secure credential verification, password resets are processed by your University OJT Coordinator or Organization HR Administrator.
+                      {currentPortal.forgotNotice}
                     </div>
                   )}
                 </div>
@@ -290,13 +386,24 @@ export default function LoginPage() {
               <div className="text-center space-y-1.5 pt-1">
                 <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                   New to InternConPH?{' '}
-                  <Link to="/get-started" className="text-[#2dd4bf] font-bold hover:underline inline-flex items-center gap-0.5">
-                    <span>Get Started</span>
+                  <Link to={currentPortal.registerTo} className="text-[#2dd4bf] font-bold hover:underline inline-flex items-center gap-0.5">
+                    <span>{currentPortal.registerLabel}</span>
                     <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
                   </Link>
+                  {currentPortal.secondaryRegisterTo && (
+                    <>
+                      {' · '}
+                      <Link to={currentPortal.secondaryRegisterTo} className="text-[#F59E0B] font-bold hover:underline inline-flex items-center gap-0.5">
+                        <span>{currentPortal.secondaryRegisterLabel}</span>
+                      </Link>
+                    </>
+                  )}
                 </p>
                 <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                  Need help? Contact your institution or organization.
+                  Need all account types?{' '}
+                  <Link to="/get-started" className="underline hover:text-[#2dd4bf]">
+                    View all registration portals
+                  </Link>
                 </p>
               </div>
 
@@ -337,37 +444,55 @@ export default function LoginPage() {
                 </svg>
 
                 {/* Left Node: Company / Hiring Organization */}
-                <div className="absolute left-[35px] top-[65px] flex flex-col items-center">
+                <Link
+                  to="/login/organization"
+                  title="Hiring Organization Login Portal"
+                  className="absolute left-[35px] top-[65px] flex flex-col items-center group"
+                >
                   <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
+                    activePortal === 'organization' ? 'scale-110 ring-4 ring-[#2dd4bf]/30' : 'opacity-80 group-hover:opacity-100'
+                  } ${
                     isDark 
                       ? 'bg-[#081c18] border-2 border-[#2dd4bf] text-[#2dd4bf] shadow-[0_0_22px_rgba(45,212,191,0.5)]' 
                       : 'bg-white border-2 border-[#0d9488] text-[#0d9488] shadow-[0_6px_20px_rgba(13,148,136,0.25)]'
                   }`}>
                     <span className="material-symbols-outlined text-[24px]">apartment</span>
                   </div>
-                </div>
+                </Link>
 
                 {/* Center Top Node: Student / Graduation Cap */}
-                <div className="absolute left-1/2 -translate-x-1/2 top-[15px] flex flex-col items-center">
+                <Link
+                  to="/login/student"
+                  title="Student Login Portal"
+                  className="absolute left-1/2 -translate-x-1/2 top-[15px] flex flex-col items-center group"
+                >
                   <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
+                    activePortal === 'student' ? 'scale-110 ring-4 ring-[#2dd4bf]/30' : 'opacity-80 group-hover:opacity-100'
+                  } ${
                     isDark 
                       ? 'bg-[#081c18] border-2 border-[#2dd4bf] text-[#2dd4bf] shadow-[0_0_26px_rgba(45,212,191,0.6)]' 
                       : 'bg-white border-2 border-[#0d9488] text-[#0d9488] shadow-[0_8px_24px_rgba(13,148,136,0.3)]'
                   }`}>
                     <span className="material-symbols-outlined text-[26px]">school</span>
                   </div>
-                </div>
+                </Link>
 
                 {/* Right Node: Institution / University */}
-                <div className="absolute right-[35px] top-[65px] flex flex-col items-center">
+                <Link
+                  to="/login/institution"
+                  title="Institution Login Portal"
+                  className="absolute right-[35px] top-[65px] flex flex-col items-center group"
+                >
                   <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
+                    activePortal === 'institution' ? 'scale-110 ring-4 ring-[#F59E0B]/30' : 'opacity-80 group-hover:opacity-100'
+                  } ${
                     isDark 
                       ? 'bg-[#211403] border-2 border-[#F59E0B] text-[#F59E0B] shadow-[0_0_22px_rgba(245,158,11,0.5)]' 
                       : 'bg-white border-2 border-[#F59E0B] text-[#F59E0B] shadow-[0_6px_20px_rgba(245,158,11,0.25)]'
                   }`}>
                     <span className="material-symbols-outlined text-[24px]">account_balance</span>
                   </div>
-                </div>
+                </Link>
               </div>
 
               {/* Bottom Headline & Subtitle */}

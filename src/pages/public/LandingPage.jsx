@@ -670,7 +670,7 @@ export default function LandingPage() {
                     <span>100% Certified Experience for Post-Graduation Employment</span>
                   </div>
                   <Link
-                    to="/login"
+                    to="/login/student"
                     className="px-6 py-2.5 bg-vibrant-orange text-white rounded-xl text-xs font-bold hover:bg-deep-orange transition-colors shadow-sm self-stretch sm:self-auto text-center"
                   >
                     Enter Candidate Portal →
@@ -703,7 +703,7 @@ export default function LandingPage() {
                   Direct access to accredited host organizations pre-cleared by your university. Build a comprehensive career portfolio and graduate with verifiable job-ready skills.
                 </p>
                 <div className="pt-1.5">
-                  <Link to="/login" className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-vibrant-orange text-white rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:bg-deep-orange transition-all shadow-md active:scale-95">
+                  <Link to="/login/student" className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-vibrant-orange text-white rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:bg-deep-orange transition-all shadow-md active:scale-95">
                     <span>Explore Student Portal</span>
                     <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                   </Link>
@@ -760,7 +760,7 @@ export default function LandingPage() {
                   Streamline intern recruitment, mentor assignments, time tracking, and performance evaluations on one unified platform with direct institutional partner integration.
                 </p>
                 <div className="pt-1.5">
-                  <Link to="/login" className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-pinoy-green text-white rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:opacity-90 transition-all shadow-md active:scale-95">
+                  <Link to="/login/organization" className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-pinoy-green text-white rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:opacity-90 transition-all shadow-md active:scale-95">
                     <span>Explore Employer Portal</span>
                     <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                   </Link>
@@ -817,7 +817,7 @@ export default function LandingPage() {
                   Complete departmental oversight of student cohorts across all academic degree programs. Inspect employer opportunities, enforce clearance requirements, and audit time logs.
                 </p>
                 <div className="pt-1.5">
-                  <Link to="/login" className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:bg-blue-700 transition-all shadow-md active:scale-95">
+                  <Link to="/login/institution" className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm hover:bg-blue-700 transition-all shadow-md active:scale-95">
                     <span>Explore Academic Portal</span>
                     <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                   </Link>

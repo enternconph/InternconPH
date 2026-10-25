@@ -151,7 +151,7 @@ export default function RegisterInstitutionPage() {
 
       if (res.success) {
         alert('Institution main account and accreditation softcopy submitted! System Admin will verify your documents before activating OJT Head dashboard.');
-        navigate('/login');
+        navigate('/login/institution');
       } else {
         handleServerValidationError(
           res.message || 'Registration failed.',
@@ -497,7 +497,7 @@ export default function RegisterInstitutionPage() {
               <div className="pt-5 text-center border-t border-slate-200 dark:border-white/10 mt-6">
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
                   Already registered?{' '}
-                  <Link to="/login" className="text-teal-500 dark:text-teal-400 font-bold hover:underline">
+                  <Link to="/login/institution" className="text-teal-500 dark:text-teal-400 font-bold hover:underline">
                     Sign In →
                   </Link>
                 </p>

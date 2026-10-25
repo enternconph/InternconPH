@@ -111,7 +111,8 @@ export const Schemas = {
   login: {
     body: {
       email: { type: 'string', required: true, pattern: /^[^@\s]+@[^@\s]+\.[^@\s]+$/, patternMessage: 'Please provide a valid email address.' },
-      password: { type: 'string', required: true, minLength: 1 }
+      password: { type: 'string', required: true, minLength: 1 },
+      portal: { type: 'string', required: false, enum: ['student', 'institution', 'organization', 'admin'] }
     }
   },
 

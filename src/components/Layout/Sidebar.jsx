@@ -82,7 +82,7 @@ function SidebarSectionTitle({ title, isCollapsed }) {
 }
 
 export default function Sidebar() {
-  const { user, logout } = useAuth();
+  const { user, logout, getLoginUrl } = useAuth();
   const { sidebarOpen, setSidebarOpen, sidebarCollapsed, toggleSidebarCollapse } = useSidebar();
   const navigate = useNavigate();
   const isDesktop = useMediaQuery('(min-width: 1024px)');
@@ -96,9 +96,10 @@ export default function Sidebar() {
   const sections = getNavSections(role, position);
 
   const handleLogout = async () => {
+    const targetLogin = getLoginUrl ? getLoginUrl(role) : '/login/student';
     setSidebarOpen(false);
     await logout();
-    navigate('/login', { replace: true });
+    navigate(targetLogin, { replace: true });
   };
 
   const navItemProps = {

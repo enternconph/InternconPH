@@ -9,7 +9,7 @@ import api from '../../api/client';
 import { findActiveNav } from './navConfig';
 
 export default function DashboardHeader() {
-  const { user, logout } = useAuth();
+  const { user, logout, getLoginUrl } = useAuth();
   const { toggleSidebar, sidebarCollapsed, toggleSidebarCollapse } = useSidebar();
   const { socket } = useSocket() || {};
   const { isDark, toggleTheme } = useTheme();
@@ -17,8 +17,9 @@ export default function DashboardHeader() {
   const location = useLocation();
 
   const handleLogout = async () => {
+    const targetLogin = getLoginUrl ? getLoginUrl(user?.role_name || user?.role) : '/login/student';
     await logout();
-    navigate('/login', { replace: true });
+    navigate(targetLogin, { replace: true });
   };
 
   const [notifications, setNotifications] = useState([]);

@@ -193,7 +193,7 @@ export default function RegistrationLayout({
 
               {/* Sign In Button */}
               <Link
-                to="/login"
+                to={`/login/${role === 'organization' ? 'organization' : role === 'institution' ? 'institution' : 'student'}`}
                 className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
                   isDark 
                     ? 'bg-[#15221f] hover:bg-[#1f332e] text-teal-300 border border-teal-500/30' 

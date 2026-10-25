@@ -224,7 +224,7 @@ export default function RegisterOrganizationPage() {
 
       if (res.success) {
         alert('Employer partner registration and verification documents submitted successfully! The System Administrator will inspect your legal softcopies before activating your HR dashboard.');
-        navigate('/login');
+        navigate('/login/organization');
       } else {
         handleServerValidationError(
           res.message || 'Registration failed.',
@@ -617,7 +617,7 @@ export default function RegisterOrganizationPage() {
               <div className="pt-5 text-center border-t border-slate-200 dark:border-white/10 mt-6">
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
                   Already registered?{' '}
-                  <Link to="/login" className="text-teal-500 dark:text-teal-400 font-bold hover:underline">
+                  <Link to="/login/organization" className="text-teal-500 dark:text-teal-400 font-bold hover:underline">
                     Sign In →
                   </Link>
                 </p>

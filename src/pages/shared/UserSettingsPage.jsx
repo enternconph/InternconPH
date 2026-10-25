@@ -9,12 +9,13 @@ import { resolveFileUrl } from '../../utils/fileHelper';
 import api from '../../api/client';
 
 export default function UserSettingsPage() {
-  const { user, setUser, logout } = useAuth();
+  const { user, setUser, logout, getLoginUrl } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
+    const targetLogin = getLoginUrl ? getLoginUrl(user?.role_name || user?.role) : '/login/student';
     await logout();
-    navigate('/login', { replace: true });
+    navigate(targetLogin, { replace: true });
   };
   const { theme, effectiveTheme, isDark, setTheme, toggleTheme } = useTheme();
   const { timeFormat, setTimeFormat, formatTime, currentTime } = useTimeFormat();

@@ -331,6 +331,37 @@ router.post('/login', validate(Schemas.login), async (req, res) => {
       }
     }
 
+    // Enforce strict role-portal separation when logging in via /login/:portal
+    const { portal } = req.body;
+    if (portal && roleData.role_name !== 'system_admin') {
+      const portalAllowedRoles = {
+        student: ['student'],
+        institution: ['institution', 'institution_staff'],
+        organization: ['hiring_organization', 'workplace_mentor', 'mentor', 'hr_staff'],
+        admin: ['system_admin']
+      };
+      const allowedForPortal = portalAllowedRoles[portal];
+      if (allowedForPortal && !allowedForPortal.includes(roleData.role_name)) {
+        const portalNames = {
+          student: 'Student Login Portal',
+          institution: 'Institution Login Portal',
+          organization: 'Hiring Organization Login Portal',
+          admin: 'System Administrator Portal'
+        };
+        const correctPortalName =
+          roleData.role_name === 'student'
+            ? 'Student Login Portal (/login/student)'
+            : ['institution', 'institution_staff'].includes(roleData.role_name)
+              ? 'Institution Login Portal (/login/institution)'
+              : 'Hiring Organization Login Portal (/login/organization)';
+        return res.status(403).json({
+          success: false,
+          code: 'PORTAL_MISMATCH',
+          message: `Access Denied: This account is not authorized to sign in through the ${portalNames[portal] || portal}. Please use the ${correctPortalName}.`
+        });
+      }
+    }
+
     // Update last_login_at
     await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE user_id = ?', [user.user_id]);
 

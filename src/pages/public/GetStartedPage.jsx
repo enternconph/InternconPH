@@ -73,7 +73,7 @@ export default function GetStartedPage() {
               </button>
 
               <Link
-                to="/login"
+                to="/login/student"
                 className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full border text-xs font-semibold transition-all hover:scale-105 ${
                   isDark 
                     ? 'border-gray-700 bg-[#0c2420]/80 text-gray-200 hover:border-emerald-500/50 hover:text-white' 
@@ -335,14 +335,26 @@ export default function GetStartedPage() {
           </div>
 
           {/* Footer Navigation Link */}
-          <div className="text-center pb-2">
+          <div className="text-center pb-2 space-y-2">
             <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Already have an account?{' '}
-              <Link to="/login" className="text-[#F59E0B] font-bold hover:underline inline-flex items-center gap-1">
-                <span>Sign in</span>
-                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-              </Link>
+              Already have an account? Choose your sign-in portal:
             </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-bold">
+              <Link to="/login/student" className="text-[#2dd4bf] hover:underline inline-flex items-center gap-1">
+                <span>Student Sign In</span>
+                <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+              </Link>
+              <span className={isDark ? 'text-gray-700' : 'text-gray-300'}>|</span>
+              <Link to="/login/institution" className="text-[#F59E0B] hover:underline inline-flex items-center gap-1">
+                <span>Institution Sign In</span>
+                <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+              </Link>
+              <span className={isDark ? 'text-gray-700' : 'text-gray-300'}>|</span>
+              <Link to="/login/organization" className="text-[#2dd4bf] hover:underline inline-flex items-center gap-1">
+                <span>Organization Sign In</span>
+                <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+              </Link>
+            </div>
           </div>
 
         </main>

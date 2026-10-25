@@ -14,7 +14,13 @@ export default function ProtectedRoute({ allowedRoles = [] }) {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    let targetLogin = '/login/student';
+    if (allowedRoles.includes('institution') && !allowedRoles.includes('student')) {
+      targetLogin = '/login/institution';
+    } else if (allowedRoles.includes('hiring_organization') && !allowedRoles.includes('student')) {
+      targetLogin = '/login/organization';
+    }
+    return <Navigate to={targetLogin} replace />;
   }
 
   const userRole = user.role_name || user.role;
