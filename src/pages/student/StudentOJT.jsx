@@ -581,7 +581,7 @@ export default function StudentOJT() {
                       </span>
                     </div>
                     <p className="text-xs text-emerald-800 dark:text-emerald-200 mt-0.5">
-                      In: {formatPHT12Hour(todayLog.time_in)} • Out: {formatPHT12Hour(todayLog.time_out)} • {todayLog.status === 'verified' ? 'Certified by Workplace Mentor' : 'Pending Mentor Validation'}
+                      In: {formatPHT12Hour(todayLog.time_in)} • Out: {formatPHT12Hour(todayLog.time_out)} • Automatically Recorded & Credited
                     </p>
                   </div>
                 </div>
@@ -856,17 +856,17 @@ export default function StudentOJT() {
                           </div>
                           <span
                             className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-extrabold capitalize ${
-                              log.status === 'verified'
-                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
-                                : log.status === 'rejected'
+                              log.status === 'rejected'
                                 ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'
-                                : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                                : log.time_out
+                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                                : 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30'
                             }`}
                           >
                             <span className="material-symbols-outlined text-[13px]">
-                              {log.status === 'verified' ? 'verified' : log.status === 'rejected' ? 'cancel' : 'pending'}
+                              {log.status === 'rejected' ? 'cancel' : log.time_out ? 'verified' : 'schedule'}
                             </span>
-                            <span>{log.status === 'verified' ? 'Certified' : log.status}</span>
+                            <span>{log.status === 'rejected' ? 'Rejected' : log.time_out ? 'Recorded' : 'On Duty'}</span>
                           </span>
                         </td>
 

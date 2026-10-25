@@ -719,9 +719,9 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
                   verified_user
                 </span>
                 <div className="space-y-0.5 text-[11px]">
-                  <p className="font-bold text-on-surface">Separation of Duties Enforced</p>
+                  <p className="font-bold text-on-surface">Automated Premises Attendance</p>
                   <p className="leading-relaxed">
-                    HR staff oversees the physical scanner at desk premises to eliminate proxying. Mentors independently validate and certify training hours upon shift conclusion.
+                    HR staff oversees the physical scanner at desk premises to eliminate proxying. Completed Time-In and Time-Out shifts are automatically recorded and credited.
                   </p>
                 </div>
               </div>
@@ -915,7 +915,7 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
                     <span className="leading-relaxed">
                       {scanResult.action === 'time_in'
                         ? "Intern's daily attendance entry is created. Shift counter is officially active."
-                        : 'Shift completed. Digital validation notice has been sent to the workplace mentor to certify rendered hours.'}
+                        : 'Shift completed. Rendered training hours have been automatically recorded and credited.'}
                     </span>
                   </div>
                 </div>

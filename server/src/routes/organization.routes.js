@@ -1796,16 +1796,16 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
 
       if (attLogs.length === 0) {
         await pool.query(
-          `INSERT INTO ojt_attendance_logs (ojt_id, student_id, mentor_id, log_date, time_in, time_in_status, time_in_method, status, scanned_by_hr_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, 'qr_scan', 'pending', ?, NOW(), NOW())`,
-          [ojt.ojt_id, studentId, ojt.mentor_id || null, currentDate, currentTimeStr, timeInStatus, req.user.user_id]
+          `INSERT INTO ojt_attendance_logs (ojt_id, student_id, mentor_id, log_date, time_in, time_in_status, time_in_method, status, scanned_by_hr_id, verified_by, verified_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'qr_scan', 'verified', ?, ?, NOW(), NOW(), NOW())`,
+          [ojt.ojt_id, studentId, ojt.mentor_id || null, currentDate, currentTimeStr, timeInStatus, req.user.user_id, req.user.user_id]
         );
       } else {
         await pool.query(
           `UPDATE ojt_attendance_logs 
-           SET time_in = ?, time_in_status = ?, time_in_method = 'qr_scan', scanned_by_hr_id = ?, updated_at = NOW()
+           SET time_in = ?, time_in_status = ?, time_in_method = 'qr_scan', status = 'verified', scanned_by_hr_id = ?, verified_by = ?, verified_at = NOW(), updated_at = NOW()
            WHERE attendance_id = ?`,
-          [currentTimeStr, timeInStatus, req.user.user_id, attLogs[0].attendance_id]
+          [currentTimeStr, timeInStatus, req.user.user_id, req.user.user_id, attLogs[0].attendance_id]
         );
       }
 
@@ -1893,13 +1893,37 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
 
       // Calculate hours rounded to 2 decimal places, max 12 hours
       const calculatedHours = Math.min(12, Math.max(0.1, Math.round((rawDiffMins / 60) * 100) / 100));
+      const prevHours = todayLog.status === 'verified' ? (parseFloat(todayLog.hours_rendered) || 0) : 0;
+      const hoursDiff = calculatedHours - prevHours;
 
       await pool.query(
         `UPDATE ojt_attendance_logs 
-         SET time_out = ?, time_out_status = ?, time_out_method = 'qr_scan', hours_rendered = ?, status = 'pending', updated_at = NOW()
+         SET time_out = ?, time_out_status = ?, time_out_method = 'qr_scan', hours_rendered = ?, status = 'verified', verified_by = ?, verified_at = NOW(), updated_at = NOW()
          WHERE attendance_id = ?`,
-        [currentTimeStr, timeOutStatus, calculatedHours, todayLog.attendance_id]
+        [currentTimeStr, timeOutStatus, calculatedHours, req.user.user_id, todayLog.attendance_id]
       );
+
+      // Automatically credit rendered hours to ojt_records and student profile
+      if (hoursDiff !== 0) {
+        await pool.query(
+          `UPDATE ojt_records 
+           SET rendered_hours = GREATEST(0, rendered_hours + ?),
+               status = CASE WHEN GREATEST(0, rendered_hours + ?) >= COALESCE(required_hours, 600) THEN 'completed' ELSE status END,
+               updated_at = NOW()
+           WHERE ojt_id = ?`,
+          [hoursDiff, hoursDiff, ojt.ojt_id]
+        );
+        await pool.query(
+          'UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?',
+          [hoursDiff, studentId]
+        );
+        await pool.query(
+          `UPDATE students SET ojt_status = 'completed_ojt', status_id = 4, updated_at = NOW()
+           WHERE student_id = ? AND ojt_status NOT IN ('graduated', 'completed_ojt', 'completed')
+             AND required_ojt_hours > 0 AND completed_ojt_hours >= required_ojt_hours`,
+          [studentId]
+        );
+      }
 
       emitUpdate('attendance_logged', {
         ojt_id: ojt.ojt_id,
@@ -1914,7 +1938,7 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
         hours_rendered: calculatedHours,
         student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
         student_number: deviceRecord.student_number,
-        message: `Time-Out recorded at ${currentTimeStr} (${calculatedHours} hrs rendered)`
+        message: `Time-Out recorded at ${currentTimeStr} (${calculatedHours} hrs automatically credited)`
       });
 
       // Notify Student
@@ -1923,8 +1947,8 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
           userId: deviceRecord.student_user_id,
           senderId: req.user.user_id,
           senderName: org.organization_name || 'HR Attendance Desk',
-          title: `Time-Out Scanned (${calculatedHours} hrs)`,
-          message: `HR scanned your dynamic QR code for Time-Out at ${currentTimeStr}. ${calculatedHours} hrs rendered. Shift is pending workplace mentor validation.`,
+          title: `Time-Out Recorded (${calculatedHours} hrs)`,
+          message: `HR scanned your dynamic QR code for Time-Out at ${currentTimeStr}. ${calculatedHours} hrs have been automatically recorded and credited to your OJT record.`,
           type: 'ojt',
           link: '/dashboard/student/ojt',
           relatedType: 'attendance',
@@ -1932,14 +1956,14 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
         });
       }
 
-      // Notify Workplace Mentor to VALIDATE the completed shift!
+      // Notify Workplace Mentor of completed shift
       if (ojt.mentor_user_id) {
         await sendNotification({
           userId: ojt.mentor_user_id,
           senderId: req.user.user_id,
           senderName: 'HR Attendance Scanner',
-          title: `Action Required: Validate Shift for ${deviceRecord.first_name} ${deviceRecord.last_name}`,
-          message: `${deviceRecord.first_name} completed their shift (${todayLog.time_in.slice(0, 5)} - ${currentTimeStr.slice(0, 5)}, ${calculatedHours} hrs rendered). Please validate and certify their training record.`,
+          title: `Intern Shift Recorded: ${deviceRecord.first_name} ${deviceRecord.last_name}`,
+          message: `${deviceRecord.first_name} completed their shift (${todayLog.time_in.slice(0, 5)} - ${currentTimeStr.slice(0, 5)}, ${calculatedHours} hrs rendered). Training hours have been automatically recorded and credited.`,
           type: 'ojt',
           link: '/dashboard/organization/ojt',
           relatedType: 'attendance',
@@ -1950,7 +1974,7 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
       return res.json({
         success: true,
         action: 'time_out',
-        message: `Successfully Timed Out ${deviceRecord.first_name} ${deviceRecord.last_name}! (${calculatedHours} hrs rendered — shift is pending mentor validation)`,
+        message: `Successfully Timed Out ${deviceRecord.first_name} ${deviceRecord.last_name}! (${calculatedHours} hrs automatically recorded and credited)`,
         data: {
           student_id: studentId,
           student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
@@ -1961,7 +1985,7 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
           time_out: currentTimeStr,
           hours_rendered: calculatedHours,
           time_out_status: timeOutStatus,
-          status: 'pending_validation',
+          status: 'verified',
           mentor_name: ojt.mentor_first_name ? `${ojt.mentor_first_name} ${ojt.mentor_last_name}` : (ojt.supervisor_name || 'Assigned Mentor')
         }
       });

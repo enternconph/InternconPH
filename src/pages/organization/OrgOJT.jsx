@@ -324,8 +324,8 @@ export default function OrgOJT() {
           </div>
           <p className="text-sm text-on-surface-variant mt-1">
             {isHR 
-              ? 'Physical premises QR scanner desk for Time-In & Time-Out. Shifts are forwarded to workplace mentors for final certification.'
-              : 'Workplace Mentor Portal: Review, validate, and certify intern training shifts upon completion.'}
+              ? 'Physical premises QR scanner desk for Time-In & Time-Out. Completed shifts and rendered hours are automatically recorded.'
+              : 'Workplace Mentor Portal: Monitor supervised interns and review automatically recorded daily attendance shifts.'}
           </p>
         </div>
 
@@ -385,26 +385,6 @@ export default function OrgOJT() {
         >
           <span className="material-symbols-outlined text-[18px]">group</span>
           <span>Supervised Interns ({interns.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveViewTab('pending_validation')}
-          className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeViewTab === 'pending_validation'
-              ? 'bg-amber-600 text-white shadow-xs'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
-          }`}
-        >
-          <span className="material-symbols-outlined text-[18px]">pending_actions</span>
-          <span>Pending Shift Validation</span>
-          {pendingValidationLogs.length > 0 && (
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-              activeViewTab === 'pending_validation' ? 'bg-white text-amber-700' : 'bg-amber-500 text-white animate-pulse'
-            }`}>
-              {pendingValidationLogs.length}
-            </span>
-          )}
         </button>
 
         <button
@@ -643,21 +623,7 @@ export default function OrgOJT() {
                                   <span className="material-symbols-outlined text-[11px] text-emerald-600">check_circle</span>
                                   <span>{intern.today_hours || 0} hrs</span>
                                 </span>
-                                {intern.today_status === 'pending' && isMentor ? (
-                                  <button
-                                    type="button"
-                                    disabled={actionLoading || validatingId === intern.today_attendance_id}
-                                    onClick={() => handleValidateShift(intern.today_attendance_id, intern.today_hours)}
-                                    className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition-colors inline-flex items-center gap-0.5 shadow-xs"
-                                  >
-                                    <span className="material-symbols-outlined text-[11px]">verified</span>
-                                    <span>Validate</span>
-                                  </button>
-                                ) : intern.today_status === 'verified' ? (
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-green-tint text-pinoy-green">Certified</span>
-                                ) : (
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-800">Pending</span>
-                                )}
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-green-tint text-pinoy-green">Recorded</span>
                               </div>
                             )}
                           </div>
@@ -716,124 +682,7 @@ export default function OrgOJT() {
       )}
 
       {/* ========================================================================= */}
-      {/* VIEW TAB 2: PENDING SHIFT VALIDATION QUEUE (WORKPLACE MENTOR CERTIFICATION) */}
-      {/* ========================================================================= */}
-      {activeViewTab === 'pending_validation' && (
-        <div className="bento-card space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant pb-3">
-            <div>
-              <h2 className="text-lg font-bold text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-amber-600">pending_actions</span>
-                <span>Pending Shift Validation Queue ({pendingValidationLogs.length})</span>
-              </h2>
-              <p className="text-xs text-on-surface-variant mt-0.5">
-                Workplace Mentors: Certify completed intern training shifts. Validated hours are directly credited toward academic OJT requirements.
-              </p>
-            </div>
-
-            {pendingValidationLogs.length > 0 && isMentor && (
-              <span className="px-3 py-1 bg-amber-500/10 text-amber-700 dark:text-amber-300 rounded-full text-xs font-bold border border-amber-500/20">
-                Action Required: {pendingValidationLogs.length} shift{pendingValidationLogs.length > 1 ? 's' : ''} awaiting certification
-              </span>
-            )}
-          </div>
-
-          {pendingValidationLogs.length === 0 ? (
-            <div className="text-center py-16 text-on-surface-variant space-y-3">
-              <span className="material-symbols-outlined text-[56px] text-emerald-500">task_alt</span>
-              <h3 className="text-base font-bold text-on-surface">All Intern Shifts Are Certified!</h3>
-              <p className="text-xs max-w-md mx-auto leading-relaxed">
-                There are no pending attendance shifts waiting for mentor validation. When interns clock out via the HR QR scanner at your office, their shift hours will queue here for your certification.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-2xl border border-outline-variant/70 shadow-xs">
-              <table className="w-full text-left text-sm min-w-[850px] border-collapse">
-                <thead>
-                  <tr className="bg-surface-container-low text-on-surface-variant text-[11px] uppercase tracking-wider font-extrabold border-b border-outline-variant">
-                    <th className="py-3.5 px-4 sm:px-5">Intern Details</th>
-                    <th className="py-3.5 px-4">Shift Date & Times</th>
-                    <th className="py-3.5 px-4">Hours & Clock Method</th>
-                    <th className="py-3.5 px-4 text-right">Mentor Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant/40 bg-surface">
-                  {pendingValidationLogs.map((log) => (
-                    <tr key={log.attendance_id} className="hover:bg-surface-container-low/60 transition-colors">
-                      {/* Intern Details */}
-                      <td className="py-3.5 px-4 sm:px-5">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-vibrant-orange/10 text-vibrant-orange font-bold flex items-center justify-center text-xs shrink-0">
-                            {log.first_name?.[0] || 'I'}
-                          </div>
-                          <div>
-                            <p className="font-bold text-xs text-on-surface">{log.first_name} {log.last_name}</p>
-                            <p className="text-[11px] text-on-surface-variant">ID #{log.student_number} • {log.program_name || 'Intern'}</p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Shift Date & Times */}
-                      <td className="py-3.5 px-4 text-xs font-bold text-on-surface whitespace-nowrap">
-                        <div>{new Date(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-                        <div className="flex items-center gap-2 text-[11px] font-mono text-on-surface-variant font-normal mt-0.5">
-                          <span>In: {formatPHTTime(log.time_in)}</span>
-                          <span>•</span>
-                          <span>Out: {formatPHTTime(log.time_out)}</span>
-                        </div>
-                      </td>
-
-                      {/* Hours & Clock Method */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className="inline-block px-2.5 py-0.5 bg-surface-container font-mono font-black text-xs text-vibrant-orange rounded-lg border border-outline-variant">
-                            {log.hours_rendered ? `${parseFloat(log.hours_rendered).toFixed(2)} hrs` : '0.00 hrs'}
-                          </span>
-                          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                            <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
-                            <span>{log.time_in_method === 'qr_scan' ? 'QR' : 'Manual'}</span>
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Mentor Action */}
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            disabled={actionLoading || validatingId === log.attendance_id}
-                            onClick={() => handleValidateShift(log.attendance_id, log.hours_rendered)}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1 shadow-xs"
-                          >
-                            <span className="material-symbols-outlined text-[15px]">verified</span>
-                            <span>{validatingId === log.attendance_id ? 'Certifying...' : 'Validate'}</span>
-                          </button>
-                          <button
-                            type="button"
-                            disabled={actionLoading}
-                            onClick={() => {
-                              setRejectTargetLog(log);
-                              setRejectionNotes('');
-                              setShowRejectModal(true);
-                            }}
-                            className="px-2.5 py-1.5 bg-surface-container hover:bg-rose-50 hover:text-rose-700 text-on-surface-variant border border-outline-variant rounded-xl text-xs font-bold transition-colors"
-                            title="Reject or Flag Shift"
-                          >
-                            <span className="material-symbols-outlined text-[15px]">close</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* VIEW TAB 3: ALL ATTENDANCE SHIFT LOGS & AUDIT TRAIL */}
+      {/* VIEW TAB 2: ALL ATTENDANCE SHIFT LOGS & AUDIT TRAIL */}
       {/* ========================================================================= */}
       {activeViewTab === 'all_logs' && (
         <div className="bento-card space-y-4">
@@ -844,7 +693,7 @@ export default function OrgOJT() {
                 <span>Attendance Shift Logs & Audit History ({attendanceLogs.length})</span>
               </h2>
               <p className="text-xs text-on-surface-variant mt-0.5">
-                Official audit trail of all Time-In and Time-Out timestamps recorded via physical QR desk scanner or supervisor logs.
+                Official audit trail of all Time-In and Time-Out timestamps automatically recorded via physical QR desk scanner or supervisor logs.
               </p>
             </div>
           </div>
@@ -863,7 +712,7 @@ export default function OrgOJT() {
                     <th className="py-3.5 px-4 sm:px-5">Intern & Shift Date</th>
                     <th className="py-3.5 px-4">Shift Timing</th>
                     <th className="py-3.5 px-4">Rendered & Method</th>
-                    <th className="py-3.5 px-4 text-center">Validation Status</th>
+                    <th className="py-3.5 px-4 text-center">Shift Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/40 bg-surface">
@@ -916,21 +765,21 @@ export default function OrgOJT() {
                         </div>
                       </td>
 
-                      {/* Validation Status */}
+                      {/* Shift Status */}
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
                         <span
                           className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-extrabold capitalize ${
-                            log.status === 'verified'
-                              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
-                              : log.status === 'rejected'
+                            log.status === 'rejected'
                               ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'
-                              : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                              : log.time_out
+                              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                              : 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30'
                           }`}
                         >
                           <span className="material-symbols-outlined text-[14px]">
-                            {log.status === 'verified' ? 'verified' : log.status === 'rejected' ? 'cancel' : 'pending'}
+                            {log.status === 'rejected' ? 'cancel' : log.time_out ? 'verified' : 'schedule'}
                           </span>
-                          <span>{log.status === 'verified' ? 'Certified' : log.status === 'pending' ? 'Pending Mentor' : log.status}</span>
+                          <span>{log.status === 'rejected' ? 'Rejected' : log.time_out ? 'Recorded' : 'On Duty'}</span>
                         </span>
                       </td>
                     </tr>
@@ -1736,9 +1585,8 @@ export default function OrgOJT() {
                       label="Shift Status"
                       value={
                         <span className="capitalize font-bold text-xs">
-                          {intern.today_status === 'verified' ? 'Certified by Mentor' :
-                           intern.today_status === 'rejected' ? 'Rejected / Flagged' :
-                           intern.today_status === 'pending' ? 'Pending Certification' :
+                          {intern.today_status === 'rejected' ? 'Rejected / Flagged' :
+                           intern.today_time_out ? 'Recorded & Credited' :
                            'In Progress'}
                         </span>
                       }
@@ -1776,23 +1624,6 @@ export default function OrgOJT() {
                   >
                     <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
                     <span>Clock Out with HR QR Scanner</span>
-                  </button>
-                )}
-
-                {isMentor && intern.today_status === 'pending' && (
-                  <button
-                    type="button"
-                    disabled={actionLoading || validatingId === intern.today_attendance_id}
-                    onClick={() => {
-                      const id = intern.today_attendance_id;
-                      const hrs = intern.today_hours;
-                      setSelectedInternForDetail(null);
-                      handleValidateShift(id, hrs);
-                    }}
-                    className="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">verified</span>
-                    <span>Validate & Certify Shift Now</span>
                   </button>
                 )}
               </div>
