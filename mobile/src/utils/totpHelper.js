@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const DEVICE_STORAGE_KEY = '@internconph_attendance_device_token';
+const CREDS_CACHE_KEY = '@internconph_qr_credentials';
+export const TOTP_STEP_SECONDS = 30;
 
 /**
  * Pure JavaScript SHA-256 implementation (FIPS 180-4)
@@ -29,7 +32,6 @@ function sha256Bytes(bytes) {
   padded.set(bytes);
   padded[bytes.length] = 0x80;
 
-  // Append 64-bit big endian length
   const highBits = Math.floor(bitLength / 0x100000000);
   const lowBits = bitLength >>> 0;
   padded[totalLength - 8] = (highBits >>> 24) & 0xff;
@@ -123,9 +125,9 @@ function stringToUtf8(str) {
 /**
  * Pure JavaScript HMAC-SHA256 (RFC 2104)
  */
-function hmacSha256(keyStr, messageStr) {
-  let key = stringToUtf8(keyStr);
-  const message = stringToUtf8(messageStr);
+export function hmacSha256(keyStr, messageStr) {
+  let key = stringToUtf8(String(keyStr));
+  const message = stringToUtf8(String(messageStr));
   const blockSize = 64;
 
   if (key.length > blockSize) {
@@ -157,18 +159,25 @@ function hmacSha256(keyStr, messageStr) {
 }
 
 /**
- * Retrieve or generate a persistent hardware device token on this mobile device
+ * Generate a random hex string of given length
+ */
+function randomHex(charLen = 24) {
+  const chars = '0123456789abcdef';
+  let out = '';
+  for (let i = 0; i < charLen; i++) {
+    out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return out;
+}
+
+/**
+ * Retrieve or generate a persistent hardware device ID on this Android handset
  */
 export async function getOrCreateDeviceToken() {
   try {
     let token = await AsyncStorage.getItem(DEVICE_STORAGE_KEY);
-    if (!token || token.length < 32) {
-      const chars = '0123456789abcdef';
-      let rand = '';
-      for (let i = 0; i < 48; i++) {
-        rand += chars[Math.floor(Math.random() * chars.length)];
-      }
-      token = `andr_${rand}`;
+    if (!token || token.length < 24) {
+      token = `andr_${randomHex(40)}`;
       await AsyncStorage.setItem(DEVICE_STORAGE_KEY, token);
     }
     return token;
@@ -179,41 +188,177 @@ export async function getOrCreateDeviceToken() {
 }
 
 /**
- * Reset local device token (for device re-binding)
+ * Reset local device token (for device re-binding via 6-digit OTP)
  */
 export async function resetLocalDeviceToken() {
   try {
-    await AsyncStorage.removeItem(DEVICE_STORAGE_KEY);
-    return await getOrCreateDeviceToken();
+    const newToken = `andr_${randomHex(40)}`;
+    await AsyncStorage.setItem(DEVICE_STORAGE_KEY, newToken);
+    return newToken;
+  } catch (_) {
+    return `andr_${randomHex(40)}`;
+  }
+}
+
+/**
+ * Save short-lived (72h TTL) device-bound offline credential bundle
+ */
+export async function saveOfflineCredentials(bundle) {
+  try {
+    const expiresAt =
+      bundle.secret_expires_at ||
+      new Date(Date.now() + 72 * 3600 * 1000).toISOString();
+    await AsyncStorage.setItem(
+      CREDS_CACHE_KEY,
+      JSON.stringify({
+        studentId: bundle.studentId || bundle.student_id,
+        studentName: bundle.studentName || bundle.full_name || 'OJT Student',
+        qrSecret: bundle.qrSecret || bundle.totp_secret,
+        deviceToken: bundle.deviceToken || bundle.device_id || bundle.device_token,
+        deviceBound: true,
+        secretExpiresAt: expiresAt,
+        workplaceGeofence: bundle.workplaceGeofence || null,
+        savedAt: new Date().toISOString()
+      })
+    );
+  } catch (_) {}
+}
+
+/**
+ * Load and validate cached offline credentials (checks device binding and 72h expiry)
+ */
+export async function loadOfflineCredentials(currentDeviceToken) {
+  try {
+    const raw = await AsyncStorage.getItem(CREDS_CACHE_KEY);
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    if (!cached || !cached.qrSecret || !cached.studentId) return null;
+
+    if (currentDeviceToken && cached.deviceToken && cached.deviceToken !== currentDeviceToken) {
+      return { deviceMismatch: true, expired: false, cached };
+    }
+
+    if (cached.secretExpiresAt) {
+      const expMs = new Date(cached.secretExpiresAt).getTime();
+      if (!isNaN(expMs) && Date.now() > expMs) {
+        await AsyncStorage.removeItem(CREDS_CACHE_KEY);
+        return { deviceMismatch: false, expired: true, cached: null };
+      }
+    }
+
+    return { deviceMismatch: false, expired: false, cached };
   } catch (_) {
     return null;
   }
 }
 
-/**
- * Human-readable device name for mobile
- */
-export function getDeviceName() {
-  return 'Android Device (React Native App v1.0)';
+export async function clearOfflineCredentials() {
+  try {
+    await AsyncStorage.removeItem(CREDS_CACHE_KEY);
+  } catch (_) {}
 }
 
 /**
- * Generates the full dynamic QR payload with a fresh timestamp and HMAC-SHA256 signature
+ * Human-readable Android handset label
  */
-export async function buildDynamicQrPayload(secret, studentId, deviceToken) {
+export function getDeviceName() {
+  const brand = Platform.constants?.Brand || Platform.constants?.Manufacturer || 'Android';
+  const model = Platform.constants?.Model || 'Handset';
+  const rel = Platform.Version ? `API ${Platform.Version}` : '';
+  return `${brand} ${model} (${rel || 'React Native'})`.trim();
+}
+
+/**
+ * Deterministically compute 6-digit TOTP code for a 30-second time step
+ * Matches server computeTotpCodeForStep(secret, timeStep)
+ */
+export function computeClientTotpCode(secret, timeStep) {
+  const hex = hmacSha256(String(secret), `totp:${timeStep}`);
+  const num = parseInt(hex.slice(0, 8), 16) % 1000000;
+  return String(num).padStart(6, '0');
+}
+
+/**
+ * Build canonical v2 signing string matching server buildCanonicalQrSigningString
+ */
+export function buildCanonicalQrSigningString({
+  sid,
+  did,
+  totp,
+  ts,
+  nonce,
+  mode = 'online',
+  loc = null
+}) {
+  const latStr = loc && loc.lat != null && !isNaN(Number(loc.lat)) ? Number(loc.lat).toFixed(6) : 'none';
+  const lngStr = loc && loc.lng != null && !isNaN(Number(loc.lng)) ? Number(loc.lng).toFixed(6) : 'none';
+  const accStr = loc && loc.acc != null && !isNaN(Number(loc.acc)) ? String(Math.round(Number(loc.acc))) : 'none';
+  return `v2|${sid}|${did}|${totp}|${ts}|${nonce}|${mode}|${latStr},${lngStr},${accStr}`;
+}
+
+/**
+ * Generates the v2 dynamic QR payload with 30s TOTP, single-use Nonce, GPS telemetry, and device-bound signature
+ */
+export async function buildDynamicQrPayload(secret, studentId, deviceToken, options = {}) {
   if (!secret || !studentId || !deviceToken) {
     throw new Error('Missing credentials for generating attendance QR code.');
   }
 
   const ts = Math.floor(Date.now() / 1000);
-  const message = `${studentId}:${deviceToken}:${ts}`;
-  const sig = hmacSha256(secret, message);
+  const timeStep = Math.floor(ts / TOTP_STEP_SECONDS);
+  const totpCode = computeClientTotpCode(secret, timeStep);
+  const nonce = randomHex(24);
+  const mode = options.mode === 'offline' ? 'offline' : 'online';
+  const loc =
+    options.location && options.location.lat != null && options.location.lng != null
+      ? {
+          lat: Number(Number(options.location.lat).toFixed(6)),
+          lng: Number(Number(options.location.lng).toFixed(6)),
+          acc: options.location.acc != null ? Math.round(Number(options.location.acc)) : null
+        }
+      : null;
+
+  const canonicalStr = buildCanonicalQrSigningString({
+    sid: studentId,
+    did: deviceToken,
+    totp: totpCode,
+    ts,
+    nonce,
+    mode,
+    loc
+  });
+
+  const hmac = hmacSha256(String(secret), canonicalStr);
 
   return JSON.stringify({
-    v: 1,
+    v: 2,
     sid: studentId,
+    did: deviceToken,
     dt: deviceToken,
+    c: totpCode,
     ts,
-    sig
+    n: nonce,
+    mode,
+    loc,
+    hmac
   });
+}
+
+/**
+ * Compute Haversine distance in meters between two GPS coordinates
+ */
+export function calculateHaversineMeters(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(Number(lat2) - Number(lat1));
+  const dLon = toRad(Number(lon2) - Number(lon1));
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(Number(lat1))) *
+      Math.cos(toRad(Number(lat2))) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
 }

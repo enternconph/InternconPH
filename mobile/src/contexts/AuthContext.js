@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/client';
+import { getOrCreateDeviceToken } from '../utils/totpHelper';
 
 const AuthContext = createContext(null);
 
@@ -91,7 +92,8 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     setError(null);
     try {
-      const res = await api.post('/auth/login', { email, password });
+      const deviceId = await getOrCreateDeviceToken();
+      const res = await api.post('/auth/login', { email, password, device_id: deviceId });
 
       if (!res.success || !res.token) {
         throw new Error(res.message || 'Login failed. Please verify your credentials.');
@@ -110,6 +112,9 @@ export function AuthProvider({ children }) {
 
       await AsyncStorage.setItem('@internconph_token', res.token);
       await AsyncStorage.setItem('@internconph_user', JSON.stringify(userData));
+      if (res.session_id) {
+        await AsyncStorage.setItem('@internconph_session_id', String(res.session_id));
+      }
 
       setToken(res.token);
       setUser(userData);
