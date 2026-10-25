@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import Pagination from '../../components/ui/Pagination';
@@ -28,6 +29,26 @@ export default function AdminComplaints() {
   // Detail modal for viewing full report or accident
   const [viewingReport, setViewingReport] = useState(null);
   const [viewingAccident, setViewingAccident] = useState(null);
+
+  // Lock body scroll and handle Escape key when any modal is open
+  useEffect(() => {
+    const isAnyModalOpen = Boolean(selectedReport || viewingReport || viewingAccident);
+    if (!isAnyModalOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setSelectedReport(null);
+        setViewingReport(null);
+        setViewingAccident(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedReport, viewingReport, viewingAccident]);
 
   // Search/filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -790,9 +811,17 @@ export default function AdminComplaints() {
       )}
 
       {/* MODAL 1: RESOLVE INSTITUTION REPORT & ENFORCE REPEAT-OFFENSE POLICY */}
-      {selectedReport && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white max-w-xl w-full rounded-2xl p-6 border border-outline-variant shadow-2xl space-y-5 animate-scaleUp max-h-[90vh] overflow-y-auto">
+      {selectedReport && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedReport(null);
+          }}
+        >
+          <div
+            className="bg-white max-w-xl w-full rounded-2xl p-6 border border-outline-variant shadow-2xl space-y-5 animate-scaleUp max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
             <div className="flex justify-between items-start border-b border-outline-variant pb-3">
               <div>
@@ -963,13 +992,22 @@ export default function AdminComplaints() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL 2: FULL DOSSIER VIEWER */}
-      {viewingReport && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white max-w-2xl w-full rounded-2xl p-6 border border-outline-variant shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+      {viewingReport && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setViewingReport(null);
+          }}
+        >
+          <div
+            className="bg-white max-w-2xl w-full rounded-2xl p-6 border border-outline-variant shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-start border-b border-outline-variant pb-3">
               <div>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-surface-container-high text-on-surface">
@@ -1030,13 +1068,22 @@ export default function AdminComplaints() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL 3: ACCIDENT REPORT DETAIL VIEWER */}
-      {viewingAccident && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white max-w-xl w-full rounded-2xl p-6 border border-outline-variant shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+      {viewingAccident && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setViewingAccident(null);
+          }}
+        >
+          <div
+            className="bg-white max-w-xl w-full rounded-2xl p-6 border border-outline-variant shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-start border-b border-outline-variant pb-3">
               <div>
                 <span
@@ -1147,7 +1194,8 @@ export default function AdminComplaints() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

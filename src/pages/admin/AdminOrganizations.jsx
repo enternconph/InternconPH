@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import Pagination from '../../components/ui/Pagination';
@@ -52,6 +53,25 @@ export default function AdminOrganizations() {
   const ITEMS_PER_PAGE = 20;
 
   const token = localStorage.getItem('token') || '';
+
+  // Prevent background scroll and allow Escape key to close modal
+  useEffect(() => {
+    if (!selectedOrg) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setSelectedOrg(null);
+        setOrgDetail(null);
+        setPreviewUrl(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedOrg]);
 
   const fetchOrgs = useCallback(async () => {
     try {
@@ -334,9 +354,21 @@ export default function AdminOrganizations() {
       </div>
 
       {/* Legal Document Inspection Modal */}
-      {selectedOrg && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white border border-outline-variant rounded-2xl max-w-4xl w-full p-5 sm:p-6 shadow-2xl space-y-4 my-6 animate-in fade-in zoom-in duration-150 flex flex-col max-h-[90vh]">
+      {selectedOrg && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedOrg(null);
+              setOrgDetail(null);
+              setPreviewUrl(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white border border-outline-variant rounded-2xl max-w-4xl w-full p-5 sm:p-6 shadow-2xl space-y-4 my-6 animate-in fade-in zoom-in duration-150 flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-outline-variant pb-3 shrink-0">
               <div className="flex items-center gap-2.5">
@@ -536,7 +568,8 @@ export default function AdminOrganizations() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
