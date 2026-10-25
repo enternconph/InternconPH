@@ -1730,16 +1730,21 @@ router.get('/complaints', async (req, res) => {
 // PATCH /api/admin/complaints/accidents/:id/read - Toggle or Mark an accident report as read
 router.patch('/complaints/accidents/:id/read', async (req, res) => {
   const accidentId = req.params.id;
-  const { mark_read } = req.body;
+  const markReadParam =
+    typeof req.body?.mark_read === 'boolean'
+      ? req.body.mark_read
+      : typeof req.body?.read === 'boolean'
+        ? req.body.read
+        : undefined;
 
   try {
     const [rows] = await pool.query('SELECT accident_id, admin_read_at FROM accident_reports WHERE accident_id = ?', [accidentId]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: 'Accident report not found.' });
 
     let newReadAt = null;
-    if (mark_read === true) {
+    if (markReadParam === true) {
       newReadAt = new Date();
-    } else if (mark_read === false) {
+    } else if (markReadParam === false) {
       newReadAt = null;
     } else {
       newReadAt = rows[0].admin_read_at ? null : new Date();
@@ -1749,11 +1754,16 @@ router.patch('/complaints/accidents/:id/read', async (req, res) => {
 
     emitUpdate('complaint_updated', { accident_id: accidentId, role: 'system_admin' });
 
+    const isReadBool = Boolean(newReadAt);
     return res.json({
       success: true,
       message: newReadAt ? 'Accident report marked as read.' : 'Accident report marked as unread.',
-      is_read: Boolean(newReadAt),
-      admin_read_at: newReadAt
+      is_read: isReadBool,
+      admin_read_at: newReadAt,
+      data: {
+        is_read: isReadBool,
+        admin_read_at: newReadAt
+      }
     });
   } catch (error) {
     console.error('Update accident read status error:', error);

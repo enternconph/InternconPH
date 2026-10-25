@@ -64,9 +64,19 @@ export default function AdminComplaints() {
     try {
       const res = await api.get('/admin/complaints');
       if (res.success && res.data) {
+        const normalizedAccidents = (res.data.escalatedAccidents || []).map((acc) => ({
+          ...acc,
+          is_read:
+            acc.is_read === 1 ||
+            acc.is_read === '1' ||
+            acc.is_read === true ||
+            Boolean(acc.admin_read_at)
+              ? 1
+              : 0
+        }));
         setData({
           institutionReports: res.data.institutionReports || [],
-          escalatedAccidents: res.data.escalatedAccidents || [],
+          escalatedAccidents: normalizedAccidents,
           warnings: res.data.warnings || [],
           suspensions: res.data.suspensions || []
         });
@@ -182,27 +192,67 @@ export default function AdminComplaints() {
   }, [data.escalatedAccidents]);
 
   const handleToggleAccidentRead = async (accidentId, currentStatus) => {
+    const targetRead = !currentStatus;
+    const optimisticReadAt = targetRead ? new Date().toISOString() : null;
+
+    // Optimistic UI update for instant feedback
+    setData((prev) => ({
+      ...prev,
+      escalatedAccidents: prev.escalatedAccidents.map((acc) =>
+        acc.accident_id === accidentId
+          ? { ...acc, is_read: targetRead ? 1 : 0, admin_read_at: optimisticReadAt }
+          : acc
+      )
+    }));
+    if (viewingAccident && viewingAccident.accident_id === accidentId) {
+      setViewingAccident((prev) => ({
+        ...prev,
+        is_read: targetRead ? 1 : 0,
+        admin_read_at: optimisticReadAt
+      }));
+    }
+
     try {
       const res = await api.patch(`/admin/complaints/accidents/${accidentId}/read`, {
-        read: !currentStatus
+        mark_read: targetRead,
+        read: targetRead
       });
-      if (res.success) {
-        setData(prev => ({
+      if (res && res.success) {
+        const resolvedIsRead =
+          typeof res.data?.is_read === 'boolean'
+            ? res.data.is_read
+            : typeof res.is_read === 'boolean'
+              ? res.is_read
+              : targetRead;
+        const resolvedReadAt =
+          res.data?.admin_read_at !== undefined
+            ? res.data.admin_read_at
+            : res.admin_read_at !== undefined
+              ? res.admin_read_at
+              : optimisticReadAt;
+
+        setData((prev) => ({
           ...prev,
-          escalatedAccidents: prev.escalatedAccidents.map(acc => 
-            acc.accident_id === accidentId ? { ...acc, is_read: res.data?.is_read ? 1 : 0, admin_read_at: res.data?.admin_read_at } : acc
+          escalatedAccidents: prev.escalatedAccidents.map((acc) =>
+            acc.accident_id === accidentId
+              ? { ...acc, is_read: resolvedIsRead ? 1 : 0, admin_read_at: resolvedReadAt }
+              : acc
           )
         }));
         if (viewingAccident && viewingAccident.accident_id === accidentId) {
-          setViewingAccident(prev => ({
+          setViewingAccident((prev) => ({
             ...prev,
-            is_read: res.data?.is_read ? 1 : 0,
-            admin_read_at: res.data?.admin_read_at
+            is_read: resolvedIsRead ? 1 : 0,
+            admin_read_at: resolvedReadAt
           }));
         }
+      } else {
+        // Revert optimistic update on failure
+        fetchAdminData();
       }
     } catch (err) {
       console.error('Failed to toggle accident read status:', err);
+      fetchAdminData();
     }
   };
 
@@ -338,7 +388,13 @@ export default function AdminComplaints() {
           <span>Escalated Accident Reports</span>
           {data.escalatedAccidents?.length > 0 && (
             <div className="flex items-center gap-1">
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-500 text-white">
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  unreadAccidentsCount > 0
+                    ? 'bg-rose-500 text-white'
+                    : 'bg-surface-container-high text-on-surface-variant'
+                }`}
+              >
                 {data.escalatedAccidents.length}
               </span>
               {unreadAccidentsCount > 0 && (

@@ -139,6 +139,7 @@ export const api = {
   get: (url) => apiRequest(url, { method: 'GET' }),
   post: (url, body) => apiRequest(url, { method: 'POST', body: body instanceof FormData ? body : JSON.stringify(body) }),
   put: (url, body) => apiRequest(url, { method: 'PUT', body: body instanceof FormData ? body : JSON.stringify(body) }),
+  patch: (url, body) => apiRequest(url, { method: 'PATCH', body: body instanceof FormData ? body : JSON.stringify(body) }),
   delete: (url) => apiRequest(url, { method: 'DELETE' }),
 };
 
