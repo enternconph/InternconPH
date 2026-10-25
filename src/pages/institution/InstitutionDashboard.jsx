@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import api from '../../api/client';
 import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, isPdfFile, formatPortfolioTitle, formatFileSubtitle, formatAddress } from '../../utils/fileHelper';
-import { DashboardSkeleton } from '../../components/ui/Skeleton';
+import { InstitutionDashboardSkeleton, DashboardErrorState } from '../../components/skeletons';
 
 const OJT_STATUS_STYLES = {
   ongoing:     'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400',
@@ -522,6 +522,7 @@ export default function InstitutionDashboard() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Student directory local state
   const [stuSearch, setStuSearch] = useState('');
@@ -532,9 +533,13 @@ export default function InstitutionDashboard() {
   const fetchDashboard = useCallback(async () => {
     try {
       const res = await api.get('/inst/dashboard');
-      if (res.success && res.data) setData(res.data);
+      if (res.success && res.data) {
+        setData(res.data);
+        setError(null);
+      }
     } catch (err) {
       console.error('Failed to load institution dashboard:', err);
+      setError(err.message || 'Failed to connect to the institution service.');
     } finally {
       setLoading(false);
     }
@@ -544,7 +549,20 @@ export default function InstitutionDashboard() {
   useRealtimeRefresh(fetchDashboard);
 
   if (loading && !data) {
-    return <DashboardSkeleton />;
+    return <InstitutionDashboardSkeleton />;
+  }
+
+  if (error && !data) {
+    return (
+      <DashboardErrorState
+        title="Institution Dashboard Unavailable"
+        message={error}
+        onRetry={() => {
+          setLoading(true);
+          fetchDashboard();
+        }}
+      />
+    );
   }
 
   const stats = data?.metrics || data?.stats || {};

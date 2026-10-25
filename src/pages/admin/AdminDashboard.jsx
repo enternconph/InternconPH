@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import api from '../../api/client';
-import { DashboardSkeleton } from '../../components/ui/Skeleton';
+import { AdminDashboardSkeleton, DashboardErrorState } from '../../components/skeletons';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [recalculatingAi, setRecalculatingAi] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -27,12 +28,14 @@ export default function AdminDashboard() {
       const res = await api.get('/admin/dashboard');
       if (res.success && res.data) {
         setData(res.data);
+        setError(null);
         setLastRefreshedAt(new Date());
         if (isManual) showToast('Dashboard metrics refreshed successfully.');
       }
     } catch (err) {
       console.error('Fetch admin dashboard error:', err);
       if (isManual) showToast('Could not refresh dashboard data.', 'error');
+      else setError(err.message || 'Failed to connect to the system admin API.');
     } finally {
       setLoading(false);
       if (isManual) setRefreshing(false);
@@ -72,7 +75,20 @@ export default function AdminDashboard() {
   const instPct = Math.max(1, Math.round((((roleDist.institution || 0) + (roleDist.institution_staff || 0)) / totalUsersCount) * 100));
 
   if (loading && !data) {
-    return <DashboardSkeleton />;
+    return <AdminDashboardSkeleton />;
+  }
+
+  if (error && !data) {
+    return (
+      <DashboardErrorState
+        title="System Overview Unavailable"
+        message={error}
+        onRetry={() => {
+          setLoading(true);
+          fetchDashboard(false);
+        }}
+      />
+    );
   }
 
   return (

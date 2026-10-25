@@ -3,21 +3,24 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import api from '../../api/client';
-import { DashboardSkeleton } from '../../components/ui/Skeleton';
+import { StudentDashboardSkeleton, DashboardErrorState } from '../../components/skeletons';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
       const res = await api.get('/student/dashboard');
       if (res.success && res.data) {
         setData(res.data);
+        setError(null);
       }
     } catch (err) {
       console.error('Fetch student dashboard error:', err);
+      setError(err.message || 'Failed to load student dashboard.');
     } finally {
       setLoading(false);
     }
@@ -31,7 +34,20 @@ export default function StudentDashboard() {
   useRealtimeRefresh(fetchDashboard);
 
   if (loading && !data) {
-    return <DashboardSkeleton />;
+    return <StudentDashboardSkeleton />;
+  }
+
+  if (error && !data) {
+    return (
+      <DashboardErrorState
+        title="Student Dashboard Unavailable"
+        message={error}
+        onRetry={() => {
+          setLoading(true);
+          fetchDashboard();
+        }}
+      />
+    );
   }
 
   const activeOjt = data?.activeOjt;

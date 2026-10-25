@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import api from '../../api/client';
-import { DashboardSkeleton } from '../../components/ui/Skeleton';
+import { OrgDashboardSkeleton, DashboardErrorState } from '../../components/skeletons';
 import { DetailDrawer, DetailRow } from '../../components/ui';
 import { resolveFileUrl, formatAddress } from '../../utils/fileHelper';
 
@@ -12,6 +12,7 @@ export default function OrgDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showNoMentorWarning, setShowNoMentorWarning] = useState(false);
   const [selectedJobForDetail, setSelectedJobForDetail] = useState(null);
 
@@ -23,9 +24,11 @@ export default function OrgDashboard() {
       const res = await api.get('/org/dashboard');
       if (res.success && res.data) {
         setData(res.data);
+        setError(null);
       }
     } catch (err) {
       console.error('Fetch org dashboard error:', err);
+      setError(err.message || 'Failed to load employer dashboard.');
     } finally {
       setLoading(false);
     }
@@ -39,7 +42,20 @@ export default function OrgDashboard() {
   useRealtimeRefresh(fetchOrgDashboard);
 
   if (loading && !data) {
-    return <DashboardSkeleton />;
+    return <OrgDashboardSkeleton isMentor={isMentor} />;
+  }
+
+  if (error && !data) {
+    return (
+      <DashboardErrorState
+        title="Organization Dashboard Unavailable"
+        message={error}
+        onRetry={() => {
+          setLoading(true);
+          fetchOrgDashboard();
+        }}
+      />
+    );
   }
 
   const organizationName = data?.organization?.organization_name || user?.full_name || 'Employer Partner';
