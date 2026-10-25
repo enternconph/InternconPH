@@ -1308,6 +1308,84 @@ export async function runMigrations() {
       console.warn('[Migration Warning] Journal table migration error:', journalMigErr.message);
     }
 
+    // 34. Ensure ojt_certificates table exists for verified credential issuance
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ojt_certificates (
+          certificate_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          certificate_code VARCHAR(100) NOT NULL UNIQUE,
+          ojt_id BIGINT UNSIGNED NOT NULL,
+          student_id BIGINT UNSIGNED NOT NULL,
+          institution_id BIGINT UNSIGNED NOT NULL,
+          organization_id BIGINT UNSIGNED NOT NULL,
+          program_id BIGINT UNSIGNED NULL,
+          student_name VARCHAR(200) NOT NULL,
+          student_number VARCHAR(100) NULL,
+          program_name VARCHAR(200) NULL,
+          institution_name VARCHAR(200) NOT NULL,
+          organization_name VARCHAR(200) NOT NULL,
+          rendered_hours DECIMAL(6,2) NOT NULL DEFAULT 0.00,
+          required_hours DECIMAL(6,2) NOT NULL DEFAULT 600.00,
+          evaluation_rating DECIMAL(3,2) NULL,
+          completion_date DATE NULL,
+          issued_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          certificate_data JSON NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_cert_code (certificate_code),
+          INDEX idx_cert_ojt (ojt_id),
+          INDEX idx_cert_student (student_id),
+          INDEX idx_cert_inst (institution_id),
+          INDEX idx_cert_org (organization_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+      console.log('[Migration] ojt_certificates table verified.');
+    } catch (certMigErr) {
+      console.warn('[Migration Warning] Certificate table creation warning:', certMigErr.message);
+    }
+
+    // 35. Auto-sync physical verification uploads into stored_uploads for cloud and restart resilience
+    try {
+      const UPLOADS_DIR = path.resolve(__dirname, '../../uploads');
+      const subdirs = ['institutions', 'orgs'];
+      for (const sub of subdirs) {
+        const dir = path.join(UPLOADS_DIR, sub);
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir);
+          for (const f of files) {
+            const fullPath = path.join(dir, f);
+            try {
+              const stat = fs.statSync(fullPath);
+              if (!stat.isFile()) continue;
+              const relPath = `/uploads/${sub}/${f}`;
+              const ext = path.extname(f).toLowerCase();
+              const mimeMap = {
+                '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                '.doc': 'application/msword',
+                '.pdf': 'application/pdf',
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.webp': 'image/webp'
+              };
+              const mimeType = mimeMap[ext] || 'application/octet-stream';
+              const [exists] = await pool.query('SELECT upload_id FROM stored_uploads WHERE file_path = ? LIMIT 1', [relPath]);
+              if (exists.length === 0) {
+                const data = fs.readFileSync(fullPath);
+                await pool.query(
+                  'INSERT INTO stored_uploads (file_path, file_name, mime_type, file_size, file_data) VALUES (?, ?, ?, ?, ?)',
+                  [relPath, f, mimeType, stat.size, data]
+                );
+              }
+            } catch (_) {}
+          }
+        }
+      }
+      console.log('[Migration] Legal verification uploads synchronized to database.');
+    } catch (syncErr) {
+      console.warn('[Migration Warning] Upload sync warning:', syncErr.message);
+    }
+
     console.log('[Migration] All schema alignments completed successfully!');
   } catch (error) {
     console.error('[Migration Error]', error);

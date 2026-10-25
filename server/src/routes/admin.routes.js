@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import zlib from 'zlib';
 import { fileURLToPath } from 'url';
 import pool from '../config/db.js';
 import { verifyToken, requireRole } from '../middleware/auth.js';
@@ -13,6 +14,412 @@ const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const UPLOADS_DIR = path.resolve(__dirname, '../../uploads');
+
+// Helper to extract text from Microsoft Word (.docx) XML without external dependencies
+export function extractDocxText(buf) {
+  if (!buf || buf.length < 30) return null;
+  const targetFile = 'word/document.xml';
+  let pos = 0;
+  while (pos < buf.length - 30) {
+    if (buf.readUInt32LE(pos) === 0x04034b50) {
+      const compression = buf.readUInt16LE(pos + 8);
+      const compressedSize = buf.readUInt32LE(pos + 18);
+      const nameLen = buf.readUInt16LE(pos + 26);
+      const extraLen = buf.readUInt16LE(pos + 28);
+      const currentName = buf.toString('utf8', pos + 30, pos + 30 + nameLen);
+      const dataStart = pos + 30 + nameLen + extraLen;
+      if (currentName === targetFile) {
+        try {
+          const compressedData = buf.subarray(dataStart, dataStart + compressedSize);
+          let xmlStr = '';
+          if (compression === 8) {
+            xmlStr = zlib.inflateRawSync(compressedData).toString('utf8');
+          } else if (compression === 0) {
+            xmlStr = compressedData.toString('utf8');
+          }
+          const text = xmlStr
+            .replace(/<w:p[^>]*>/g, '\n\n')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&')
+            .replace(/&quot;/g, '"')
+            .replace(/&apos;/g, "'");
+          return text.trim();
+        } catch (_) {
+          return null;
+        }
+      }
+      pos = dataStart + compressedSize;
+    } else {
+      pos++;
+    }
+  }
+  return null;
+}
+
+// HTML escape helper
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Render modern document viewer for Word (.docx) files inside iframes/tabs
+function renderDocxPreviewHtml({ title, docName, fileName, fileSize, uploadedAt, textContent, downloadUrl }) {
+  const formattedSize = fileSize ? (fileSize > 1048576 ? (fileSize / 1048576).toFixed(2) + ' MB' : (fileSize / 1024).toFixed(1) + ' KB') : 'Document';
+  const uploadDateStr = uploadedAt ? new Date(uploadedAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : 'Verified Archive';
+  
+  const paragraphs = (textContent || '')
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  const bodyHtml = paragraphs.length > 0 
+    ? paragraphs.map(p => `<p class="doc-p">${escapeHtml(p).replace(/\n/g, '<br/>')}</p>`).join('')
+    : `<div class="empty-text">
+        <p><strong>Microsoft Word Document (.docx)</strong></p>
+        <p>This document contains formatted tables, charts, or images. Click "Download Original .docx" to inspect with full Microsoft Office formatting.</p>
+      </div>`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title || 'Document Verification')}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      padding: 1rem;
+      line-height: 1.6;
+    }
+    .header-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      background: #ffffff;
+      padding: 0.85rem 1.25rem;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      margin-bottom: 1.25rem;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .doc-meta { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+    .doc-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      word-break: break-word;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.15rem 0.5rem;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      border-radius: 9999px;
+      background: #fff7ed;
+      color: #ea580c;
+      border: 1px solid #fed7aa;
+      white-space: nowrap;
+    }
+    .badge-blue {
+      background: #eff6ff;
+      color: #2563eb;
+      border: 1px solid #bfdbfe;
+    }
+    .doc-subtitle {
+      font-size: 0.75rem;
+      color: #64748b;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.45rem 0.85rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border-radius: 8px;
+      text-decoration: none;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+    }
+    .btn-primary { background: #ea580c; color: #ffffff; }
+    .btn-primary:hover { background: #c2410c; }
+    .btn-secondary { background: #ffffff; color: #334155; border-color: #cbd5e1; }
+    .btn-secondary:hover { background: #f1f5f9; }
+    .doc-paper {
+      max-width: 820px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 2.5rem 3rem;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+      min-height: 450px;
+    }
+    .doc-paper-header {
+      border-bottom: 2px solid #f1f5f9;
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+    .doc-paper-header h1 {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.01em;
+      margin-bottom: 0.25rem;
+    }
+    .doc-paper-header p {
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+    .doc-p {
+      margin-bottom: 1.25rem;
+      font-size: 0.95rem;
+      color: #1e293b;
+      line-height: 1.75;
+      font-family: "Charter", "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+    }
+    .empty-text {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #64748b;
+      font-size: 0.9rem;
+    }
+    .print-footer {
+      text-align: center;
+      margin-top: 2rem;
+      font-size: 0.725rem;
+      color: #94a3b8;
+    }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .header-bar, .actions { display: none !important; }
+      .doc-paper { box-shadow: none; border: none; padding: 0; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header-bar">
+    <div class="doc-meta">
+      <div class="doc-title">
+        <span>${escapeHtml(docName || 'Legal Accreditation Softcopy')}</span>
+        <span class="badge">Word DOCX</span>
+        <span class="badge badge-blue">Official Verification</span>
+      </div>
+      <div class="doc-subtitle">
+        File: <strong>${escapeHtml(fileName || 'document.docx')}</strong> &bull; Size: ${formattedSize} &bull; Uploaded: ${escapeHtml(uploadDateStr)}
+      </div>
+    </div>
+    <div class="actions">
+      <a href="${downloadUrl}" class="btn btn-primary" download>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download Original .docx
+      </a>
+      <button onclick="window.print()" class="btn btn-secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Print / PDF
+      </button>
+    </div>
+  </div>
+
+  <div class="doc-paper">
+    <div class="doc-paper-header">
+      <h1>${escapeHtml(docName || 'OFFICIAL SOFTCOPY RECORD')}</h1>
+      <p>Submitted Document Transcript &bull; Republic of the Philippines &bull; InternConPH Legitimacy Verification</p>
+    </div>
+    <div class="doc-content">
+      ${bodyHtml}
+    </div>
+  </div>
+  <div class="print-footer">
+    InternConPH Philippine OJT Coordination Platform &bull; System Administrator Legal Verification Engine
+  </div>
+</body>
+</html>`;
+}
+
+// Render self-declared government permit certificate proof
+function renderSelfDeclaredProofHtml({ docName, refNumber, doc }) {
+  const uploadDateStr = doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : 'Verified Archive';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accreditation Reference - ${escapeHtml(refNumber)}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      padding: 2rem 1rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 90vh;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 2.5rem;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      text-align: center;
+    }
+    .icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 1.25rem;
+      border-radius: 50%;
+      background: #ecfdf5;
+      color: #059669;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: bold;
+    }
+    h2 { font-size: 1.25rem; font-weight: 800; margin-bottom: 0.5rem; color: #0f172a; }
+    p { font-size: 0.875rem; color: #475569; margin-bottom: 1.5rem; line-height: 1.5; }
+    .ref-box {
+      background: #f1f5f9;
+      border: 1px dashed #cbd5e1;
+      padding: 1.25rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+    }
+    .ref-label { font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #64748b; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
+    .ref-code { font-family: monospace; font-size: 1.2rem; font-weight: 700; color: #ea580c; }
+    .meta { font-size: 0.75rem; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">&#10003;</div>
+    <h2>Government Accreditation / Permit Reference</h2>
+    <p>This institution declared their official government accreditation permit registration number during formal platform onboarding.</p>
+    <div class="ref-box">
+      <div class="ref-label">Accreditation Reference Number</div>
+      <div class="ref-code">${escapeHtml(refNumber)}</div>
+    </div>
+    <div class="meta">
+      Record ID: #${doc.document_id} &bull; Document: ${escapeHtml(docName || 'Government Accreditation Record')} &bull; Submitted: ${escapeHtml(uploadDateStr)}
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// Render graceful fallback when a file is unavailable on both disk and database
+function renderMissingDocHtml({ docName, fileName, filePath, doc }) {
+  const uploadDateStr = doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : 'N/A';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document File Not Found - InternConPH</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      padding: 2rem 1rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 85vh;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #fee2e2;
+      border-radius: 16px;
+      padding: 2.25rem;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 4px 16px rgba(239, 68, 68, 0.08);
+      text-align: center;
+    }
+    .icon {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 1.25rem;
+      border-radius: 50%;
+      background: #fef2f2;
+      color: #dc2626;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+    h2 { font-size: 1.15rem; font-weight: 800; margin-bottom: 0.5rem; color: #991b1b; }
+    p { font-size: 0.85rem; color: #475569; margin-bottom: 1.25rem; line-height: 1.5; }
+    .info-table {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 1rem;
+      text-align: left;
+      font-size: 0.8rem;
+      margin-bottom: 1.25rem;
+    }
+    .info-row { display: flex; justify-content: space-between; padding: 0.25rem 0; border-bottom: 1px solid #f1f5f9; }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: #64748b; font-weight: 600; }
+    .info-val { color: #0f172a; font-family: monospace; word-break: break-all; }
+    .advice {
+      font-size: 0.775rem;
+      color: #b45309;
+      background: #fffbeb;
+      border: 1px solid #fef3c7;
+      padding: 0.75rem;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">&#9888;</div>
+    <h2>Softcopy Document File Unavailable</h2>
+    <p>The document metadata exists in the database, but the physical file is not found on local disk or database cache.</p>
+    <div class="info-table">
+      <div class="info-row"><span class="info-label">Document:</span><span class="info-val">${escapeHtml(docName || 'Accreditation Softcopy')}</span></div>
+      <div class="info-row"><span class="info-label">File Name:</span><span class="info-val">${escapeHtml(fileName || 'document')}</span></div>
+      <div class="info-row"><span class="info-label">Uploaded:</span><span class="info-val">${escapeHtml(uploadDateStr)}</span></div>
+      <div class="info-row"><span class="info-label">Storage Path:</span><span class="info-val">${escapeHtml(filePath || 'N/A')}</span></div>
+    </div>
+    <div class="advice">
+      <strong>Administrator Action:</strong> If this file was uploaded before server storage migration, please request the organization or school to re-upload their legal softcopy via their dashboard.
+    </div>
+  </div>
+</body>
+</html>`;
+}
 
 // Safe file resolver across canonical and fallback directories
 const resolveUploadedFilePath = (webOrRelativePath) => {
@@ -34,6 +441,112 @@ const resolveUploadedFilePath = (webOrRelativePath) => {
     } catch (_) {}
   }
   return null;
+};
+
+// Resilient document fetcher supporting local disk, database stored_uploads, and Cloudinary URLs
+const fetchDocumentResource = async (doc) => {
+  if (!doc || !doc.file_path) {
+    return { type: 'not_found', doc };
+  }
+
+  // 1. External Web URLs (Cloudinary, S3, etc.)
+  if (doc.file_path.startsWith('http://') || doc.file_path.startsWith('https://')) {
+    return { type: 'url', url: doc.file_path, doc };
+  }
+
+  // 2. Self-Declared Government Registrations / Accreditation References
+  if (doc.file_path.startsWith('Ref:') || doc.file_path.includes('(Self-Declared)')) {
+    return { type: 'self_declared', ref: doc.file_path, doc };
+  }
+
+  // 3. Check local disk canonical and fallback locations
+  const filePath = resolveUploadedFilePath(doc.file_path);
+  if (filePath && fs.existsSync(filePath)) {
+    try {
+      const stat = fs.statSync(filePath);
+      const buffer = fs.readFileSync(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+      return {
+        type: 'file',
+        buffer,
+        filePath,
+        fileName: doc.file_name || path.basename(filePath),
+        fileSize: stat.size,
+        ext,
+        doc
+      };
+    } catch (readErr) {
+      console.warn('[Doc Resolver] Could not read disk file:', readErr.message);
+    }
+  }
+
+  // 4. Check MySQL persistent stored_uploads (Render/Ephemeral cloud storage resilience)
+  try {
+    const basename = path.basename(doc.file_path);
+    const [rows] = await pool.query(
+      `SELECT file_name, mime_type, file_size, file_data 
+       FROM stored_uploads 
+       WHERE file_path = ? OR file_path LIKE ? OR file_name = ? OR file_name = ?
+       ORDER BY upload_id DESC LIMIT 1`,
+      [doc.file_path, `%/${basename}`, basename, doc.file_name]
+    );
+
+    if (rows && rows.length > 0 && rows[0].file_data) {
+      const rec = rows[0];
+      const fileName = rec.file_name || doc.file_name || basename;
+      const ext = path.extname(fileName).toLowerCase();
+
+      // Re-hydrate local disk cache so subsequent reads are instant
+      try {
+        const subfolder = doc.file_path.includes('/institutions') ? 'institutions' : doc.file_path.includes('/orgs') ? 'orgs' : '';
+        const targetDir = subfolder ? path.join(UPLOADS_DIR, subfolder) : UPLOADS_DIR;
+        if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+        const localPath = path.join(targetDir, basename);
+        if (!fs.existsSync(localPath)) fs.writeFileSync(localPath, rec.file_data);
+      } catch (cacheErr) {
+        console.warn('[Doc Resolver] Re-hydrate disk cache warning:', cacheErr.message);
+      }
+
+      return {
+        type: 'file',
+        buffer: rec.file_data,
+        filePath: null,
+        fileName,
+        fileSize: rec.file_size || rec.file_data.length,
+        mimeType: rec.mime_type,
+        ext,
+        doc
+      };
+    }
+  } catch (dbErr) {
+    console.error('[Doc Resolver] stored_uploads query error:', dbErr);
+  }
+
+  // 5. Fallback: fuzzy match on disk if timestamp or prefix matches
+  try {
+    const basename = path.basename(doc.file_path);
+    const subfolder = doc.file_path.includes('/institutions') ? 'institutions' : doc.file_path.includes('/orgs') ? 'orgs' : '';
+    const searchDir = subfolder ? path.join(UPLOADS_DIR, subfolder) : UPLOADS_DIR;
+    if (fs.existsSync(searchDir)) {
+      const files = fs.readdirSync(searchDir);
+      const match = files.find(f => f.toLowerCase() === basename.toLowerCase() || (doc.file_name && f.toLowerCase().includes(doc.file_name.toLowerCase())));
+      if (match) {
+        const fullP = path.join(searchDir, match);
+        const stat = fs.statSync(fullP);
+        return {
+          type: 'file',
+          buffer: fs.readFileSync(fullP),
+          filePath: fullP,
+          fileName: match,
+          fileSize: stat.size,
+          ext: path.extname(match).toLowerCase(),
+          doc
+        };
+      }
+    }
+  } catch (_) {}
+
+  return { type: 'not_found', doc };
 };
 
 router.use(verifyToken);
@@ -439,35 +952,53 @@ router.post('/organizations/:id/status', async (req, res) => {
   }
 });
 
+// Helper to look up document metadata from institution_documents or organization_documents
+const getDocumentRecord = async (docId, docType) => {
+  if (docType === 'institution') {
+    const [docs] = await pool.query('SELECT * FROM institution_documents WHERE document_id = ?', [docId]);
+    if (docs.length > 0) return { doc: docs[0], actualType: 'institution' };
+  } else if (docType === 'organization') {
+    const [docs] = await pool.query('SELECT * FROM organization_documents WHERE document_id = ?', [docId]);
+    if (docs.length > 0) return { doc: docs[0], actualType: 'organization' };
+  } else {
+    const [orgDocs] = await pool.query('SELECT * FROM organization_documents WHERE document_id = ?', [docId]);
+    if (orgDocs.length > 0) return { doc: orgDocs[0], actualType: 'organization' };
+    const [instDocs] = await pool.query('SELECT * FROM institution_documents WHERE document_id = ?', [docId]);
+    if (instDocs.length > 0) return { doc: instDocs[0], actualType: 'institution' };
+  }
+  return { doc: null, actualType: null };
+};
+
 // GET /api/admin/documents/:id/download (Supports both organization and institution documents)
 router.get('/documents/:id/download', async (req, res) => {
   const docId = req.params.id;
   const docType = req.query.type;
   try {
-    let doc = null;
-    if (docType === 'institution') {
-      const [docs] = await pool.query('SELECT * FROM institution_documents WHERE document_id = ?', [docId]);
-      if (docs.length > 0) doc = docs[0];
-    } else {
-      const [docs] = await pool.query('SELECT * FROM organization_documents WHERE document_id = ?', [docId]);
-      if (docs.length > 0) doc = docs[0];
-      else {
-        const [instDocs] = await pool.query('SELECT * FROM institution_documents WHERE document_id = ?', [docId]);
-        if (instDocs.length > 0) doc = instDocs[0];
-      }
-    }
-
+    const { doc } = await getDocumentRecord(docId, docType);
     if (!doc) {
       return res.status(404).json({ success: false, message: 'Document not found.' });
     }
 
-    const filePath = resolveUploadedFilePath(doc.file_path);
-    if (!filePath || !fs.existsSync(filePath)) {
-      return res.status(404).json({ success: false, message: 'Document file not found on server storage.' });
+    const resDoc = await fetchDocumentResource(doc);
+
+    if (resDoc.type === 'url') {
+      return res.redirect(resDoc.url);
     }
 
-    const downloadName = doc.file_name || `${doc.document_type || 'document'}${path.extname(filePath) || '.pdf'}`;
-    res.download(filePath, downloadName);
+    if (resDoc.type === 'self_declared') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="accreditation_reference.txt"');
+      return res.send(`Government Accreditation Reference: ${resDoc.ref}\nDocument Name: ${doc.document_name || 'Accreditation'}\nRecord ID: #${doc.document_id}\nUploaded At: ${doc.uploaded_at || 'N/A'}`);
+    }
+
+    if (resDoc.type === 'file') {
+      const downloadName = resDoc.fileName || `${doc.document_type || 'document'}${resDoc.ext || '.pdf'}`;
+      res.setHeader('Content-Type', resDoc.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
+      return res.send(resDoc.buffer);
+    }
+
+    return res.status(404).json({ success: false, message: 'Document file not found on server storage.' });
   } catch (error) {
     console.error('Download document error:', error);
     return res.status(500).json({ success: false, message: 'Could not download document: ' + error.message });
@@ -478,82 +1009,172 @@ router.get('/documents/:id/download', async (req, res) => {
 router.get('/documents/:id/view', async (req, res) => {
   const docId = req.params.id;
   const docType = req.query.type;
+  const isRaw = req.query.raw === 'true' || req.query.raw === '1';
+
   try {
-    let doc = null;
-    if (docType === 'institution') {
-      const [docs] = await pool.query('SELECT * FROM institution_documents WHERE document_id = ?', [docId]);
-      if (docs.length > 0) doc = docs[0];
-    } else {
-      const [docs] = await pool.query('SELECT * FROM organization_documents WHERE document_id = ?', [docId]);
-      if (docs.length > 0) doc = docs[0];
-      else {
-        const [instDocs] = await pool.query('SELECT * FROM institution_documents WHERE document_id = ?', [docId]);
-        if (instDocs.length > 0) doc = instDocs[0];
-      }
-    }
-
+    const { doc } = await getDocumentRecord(docId, docType);
     if (!doc) {
-      return res.status(404).json({ success: false, message: 'Document record not found.' });
+      return res.status(404).send(renderMissingDocHtml({
+        docName: 'Unknown Document',
+        fileName: 'Not found',
+        filePath: 'N/A',
+        doc: { uploaded_at: null }
+      }));
     }
 
-    const filePath = resolveUploadedFilePath(doc.file_path);
-    if (!filePath || !fs.existsSync(filePath)) {
-      return res.status(404).json({ success: false, message: 'Document file not found on server storage.' });
+    const resDoc = await fetchDocumentResource(doc);
+
+    // 1. External URLs
+    if (resDoc.type === 'url') {
+      return res.redirect(resDoc.url);
     }
 
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeTypes = {
-      '.pdf': 'application/pdf',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.webp': 'image/webp',
-      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      '.doc': 'application/msword'
-    };
+    // 2. Self-Declared Government Permits
+    if (resDoc.type === 'self_declared') {
+      return res.send(renderSelfDeclaredProofHtml({
+        docName: doc.document_name || 'Government Accreditation Record',
+        refNumber: resDoc.ref,
+        doc
+      }));
+    }
 
-    res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.file_name || path.basename(filePath))}"`);
-    res.sendFile(filePath);
+    // 3. Local disk or stored_uploads file
+    if (resDoc.type === 'file') {
+      const ext = resDoc.ext;
+      const downloadUrl = `/api/admin/documents/${doc.document_id}/download?type=${docType || ''}&token=${encodeURIComponent(req.query.token || req.sessionToken || '')}`;
+
+      // A) Word Documents (.docx, .doc)
+      if ((ext === '.docx' || ext === '.doc') && !isRaw) {
+        let textContent = null;
+        if (ext === '.docx') {
+          try {
+            textContent = extractDocxText(resDoc.buffer);
+          } catch (tErr) {
+            console.warn('[Doc Preview] Text extraction warning:', tErr.message);
+          }
+        }
+
+        const html = renderDocxPreviewHtml({
+          title: doc.document_name || resDoc.fileName,
+          docName: doc.document_name || 'Accreditation Softcopy',
+          fileName: resDoc.fileName,
+          fileSize: resDoc.fileSize,
+          uploadedAt: doc.uploaded_at,
+          textContent,
+          downloadUrl
+        });
+
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        return res.send(html);
+      }
+
+      // B) Standard Embeddable Documents (PDF, Images, or Raw Mode)
+      const mimeTypes = {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.doc': 'application/msword'
+      };
+
+      const contentType = resDoc.mimeType || mimeTypes[ext] || 'application/octet-stream';
+      const disposition = isRaw ? 'attachment' : 'inline';
+
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(resDoc.fileName)}"`);
+      return res.send(resDoc.buffer);
+    }
+
+    // 4. Missing file fallback
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(404).send(renderMissingDocHtml({
+      docName: doc.document_name || doc.document_type || 'Accreditation Softcopy',
+      fileName: doc.file_name || path.basename(doc.file_path || ''),
+      filePath: doc.file_path,
+      doc
+    }));
   } catch (error) {
     console.error('View document error:', error);
-    return res.status(500).json({ success: false, message: 'Could not view document: ' + error.message });
+    return res.status(500).send(`
+      <div style="font-family: sans-serif; padding: 2rem; text-align: center; color: #dc2626;">
+        <h3>Could not load document preview</h3>
+        <p>${escapeHtml(error.message)}</p>
+      </div>
+    `);
   }
 });
 
-// GET /api/admin/institution-documents/:id/view
+// GET /api/admin/institution-documents/:id/view (Legacy alias)
 router.get('/institution-documents/:id/view', async (req, res) => {
+  req.query.type = 'institution';
   const docId = req.params.id;
   try {
     const [docs] = await pool.query('SELECT * FROM institution_documents WHERE document_id = ?', [docId]);
     if (docs.length === 0) {
-      return res.status(404).json({ success: false, message: 'Institution document not found.' });
+      return res.status(404).send(renderMissingDocHtml({
+        docName: 'Institution Accreditation Softcopy',
+        fileName: 'Not found',
+        filePath: 'N/A',
+        doc: { uploaded_at: null }
+      }));
     }
     const doc = docs[0];
-    const filePath = resolveUploadedFilePath(doc.file_path);
-    if (!filePath || !fs.existsSync(filePath)) {
-      return res.status(404).json({ success: false, message: 'Document file not found on server storage.' });
+    const resDoc = await fetchDocumentResource(doc);
+
+    if (resDoc.type === 'url') return res.redirect(resDoc.url);
+    if (resDoc.type === 'self_declared') {
+      return res.send(renderSelfDeclaredProofHtml({ docName: doc.document_name, refNumber: resDoc.ref, doc }));
     }
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeTypes = {
-      '.pdf': 'application/pdf',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.webp': 'image/webp',
-      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      '.doc': 'application/msword'
-    };
-    res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.file_name || path.basename(filePath))}"`);
-    res.sendFile(filePath);
+
+    if (resDoc.type === 'file') {
+      const ext = resDoc.ext;
+      const downloadUrl = `/api/admin/institution-documents/${doc.document_id}/download?token=${encodeURIComponent(req.query.token || '')}`;
+
+      if ((ext === '.docx' || ext === '.doc') && req.query.raw !== '1') {
+        const textContent = ext === '.docx' ? extractDocxText(resDoc.buffer) : null;
+        const html = renderDocxPreviewHtml({
+          title: doc.document_name,
+          docName: doc.document_name,
+          fileName: resDoc.fileName,
+          fileSize: resDoc.fileSize,
+          uploadedAt: doc.uploaded_at,
+          textContent,
+          downloadUrl
+        });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        return res.send(html);
+      }
+
+      const mimeTypes = {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.doc': 'application/msword'
+      };
+      res.setHeader('Content-Type', resDoc.mimeType || mimeTypes[ext] || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(resDoc.fileName)}"`);
+      return res.send(resDoc.buffer);
+    }
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(404).send(renderMissingDocHtml({
+      docName: doc.document_name,
+      fileName: doc.file_name || path.basename(doc.file_path || ''),
+      filePath: doc.file_path,
+      doc
+    }));
   } catch (error) {
     console.error('View institution document error:', error);
     return res.status(500).json({ success: false, message: 'Could not view document: ' + error.message });
   }
 });
 
-// GET /api/admin/institution-documents/:id/download
+// GET /api/admin/institution-documents/:id/download (Legacy alias)
 router.get('/institution-documents/:id/download', async (req, res) => {
   const docId = req.params.id;
   try {
@@ -562,12 +1183,23 @@ router.get('/institution-documents/:id/download', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Institution document not found.' });
     }
     const doc = docs[0];
-    const filePath = resolveUploadedFilePath(doc.file_path);
-    if (!filePath || !fs.existsSync(filePath)) {
-      return res.status(404).json({ success: false, message: 'Document file not found on server storage.' });
+    const resDoc = await fetchDocumentResource(doc);
+
+    if (resDoc.type === 'url') return res.redirect(resDoc.url);
+    if (resDoc.type === 'self_declared') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="accreditation_reference.txt"');
+      return res.send(`Government Accreditation Reference: ${resDoc.ref}\nDocument Name: ${doc.document_name}\nRecord ID: #${doc.document_id}`);
     }
-    const downloadName = doc.file_name || `${doc.document_type || 'document'}${path.extname(filePath) || '.pdf'}`;
-    res.download(filePath, downloadName);
+
+    if (resDoc.type === 'file') {
+      const downloadName = resDoc.fileName || `${doc.document_type || 'document'}${resDoc.ext || '.pdf'}`;
+      res.setHeader('Content-Type', resDoc.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
+      return res.send(resDoc.buffer);
+    }
+
+    return res.status(404).json({ success: false, message: 'Document file not found on server storage.' });
   } catch (error) {
     console.error('Download institution document error:', error);
     return res.status(500).json({ success: false, message: 'Could not download document.' });

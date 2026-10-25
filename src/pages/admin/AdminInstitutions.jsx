@@ -468,21 +468,32 @@ export default function AdminInstitutions() {
                       <div className="flex justify-between items-center px-1">
                         <span className="font-bold text-xs text-on-surface flex items-center gap-1.5">
                           <span className="material-symbols-outlined text-vibrant-orange text-[18px]">visibility</span>
-                          Live Softcopy Preview
+                          Live Softcopy Verification Preview
                         </span>
-                        <button
-                          onClick={() => setPreviewUrl(null)}
-                          className="px-2 py-1 text-xs text-error font-bold hover:bg-error/10 rounded-md transition-colors flex items-center gap-1"
-                        >
-                          <span className="material-symbols-outlined text-[15px]">close</span>
-                          Close Preview
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={previewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2 py-1 text-xs text-on-surface hover:text-vibrant-orange font-bold hover:bg-surface-container rounded-md transition-colors flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+                            Open in New Tab
+                          </a>
+                          <button
+                            onClick={() => setPreviewUrl(null)}
+                            className="px-2 py-1 text-xs text-error font-bold hover:bg-error/10 rounded-md transition-colors flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">close</span>
+                            Close Preview
+                          </button>
+                        </div>
                       </div>
                       <div className="rounded-lg overflow-hidden border border-outline-variant bg-white">
                         <iframe
                           src={previewUrl}
                           title="Document Softcopy Preview"
-                          className="w-full h-96 bg-white"
+                          className="w-full h-[520px] bg-white border-0"
                         />
                       </div>
                     </div>
