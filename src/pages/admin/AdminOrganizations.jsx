@@ -408,7 +408,6 @@ export default function AdminOrganizations() {
                     <div className="space-y-2.5">
                       {orgDetail.documents.map((doc, idx) => {
                         const viewUrl = `/api/admin/documents/${doc.document_id}/view?type=organization&token=${token}`;
-                        const downloadUrl = `/api/admin/documents/${doc.document_id}/download?type=organization&token=${token}`;
 
                         return (
                           <div
@@ -462,13 +461,6 @@ export default function AdminOrganizations() {
                               >
                                 <span className="material-symbols-outlined text-[16px]">open_in_new</span>
                                 <span>Open</span>
-                              </a>
-                              <a
-                                href={downloadUrl}
-                                className="px-3 py-1.5 bg-surface-container text-on-surface rounded-lg text-xs font-bold border border-outline-variant hover:bg-surface-container-high transition-colors flex items-center gap-1.5 shadow-xs"
-                              >
-                                <span className="material-symbols-outlined text-[16px]">download</span>
-                                <span>Download</span>
                               </a>
                             </div>
                           </div>

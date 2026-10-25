@@ -390,7 +390,6 @@ export default function AdminInstitutions() {
                     <div className="space-y-2.5">
                       {instDetail.documents.map((doc, idx) => {
                         const viewUrl = `/api/admin/documents/${doc.document_id}/view?type=institution&token=${token}`;
-                        const downloadUrl = `/api/admin/documents/${doc.document_id}/download?type=institution&token=${token}`;
                         const isSelfDeclared = doc.file_path && doc.file_path.startsWith('Ref:');
 
                         return (
@@ -446,13 +445,6 @@ export default function AdminInstitutions() {
                                 >
                                   <span className="material-symbols-outlined text-[16px]">open_in_new</span>
                                   <span>Open</span>
-                                </a>
-                                <a
-                                  href={downloadUrl}
-                                  className="px-3 py-1.5 bg-surface-container text-on-surface rounded-lg text-xs font-bold border border-outline-variant hover:bg-surface-container-high transition-colors flex items-center gap-1.5 shadow-xs"
-                                >
-                                  <span className="material-symbols-outlined text-[16px]">download</span>
-                                  <span>Download</span>
                                 </a>
                               </div>
                             )}
