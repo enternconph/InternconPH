@@ -12,7 +12,16 @@ export const AuthProvider = ({ children }) => {
       return null;
     }
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    try {
+      const hasSavedSession = Boolean(localStorage.getItem('token') && localStorage.getItem('user'));
+      if (hasSavedSession) return false;
+      const isProtectedPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard');
+      return isProtectedPath;
+    } catch {
+      return false;
+    }
+  });
 
   // Synchronize authentication state across multiple browser tabs
   useEffect(() => {
@@ -53,6 +62,15 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkAuth = async () => {
       const token = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
+      const isProtectedPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard');
+
+      // Skip unnecessary /auth/me round-trip on public pages when no local session exists
+      if (!token && !savedUser && !isProtectedPath) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const res = await api.get('/auth/me');
         if (res.success && res.user) {

@@ -189,38 +189,9 @@ export default function LoginPage() {
             <div className={`w-full lg:w-1/2 p-6 sm:p-9 md:p-10 flex flex-col justify-center relative ${
               isDark ? 'bg-[#091714]' : 'bg-white'
             }`}>
-
-              {/* Portal Switcher Bar (/login/student | /login/institution | /login/organization) */}
-              <div className={`grid grid-cols-3 gap-1 p-1 rounded-xl mb-5 border ${
-                isDark
-                  ? 'bg-[#061210] border-[#163830]'
-                  : 'bg-[#F1F5F4] border-gray-200/80'
-              }`}>
-                {Object.values(PORTAL_CONFIG).map((item) => {
-                  const isActive = item.key === activePortal;
-                  return (
-                    <Link
-                      key={item.key}
-                      to={`/login/${item.key}`}
-                      className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${
-                        isActive
-                          ? isDark
-                            ? 'bg-[#0e3831] text-[#2dd4bf] border border-[#2dd4bf]/25 shadow-sm'
-                            : 'bg-white text-[#0d9488] border border-teal-500/20 shadow-sm'
-                          : isDark
-                            ? 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-                            : 'text-gray-500 hover:text-gray-800 hover:bg-white/60'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[15px]">{item.icon}</span>
-                      <span>{item.tabLabel}</span>
-                    </Link>
-                  );
-                })}
-              </div>
               
               {/* Badge */}
-              <div className="mb-3">
+              <div className="mb-4">
                 <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] sm:text-[11px] font-extrabold uppercase tracking-widest ${
                   isDark 
                     ? 'bg-[#0e3831] text-[#2dd4bf] border border-[#2dd4bf]/20' 
@@ -444,55 +415,37 @@ export default function LoginPage() {
                 </svg>
 
                 {/* Left Node: Company / Hiring Organization */}
-                <Link
-                  to="/login/organization"
-                  title="Hiring Organization Login Portal"
-                  className="absolute left-[35px] top-[65px] flex flex-col items-center group"
-                >
+                <div className="absolute left-[35px] top-[65px] flex flex-col items-center">
                   <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
-                    activePortal === 'organization' ? 'scale-110 ring-4 ring-[#2dd4bf]/30' : 'opacity-80 group-hover:opacity-100'
-                  } ${
                     isDark 
                       ? 'bg-[#081c18] border-2 border-[#2dd4bf] text-[#2dd4bf] shadow-[0_0_22px_rgba(45,212,191,0.5)]' 
                       : 'bg-white border-2 border-[#0d9488] text-[#0d9488] shadow-[0_6px_20px_rgba(13,148,136,0.25)]'
                   }`}>
                     <span className="material-symbols-outlined text-[24px]">apartment</span>
                   </div>
-                </Link>
+                </div>
 
                 {/* Center Top Node: Student / Graduation Cap */}
-                <Link
-                  to="/login/student"
-                  title="Student Login Portal"
-                  className="absolute left-1/2 -translate-x-1/2 top-[15px] flex flex-col items-center group"
-                >
+                <div className="absolute left-1/2 -translate-x-1/2 top-[15px] flex flex-col items-center">
                   <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
-                    activePortal === 'student' ? 'scale-110 ring-4 ring-[#2dd4bf]/30' : 'opacity-80 group-hover:opacity-100'
-                  } ${
                     isDark 
                       ? 'bg-[#081c18] border-2 border-[#2dd4bf] text-[#2dd4bf] shadow-[0_0_26px_rgba(45,212,191,0.6)]' 
                       : 'bg-white border-2 border-[#0d9488] text-[#0d9488] shadow-[0_8px_24px_rgba(13,148,136,0.3)]'
                   }`}>
                     <span className="material-symbols-outlined text-[26px]">school</span>
                   </div>
-                </Link>
+                </div>
 
                 {/* Right Node: Institution / University */}
-                <Link
-                  to="/login/institution"
-                  title="Institution Login Portal"
-                  className="absolute right-[35px] top-[65px] flex flex-col items-center group"
-                >
+                <div className="absolute right-[35px] top-[65px] flex flex-col items-center">
                   <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
-                    activePortal === 'institution' ? 'scale-110 ring-4 ring-[#F59E0B]/30' : 'opacity-80 group-hover:opacity-100'
-                  } ${
                     isDark 
                       ? 'bg-[#211403] border-2 border-[#F59E0B] text-[#F59E0B] shadow-[0_0_22px_rgba(245,158,11,0.5)]' 
                       : 'bg-white border-2 border-[#F59E0B] text-[#F59E0B] shadow-[0_6px_20px_rgba(245,158,11,0.25)]'
                   }`}>
                     <span className="material-symbols-outlined text-[24px]">account_balance</span>
                   </div>
-                </Link>
+                </div>
               </div>
 
               {/* Bottom Headline & Subtitle */}

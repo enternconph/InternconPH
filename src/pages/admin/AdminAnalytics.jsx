@@ -75,10 +75,13 @@ export default function AdminAnalytics() {
   };
 
   const clearFilters = () => {
+    const wasAlreadyAll = selectedDiscipline === 'all' && selectedProgram === 'all';
     setSelectedDiscipline('all');
     setSelectedProgram('all');
     setSearchQuery('');
-    fetchAnalytics('all', 'all', '');
+    if (wasAlreadyAll) {
+      fetchAnalytics('all', 'all', '');
+    }
   };
 
   // Find active program object

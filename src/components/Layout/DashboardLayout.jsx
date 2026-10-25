@@ -1,9 +1,10 @@
-import React, { useState, createContext, useContext, useEffect } from 'react';
+import React, { useState, createContext, useContext, useEffect, Suspense } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import DashboardHeader from './DashboardHeader';
 import MobileBottomBar from './MobileBottomBar';
 import PageTransition from './PageTransition';
+import { Skeleton } from '../ui/Skeleton';
 
 export const SidebarContext = createContext({
   sidebarOpen: false,
@@ -88,9 +89,32 @@ export default function DashboardLayout() {
           <DashboardHeader />
           <main className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0 w-full max-w-full relative pb-24 lg:pb-0">
             <div className="max-w-[1400px] mx-auto w-full">
-              <PageTransition>
-                <Outlet />
-              </PageTransition>
+              <Suspense
+                fallback={
+                  <div className="p-4 sm:p-6 space-y-6 w-full" aria-busy="true">
+                    <div className="space-y-2">
+                      <Skeleton className="h-7 w-56 rounded-lg" />
+                      <Skeleton className="h-4 w-80 max-w-full rounded-md" />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {[0, 1, 2, 3].map((i) => (
+                        <div key={i} className="bento-card p-5 space-y-3">
+                          <Skeleton className="h-4 w-24 rounded-md" />
+                          <Skeleton className="h-8 w-16 rounded-lg" />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="bento-card p-6 space-y-4">
+                      <Skeleton className="h-5 w-44 rounded-md" />
+                      <Skeleton className="h-64 w-full rounded-xl" />
+                    </div>
+                  </div>
+                }
+              >
+                <PageTransition>
+                  <Outlet />
+                </PageTransition>
+              </Suspense>
             </div>
           </main>
           <MobileBottomBar />

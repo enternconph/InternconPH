@@ -1,10 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   getTimeFormatPreference,
   setTimeFormatPreference as persistTimeFormat,
   formatTime as formatTimeUtil,
   formatDateTime as formatDateTimeUtil,
-  DEFAULT_TIME_FORMAT
 } from '../utils/timeFormat';
 
 const TimeContext = createContext({
@@ -13,12 +12,11 @@ const TimeContext = createContext({
   setTimeFormat: () => {},
   formatTime: () => '',
   formatDateTime: () => '',
-  currentTime: new Date()
+  currentTime: null
 });
 
 export function TimeProvider({ children }) {
   const [timeFormat, setTimeFormatState] = useState(() => getTimeFormatPreference());
-  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   // Listen for storage or custom events
   useEffect(() => {
@@ -41,15 +39,7 @@ export function TimeProvider({ children }) {
     };
   }, []);
 
-  // Live second ticker for system clocks
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const setTimeFormat = useCallback((format = '12h') => {
+  const setTimeFormat = useCallback(() => {
     const resolved = persistTimeFormat('12h');
     setTimeFormatState(resolved);
   }, []);
@@ -68,16 +58,16 @@ export function TimeProvider({ children }) {
     []
   );
 
-  const is24Hour = false;
-
-  const value = {
-    timeFormat: '12h',
-    is24Hour,
+  const value = useMemo(() => ({
+    timeFormat: timeFormat || '12h',
+    is24Hour: false,
     setTimeFormat,
     formatTime,
     formatDateTime,
-    currentTime
-  };
+    get currentTime() {
+      return new Date();
+    }
+  }), [timeFormat, setTimeFormat, formatTime, formatDateTime]);
 
   return <TimeContext.Provider value={value}>{children}</TimeContext.Provider>;
 }

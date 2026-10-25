@@ -44,15 +44,11 @@ export const SocketProvider = ({ children }) => {
           auth: { token }
         });
 
-        // Refresh token on reconnect attempts or connection errors
+        // Refresh token on reconnect attempts or connection errors using API client (supports cross-origin production backend)
         const refreshToken = async () => {
           try {
-            const r = await fetch('/api/auth/socket-token', {
-              credentials: 'include',
-              cache: 'no-store'
-            });
-            const d = await r.json().catch(() => ({ success: false }));
-            if (d.success && d.token && activeSocket) {
+            const d = await api.get('/auth/socket-token');
+            if (d?.success && d.token && activeSocket) {
               activeSocket.auth = { token: d.token };
             }
           } catch (_) {}

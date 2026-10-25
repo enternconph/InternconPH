@@ -5,7 +5,7 @@ import { useLocation } from 'react-router-dom';
 const pageVariants = {
   initial: {
     opacity: 0,
-    y: 10,
+    y: 4,
   },
   in: {
     opacity: 1,
@@ -14,16 +14,12 @@ const pageVariants = {
       transform: 'none',
     },
   },
-  out: {
-    opacity: 0,
-    y: -10,
-  },
 };
 
 const pageTransition = {
   type: 'tween',
-  ease: 'easeInOut',
-  duration: 0.3,
+  ease: 'easeOut',
+  duration: 0.15,
 };
 
 export default function PageTransition({ children, className = '' }) {
@@ -34,7 +30,6 @@ export default function PageTransition({ children, className = '' }) {
       key={location.pathname}
       initial="initial"
       animate="in"
-      exit="out"
       variants={pageVariants}
       transition={pageTransition}
       className={`w-full max-w-full min-w-0 h-full overflow-x-hidden ${className}`}

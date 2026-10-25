@@ -9,7 +9,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+            if (/node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) {
               return 'vendor-react';
             }
             if (id.includes('framer-motion')) {
@@ -18,13 +18,15 @@ export default defineConfig({
             if (id.includes('lucide-react')) {
               return 'vendor-icons';
             }
-            if (id.includes('socket.io-client')) {
+            if (id.includes('socket.io-client') || id.includes('engine.io-client')) {
               return 'vendor-socket';
+            }
+            if (id.includes('html5-qrcode') || id.includes('qrcode')) {
+              return 'vendor-qr';
             }
             if (id.includes('phil-address') || id.includes('psgc') || id.includes('use-postal-ph') || id.includes('zipcodes-ph')) {
               return 'vendor-geo';
             }
-            return 'vendor-misc';
           }
         }
       }

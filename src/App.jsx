@@ -1,6 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -9,12 +8,11 @@ import { TimeProvider } from './contexts/TimeContext';
 // Layout
 import DashboardLayout from './components/Layout/DashboardLayout';
 import ProtectedRoute from './components/Layout/ProtectedRoute';
-import { DashboardSkeleton } from './components/ui/Skeleton';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import LoginPage from './pages/public/LoginPage';
 
 // Public Pages (Lazy Loaded)
 const LandingPage = lazy(() => import('./pages/public/LandingPage'));
-const LoginPage = lazy(() => import('./pages/public/LoginPage'));
 const GetStartedPage = lazy(() => import('./pages/public/GetStartedPage'));
 const RegisterStudentPage = lazy(() => import('./pages/public/RegisterStudentPage'));
 const RegisterStaffPage = lazy(() => import('./pages/public/RegisterStaffPage'));
@@ -66,17 +64,14 @@ const AdminAuditLogs = lazy(() => import('./pages/admin/AdminAuditLogs'));
 const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
 
 function AnimatedRoutes() {
-  const location = useLocation();
-
   return (
-    <Suspense fallback={<DashboardSkeleton />}>
-      <AnimatePresence mode="wait">
-        <Routes location={location} key={location.pathname}>
-          {/* Public Routes */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<Navigate to="/login/student" replace />} />
-          <Route path="/login/:portal" element={<LoginPage />} />
-          <Route path="/get-started" element={<GetStartedPage />} />
+    <Suspense fallback={<div className="min-h-[100dvh] w-full bg-surface-container-low" />}>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<Navigate to="/login/student" replace />} />
+        <Route path="/login/:portal" element={<LoginPage />} />
+        <Route path="/get-started" element={<GetStartedPage />} />
         <Route path="/register/student" element={<RegisterStudentPage />} />
         <Route path="/register/staff" element={<RegisterStaffPage />} />
         <Route path="/register/organization" element={<RegisterOrganizationPage />} />
@@ -160,8 +155,7 @@ function AnimatedRoutes() {
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </AnimatePresence>
-  </Suspense>
+    </Suspense>
   );
 }
 

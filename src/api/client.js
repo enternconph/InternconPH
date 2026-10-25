@@ -23,9 +23,29 @@ function resolveApiBase() {
 const API_BASE = resolveApiBase();
 
 let isRedirectingToLogin = false;
+const inFlightGetRequests = new Map();
 
 export async function apiRequest(endpoint, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
   const token = localStorage.getItem('token');
+
+  // Deduplicate identical concurrent GET requests
+  if (method === 'GET') {
+    const dedupeKey = `${token || 'anon'}:${endpoint}`;
+    if (inFlightGetRequests.has(dedupeKey)) {
+      return inFlightGetRequests.get(dedupeKey);
+    }
+    const requestPromise = executeApiRequest(endpoint, options, token).finally(() => {
+      inFlightGetRequests.delete(dedupeKey);
+    });
+    inFlightGetRequests.set(dedupeKey, requestPromise);
+    return requestPromise;
+  }
+
+  return executeApiRequest(endpoint, options, token);
+}
+
+async function executeApiRequest(endpoint, options = {}, token = localStorage.getItem('token')) {
   const isFormData = options.body instanceof FormData;
 
   const headers = {
@@ -83,6 +103,10 @@ export async function apiRequest(endpoint, options = {}) {
       message: `Invalid server response (HTTP ${response.status}). Please check your backend connection.`,
       status: response.status
     };
+  }
+
+  if (response.ok && endpoint.includes('/auth/login')) {
+    isRedirectingToLogin = false;
   }
 
   if (!response.ok && response.status === 401) {
