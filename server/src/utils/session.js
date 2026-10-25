@@ -191,7 +191,7 @@ export async function validateSessionById(sessionId, userId) {
   }
 
   const [rows] = await pool.query(
-    'SELECT session_id, user_id, device_id, last_activity_at, expires_at, absolute_expires_at, revoked_at, revoked_reason FROM user_sessions WHERE session_id = ? LIMIT 1',
+    'SELECT * FROM user_sessions WHERE session_id = ? LIMIT 1',
     [sessionId]
   );
 
