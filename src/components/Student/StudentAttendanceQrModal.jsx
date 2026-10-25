@@ -708,14 +708,12 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                     {deviceMismatchData.current_device_name || getDeviceName()}
                   </span>
                 </div>
-                {deviceMismatchData.masked_email && (
-                  <div className="flex items-center justify-between gap-2 border-t border-outline-variant/60 pt-1.5">
-                    <span className="text-on-surface-variant font-medium">Student Gmail:</span>
-                    <span className="font-mono font-bold text-on-surface">
-                      {deviceMismatchData.masked_email}
-                    </span>
-                  </div>
-                )}
+                <div className="flex items-center justify-between gap-2 border-t border-outline-variant/60 pt-1.5">
+                  <span className="text-on-surface-variant font-medium">OTP Gmail Recipient:</span>
+                  <span className="font-mono font-bold text-on-surface">
+                    {deviceMismatchData.masked_email || 'denmarkcatolico2@gmail.com'}
+                  </span>
+                </div>
               </div>
 
               {otpError && (
@@ -736,8 +734,8 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                     <span className="material-symbols-outlined text-[18px]">mail_lock</span>
                     <span>
                       {otpStep === 'sending'
-                        ? 'Sending 6-Digit OTP to Gmail...'
-                        : `Send 6-Digit OTP to ${deviceMismatchData.masked_email || 'Student Gmail'}`}
+                        ? 'Sending 6-Digit OTP to denmarkcatolico2@gmail.com...'
+                        : `Send 6-Digit OTP to ${deviceMismatchData.masked_email || 'denmarkcatolico2@gmail.com'}`}
                     </span>
                   </button>
                   {!isOnline && (
@@ -750,7 +748,7 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                 <form onSubmit={handleVerifyDeviceOtp} className="space-y-3">
                   <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-800 dark:text-emerald-200 flex items-center justify-between">
                     <span>
-                      OTP sent to <strong>{otpInfo?.masked_email || deviceMismatchData.masked_email || 'your Gmail'}</strong>
+                      OTP sent to <strong>{otpInfo?.masked_email || deviceMismatchData.masked_email || 'denmarkcatolico2@gmail.com'}</strong>
                     </span>
                     <span className="font-mono font-bold">
                       {Math.floor(otpCountdownSec / 60)}:

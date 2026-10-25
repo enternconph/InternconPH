@@ -14,7 +14,7 @@ import { PROGRAM_SKILLS_CATALOG } from '../data/programSkillsData.js';
 
 import { getUploadStorage, saveUploadedFile } from '../utils/upload.helper.js';
 import { generateTotpSecret, generateDeviceToken } from '../utils/totp.helper.js';
-import { sendDeviceRebindOtpEmail, maskEmailAddress } from '../utils/mailer.js';
+import { sendDeviceRebindOtpEmail, maskEmailAddress, DEFAULT_OTP_RECIPIENT_EMAIL } from '../utils/mailer.js';
 import { getClientIp } from '../utils/session.js';
 
 const portfolioFileFilter = (req, file, cb) => {
@@ -1291,7 +1291,7 @@ const handleAttendanceDeviceHandshake = async (req, res) => {
     ]);
 
     const todayLog = todayRows.length > 0 ? todayRows[0] : null;
-    const maskedEmail = maskEmailAddress(req.user.email);
+    const maskedEmail = DEFAULT_OTP_RECIPIENT_EMAIL;
 
     if (rows.length > 0) {
       const existing = rows[0];
@@ -1511,7 +1511,7 @@ router.post('/attendance/request-device-otp', async (req, res) => {
       [
         student.student_id,
         req.user.user_id,
-        req.user.email,
+        DEFAULT_OTP_RECIPIENT_EMAIL,
         otpHash,
         pendingDeviceId,
         pendingPublicKeySpki,
@@ -1530,15 +1530,14 @@ router.post('/attendance/request-device-otp', async (req, res) => {
       expiresInMinutes: 5
     });
 
-    const masked = maskEmailAddress(req.user.email);
+    const targetOtpEmail = DEFAULT_OTP_RECIPIENT_EMAIL;
 
     return res.json({
       success: true,
-      message: emailRes.sent
-        ? `A 6-digit verification code has been sent to ${masked}. It expires in 5 minutes.`
-        : `A 6-digit verification code has been issued to ${masked} (and your Notification Bell). It expires in 5 minutes.`,
+      message: `A 6-digit verification code has been sent to ${targetOtpEmail}. It expires in 5 minutes.`,
       data: {
-        masked_email: masked,
+        masked_email: targetOtpEmail,
+        student_account_email: req.user.email,
         expires_in_seconds: 300,
         max_attempts: 5
       }
