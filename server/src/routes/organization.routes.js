@@ -8,7 +8,7 @@ import { isValidEmail, normalizeEmail } from '../utils/email.js';
 import multer from 'multer';
 import { getUploadStorage, processUploadedFile, formatFilePath } from '../utils/upload.helper.js';
 import { createMeetSpace, isGoogleMeetConfigured } from '../services/googleMeet.js';
-import { verifyTotpPayload } from '../utils/totp.helper.js';
+import { verifyTotpPayload, verifyGeofenceAndTelemetry } from '../utils/totp.helper.js';
 import { validate, Schemas } from '../middleware/validate.js';
 
 const router = express.Router();
@@ -91,9 +91,9 @@ const getMentorStaffId = async (userId, orgId) => {
   return null;
 };
 
-// Helper to get Philippine Standard Time (UTC+8)
-const getPHTNow = () => {
-  const now = new Date();
+// Helper to get Philippine Standard Time (UTC+8) for live or offline scan timestamp
+const getPHTNow = (customTimestampMs = null) => {
+  const now = customTimestampMs ? new Date(Number(customTimestampMs)) : new Date();
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Manila',
     year: 'numeric',
@@ -1675,188 +1675,412 @@ router.get('/attendance', async (req, res) => {
   }
 });
 
-// POST /api/org/attendance/scan-qr
-// HR-Exclusive Scanner: Verifies student dynamic TOTP QR code and logs Time-In or Time-Out
-router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
-  const { qr_payload } = req.body;
-
-  if (!qr_payload) {
-    return res.status(400).json({ success: false, message: 'Missing QR payload data from scanner.' });
-  }
-
+// GET /api/org/attendance/geofence - Retrieve organization workplace geofence settings
+router.get('/attendance/geofence', requireHROrAdmin, async (req, res) => {
   try {
     const org = await getOrgId(req.user.user_id);
-    if (!org) return res.status(404).json({ success: false, message: 'Hiring organization record not found.' });
+    if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
 
-    // Step 1: Pre-parse to get student ID
-    let rawPayload = qr_payload;
-    let data;
-    try {
-      let jsonStr = String(rawPayload).trim();
-      if (jsonStr.startsWith('{') && jsonStr.endsWith('}')) {
-        data = JSON.parse(jsonStr);
-      } else {
-        const decoded = Buffer.from(jsonStr, 'base64').toString('utf8');
-        data = JSON.parse(decoded);
+    return res.json({
+      success: true,
+      data: {
+        organization_id: org.organization_id,
+        organization_name: org.organization_name,
+        latitude: org.latitude !== null && org.latitude !== undefined ? Number(org.latitude) : null,
+        longitude: org.longitude !== null && org.longitude !== undefined ? Number(org.longitude) : null,
+        geofence_radius_meters: Number(org.geofence_radius_meters) || 100,
+        enforce_geofence: org.enforce_geofence !== undefined ? Boolean(org.enforce_geofence) : true
       }
-    } catch (_) {
-      return res.status(400).json({ success: false, message: 'Invalid QR code format. Not an authentic InternConPH attendance token.' });
+    });
+  } catch (err) {
+    console.error('Get geofence error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve geofence settings.' });
+  }
+});
+
+// POST /api/org/attendance/geofence - Configure organization workplace GPS coordinates & radius (default 100m)
+router.post('/attendance/geofence', requireHROrAdmin, async (req, res) => {
+  try {
+    const org = await getOrgId(req.user.user_id);
+    if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
+
+    const { latitude, longitude, geofence_radius_meters = 100, enforce_geofence = true } = req.body;
+    const lat = latitude !== null && latitude !== undefined && latitude !== '' ? parseFloat(latitude) : null;
+    const lng = longitude !== null && longitude !== undefined && longitude !== '' ? parseFloat(longitude) : null;
+    const radius = Math.min(2000, Math.max(20, parseInt(geofence_radius_meters, 10) || 100));
+
+    if ((lat !== null && (isNaN(lat) || lat < -90 || lat > 90)) || (lng !== null && (isNaN(lng) || lng < -180 || lng > 180))) {
+      return res.status(400).json({ success: false, message: 'Invalid GPS latitude or longitude coordinates.' });
     }
 
-    const studentId = parseInt(data.sid, 10);
-    if (!studentId) {
-      return res.status(400).json({ success: false, message: 'Invalid student identifier in QR payload.' });
-    }
-
-    // Step 2: Fetch student's registered device and cryptographic secret
-    const [deviceRows] = await pool.query(
-      `SELECT sad.*, s.first_name, s.last_name, s.student_number, u.avatar_url, s.user_id as student_user_id
-       FROM student_attendance_devices sad
-       JOIN students s ON sad.student_id = s.student_id
-       LEFT JOIN users u ON s.user_id = u.user_id
-       WHERE sad.student_id = ?`,
-      [studentId]
+    await pool.query(
+      `UPDATE hiring_organizations
+       SET latitude = ?, longitude = ?, geofence_radius_meters = ?, enforce_geofence = ?
+       WHERE organization_id = ?`,
+      [lat, lng, radius, enforce_geofence ? 1 : 0, org.organization_id]
     );
 
-    if (deviceRows.length === 0) {
-      return res.status(404).json({
+    return res.json({
+      success: true,
+      message: lat !== null && lng !== null
+        ? `Workplace geofence locked at (${lat.toFixed(6)}, ${lng.toFixed(6)}) with a ${radius}m radius.`
+        : 'Workplace geofence settings updated.',
+      data: {
+        latitude: lat,
+        longitude: lng,
+        geofence_radius_meters: radius,
+        enforce_geofence: Boolean(enforce_geofence)
+      }
+    });
+  } catch (err) {
+    console.error('Save geofence error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to save geofence settings.' });
+  }
+});
+
+// Core single-scan verification & attendance recording engine (used by both live /scan-qr and /sync-offline)
+async function processSingleQrAttendanceScan({
+  qrPayload,
+  org,
+  hrUserId,
+  isOfflineSync = false,
+  offlineScannedAtMs = null
+}) {
+  // Step 1: Pre-parse to get student ID
+  let rawPayload = qrPayload;
+  let data;
+  try {
+    const jsonStr = String(rawPayload).trim();
+    if (jsonStr.startsWith('{') && jsonStr.endsWith('}')) {
+      data = JSON.parse(jsonStr);
+    } else {
+      const decoded = Buffer.from(jsonStr, 'base64').toString('utf8');
+      data = JSON.parse(decoded);
+    }
+  } catch (_) {
+    return {
+      httpStatus: 400,
+      body: {
         success: false,
+        code: 'MALFORMED_PAYLOAD',
+        message: 'Invalid QR code format. Not an authentic InternConPH attendance token.'
+      }
+    };
+  }
+
+  const studentId = parseInt(data.sid, 10);
+  if (!studentId) {
+    return {
+      httpStatus: 400,
+      body: { success: false, code: 'INVALID_STUDENT_ID', message: 'Invalid student identifier in QR payload.' }
+    };
+  }
+
+  // Step 2: Fetch student's registered device, public key, and cryptographic secret
+  const [deviceRows] = await pool.query(
+    `SELECT sad.*, s.first_name, s.last_name, s.student_number, u.avatar_url, s.user_id as student_user_id
+     FROM student_attendance_devices sad
+     JOIN students s ON sad.student_id = s.student_id
+     LEFT JOIN users u ON s.user_id = u.user_id
+     WHERE sad.student_id = ?`,
+    [studentId]
+  );
+
+  if (deviceRows.length === 0) {
+    return {
+      httpStatus: 404,
+      body: {
+        success: false,
+        code: 'DEVICE_NOT_INITIALIZED',
         message: 'Student has not initialized attendance credentials or bound their device.'
-      });
-    }
-
-    const deviceRecord = deviceRows[0];
-
-    // Step 3: Cryptographic & Time-bound Verification (30s window + Device Token match)
-    const verification = verifyTotpPayload(qr_payload, deviceRecord.totp_secret, deviceRecord.device_token, 30);
-    if (!verification.valid) {
-      if (deviceRecord.student_user_id) {
-        emitUpdate('attendance_failed', {
-          student_id: studentId,
-          user_id: deviceRecord.student_user_id,
-          organization_id: org.organization_id,
-          action: 'scan_failed',
-          status: 'failed',
-          message: verification.reason || 'Attendance verification failed.'
-        });
       }
-      return res.status(400).json({
-        success: false,
-        message: verification.reason
-      });
-    }
+    };
+  }
 
-    // Step 4: Verify student has an active/ongoing OJT record with THIS hiring organization
-    const [ojtRows] = await pool.query(
-      `SELECT o.*,
-              os.first_name as mentor_first_name, os.last_name as mentor_last_name, os.user_id as mentor_user_id
-       FROM ojt_records o
-       LEFT JOIN organization_staff os ON o.mentor_id = os.org_staff_id
-       WHERE o.student_id = ? AND o.organization_id = ? AND o.status = 'ongoing'
-       LIMIT 1`,
-      [studentId, org.organization_id]
-    );
+  const deviceRecord = deviceRows[0];
 
-    if (ojtRows.length === 0) {
-      if (deviceRecord.student_user_id) {
-        emitUpdate('attendance_failed', {
-          student_id: studentId,
-          user_id: deviceRecord.student_user_id,
-          organization_id: org.organization_id,
-          action: 'not_enrolled',
-          status: 'failed',
-          message: `${deviceRecord.first_name} ${deviceRecord.last_name} is not enrolled in an active OJT placement with this organization.`
-        });
-      }
-      return res.status(403).json({
-        success: false,
-        message: `${deviceRecord.first_name} ${deviceRecord.last_name} is not currently enrolled in an ongoing OJT placement with your organization.`
-      });
-    }
+  // Step 3: Cryptographic & Time-bound Verification (ECDSA P-256 signature + TOTP window + Device ID match)
+  const verification = verifyTotpPayload(qrPayload, deviceRecord, deviceRecord.device_token, 35, {
+    isOfflineSync,
+    offlineScannedAtMs
+  });
 
-    const ojt = ojtRows[0];
-    const pht = getPHTNow();
-    const currentDate = pht.dateStr;
-    const currentTimeStr = pht.timeStr;
-
-    // Check today's attendance log
-    const [attLogs] = await pool.query(
-      'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND log_date = ?',
-      [ojt.ojt_id, currentDate]
-    );
-
-    // Update last used timestamp for device
-    await pool.query('UPDATE student_attendance_devices SET last_used_at = NOW() WHERE student_id = ?', [studentId]);
-
-    // CASE A: Student has NOT clocked in today -> ACTION: TIME IN
-    if (attLogs.length === 0 || !attLogs[0].time_in) {
-      const schedStartMins = parseTimeToMinutes(ojt.scheduled_start_time, '08:00');
-      const actualInMins = pht.hour * 60 + pht.minute;
-      const timeInStatus = actualInMins <= schedStartMins ? 'on_time' : 'late';
-
-      if (attLogs.length === 0) {
-        await pool.query(
-          `INSERT INTO ojt_attendance_logs (ojt_id, student_id, mentor_id, log_date, time_in, time_in_status, time_in_method, status, scanned_by_hr_id, verified_by, verified_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, 'qr_scan', 'verified', ?, ?, NOW(), NOW(), NOW())`,
-          [ojt.ojt_id, studentId, ojt.mentor_id || null, currentDate, currentTimeStr, timeInStatus, req.user.user_id, req.user.user_id]
-        );
-      } else {
-        await pool.query(
-          `UPDATE ojt_attendance_logs 
-           SET time_in = ?, time_in_status = ?, time_in_method = 'qr_scan', status = 'verified', scanned_by_hr_id = ?, verified_by = ?, verified_at = NOW(), updated_at = NOW()
-           WHERE attendance_id = ?`,
-          [currentTimeStr, timeInStatus, req.user.user_id, req.user.user_id, attLogs[0].attendance_id]
-        );
-      }
-
-      const statusBadge = timeInStatus === 'on_time' ? 'On-Time' : 'Late';
-
-      emitUpdate('attendance_logged', {
-        ojt_id: ojt.ojt_id,
+  if (!verification.valid) {
+    if (deviceRecord.student_user_id) {
+      emitUpdate('attendance_failed', {
         student_id: studentId,
         user_id: deviceRecord.student_user_id,
         organization_id: org.organization_id,
-        action: 'time_in',
-        status: 'success',
-        time_in: currentTimeStr,
-        time_in_status: timeInStatus,
-        status_badge: statusBadge,
-        student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
-        student_number: deviceRecord.student_number,
-        message: `Time-In recorded at ${currentTimeStr} (${statusBadge})`
+        action: 'scan_failed',
+        code: verification.code,
+        status: 'failed',
+        message: verification.reason || 'Attendance verification failed.'
       });
-
-      // Notify Student
-      if (deviceRecord.student_user_id) {
-        await sendNotification({
-          userId: deviceRecord.student_user_id,
-          senderId: req.user.user_id,
-          senderName: org.organization_name || 'HR Attendance Desk',
-          title: `Time-In Scanned (${statusBadge})`,
-          message: `HR scanned your dynamic QR code for Time-In at ${currentTimeStr} (${statusBadge}, Philippine Time). Have a productive training shift!`,
-          type: 'ojt',
-          link: '/dashboard/student/ojt',
-          relatedType: 'attendance',
-          relatedId: ojt.ojt_id
-        });
+    }
+    return {
+      httpStatus: 400,
+      body: {
+        success: false,
+        code: verification.code || 'VERIFICATION_FAILED',
+        message: verification.reason
       }
+    };
+  }
 
-      // Notify Assigned Workplace Mentor
-      if (ojt.mentor_user_id) {
-        await sendNotification({
-          userId: ojt.mentor_user_id,
-          senderId: req.user.user_id,
-          senderName: 'HR Attendance Scanner',
-          title: `Intern Timed In: ${deviceRecord.first_name} ${deviceRecord.last_name}`,
-          message: `${deviceRecord.first_name} clocked in at ${currentTimeStr} (${statusBadge}).`,
-          type: 'ojt',
-          link: '/dashboard/organization/ojt',
-          relatedType: 'attendance',
-          relatedId: ojt.ojt_id
-        });
+  // Step 4: Nonce Replay Protection (reject if this QR nonce was already scanned)
+  if (verification.nonceHash) {
+    const [existingNonce] = await pool.query(
+      'SELECT nonce_hash, used_at FROM attendance_qr_nonces WHERE nonce_hash = ? LIMIT 1',
+      [verification.nonceHash]
+    );
+    if (existingNonce.length > 0) {
+      return {
+        httpStatus: 400,
+        body: {
+          success: false,
+          code: 'REPLAY_DETECTED',
+          message: 'Replay Blocked: This QR code has already been scanned and used. A fresh dynamic QR code is required.'
+        }
+      };
+    }
+  }
+
+  // Step 5: Verify student has an active/ongoing OJT record with THIS hiring organization
+  const [ojtRows] = await pool.query(
+    `SELECT o.*,
+            os.first_name as mentor_first_name, os.last_name as mentor_last_name, os.user_id as mentor_user_id,
+            COALESCE(
+              (SELECT jp.start_time FROM job_applications ja JOIN job_postings jp ON ja.job_id = jp.job_id
+               WHERE ja.student_id = o.student_id AND jp.organization_id = o.organization_id
+               ORDER BY (CASE WHEN ja.status = 'accepted' THEN 0 WHEN ja.status = 'hired' THEN 1 ELSE 2 END), ja.updated_at DESC LIMIT 1),
+              '08:00'
+            ) as scheduled_start_time,
+            COALESCE(
+              (SELECT jp.finish_time FROM job_applications ja JOIN job_postings jp ON ja.job_id = jp.job_id
+               WHERE ja.student_id = o.student_id AND jp.organization_id = o.organization_id
+               ORDER BY (CASE WHEN ja.status = 'accepted' THEN 0 WHEN ja.status = 'hired' THEN 1 ELSE 2 END), ja.updated_at DESC LIMIT 1),
+              '17:00'
+            ) as scheduled_finish_time
+     FROM ojt_records o
+     LEFT JOIN organization_staff os ON o.mentor_id = os.org_staff_id
+     WHERE o.student_id = ? AND o.organization_id = ? AND o.status = 'ongoing'
+     LIMIT 1`,
+    [studentId, org.organization_id]
+  );
+
+  if (ojtRows.length === 0) {
+    if (deviceRecord.student_user_id) {
+      emitUpdate('attendance_failed', {
+        student_id: studentId,
+        user_id: deviceRecord.student_user_id,
+        organization_id: org.organization_id,
+        action: 'not_enrolled',
+        status: 'failed',
+        message: `${deviceRecord.first_name} ${deviceRecord.last_name} is not enrolled in an active OJT placement with this organization.`
+      });
+    }
+    return {
+      httpStatus: 403,
+      body: {
+        success: false,
+        code: 'UNAUTHORIZED_PLACEMENT',
+        message: `${deviceRecord.first_name} ${deviceRecord.last_name} is not currently enrolled in an ongoing OJT placement with your organization.`
       }
+    };
+  }
 
-      return res.json({
+  // Step 6: Online Geofence & GPS Anti-Spoofing Verification (Haversine distance + accuracy + velocity jump)
+  const effectiveMode = isOfflineSync ? 'offline' : verification.mode || 'online';
+  const geoCheck = verifyGeofenceAndTelemetry({
+    studentLoc: verification.location,
+    org,
+    deviceRecord,
+    scanTimestampSec: verification.timestamp,
+    mode: effectiveMode
+  });
+
+  if (!geoCheck.valid) {
+    if (deviceRecord.student_user_id) {
+      emitUpdate('attendance_failed', {
+        student_id: studentId,
+        user_id: deviceRecord.student_user_id,
+        organization_id: org.organization_id,
+        action: 'geofence_rejected',
+        code: geoCheck.code,
+        status: 'failed',
+        message: geoCheck.reason
+      });
+    }
+    return {
+      httpStatus: 403,
+      body: {
+        success: false,
+        code: geoCheck.code || 'OUTSIDE_GEOFENCE',
+        distance_meters: geoCheck.distanceMeters,
+        allowed_radius_meters: geoCheck.radiusMeters,
+        message: geoCheck.reason
+      }
+    };
+  }
+
+  // Step 7: Record single-use nonce to prevent replay attacks
+  if (verification.nonceHash) {
+    await pool.query(
+      `INSERT IGNORE INTO attendance_qr_nonces (
+        nonce_hash, student_id, device_id, qr_timestamp, scan_mode, used_at, expires_at
+      ) VALUES (?, ?, ?, ?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY))`,
+      [
+        verification.nonceHash,
+        studentId,
+        verification.deviceId,
+        verification.timestamp,
+        effectiveMode
+      ]
+    );
+  }
+
+  // Update device last_used_at and last known GPS telemetry
+  if (geoCheck.latitude != null && geoCheck.longitude != null) {
+    await pool.query(
+      `UPDATE student_attendance_devices
+       SET last_used_at = NOW(),
+           last_latitude = ?,
+           last_longitude = ?,
+           last_location_accuracy = ?,
+           last_location_at = NOW()
+       WHERE student_id = ?`,
+      [geoCheck.latitude, geoCheck.longitude, geoCheck.accuracyMeters, studentId]
+    ).catch(() => {});
+  } else {
+    await pool.query('UPDATE student_attendance_devices SET last_used_at = NOW() WHERE student_id = ?', [studentId]);
+  }
+
+  const ojt = ojtRows[0];
+  const pht = getPHTNow(isOfflineSync && offlineScannedAtMs ? offlineScannedAtMs : null);
+  const currentDate = pht.dateStr;
+  const currentTimeStr = pht.timeStr;
+  const offlineScannedAtDate = isOfflineSync && offlineScannedAtMs ? new Date(Number(offlineScannedAtMs)) : null;
+
+  // Check attendance log for the target date
+  const [attLogs] = await pool.query(
+    'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND log_date = ?',
+    [ojt.ojt_id, currentDate]
+  );
+
+  // CASE A: Student has NOT clocked in on that date -> ACTION: TIME IN
+  if (attLogs.length === 0 || !attLogs[0].time_in) {
+    const schedStartMins = parseTimeToMinutes(ojt.scheduled_start_time, '08:00');
+    const actualInMins = pht.hour * 60 + pht.minute;
+    const timeInStatus = actualInMins <= schedStartMins ? 'on_time' : 'late';
+
+    if (attLogs.length === 0) {
+      await pool.query(
+        `INSERT INTO ojt_attendance_logs (
+          ojt_id, student_id, mentor_id, log_date, time_in, time_in_status, time_in_method,
+          status, scanned_by_hr_id, verified_by, verified_at,
+          scan_latitude, scan_longitude, scan_accuracy_meters, distance_from_org_meters,
+          device_id, is_offline_synced, offline_scanned_at,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'qr_scan', 'verified', ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [
+          ojt.ojt_id,
+          studentId,
+          ojt.mentor_id || null,
+          currentDate,
+          currentTimeStr,
+          timeInStatus,
+          hrUserId,
+          hrUserId,
+          geoCheck.latitude ?? null,
+          geoCheck.longitude ?? null,
+          geoCheck.accuracyMeters ?? null,
+          geoCheck.distanceMeters ?? null,
+          verification.deviceId,
+          isOfflineSync ? 1 : 0,
+          offlineScannedAtDate
+        ]
+      );
+    } else {
+      await pool.query(
+        `UPDATE ojt_attendance_logs 
+         SET time_in = ?, time_in_status = ?, time_in_method = 'qr_scan', status = 'verified',
+             scanned_by_hr_id = ?, verified_by = ?, verified_at = NOW(),
+             scan_latitude = COALESCE(?, scan_latitude),
+             scan_longitude = COALESCE(?, scan_longitude),
+             scan_accuracy_meters = COALESCE(?, scan_accuracy_meters),
+             distance_from_org_meters = COALESCE(?, distance_from_org_meters),
+             device_id = COALESCE(?, device_id),
+             is_offline_synced = ?,
+             offline_scanned_at = COALESCE(?, offline_scanned_at),
+             updated_at = NOW()
+         WHERE attendance_id = ?`,
+        [
+          currentTimeStr,
+          timeInStatus,
+          hrUserId,
+          hrUserId,
+          geoCheck.latitude ?? null,
+          geoCheck.longitude ?? null,
+          geoCheck.accuracyMeters ?? null,
+          geoCheck.distanceMeters ?? null,
+          verification.deviceId,
+          isOfflineSync ? 1 : 0,
+          offlineScannedAtDate,
+          attLogs[0].attendance_id
+        ]
+      );
+    }
+
+    const statusBadge = timeInStatus === 'on_time' ? 'On-Time' : 'Late';
+
+    emitUpdate('attendance_logged', {
+      ojt_id: ojt.ojt_id,
+      student_id: studentId,
+      user_id: deviceRecord.student_user_id,
+      organization_id: org.organization_id,
+      action: 'time_in',
+      status: 'success',
+      time_in: currentTimeStr,
+      time_in_status: timeInStatus,
+      status_badge: statusBadge,
+      distance_meters: geoCheck.distanceMeters,
+      is_offline_synced: isOfflineSync,
+      student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
+      student_number: deviceRecord.student_number,
+      message: `Time-In recorded at ${currentTimeStr} (${statusBadge})`
+    });
+
+    if (deviceRecord.student_user_id) {
+      await sendNotification({
+        userId: deviceRecord.student_user_id,
+        senderId: hrUserId,
+        senderName: org.organization_name || 'HR Attendance Desk',
+        title: `Time-In Scanned (${statusBadge})`,
+        message: `HR scanned your dynamic QR code for Time-In at ${currentTimeStr} (${statusBadge}, Philippine Time). Have a productive training shift!`,
+        type: 'ojt',
+        link: '/dashboard/student/ojt',
+        relatedType: 'attendance',
+        relatedId: ojt.ojt_id
+      });
+    }
+
+    if (ojt.mentor_user_id) {
+      await sendNotification({
+        userId: ojt.mentor_user_id,
+        senderId: hrUserId,
+        senderName: 'HR Attendance Scanner',
+        title: `Intern Timed In: ${deviceRecord.first_name} ${deviceRecord.last_name}`,
+        message: `${deviceRecord.first_name} clocked in at ${currentTimeStr} (${statusBadge}).`,
+        type: 'ojt',
+        link: '/dashboard/organization/ojt',
+        relatedType: 'attendance',
+        relatedId: ojt.ojt_id
+      });
+    }
+
+    return {
+      httpStatus: 200,
+      body: {
         success: true,
         action: 'time_in',
         message: `Successfully Timed In ${deviceRecord.first_name} ${deviceRecord.last_name}! (${statusBadge})`,
@@ -1868,110 +2092,133 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
           action: 'time_in',
           time_in: currentTimeStr,
           time_in_status: timeInStatus,
+          distance_meters: geoCheck.distanceMeters,
+          is_offline_synced: isOfflineSync,
           mentor_name: ojt.mentor_first_name ? `${ojt.mentor_first_name} ${ojt.mentor_last_name}` : (ojt.supervisor_name || 'Assigned Mentor')
         }
+      }
+    };
+  }
+
+  // CASE B: Student ALREADY clocked in today, but NOT clocked out -> ACTION: TIME OUT
+  const todayLog = attLogs[0];
+  if (todayLog.time_in && !todayLog.time_out) {
+    const timeInParts = String(todayLog.time_in).split(':');
+    const inMins = parseInt(timeInParts[0], 10) * 60 + parseInt(timeInParts[1], 10);
+    const outMins = pht.hour * 60 + pht.minute;
+    const rawDiffMins = Math.max(0, outMins - inMins);
+
+    const schedFinishMins = parseTimeToMinutes(ojt.scheduled_finish_time, '17:00');
+    let timeOutStatus = 'on_time';
+    if (outMins < schedFinishMins - 15) {
+      timeOutStatus = 'early';
+    } else if (outMins > schedFinishMins + 15) {
+      timeOutStatus = 'overtime';
+    }
+
+    const calculatedHours = Math.min(12, Math.max(0.1, Math.round((rawDiffMins / 60) * 100) / 100));
+    const prevHours = todayLog.status === 'verified' ? (parseFloat(todayLog.hours_rendered) || 0) : 0;
+    const hoursDiff = calculatedHours - prevHours;
+
+    await pool.query(
+      `UPDATE ojt_attendance_logs 
+       SET time_out = ?, time_out_status = ?, time_out_method = 'qr_scan',
+           hours_rendered = ?, status = 'verified', verified_by = ?, verified_at = NOW(),
+           scan_latitude = COALESCE(?, scan_latitude),
+           scan_longitude = COALESCE(?, scan_longitude),
+           scan_accuracy_meters = COALESCE(?, scan_accuracy_meters),
+           distance_from_org_meters = COALESCE(?, distance_from_org_meters),
+           device_id = COALESCE(?, device_id),
+           is_offline_synced = ?,
+           offline_scanned_at = COALESCE(?, offline_scanned_at),
+           updated_at = NOW()
+       WHERE attendance_id = ?`,
+      [
+        currentTimeStr,
+        timeOutStatus,
+        calculatedHours,
+        hrUserId,
+        geoCheck.latitude ?? null,
+        geoCheck.longitude ?? null,
+        geoCheck.accuracyMeters ?? null,
+        geoCheck.distanceMeters ?? null,
+        verification.deviceId,
+        isOfflineSync ? 1 : 0,
+        offlineScannedAtDate,
+        todayLog.attendance_id
+      ]
+    );
+
+    if (hoursDiff !== 0) {
+      await pool.query(
+        `UPDATE ojt_records 
+         SET rendered_hours = GREATEST(0, rendered_hours + ?),
+             status = CASE WHEN GREATEST(0, rendered_hours + ?) >= COALESCE(required_hours, 600) THEN 'completed' ELSE status END,
+             updated_at = NOW()
+         WHERE ojt_id = ?`,
+        [hoursDiff, hoursDiff, ojt.ojt_id]
+      );
+      await pool.query(
+        'UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?',
+        [hoursDiff, studentId]
+      );
+      await pool.query(
+        `UPDATE students SET ojt_status = 'completed_ojt', status_id = 4, updated_at = NOW()
+         WHERE student_id = ? AND ojt_status NOT IN ('graduated', 'completed_ojt', 'completed')
+           AND required_ojt_hours > 0 AND completed_ojt_hours >= required_ojt_hours`,
+        [studentId]
+      );
+    }
+
+    emitUpdate('attendance_logged', {
+      ojt_id: ojt.ojt_id,
+      student_id: studentId,
+      user_id: deviceRecord.student_user_id,
+      organization_id: org.organization_id,
+      action: 'time_out',
+      status: 'success',
+      time_in: todayLog.time_in,
+      time_out: currentTimeStr,
+      time_out_status: timeOutStatus,
+      hours_rendered: calculatedHours,
+      distance_meters: geoCheck.distanceMeters,
+      is_offline_synced: isOfflineSync,
+      student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
+      student_number: deviceRecord.student_number,
+      message: `Time-Out recorded at ${currentTimeStr} (${calculatedHours} hrs automatically credited)`
+    });
+
+    if (deviceRecord.student_user_id) {
+      await sendNotification({
+        userId: deviceRecord.student_user_id,
+        senderId: hrUserId,
+        senderName: org.organization_name || 'HR Attendance Desk',
+        title: `Time-Out Recorded (${calculatedHours} hrs)`,
+        message: `HR scanned your dynamic QR code for Time-Out at ${currentTimeStr}. ${calculatedHours} hrs have been automatically recorded and credited to your OJT record.`,
+        type: 'ojt',
+        link: '/dashboard/student/ojt',
+        relatedType: 'attendance',
+        relatedId: ojt.ojt_id
       });
     }
 
-    // CASE B: Student ALREADY clocked in today, but NOT clocked out -> ACTION: TIME OUT
-    const todayLog = attLogs[0];
-    if (todayLog.time_in && !todayLog.time_out) {
-      // Calculate hours rendered
-      const timeInParts = String(todayLog.time_in).split(':');
-      const inMins = parseInt(timeInParts[0], 10) * 60 + parseInt(timeInParts[1], 10);
-      const outMins = pht.hour * 60 + pht.minute;
-      const rawDiffMins = Math.max(0, outMins - inMins);
-
-      // Scheduled bounds
-      const schedFinishMins = parseTimeToMinutes(ojt.scheduled_finish_time, '17:00');
-      let timeOutStatus = 'on_time';
-      if (outMins < schedFinishMins - 15) {
-        timeOutStatus = 'early';
-      } else if (outMins > schedFinishMins + 15) {
-        timeOutStatus = 'overtime';
-      }
-
-      // Calculate hours rounded to 2 decimal places, max 12 hours
-      const calculatedHours = Math.min(12, Math.max(0.1, Math.round((rawDiffMins / 60) * 100) / 100));
-      const prevHours = todayLog.status === 'verified' ? (parseFloat(todayLog.hours_rendered) || 0) : 0;
-      const hoursDiff = calculatedHours - prevHours;
-
-      await pool.query(
-        `UPDATE ojt_attendance_logs 
-         SET time_out = ?, time_out_status = ?, time_out_method = 'qr_scan', hours_rendered = ?, status = 'verified', verified_by = ?, verified_at = NOW(), updated_at = NOW()
-         WHERE attendance_id = ?`,
-        [currentTimeStr, timeOutStatus, calculatedHours, req.user.user_id, todayLog.attendance_id]
-      );
-
-      // Automatically credit rendered hours to ojt_records and student profile
-      if (hoursDiff !== 0) {
-        await pool.query(
-          `UPDATE ojt_records 
-           SET rendered_hours = GREATEST(0, rendered_hours + ?),
-               status = CASE WHEN GREATEST(0, rendered_hours + ?) >= COALESCE(required_hours, 600) THEN 'completed' ELSE status END,
-               updated_at = NOW()
-           WHERE ojt_id = ?`,
-          [hoursDiff, hoursDiff, ojt.ojt_id]
-        );
-        await pool.query(
-          'UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?',
-          [hoursDiff, studentId]
-        );
-        await pool.query(
-          `UPDATE students SET ojt_status = 'completed_ojt', status_id = 4, updated_at = NOW()
-           WHERE student_id = ? AND ojt_status NOT IN ('graduated', 'completed_ojt', 'completed')
-             AND required_ojt_hours > 0 AND completed_ojt_hours >= required_ojt_hours`,
-          [studentId]
-        );
-      }
-
-      emitUpdate('attendance_logged', {
-        ojt_id: ojt.ojt_id,
-        student_id: studentId,
-        user_id: deviceRecord.student_user_id,
-        organization_id: org.organization_id,
-        action: 'time_out',
-        status: 'success',
-        time_in: todayLog.time_in,
-        time_out: currentTimeStr,
-        time_out_status: timeOutStatus,
-        hours_rendered: calculatedHours,
-        student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
-        student_number: deviceRecord.student_number,
-        message: `Time-Out recorded at ${currentTimeStr} (${calculatedHours} hrs automatically credited)`
+    if (ojt.mentor_user_id) {
+      await sendNotification({
+        userId: ojt.mentor_user_id,
+        senderId: hrUserId,
+        senderName: 'HR Attendance Scanner',
+        title: `Intern Shift Recorded: ${deviceRecord.first_name} ${deviceRecord.last_name}`,
+        message: `${deviceRecord.first_name} completed their shift (${todayLog.time_in.slice(0, 5)} - ${currentTimeStr.slice(0, 5)}, ${calculatedHours} hrs rendered). Training hours have been automatically recorded and credited.`,
+        type: 'ojt',
+        link: '/dashboard/organization/ojt',
+        relatedType: 'attendance',
+        relatedId: ojt.ojt_id
       });
+    }
 
-      // Notify Student
-      if (deviceRecord.student_user_id) {
-        await sendNotification({
-          userId: deviceRecord.student_user_id,
-          senderId: req.user.user_id,
-          senderName: org.organization_name || 'HR Attendance Desk',
-          title: `Time-Out Recorded (${calculatedHours} hrs)`,
-          message: `HR scanned your dynamic QR code for Time-Out at ${currentTimeStr}. ${calculatedHours} hrs have been automatically recorded and credited to your OJT record.`,
-          type: 'ojt',
-          link: '/dashboard/student/ojt',
-          relatedType: 'attendance',
-          relatedId: ojt.ojt_id
-        });
-      }
-
-      // Notify Workplace Mentor of completed shift
-      if (ojt.mentor_user_id) {
-        await sendNotification({
-          userId: ojt.mentor_user_id,
-          senderId: req.user.user_id,
-          senderName: 'HR Attendance Scanner',
-          title: `Intern Shift Recorded: ${deviceRecord.first_name} ${deviceRecord.last_name}`,
-          message: `${deviceRecord.first_name} completed their shift (${todayLog.time_in.slice(0, 5)} - ${currentTimeStr.slice(0, 5)}, ${calculatedHours} hrs rendered). Training hours have been automatically recorded and credited.`,
-          type: 'ojt',
-          link: '/dashboard/organization/ojt',
-          relatedType: 'attendance',
-          relatedId: ojt.ojt_id
-        });
-      }
-
-      return res.json({
+    return {
+      httpStatus: 200,
+      body: {
         success: true,
         action: 'time_out',
         message: `Successfully Timed Out ${deviceRecord.first_name} ${deviceRecord.last_name}! (${calculatedHours} hrs automatically recorded and credited)`,
@@ -1985,30 +2232,132 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
           time_out: currentTimeStr,
           hours_rendered: calculatedHours,
           time_out_status: timeOutStatus,
+          distance_meters: geoCheck.distanceMeters,
+          is_offline_synced: isOfflineSync,
           status: 'verified',
           mentor_name: ojt.mentor_first_name ? `${ojt.mentor_first_name} ${ojt.mentor_last_name}` : (ojt.supervisor_name || 'Assigned Mentor')
         }
-      });
-    }
+      }
+    };
+  }
 
-    // CASE C: Student already clocked in AND clocked out today
-    if (deviceRecord.student_user_id) {
-      emitUpdate('attendance_failed', {
-        student_id: studentId,
-        user_id: deviceRecord.student_user_id,
-        organization_id: org.organization_id,
-        action: 'already_completed',
-        status: 'failed',
-        message: `${deviceRecord.first_name} ${deviceRecord.last_name} has already completed their shift today.`
-      });
-    }
-    return res.status(400).json({
-      success: false,
-      message: `${deviceRecord.first_name} ${deviceRecord.last_name} has already completed their shift today (In: ${todayLog.time_in.slice(0, 5)}, Out: ${todayLog.time_out.slice(0, 5)}, ${todayLog.hours_rendered || 0} hrs). Additional clocking is not required.`
+  // CASE C: Student already clocked in AND clocked out today
+  if (deviceRecord.student_user_id) {
+    emitUpdate('attendance_failed', {
+      student_id: studentId,
+      user_id: deviceRecord.student_user_id,
+      organization_id: org.organization_id,
+      action: 'already_completed',
+      status: 'failed',
+      message: `${deviceRecord.first_name} ${deviceRecord.last_name} has already completed their shift today.`
     });
+  }
+  return {
+    httpStatus: 400,
+    body: {
+      success: false,
+      code: 'SHIFT_ALREADY_COMPLETED',
+      message: `${deviceRecord.first_name} ${deviceRecord.last_name} has already completed their shift today (In: ${todayLog.time_in.slice(0, 5)}, Out: ${todayLog.time_out.slice(0, 5)}, ${todayLog.hours_rendered || 0} hrs). Additional clocking is not required.`
+    }
+  };
+}
+
+// POST /api/org/attendance/scan-qr
+// HR-Exclusive Scanner: Verifies student dynamic TOTP + ECDSA + Geofence QR code and logs Time-In or Time-Out
+router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
+  const { qr_payload } = req.body;
+
+  if (!qr_payload) {
+    return res.status(400).json({ success: false, message: 'Missing QR payload data from scanner.' });
+  }
+
+  try {
+    const org = await getOrgId(req.user.user_id);
+    if (!org) return res.status(404).json({ success: false, message: 'Hiring organization record not found.' });
+
+    const result = await processSingleQrAttendanceScan({
+      qrPayload: qr_payload,
+      org,
+      hrUserId: req.user.user_id,
+      isOfflineSync: false
+    });
+
+    return res.status(result.httpStatus).json(result.body);
   } catch (error) {
     console.error('QR Attendance Scan Error:', error);
     return res.status(500).json({ success: false, message: 'Server error processing QR scan: ' + error.message });
+  }
+});
+
+// POST /api/org/attendance/sync-offline
+// Batch syncs offline QR attendance scans captured by HR while offline
+router.post('/attendance/sync-offline', requireHROrAdmin, async (req, res) => {
+  const { scans } = req.body;
+
+  if (!Array.isArray(scans) || scans.length === 0) {
+    return res.status(400).json({ success: false, message: 'No offline scans provided to synchronize.' });
+  }
+
+  try {
+    const org = await getOrgId(req.user.user_id);
+    if (!org) return res.status(404).json({ success: false, message: 'Hiring organization record not found.' });
+
+    // Sort chronologically by scanned_at_ms so Time-In precedes Time-Out
+    const sortedScans = [...scans].sort(
+      (a, b) => (Number(a.scanned_at_ms) || 0) - (Number(b.scanned_at_ms) || 0)
+    );
+
+    const results = [];
+    let syncedCount = 0;
+    let failedCount = 0;
+
+    for (const item of sortedScans) {
+      try {
+        const resItem = await processSingleQrAttendanceScan({
+          qrPayload: item.qr_payload,
+          org,
+          hrUserId: req.user.user_id,
+          isOfflineSync: true,
+          offlineScannedAtMs: item.scanned_at_ms || Date.now()
+        });
+
+        if (resItem.body.success) {
+          syncedCount++;
+        } else {
+          failedCount++;
+        }
+
+        results.push({
+          queue_id: item.queue_id || null,
+          scanned_at_ms: item.scanned_at_ms,
+          success: resItem.body.success,
+          code: resItem.body.code || null,
+          action: resItem.body.action || null,
+          message: resItem.body.message,
+          data: resItem.body.data || null
+        });
+      } catch (itemErr) {
+        failedCount++;
+        results.push({
+          queue_id: item.queue_id || null,
+          scanned_at_ms: item.scanned_at_ms,
+          success: false,
+          code: 'SYNC_ERROR',
+          message: itemErr.message || 'Error syncing offline scan.'
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Offline sync complete: ${syncedCount} recorded, ${failedCount} rejected.`,
+      synced_count: syncedCount,
+      failed_count: failedCount,
+      results
+    });
+  } catch (error) {
+    console.error('Offline QR Attendance Sync Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to synchronize offline scans: ' + error.message });
   }
 });
 

@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import multer from 'multer';
 import path from 'path';
@@ -13,6 +14,8 @@ import { PROGRAM_SKILLS_CATALOG } from '../data/programSkillsData.js';
 
 import { getUploadStorage, saveUploadedFile } from '../utils/upload.helper.js';
 import { generateTotpSecret, generateDeviceToken } from '../utils/totp.helper.js';
+import { sendDeviceRebindOtpEmail, maskEmailAddress } from '../utils/mailer.js';
+import { getClientIp } from '../utils/session.js';
 
 const portfolioFileFilter = (req, file, cb) => {
   const allowedExts = /jpeg|jpg|png|webp|gif|svg|bmp|tiff|heic|heif|pdf|doc|docx|odt|rtf|pages|ppt|pptx|odp|key|xls|xlsx|csv|ods|numbers|txt|zip|rar|7z|tar|gz|json|xml|md|sql/i;
@@ -1213,128 +1216,517 @@ router.delete('/attendance/:id', async (req, res) => {
   }
 });
 
-// GET /api/student/attendance/qr-credentials & /api/student/attendance/credentials
-// Fetches or securely registers student's hardware device token and TOTP cryptographic secret
-router.get(['/attendance/qr-credentials', '/attendance/credentials'], async (req, res) => {
+// Helper to fetch student's active OJT workplace geofence settings
+async function getStudentWorkplaceGeofence(studentId) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT o.ojt_id, o.organization_id, ho.organization_name,
+              ho.latitude, ho.longitude,
+              COALESCE(ho.geofence_radius_meters, 100) as geofence_radius_meters,
+              COALESCE(ho.enforce_geofence, 1) as enforce_geofence
+       FROM ojt_records o
+       JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
+       WHERE o.student_id = ? AND o.status = 'ongoing'
+       ORDER BY o.created_at DESC
+       LIMIT 1`,
+      [studentId]
+    );
+    if (rows.length === 0) return null;
+    const r = rows[0];
+    return {
+      ojt_id: r.ojt_id,
+      organization_id: r.organization_id,
+      organization_name: r.organization_name,
+      latitude: r.latitude !== null ? Number(r.latitude) : null,
+      longitude: r.longitude !== null ? Number(r.longitude) : null,
+      radius_meters: Number(r.geofence_radius_meters) || 100,
+      enforce_geofence: Boolean(r.enforce_geofence)
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+// GET & POST /api/student/attendance/qr-credentials, /api/student/attendance/credentials, /api/student/attendance/register-device
+// Handles first-time WebCrypto ECDSA P-256 device keypair binding and detects unregistered/mismatched phones
+const handleAttendanceDeviceHandshake = async (req, res) => {
   try {
     const student = await getStudentId(req.user.user_id);
     if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
 
-    const clientDeviceToken = req.query.device_token || req.headers['x-device-token'] || null;
-    const clientDeviceName = req.query.device_name || req.headers['user-agent'] || 'Registered Device';
+    const clientDeviceId =
+      req.body?.device_id ||
+      req.body?.device_token ||
+      req.query?.device_id ||
+      req.query?.device_token ||
+      req.headers['x-device-id'] ||
+      req.headers['x-device-token'] ||
+      null;
 
-    // Check if student already has a registered device
-    const [rows] = await pool.query(
-      'SELECT * FROM student_attendance_devices WHERE student_id = ?',
-      [student.student_id]
-    );
+    const clientDeviceLabel =
+      req.body?.device_label ||
+      req.body?.device_name ||
+      req.query?.device_label ||
+      req.query?.device_name ||
+      req.headers['user-agent'] ||
+      'Android Device';
 
-    // Also fetch today's attendance log for instant status display
-    const [todayRows] = await pool.query(
-      `SELECT att.*,
-              DATE_FORMAT(att.log_date, '%Y-%m-%d') as log_date_str
-       FROM ojt_attendance_logs att
-       WHERE att.student_id = ? AND att.log_date = CURRENT_DATE()
-       ORDER BY att.attendance_id DESC
-       LIMIT 1`,
-      [student.student_id]
-    );
+    const publicKeySpki = req.body?.public_key_spki || req.query?.public_key_spki || null;
+    const publicKeyJwk = req.body?.public_key_jwk
+      ? (typeof req.body.public_key_jwk === 'string' ? req.body.public_key_jwk : JSON.stringify(req.body.public_key_jwk))
+      : null;
+
+    // Fetch existing device binding and today's attendance log in parallel
+    const [[rows], [todayRows], workplaceGeofence] = await Promise.all([
+      pool.query('SELECT * FROM student_attendance_devices WHERE student_id = ?', [student.student_id]),
+      pool.query(
+        `SELECT att.*, DATE_FORMAT(att.log_date, '%Y-%m-%d') as log_date_str
+         FROM ojt_attendance_logs att
+         WHERE att.student_id = ? AND att.log_date = CURRENT_DATE()
+         ORDER BY att.attendance_id DESC
+         LIMIT 1`,
+        [student.student_id]
+      ),
+      getStudentWorkplaceGeofence(student.student_id)
+    ]);
+
     const todayLog = todayRows.length > 0 ? todayRows[0] : null;
+    const maskedEmail = maskEmailAddress(req.user.email);
 
     if (rows.length > 0) {
       const existing = rows[0];
-      // Check if presented device matches locked device
-      const isMismatched = !!(clientDeviceToken && existing.device_token !== clientDeviceToken && existing.is_locked);
+      const boundId = existing.device_id || existing.device_token;
+
+      // Check if this is the same device (matching device_id or legacy device_token upgrade)
+      const isMatchingDevice =
+        !existing.is_locked ||
+        (clientDeviceId && (clientDeviceId === boundId || clientDeviceId === existing.device_token)) ||
+        (publicKeySpki && existing.public_key_spki && publicKeySpki === existing.public_key_spki);
+
+      if (!isMatchingDevice) {
+        // BLOCK attendance QR secret disclosure on unregistered phone; require 6-digit Gmail OTP
+        return res.json({
+          success: true,
+          data: {
+            status: 'device_mismatch',
+            student_id: student.student_id,
+            studentId: student.student_id,
+            student_number: student.student_number,
+            full_name: `${student.first_name} ${student.last_name}`,
+            studentName: `${student.first_name} ${student.last_name}`,
+            is_locked: true,
+            deviceBound: true,
+            is_mismatched: true,
+            requires_otp: true,
+            masked_email: maskedEmail,
+            registered_device_name: existing.device_label || existing.device_name || 'Registered Android Phone',
+            registered_at: existing.registered_at,
+            todayLog,
+            workplaceGeofence
+          }
+        });
+      }
+
+      // Same bound device: upgrade public key if newly generated and refresh 72-hour offline TOTP secret window
+      const updatedDeviceId = existing.device_id || clientDeviceId || existing.device_token;
+      const updatedSpki = publicKeySpki || existing.public_key_spki || null;
+      const updatedJwk = publicKeyJwk || existing.public_key_jwk || null;
+      const updatedLabel = (existing.device_label || clientDeviceLabel || existing.device_name || 'Android Device').slice(0, 150);
+      const newExpiresAt = new Date(Date.now() + 72 * 3600 * 1000);
+
+      await pool.query(
+        `UPDATE student_attendance_devices
+         SET device_id = ?,
+             public_key_spki = COALESCE(?, public_key_spki),
+             public_key_jwk = COALESCE(?, public_key_jwk),
+             device_label = COALESCE(device_label, ?),
+             secret_expires_at = ?,
+             last_used_at = NOW()
+         WHERE student_id = ?`,
+        [updatedDeviceId, updatedSpki, updatedJwk, updatedLabel, newExpiresAt, student.student_id]
+      ).catch(() => {});
 
       return res.json({
         success: true,
         data: {
+          status: 'bound',
           student_id: student.student_id,
           studentId: student.student_id,
           student_number: student.student_number,
           full_name: `${student.first_name} ${student.last_name}`,
           studentName: `${student.first_name} ${student.last_name}`,
-          device_token: existing.device_token,
-          deviceToken: existing.device_token,
+          device_id: updatedDeviceId,
+          device_token: updatedDeviceId,
+          deviceToken: updatedDeviceId,
           totp_secret: existing.totp_secret,
           qrSecret: existing.totp_secret,
-          is_locked: !!existing.is_locked,
-          deviceBound: !!existing.is_locked,
-          is_mismatched: isMismatched,
-          registered_device_name: existing.device_name,
+          secret_expires_at: newExpiresAt.toISOString(),
+          has_hardware_key: Boolean(updatedSpki),
+          is_locked: true,
+          deviceBound: true,
+          is_mismatched: false,
+          requires_otp: false,
+          masked_email: maskedEmail,
+          registered_device_name: updatedLabel,
           registered_at: existing.registered_at,
-          todayLog
+          todayLog,
+          workplaceGeofence
         }
       });
     }
 
-    // First-time setup: Lock the hardware token and generate TOTP secret
-    const newDeviceToken = clientDeviceToken || generateDeviceToken();
+    // First-time device binding: register device_id, WebCrypto ECDSA public key, device label, and TOTP secret
+    const newDeviceId = clientDeviceId || generateDeviceToken();
     const newSecret = generateTotpSecret();
+    const cleanLabel = String(clientDeviceLabel || 'Android Phone').slice(0, 150);
+    const expiresAt = new Date(Date.now() + 72 * 3600 * 1000);
 
     await pool.query(
-      `INSERT INTO student_attendance_devices (student_id, device_token, device_name, totp_secret, is_locked, registered_at, last_used_at)
-       VALUES (?, ?, ?, ?, 1, NOW(), NOW())
-       ON DUPLICATE KEY UPDATE device_token = VALUES(device_token), totp_secret = VALUES(totp_secret), is_locked = 1, registered_at = NOW()`,
-      [student.student_id, newDeviceToken, clientDeviceName.slice(0, 150), newSecret]
+      `INSERT INTO student_attendance_devices (
+        student_id, device_token, device_id, device_name, device_label,
+        public_key_spki, public_key_jwk, totp_secret, secret_expires_at,
+        is_locked, registered_at, last_used_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())
+      ON DUPLICATE KEY UPDATE
+        device_token = VALUES(device_token),
+        device_id = VALUES(device_id),
+        device_name = VALUES(device_name),
+        device_label = VALUES(device_label),
+        public_key_spki = VALUES(public_key_spki),
+        public_key_jwk = VALUES(public_key_jwk),
+        totp_secret = VALUES(totp_secret),
+        secret_expires_at = VALUES(secret_expires_at),
+        is_locked = 1,
+        registered_at = NOW(),
+        last_used_at = NOW()`,
+      [
+        student.student_id,
+        newDeviceId,
+        newDeviceId,
+        cleanLabel,
+        cleanLabel,
+        publicKeySpki,
+        publicKeyJwk,
+        newSecret,
+        expiresAt
+      ]
     );
 
     return res.json({
       success: true,
-      message: 'Hardware device registered and cryptographic TOTP secret locked.',
+      message: 'Device keypair bound and cryptographic TOTP secret initialized.',
       data: {
+        status: 'bound',
         student_id: student.student_id,
         studentId: student.student_id,
         student_number: student.student_number,
         full_name: `${student.first_name} ${student.last_name}`,
         studentName: `${student.first_name} ${student.last_name}`,
-        device_token: newDeviceToken,
-        deviceToken: newDeviceToken,
+        device_id: newDeviceId,
+        device_token: newDeviceId,
+        deviceToken: newDeviceId,
         totp_secret: newSecret,
         qrSecret: newSecret,
+        secret_expires_at: expiresAt.toISOString(),
+        has_hardware_key: Boolean(publicKeySpki),
         is_locked: true,
         deviceBound: true,
         is_mismatched: false,
-        todayLog
+        requires_otp: false,
+        masked_email: maskedEmail,
+        registered_device_name: cleanLabel,
+        registered_at: new Date().toISOString(),
+        todayLog,
+        workplaceGeofence
       }
     });
   } catch (error) {
     console.error('Fetch QR credentials error:', error);
     return res.status(500).json({ success: false, message: 'Failed to retrieve attendance credentials: ' + error.message });
   }
-});
+};
 
-// POST /api/student/attendance/reset-device & /api/student/attendance/device
-// Allows student to register or re-bind their registered device token
-router.post(['/attendance/reset-device', '/attendance/device'], async (req, res) => {
+router.get(['/attendance/qr-credentials', '/attendance/credentials'], handleAttendanceDeviceHandshake);
+router.post(['/attendance/register-device', '/attendance/qr-credentials'], handleAttendanceDeviceHandshake);
+
+// POST /api/student/attendance/request-device-otp
+// Sends a 6-digit OTP to the student's registered Gmail to authorize re-binding to a new phone
+router.post('/attendance/request-device-otp', async (req, res) => {
   try {
     const student = await getStudentId(req.user.user_id);
     if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
 
-    const newDeviceToken = req.body.device_token || req.body.device_hardware_token || generateDeviceToken();
-    const clientDeviceName = req.body.device_name || req.headers['user-agent'] || 'Registered Device';
-    const newSecret = generateTotpSecret();
+    const clientIp = getClientIp(req);
+    const pendingDeviceId = req.body?.device_id || req.body?.device_token || null;
+    const pendingPublicKeySpki = req.body?.public_key_spki || null;
+    const pendingPublicKeyJwk = req.body?.public_key_jwk
+      ? (typeof req.body.public_key_jwk === 'string' ? req.body.public_key_jwk : JSON.stringify(req.body.public_key_jwk))
+      : null;
+    const pendingDeviceLabel = String(req.body?.device_label || req.body?.device_name || req.headers['user-agent'] || 'New Android Phone').slice(0, 150);
+
+    // 1. Rate-limit per student account (max 3 OTP requests per 10 minutes)
+    const [acctRecent] = await pool.query(
+      `SELECT COUNT(*) as cnt FROM device_rebind_otps
+       WHERE student_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE)`,
+      [student.student_id]
+    );
+    if ((acctRecent[0]?.cnt || 0) >= 3) {
+      return res.status(429).json({
+        success: false,
+        code: 'OTP_RATE_LIMIT_ACCOUNT',
+        message: 'Too many OTP requests for this account (max 3 per 10 minutes). Please check your Gmail inbox or wait a few minutes.'
+      });
+    }
+
+    // 2. Rate-limit per IP address (max 6 OTP requests per 10 minutes)
+    const [ipRecent] = await pool.query(
+      `SELECT COUNT(*) as cnt FROM device_rebind_otps
+       WHERE ip_address = ? AND created_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE)`,
+      [clientIp]
+    );
+    if ((ipRecent[0]?.cnt || 0) >= 6) {
+      return res.status(429).json({
+        success: false,
+        code: 'OTP_RATE_LIMIT_IP',
+        message: 'Too many OTP requests from this network IP. Please wait 10 minutes before requesting another code.'
+      });
+    }
+
+    // 3. Invalidate any previous unconsumed OTPs for this student
+    await pool.query(
+      'UPDATE device_rebind_otps SET consumed_at = NOW() WHERE student_id = ? AND consumed_at IS NULL',
+      [student.student_id]
+    );
+
+    // 4. Generate 6-digit OTP and hash with bcrypt
+    const otpCode = String(crypto.randomInt(100000, 1000000));
+    const otpHash = await bcrypt.hash(otpCode, 10);
 
     await pool.query(
-      `INSERT INTO student_attendance_devices (student_id, device_token, device_name, totp_secret, is_locked, registered_at, last_used_at)
-       VALUES (?, ?, ?, ?, 1, NOW(), NOW())
-       ON DUPLICATE KEY UPDATE device_token = VALUES(device_token), device_name = VALUES(device_name), totp_secret = VALUES(totp_secret), is_locked = 1, registered_at = NOW()`,
-      [student.student_id, newDeviceToken, clientDeviceName.slice(0, 150), newSecret]
+      `INSERT INTO device_rebind_otps (
+        student_id, user_id, email, otp_hash,
+        pending_device_id, pending_public_key_spki, pending_public_key_jwk, pending_device_label,
+        attempts, max_attempts, ip_address, expires_at, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 5, ?, DATE_ADD(NOW(), INTERVAL 5 MINUTE), NOW())`,
+      [
+        student.student_id,
+        req.user.user_id,
+        req.user.email,
+        otpHash,
+        pendingDeviceId,
+        pendingPublicKeySpki,
+        pendingPublicKeyJwk,
+        pendingDeviceLabel,
+        clientIp
+      ]
     );
+
+    const emailRes = await sendDeviceRebindOtpEmail({
+      userId: req.user.user_id,
+      email: req.user.email,
+      studentName: `${student.first_name} ${student.last_name}`,
+      otpCode,
+      newDeviceLabel: pendingDeviceLabel,
+      expiresInMinutes: 5
+    });
+
+    const masked = maskEmailAddress(req.user.email);
 
     return res.json({
       success: true,
-      message: 'New hardware device bound successfully. Cryptographic key updated.',
+      message: emailRes.sent
+        ? `A 6-digit verification code has been sent to ${masked}. It expires in 5 minutes.`
+        : `A 6-digit verification code has been issued to ${masked} (and your Notification Bell). It expires in 5 minutes.`,
       data: {
-        student_id: student.student_id,
-        device_token: newDeviceToken,
-        totp_secret: newSecret,
-        is_locked: true
+        masked_email: masked,
+        expires_in_seconds: 300,
+        max_attempts: 5
       }
     });
   } catch (err) {
-    console.error('Reset device error:', err);
-    return res.status(500).json({ success: false, message: 'Failed to reset device.' });
+    console.error('Request device OTP error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to generate device verification OTP.' });
+  }
+});
+
+// POST /api/student/attendance/verify-device-otp & /api/student/attendance/reset-device & /api/student/attendance/device
+// Verifies the 6-digit OTP (5-min expiry, max 5 attempts) and re-binds the student's attendance account to the new device
+router.post(['/attendance/verify-device-otp', '/attendance/reset-device', '/attendance/device'], async (req, res) => {
+  try {
+    const student = await getStudentId(req.user.user_id);
+    if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
+
+    const otpCode = String(req.body?.otp_code || req.body?.otp || '').trim();
+    if (!otpCode || !/^\d{6}$/.test(otpCode)) {
+      return res.status(400).json({
+        success: false,
+        code: 'OTP_REQUIRED',
+        message: 'A valid 6-digit email OTP is required to re-bind your attendance device.'
+      });
+    }
+
+    // Fetch latest active OTP record for this student
+    const [otpRows] = await pool.query(
+      `SELECT * FROM device_rebind_otps
+       WHERE student_id = ? AND consumed_at IS NULL
+       ORDER BY otp_id DESC
+       LIMIT 1`,
+      [student.student_id]
+    );
+
+    if (otpRows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        code: 'OTP_NOT_FOUND',
+        message: 'No active OTP verification request found. Please tap "Send 6-Digit Email OTP" first.'
+      });
+    }
+
+    const otpRow = otpRows[0];
+
+    // Check max attempts (5)
+    if (otpRow.attempts >= otpRow.max_attempts) {
+      return res.status(429).json({
+        success: false,
+        code: 'OTP_MAX_ATTEMPTS',
+        message: 'Maximum 5 verification attempts exceeded. This OTP has been locked. Please request a new code.'
+      });
+    }
+
+    // Check 5-minute expiration
+    if (new Date() > new Date(otpRow.expires_at)) {
+      return res.status(400).json({
+        success: false,
+        code: 'OTP_EXPIRED',
+        message: 'This 6-digit OTP has expired (5-minute limit). Please request a new code.'
+      });
+    }
+
+    // Increment attempt counter before verification
+    const nextAttempts = otpRow.attempts + 1;
+    await pool.query(
+      'UPDATE device_rebind_otps SET attempts = ? WHERE otp_id = ?',
+      [nextAttempts, otpRow.otp_id]
+    );
+
+    const isOtpValid = await bcrypt.compare(otpCode, otpRow.otp_hash);
+    if (!isOtpValid) {
+      const remaining = Math.max(0, otpRow.max_attempts - nextAttempts);
+      return res.status(400).json({
+        success: false,
+        code: 'OTP_INVALID',
+        remaining_attempts: remaining,
+        message: remaining > 0
+          ? `Invalid 6-digit OTP code. You have ${remaining} attempt(s) remaining.`
+          : 'Invalid 6-digit OTP code. Maximum attempts reached — please request a new OTP.'
+      });
+    }
+
+    // Mark OTP as consumed
+    await pool.query(
+      'UPDATE device_rebind_otps SET consumed_at = NOW() WHERE otp_id = ?',
+      [otpRow.otp_id]
+    );
+
+    // Resolve new device parameters
+    const newDeviceId =
+      req.body?.device_id ||
+      req.body?.device_token ||
+      otpRow.pending_device_id ||
+      generateDeviceToken();
+    const newPublicKeySpki = req.body?.public_key_spki || otpRow.pending_public_key_spki || null;
+    const newPublicKeyJwk = req.body?.public_key_jwk
+      ? (typeof req.body.public_key_jwk === 'string' ? req.body.public_key_jwk : JSON.stringify(req.body.public_key_jwk))
+      : otpRow.pending_public_key_jwk || null;
+    const newDeviceLabel = String(
+      req.body?.device_label ||
+      req.body?.device_name ||
+      otpRow.pending_device_label ||
+      req.headers['user-agent'] ||
+      'Bound Android Phone'
+    ).slice(0, 150);
+
+    const newSecret = generateTotpSecret();
+    const expiresAt = new Date(Date.now() + 72 * 3600 * 1000);
+
+    await pool.query(
+      `INSERT INTO student_attendance_devices (
+        student_id, device_token, device_id, device_name, device_label,
+        public_key_spki, public_key_jwk, totp_secret, secret_expires_at,
+        is_locked, registered_at, last_used_at, unbound_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW(), NOW())
+      ON DUPLICATE KEY UPDATE
+        device_token = VALUES(device_token),
+        device_id = VALUES(device_id),
+        device_name = VALUES(device_name),
+        device_label = VALUES(device_label),
+        public_key_spki = VALUES(public_key_spki),
+        public_key_jwk = VALUES(public_key_jwk),
+        totp_secret = VALUES(totp_secret),
+        secret_expires_at = VALUES(secret_expires_at),
+        is_locked = 1,
+        registered_at = NOW(),
+        last_used_at = NOW(),
+        unbound_at = NOW()`,
+      [
+        student.student_id,
+        newDeviceId,
+        newDeviceId,
+        newDeviceLabel,
+        newDeviceLabel,
+        newPublicKeySpki,
+        newPublicKeyJwk,
+        newSecret,
+        expiresAt
+      ]
+    );
+
+    // Audit log
+    const clientIp = getClientIp(req);
+    await pool.query(
+      `INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values, ip_address, created_at)
+       VALUES (?, 'student_device_rebind', 'student_attendance_devices', ?, ?, ?, NOW())`,
+      [
+        req.user.user_id,
+        student.student_id,
+        JSON.stringify({ device_id: newDeviceId, device_label: newDeviceLabel }),
+        clientIp
+      ]
+    ).catch(() => {});
+
+    // Notify any old device via Socket.IO that it has been unbound
+    emitUpdate('device_rebound', {
+      user_id: req.user.user_id,
+      student_id: student.student_id,
+      new_device_id: newDeviceId,
+      device_label: newDeviceLabel
+    });
+
+    const workplaceGeofence = await getStudentWorkplaceGeofence(student.student_id);
+
+    return res.json({
+      success: true,
+      message: 'OTP verified! Your new Android phone is now cryptographically bound and your old device has been unbound.',
+      data: {
+        status: 'bound',
+        student_id: student.student_id,
+        student_number: student.student_number,
+        full_name: `${student.first_name} ${student.last_name}`,
+        device_id: newDeviceId,
+        device_token: newDeviceId,
+        totp_secret: newSecret,
+        secret_expires_at: expiresAt.toISOString(),
+        registered_device_name: newDeviceLabel,
+        registered_at: new Date().toISOString(),
+        is_locked: true,
+        is_mismatched: false,
+        requires_otp: false,
+        workplaceGeofence
+      }
+    });
+  } catch (err) {
+    console.error('Verify device OTP / reset device error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to verify OTP and re-bind device.' });
   }
 });
 

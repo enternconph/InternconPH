@@ -31,6 +31,7 @@ export function initSocket(httpServer) {
     // Auto-join entity rooms based on verified socket JWT claims
     if (socket.user) {
       if (socket.user.user_id) socket.join(`user_${socket.user.user_id}`);
+      if (socket.user.session_id) socket.join(`session_${socket.user.session_id}`);
       if (socket.user.institution_id) socket.join(`inst_${socket.user.institution_id}`);
       if (socket.user.org_id) socket.join(`org_${socket.user.org_id}`);
       if (socket.user.student_id) socket.join(`student_${socket.user.student_id}`);

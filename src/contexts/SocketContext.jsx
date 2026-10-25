@@ -82,6 +82,45 @@ export const SocketProvider = ({ children }) => {
           setLastEvent(eventData);
         });
 
+        // Single Active Session Enforcement: Force logout on old device when user signs in on another device
+        const handleForceLogout = (payload) => {
+          if (!payload || !user) return;
+          if (payload.user_id && Number(payload.user_id) !== Number(user.user_id)) return;
+
+          const currentSessionId = localStorage.getItem('session_id');
+          // If this device IS the newly created session, ignore the revocation notice
+          if (currentSessionId && payload.new_session_id && String(currentSessionId) === String(payload.new_session_id)) {
+            return;
+          }
+
+          try {
+            sessionStorage.setItem(
+              'interncon_force_logout_reason',
+              payload.message || 'Your session was terminated because your account logged in on another device.'
+            );
+          } catch (_) {}
+
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('session_id');
+
+          if (activeSocket) {
+            activeSocket.disconnect();
+          }
+
+          const role = user.role_name || user.role;
+          if (role === 'institution' || role === 'institution_staff') {
+            window.location.href = '/login/institution';
+          } else if (['hiring_organization', 'workplace_mentor', 'mentor', 'hr_staff'].includes(role)) {
+            window.location.href = '/login/organization';
+          } else {
+            window.location.href = '/login/student';
+          }
+        };
+
+        activeSocket.on('session_revoked', handleForceLogout);
+        activeSocket.on('force_logout', handleForceLogout);
+
         if (isMounted) {
           setSocket(activeSocket);
         }

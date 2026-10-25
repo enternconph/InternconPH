@@ -1,28 +1,120 @@
 import crypto from 'crypto';
 
 /**
- * Time-Bound Dynamic QR Cryptographic Helper
- * Implements TOTP-style time-window signing and Hardware Device Token verification.
+ * Enterprise Mobile QR Attendance Cryptographic & Geofence Helper
+ * - Hardware-bound WebCrypto ECDSA P-256 signature verification
+ * - 30-second rolling HMAC-SHA256 TOTP verification with clock-drift tolerance
+ * - Single-use Nonce hashing for anti-replay protection
+ * - Haversine geofence distance & impossible-velocity anti-spoofing checks
  */
 
-const DEFAULT_TIME_WINDOW_SECONDS = 30;
+export const DEFAULT_TIME_WINDOW_SECONDS = 35; // 30s step + 5s network/render grace
+export const TOTP_STEP_SECONDS = 30;
+export const DEFAULT_GEOFENCE_RADIUS_METERS = 100;
+export const MAX_ALLOWED_GPS_ACCURACY_METERS = 150;
+export const MAX_REALISTIC_VELOCITY_MPS = 55; // ~200 km/h impossible jump threshold
 
 /**
- * Generate a cryptographically secure random secret for TOTP/HMAC signing
+ * Generate a cryptographically secure random 256-bit secret for TOTP/HMAC signing
  */
 export function generateTotpSecret() {
   return crypto.randomBytes(32).toString('hex');
 }
 
 /**
- * Generate a persistent hardware device token
+ * Generate a persistent hardware device token / ID
  */
 export function generateDeviceToken() {
-  return crypto.randomBytes(24).toString('hex');
+  return 'dev_' + crypto.randomBytes(20).toString('hex');
 }
 
 /**
- * Sign payload: studentId + deviceToken + timestamp using student's secret key
+ * Hash a nonce + studentId for replay-protection storage
+ */
+export function hashAttendanceNonce(studentId, nonce) {
+  return crypto
+    .createHash('sha256')
+    .update(`${studentId}:${String(nonce).trim()}`)
+    .digest('hex');
+}
+
+/**
+ * Deterministically compute a 6-digit TOTP code for a given 30-second time step
+ */
+export function computeTotpCodeForStep(secret, timeStep) {
+  const hmacHex = crypto
+    .createHmac('sha256', String(secret))
+    .update(`totp:${timeStep}`)
+    .digest('hex');
+  const num = parseInt(hmacHex.slice(0, 8), 16) % 1000000;
+  return String(num).padStart(6, '0');
+}
+
+/**
+ * Verify a 6-digit TOTP code against a reference Unix timestamp (in seconds)
+ * allowing +/- windowSteps (default 1 step = ±30s) for minor clock drift.
+ */
+export function verifyTotpWindow(secret, code, referenceUnixSec, windowSteps = 1) {
+  if (!secret || !code) return { valid: false };
+  const cleanCode = String(code).trim();
+  const baseStep = Math.floor(referenceUnixSec / TOTP_STEP_SECONDS);
+
+  for (let offset = -windowSteps; offset <= windowSteps; offset++) {
+    const candidate = computeTotpCodeForStep(secret, baseStep + offset);
+    const a = Buffer.from(cleanCode, 'utf8');
+    const b = Buffer.from(candidate, 'utf8');
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
+      return { valid: true, matchedStep: baseStep + offset, driftSteps: offset };
+    }
+  }
+  return { valid: false };
+}
+
+/**
+ * Build canonical string signed by the student device's non-extractable ECDSA P-256 private key
+ */
+export function buildCanonicalQrSigningString({
+  sid,
+  did,
+  totp,
+  ts,
+  nonce,
+  mode = 'online',
+  loc = null
+}) {
+  const latStr = loc && loc.lat != null && !isNaN(Number(loc.lat)) ? Number(loc.lat).toFixed(6) : 'none';
+  const lngStr = loc && loc.lng != null && !isNaN(Number(loc.lng)) ? Number(loc.lng).toFixed(6) : 'none';
+  const accStr = loc && loc.acc != null && !isNaN(Number(loc.acc)) ? String(Math.round(Number(loc.acc))) : 'none';
+  return `v2|${sid}|${did}|${totp}|${ts}|${nonce}|${mode}|${latStr},${lngStr},${accStr}`;
+}
+
+/**
+ * Verify WebCrypto ECDSA P-256 IEEE-P1363 signature against SPKI base64 public key
+ */
+export function verifyDeviceEcdsaSignature(publicKeySpkiBase64, canonicalMessage, signatureHex) {
+  try {
+    if (!publicKeySpkiBase64 || !canonicalMessage || !signatureHex) return false;
+    const spkiDer = Buffer.from(publicKeySpkiBase64, 'base64');
+    const pubKeyObj = crypto.createPublicKey({
+      key: spkiDer,
+      format: 'der',
+      type: 'spki'
+    });
+    const sigBuf = Buffer.from(signatureHex, 'hex');
+    return crypto.verify(
+      'sha256',
+      Buffer.from(canonicalMessage, 'utf8'),
+      { key: pubKeyObj, dsaEncoding: 'ieee-p1363' },
+      sigBuf
+    );
+  } catch (err) {
+    console.warn('[ECDSA Verify Warning]', err.message);
+    return false;
+  }
+}
+
+/**
+ * Legacy v1 HMAC signature helper for backward compatibility
  */
 export function createPayloadSignature(secret, studentId, deviceToken, timestamp) {
   const message = `${studentId}:${deviceToken}:${timestamp}`;
@@ -30,64 +122,224 @@ export function createPayloadSignature(secret, studentId, deviceToken, timestamp
 }
 
 /**
- * Parse and verify QR payload sent from HR Scanner
+ * Parse and verify QR payload (supports v2 ECDSA + TOTP + Nonce + Location, and v1 fallback)
  * @param {string} rawPayload - JSON string or base64 JSON string
- * @param {string} expectedSecret - Stored TOTP secret for the student
- * @param {string} expectedDeviceToken - Stored Hardware Device Token for the student
- * @param {number} windowSeconds - Allowed clock drift / validity window (default 30s)
+ * @param {object} deviceRecord - Row from student_attendance_devices
+ * @param {object} options - { windowSeconds, isOfflineSync, offlineScannedAtMs }
  */
-export function verifyTotpPayload(rawPayload, expectedSecret, expectedDeviceToken, windowSeconds = DEFAULT_TIME_WINDOW_SECONDS) {
+export function verifyTotpPayload(
+  rawPayload,
+  expectedSecretOrRecord,
+  expectedDeviceToken = null,
+  windowSeconds = DEFAULT_TIME_WINDOW_SECONDS,
+  options = {}
+) {
   if (!rawPayload || typeof rawPayload !== 'string') {
-    return { valid: false, reason: 'Invalid or empty QR payload.' };
+    return { valid: false, code: 'EMPTY_PAYLOAD', reason: 'Invalid or empty QR payload.' };
   }
 
   let data;
   try {
-    let jsonStr = rawPayload.trim();
+    const jsonStr = rawPayload.trim();
     if (jsonStr.startsWith('{') && jsonStr.endsWith('}')) {
       data = JSON.parse(jsonStr);
     } else {
-      // Try base64 decoding
       const decoded = Buffer.from(jsonStr, 'base64').toString('utf8');
       data = JSON.parse(decoded);
     }
-  } catch (err) {
-    return { valid: false, reason: 'Malformed QR payload format.' };
+  } catch (_) {
+    return { valid: false, code: 'MALFORMED_PAYLOAD', reason: 'Malformed QR payload format.' };
   }
 
-  const { sid, dt, ts, sig } = data;
+  const deviceRecord =
+    typeof expectedSecretOrRecord === 'object' && expectedSecretOrRecord !== null
+      ? expectedSecretOrRecord
+      : {
+          totp_secret: expectedSecretOrRecord,
+          device_token: expectedDeviceToken,
+          device_id: expectedDeviceToken,
+          public_key_spki: null
+        };
 
+  const expectedSecret = deviceRecord.totp_secret;
+  const boundDeviceId = deviceRecord.device_id || deviceRecord.device_token;
+
+  // =========================================================================
+  // V2 PROTOCOL: WebCrypto ECDSA P-256 Device Signature + Rolling TOTP + Nonce
+  // =========================================================================
+  if (Number(data.v) === 2) {
+    const { sid, did, dt, c: totpCode, ts, n: nonce, mode = 'online', loc = null, sig, hmac } = data;
+    const presentedDeviceId = did || dt;
+
+    if (!sid || !presentedDeviceId || !totpCode || !ts || !nonce || (!sig && !hmac)) {
+      return {
+        valid: false,
+        code: 'INCOMPLETE_PAYLOAD',
+        reason: 'Incomplete v2 cryptographic QR payload (missing device ID, TOTP, nonce, timestamp, or signature).'
+      };
+    }
+
+    const clientTimestamp = parseInt(ts, 10);
+    if (isNaN(clientTimestamp)) {
+      return { valid: false, code: 'INVALID_TIMESTAMP', reason: 'Invalid QR payload timestamp.' };
+    }
+
+    // 1. Device Binding Check
+    if (boundDeviceId && presentedDeviceId !== boundDeviceId && presentedDeviceId !== deviceRecord.device_token) {
+      return {
+        valid: false,
+        code: 'DEVICE_MISMATCH',
+        reason: 'Unregistered Device Detected: This QR code was generated on a different phone than the student’s bound device. The student must verify via 6-digit Gmail OTP to re-bind their new device.'
+      };
+    }
+
+    // 2. Time Window & Offline Sync Reference Check
+    const isOfflineSync = Boolean(options.isOfflineSync);
+    const serverNowSec = Math.floor(Date.now() / 1000);
+    let referenceTimeSec = serverNowSec;
+
+    if (isOfflineSync) {
+      const scannedAtSec = options.offlineScannedAtMs
+        ? Math.floor(Number(options.offlineScannedAtMs) / 1000)
+        : clientTimestamp;
+
+      // Reject offline scans with future timestamps or older than 72 hours
+      if (scannedAtSec > serverNowSec + 120) {
+        return {
+          valid: false,
+          code: 'CLOCK_DRIFT_FUTURE',
+          reason: 'Offline scan timestamp is in the future. Please check the HR scanner device clock.'
+        };
+      }
+      if (serverNowSec - scannedAtSec > 72 * 3600) {
+        return {
+          valid: false,
+          code: 'OFFLINE_SCAN_TOO_OLD',
+          reason: 'Offline scan is older than 72 hours and has expired.'
+        };
+      }
+
+      const scanToQrDiff = Math.abs(scannedAtSec - clientTimestamp);
+      if (scanToQrDiff > 90) {
+        return {
+          valid: false,
+          code: 'EXPIRED_AT_SCAN_TIME',
+          reason: `QR code was already expired when captured offline (${scanToQrDiff}s difference between QR generation and HR scan).`
+        };
+      }
+      referenceTimeSec = clientTimestamp;
+    } else {
+      const timeDifference = Math.abs(serverNowSec - clientTimestamp);
+      if (timeDifference > windowSeconds) {
+        return {
+          valid: false,
+          code: 'QR_EXPIRED',
+          reason: `QR code expired (${timeDifference}s elapsed; max window is ${windowSeconds}s). Screenshots and delayed codes are rejected.`
+        };
+      }
+    }
+
+    // 3. Verify 6-digit TOTP code against student's secret
+    const totpCheck = verifyTotpWindow(expectedSecret, totpCode, referenceTimeSec, 1);
+    if (!totpCheck.valid) {
+      return {
+        valid: false,
+        code: 'INVALID_TOTP',
+        reason: 'Invalid or expired TOTP security code. If the student recently re-bound their device, please refresh the QR modal.'
+      };
+    }
+
+    // 4. Verify Device-Bound ECDSA P-256 Signature (or HMAC fallback if browser lacked ECDSA IndexedDB support)
+    const canonicalStr = buildCanonicalQrSigningString({
+      sid,
+      did: presentedDeviceId,
+      totp: totpCode,
+      ts: clientTimestamp,
+      nonce,
+      mode,
+      loc
+    });
+
+    if (deviceRecord.public_key_spki && sig) {
+      const ecdsaValid = verifyDeviceEcdsaSignature(deviceRecord.public_key_spki, canonicalStr, sig);
+      if (!ecdsaValid) {
+        return {
+          valid: false,
+          code: 'INVALID_DEVICE_SIGNATURE',
+          reason: 'Hardware device signature verification failed. The QR payload was not signed by the student’s registered phone keypair.'
+        };
+      }
+    } else if (hmac) {
+      const expectedHmac = crypto.createHmac('sha256', String(expectedSecret)).update(canonicalStr).digest('hex');
+      const a = Buffer.from(String(hmac), 'hex');
+      const b = Buffer.from(expectedHmac, 'hex');
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        return {
+          valid: false,
+          code: 'INVALID_HMAC_SIGNATURE',
+          reason: 'Cryptographic signature verification failed.'
+        };
+      }
+    } else if (deviceRecord.public_key_spki && !sig) {
+      return {
+        valid: false,
+        code: 'MISSING_DEVICE_SIGNATURE',
+        reason: 'Missing hardware ECDSA signature from registered device.'
+      };
+    }
+
+    return {
+      valid: true,
+      version: 2,
+      studentId: parseInt(sid, 10),
+      deviceId: presentedDeviceId,
+      deviceToken: presentedDeviceId,
+      timestamp: clientTimestamp,
+      nonce: String(nonce),
+      nonceHash: hashAttendanceNonce(sid, nonce),
+      mode: mode === 'offline' ? 'offline' : 'online',
+      location: loc || null,
+      timeDifference: Math.abs(serverNowSec - clientTimestamp)
+    };
+  }
+
+  // =========================================================================
+  // V1 LEGACY FALLBACK
+  // =========================================================================
+  const { sid, dt, ts, sig } = data;
   if (!sid || !dt || !ts || !sig) {
-    return { valid: false, reason: 'Incomplete cryptographic payload (missing identifier, token, timestamp, or signature).' };
+    return {
+      valid: false,
+      code: 'INCOMPLETE_PAYLOAD',
+      reason: 'Incomplete cryptographic payload (missing identifier, token, timestamp, or signature).'
+    };
   }
 
   const clientTimestamp = parseInt(ts, 10);
   if (isNaN(clientTimestamp)) {
-    return { valid: false, reason: 'Invalid payload timestamp format.' };
+    return { valid: false, code: 'INVALID_TIMESTAMP', reason: 'Invalid payload timestamp format.' };
   }
 
   const currentServerTime = Math.floor(Date.now() / 1000);
   const timeDifference = Math.abs(currentServerTime - clientTimestamp);
 
-  // Time-window check: reject expired screenshots (valid only for <= windowSeconds)
-  if (timeDifference > windowSeconds) {
+  if (!options.isOfflineSync && timeDifference > windowSeconds) {
     return {
       valid: false,
+      code: 'QR_EXPIRED',
       reason: `QR code expired (${timeDifference}s elapsed, limit is ${windowSeconds}s). Screenshots are strictly prohibited. Please scan a live dynamic QR code.`
     };
   }
 
-  // Hardware Token verification: match against student's locked device
-  if (dt !== expectedDeviceToken) {
+  if (boundDeviceId && dt !== boundDeviceId && dt !== deviceRecord.device_token) {
     return {
       valid: false,
+      code: 'DEVICE_MISMATCH',
       reason: 'Device Hardware Token mismatch. The student must present their QR from their officially locked device.'
     };
   }
 
-  // Re-compute HMAC-SHA256 signature
   const expectedSignature = createPayloadSignature(expectedSecret, sid, dt, clientTimestamp);
-  
   try {
     const receivedSigBuf = Buffer.from(sig, 'hex');
     const expectedSigBuf = Buffer.from(expectedSignature, 'hex');
@@ -95,18 +347,161 @@ export function verifyTotpPayload(rawPayload, expectedSecret, expectedDeviceToke
     if (receivedSigBuf.length !== expectedSigBuf.length || !crypto.timingSafeEqual(receivedSigBuf, expectedSigBuf)) {
       return {
         valid: false,
+        code: 'INVALID_SIGNATURE',
         reason: 'Cryptographic signature verification failed. Forged or corrupted QR code.'
       };
     }
   } catch (sigErr) {
-    return { valid: false, reason: 'Cryptographic verification error: ' + sigErr.message };
+    return { valid: false, code: 'INVALID_SIGNATURE', reason: 'Cryptographic verification error: ' + sigErr.message };
   }
 
   return {
     valid: true,
+    version: 1,
     studentId: parseInt(sid, 10),
+    deviceId: dt,
     deviceToken: dt,
     timestamp: clientTimestamp,
+    nonce: `v1_${sid}_${clientTimestamp}`,
+    nonceHash: hashAttendanceNonce(sid, `v1_${sid}_${clientTimestamp}`),
+    mode: 'online',
+    location: null,
     timeDifference
+  };
+}
+
+/**
+ * Compute Haversine great-circle distance in meters between two GPS coordinates
+ */
+export function calculateHaversineMeters(lat1, lon1, lat2, lon2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 6371000; // Earth mean radius in meters
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/**
+ * Validate student GPS telemetry against:
+ * 1. Accuracy threshold (reject coarse cell-tower/IP fixes)
+ * 2. Impossible velocity jump detection between consecutive scans (anti-GPS spoofing)
+ * 3. Organization Haversine geofence radius (default 100m)
+ */
+export function verifyGeofenceAndTelemetry({
+  studentLoc,
+  org,
+  deviceRecord,
+  scanTimestampSec = Math.floor(Date.now() / 1000),
+  mode = 'online'
+}) {
+  const orgHasCoords =
+    org &&
+    org.latitude !== null &&
+    org.latitude !== undefined &&
+    org.longitude !== null &&
+    org.longitude !== undefined &&
+    !isNaN(Number(org.latitude)) &&
+    !isNaN(Number(org.longitude));
+
+  const radiusMeters = Number(org?.geofence_radius_meters) || DEFAULT_GEOFENCE_RADIUS_METERS;
+  const enforceGeofence = org?.enforce_geofence !== undefined ? Boolean(org.enforce_geofence) : true;
+
+  // In online mode, if the organization has configured office coordinates, GPS location is mandatory
+  if (!studentLoc || studentLoc.lat == null || studentLoc.lng == null) {
+    if (mode === 'online' && orgHasCoords && enforceGeofence) {
+      return {
+        valid: false,
+        code: 'LOCATION_REQUIRED',
+        reason: 'GPS Location Required: Online attendance requires high-accuracy GPS location enabled on the student’s Android phone to verify presence within the workplace geofence.'
+      };
+    }
+    return {
+      valid: true,
+      distanceMeters: null,
+      accuracyMeters: null,
+      geofenceEnforced: false
+    };
+  }
+
+  const lat = Number(studentLoc.lat);
+  const lng = Number(studentLoc.lng);
+  const acc = studentLoc.acc != null ? Number(studentLoc.acc) : null;
+
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return {
+      valid: false,
+      code: 'INVALID_COORDINATES',
+      reason: 'Invalid GPS coordinates received in attendance payload.'
+    };
+  }
+
+  // 1. Reject low-accuracy readings (e.g., > 150m or > max(150, radius * 1.5))
+  const maxAccuracy = Math.max(MAX_ALLOWED_GPS_ACCURACY_METERS, Math.round(radiusMeters * 1.5));
+  if (acc !== null && !isNaN(acc) && acc > maxAccuracy) {
+    return {
+      valid: false,
+      code: 'LOW_GPS_ACCURACY',
+      reason: `Low GPS accuracy (±${Math.round(acc)}m exceeds the ${maxAccuracy}m security limit). Please enable High-Accuracy Location on your Android phone and retry.`
+    };
+  }
+
+  // 2. Impossible Velocity Jump Check (anti-spoofing between consecutive scans)
+  if (
+    deviceRecord &&
+    deviceRecord.last_latitude != null &&
+    deviceRecord.last_longitude != null &&
+    deviceRecord.last_location_at
+  ) {
+    const prevLat = Number(deviceRecord.last_latitude);
+    const prevLng = Number(deviceRecord.last_longitude);
+    const prevTimeSec = Math.floor(new Date(deviceRecord.last_location_at).getTime() / 1000);
+    const elapsedSec = Math.abs(scanTimestampSec - prevTimeSec);
+
+    if (!isNaN(prevLat) && !isNaN(prevLng) && elapsedSec > 0 && elapsedSec < 3600) {
+      const jumpDistMeters = calculateHaversineMeters(prevLat, prevLng, lat, lng);
+      // Only flag if jump distance is > 500m and speed exceeds 55 m/s (~200 km/h)
+      if (jumpDistMeters > 500) {
+        const velocityMps = jumpDistMeters / elapsedSec;
+        if (velocityMps > MAX_REALISTIC_VELOCITY_MPS) {
+          return {
+            valid: false,
+            code: 'IMPOSSIBLE_LOCATION_JUMP',
+            reason: `Suspicious GPS jump detected (${(jumpDistMeters / 1000).toFixed(2)} km in ${elapsedSec}s). Mock locations and GPS spoofing apps are strictly prohibited.`
+          };
+        }
+      }
+    }
+  }
+
+  // 3. Haversine Geofence Check against Organization Coordinates
+  let distanceMeters = null;
+  if (orgHasCoords) {
+    const orgLat = Number(org.latitude);
+    const orgLng = Number(org.longitude);
+    distanceMeters = Math.round(calculateHaversineMeters(lat, lng, orgLat, orgLng) * 10) / 10;
+
+    if (enforceGeofence && distanceMeters > radiusMeters) {
+      return {
+        valid: false,
+        code: 'OUTSIDE_GEOFENCE',
+        distanceMeters,
+        radiusMeters,
+        reason: `Outside Workplace Geofence: Student is ${Math.round(distanceMeters)}m away from ${org.organization_name || 'the registered office'} (allowed radius: ${radiusMeters}m). Attendance must be scanned on physical premises.`
+      };
+    }
+  }
+
+  return {
+    valid: true,
+    latitude: lat,
+    longitude: lng,
+    accuracyMeters: acc,
+    distanceMeters,
+    radiusMeters,
+    geofenceEnforced: orgHasCoords && enforceGeofence
   };
 }

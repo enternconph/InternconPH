@@ -378,26 +378,45 @@ router.post('/login', validate(Schemas.login), async (req, res) => {
     roleData.avatar_url = user.avatar_url || null;
     roleData.display_name = user.display_name || null;
 
-    // Session Rotation & Multi-Login Conflict Protection:
+    // Session Rotation & Single Active Session Enforcement:
     // If this client had an existing session cookie from a previous user, revoke it immediately
     if (req.cookies && req.cookies.interncon_session) {
       await revokeSession(req.cookies.interncon_session, 'session_rotation');
     }
 
-    // Create server-side session and persist to database
+    const clientDeviceId = req.body?.device_id || req.headers?.['x-device-id'] || null;
+
+    // Create server-side session and revoke any previous active sessions for this user
     const session = await createSession({
       userId: user.user_id,
-      req
+      deviceId: clientDeviceId,
+      req,
+      revokeOldSessions: true
     });
+
+    // Notify any previously connected devices via Socket.IO to force immediate logout
+    if (session.revokedSessionIds && session.revokedSessionIds.length > 0) {
+      const revokePayload = {
+        user_id: user.user_id,
+        new_session_id: session.sessionId,
+        revoked_session_ids: session.revokedSessionIds,
+        device_id: clientDeviceId,
+        reason: 'superseded_by_new_login',
+        message: 'Your account was signed in on another device. This session has been logged out.'
+      };
+      emitUpdate('session_revoked', revokePayload);
+      emitUpdate('force_logout', revokePayload);
+    }
 
     // Set secure HttpOnly cookie
     const cookieOptions = getSessionCookieOptions(req);
     res.cookie('interncon_session', session.rawToken, cookieOptions);
 
-    // Generate JWT token as well for dual compatibility / API clients
+    // Generate JWT token with embedded session_id and device_id
     const token = generateToken({
       ...roleData,
-      session_id: session.sessionId
+      session_id: session.sessionId,
+      device_id: clientDeviceId
     });
 
     return res.json({
@@ -406,6 +425,7 @@ router.post('/login', validate(Schemas.login), async (req, res) => {
       token,
       session_token: session.rawToken,
       session_id: session.sessionId,
+      device_id: clientDeviceId,
       user: roleData
     });
   } catch (error) {
@@ -428,11 +448,10 @@ router.post('/logout', async (req, res) => {
     }
 
     if (token) {
-      // Invalidate server-side session in database
-      await revokeSession(token, 'logout');
-
+      let decodedSessionId = null;
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'internconph_jwt_secret_2026_super_key');
+        decodedSessionId = decoded?.session_id || null;
         if (decoded && decoded.user_id) {
           const rawIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress || '127.0.0.1';
           const clientIp = (typeof rawIp === 'string' ? rawIp.split(',')[0].trim() : '127.0.0.1').substring(0, 45);
@@ -445,6 +464,9 @@ router.post('/logout', async (req, res) => {
       } catch (_) {
         // Fallback for non-jwt session token
       }
+
+      // Invalidate server-side session in database (both raw token hash and JWT session_id)
+      await revokeSession(token, 'logout', decodedSessionId);
     }
 
     // Clear session cookie
@@ -576,6 +598,7 @@ router.get('/socket-token', verifyToken, (req, res) => {
   const token = jwt.sign(
     {
       user_id: user.user_id,
+      session_id: req.sessionId || null,
       role: user.role_name || user.role,
       role_name: user.role_name || user.role,
       institution_id: user.institution_id || null,
@@ -586,7 +609,7 @@ router.get('/socket-token', verifyToken, (req, res) => {
     { expiresIn: '12h' }
   );
 
-  return res.json({ success: true, token });
+  return res.json({ success: true, token, session_id: req.sessionId || null });
 });
 
 // POST /api/auth/register/student (Student via Institution Passcode)

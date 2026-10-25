@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import pool from '../config/db.js';
 import { 
   validateSession, 
+  validateSessionById,
   getSessionCookieOptions, 
   hashSessionToken, 
   getCachedUser, 
@@ -60,14 +61,32 @@ export const verifyToken = async (req, res, next) => {
       sessionResult.code === 'SESSION_INACTIVE'
     ) {
       res.clearCookie('interncon_session', getSessionCookieOptions(req));
-      return res.status(401).json({ success: false, message: sessionResult.message });
+      return res.status(401).json({
+        success: false,
+        code: sessionResult.code,
+        message: sessionResult.message
+      });
     } else if (sessionResult.code === 'USER_DEACTIVATED') {
       return res.status(403).json({ success: false, message: sessionResult.message });
     } else {
-      // If token was not found in user_sessions, verify if it's a valid legacy JWT (migration fallback)
+      // Token is a signed JWT (e.g., Bearer token from SPA / mobile client)
       try {
         decodedFallback = jwt.verify(token, process.env.JWT_SECRET || 'internconph_jwt_secret_2026_super_key');
         if (decodedFallback && decodedFallback.user_id) {
+          // Enforce Single Active Session check if session_id is embedded in JWT
+          if (decodedFallback.session_id) {
+            const jwtSessionCheck = await validateSessionById(decodedFallback.session_id, decodedFallback.user_id);
+            if (!jwtSessionCheck.valid) {
+              res.clearCookie('interncon_session', getSessionCookieOptions(req));
+              return res.status(401).json({
+                success: false,
+                code: jwtSessionCheck.code || 'SESSION_REVOKED',
+                message: jwtSessionCheck.message || 'Session revoked. Please log in again.'
+              });
+            }
+            req.sessionId = decodedFallback.session_id;
+          }
+
           const [userRows] = await pool.query(
             `SELECT u.user_id, u.email, u.avatar_url, u.display_name, u.is_active, u.is_verified, r.role_id, r.role_name
              FROM users u

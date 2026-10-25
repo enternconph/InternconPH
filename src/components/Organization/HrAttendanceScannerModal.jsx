@@ -4,6 +4,24 @@ import api from '../../api/client';
 import { playAttendanceSuccessChime, playAttendanceErrorChime } from '../../utils/audio';
 import { formatPHT12Hour } from '../../utils/timeFormat';
 
+const OFFLINE_QUEUE_STORAGE_KEY = 'interncon_hr_offline_scans_v1';
+
+function readOfflineQueue() {
+  try {
+    const raw = localStorage.getItem(OFFLINE_QUEUE_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function writeOfflineQueue(items) {
+  try {
+    localStorage.setItem(OFFLINE_QUEUE_STORAGE_KEY, JSON.stringify(items));
+  } catch (_) {}
+}
+
 export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSuccess }) {
   const [scannerActive, setScannerActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
@@ -16,11 +34,139 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
   const [closing, setClosing] = useState(false);
   const [currentTimePHT, setCurrentTimePHT] = useState('');
 
+  // Network & Offline Scan Queue State
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [offlineQueue, setOfflineQueue] = useState(() => readOfflineQueue());
+  const [syncingOffline, setSyncingOffline] = useState(false);
+
+  // Organization Workplace Geofence State
+  const [geofenceConfig, setGeofenceConfig] = useState(null);
+  const [calibratingGeofence, setCalibratingGeofence] = useState(false);
+
   const scannerRef = useRef(null);
   const isProcessingRef = useRef(false);
   const isStoppingRef = useRef(false);
   const resetTimerRef = useRef(null);
   const qrRegionId = 'hr-attendance-qr-reader';
+
+  // Track browser online/offline transitions
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  // Load workplace geofence configuration when modal opens
+  const fetchGeofenceConfig = useCallback(async () => {
+    if (!navigator.onLine) return;
+    try {
+      const res = await api.get('/org/attendance/geofence');
+      if (res.success && res.data) {
+        setGeofenceConfig(res.data);
+      }
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      setOfflineQueue(readOfflineQueue());
+      fetchGeofenceConfig();
+    }
+  }, [isOpen, fetchGeofenceConfig]);
+
+  // Calibrate workplace geofence coordinates using HR terminal's current GPS position
+  const handleCalibrateGeofence = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported on this browser.');
+      return;
+    }
+    setCalibratingGeofence(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await api.post('/org/attendance/geofence', {
+            latitude: Number(pos.coords.latitude.toFixed(6)),
+            longitude: Number(pos.coords.longitude.toFixed(6)),
+            geofence_radius_meters: geofenceConfig?.geofence_radius_meters || 100,
+            enforce_geofence: true
+          });
+          if (res.success && res.data) {
+            setGeofenceConfig({
+              ...geofenceConfig,
+              ...res.data,
+              configured: true
+            });
+          } else {
+            alert(res.message || 'Failed to update workplace geofence.');
+          }
+        } catch (err) {
+          alert(err.message || 'Error calibrating workplace geofence.');
+        } finally {
+          setCalibratingGeofence(false);
+        }
+      },
+      (err) => {
+        setCalibratingGeofence(false);
+        alert(err.message || 'Unable to read GPS location. Please allow browser location access.');
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+    );
+  };
+
+  // Sync queued offline scans to backend when connection is restored
+  const handleSyncOfflineScans = useCallback(async () => {
+    const queue = readOfflineQueue();
+    if (!queue.length || syncingOffline || !navigator.onLine) return;
+
+    setSyncingOffline(true);
+    try {
+      const res = await api.post('/org/attendance/sync-offline', {
+        scans: queue
+      });
+
+      if (res.success && res.data) {
+        writeOfflineQueue([]);
+        setOfflineQueue([]);
+
+        const results = res.data.results || [];
+        results.forEach((item) => {
+          addRecentScan({
+            id: Date.now() + Math.random(),
+            status: item.status === 'synced' ? 'success' : 'failed',
+            action: item.action || 'error',
+            internName: item.student_name || `Student #${item.student_id || '?'}`,
+            detail:
+              item.status === 'synced'
+                ? `Synced Offline (${item.action === 'time_in' ? 'Time-In' : 'Time-Out'})`
+                : `Offline Sync Rejected: ${item.reason}`,
+            time: 'Synced'
+          });
+        });
+
+        if (onScanSuccess && res.data.synced_count > 0) {
+          onScanSuccess(res);
+        }
+      }
+    } catch (_) {
+      // Keep queue intact if network fails again
+    } finally {
+      setSyncingOffline(false);
+    }
+  }, [syncingOffline, onScanSuccess]);
+
+  // Auto-sync offline queue when browser transitions back online
+  useEffect(() => {
+    if (isOnline && offlineQueue.length > 0 && !syncingOffline) {
+      handleSyncOfflineScans();
+    }
+  }, [isOnline, offlineQueue.length, syncingOffline, handleSyncOfflineScans]);
 
   // Live PHT Clock ticker
   useEffect(() => {
@@ -52,6 +198,81 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
   // Diagnostic warning explanation helper
   const getWarningDiagnostic = (message) => {
     const msg = String(message || '').toLowerCase();
+
+    if (msg.includes('outside workplace geofence') || msg.includes('geofence') || msg.includes('away from')) {
+      return {
+        category: 'OUTSIDE_GEOFENCE',
+        title: 'Outside Workplace Geofence Radius',
+        icon: 'wrong_location',
+        badge: 'Haversine Geofence Violation',
+        color: 'red',
+        explanation:
+          'The student’s high-accuracy GPS location is outside your organization’s allowed geofence radius (default 100m). Online attendance requires physical presence at the workplace.',
+        actionStep:
+          'Ensure the intern is physically at your office desk with High-Accuracy Location enabled, or click "Calibrate Office GPS" above if your office location moved.'
+      };
+    }
+
+    if (msg.includes('low gps accuracy') || msg.includes('gps location required')) {
+      return {
+        category: 'LOW_GPS_ACCURACY',
+        title: 'Insufficient or Missing GPS Telemetry',
+        icon: 'location_disabled',
+        badge: 'GPS Accuracy Rejected',
+        color: 'amber',
+        explanation:
+          'The student’s phone either blocked location access or reported a coarse cell-tower/IP location exceeding the accuracy threshold.',
+        actionStep:
+          'Instruct the student to enable High-Accuracy Location on their Android phone and refresh their QR modal.'
+      };
+    }
+
+    if (msg.includes('suspicious gps jump') || msg.includes('spoofing') || msg.includes('mock location')) {
+      return {
+        category: 'IMPOSSIBLE_LOCATION_JUMP',
+        title: 'Impossible GPS Velocity Jump Detected',
+        icon: 'gpp_bad',
+        badge: 'Anti-Spoofing Triggered',
+        color: 'red',
+        explanation:
+          'Consecutive scans showed an impossible travel speed (>200 km/h), indicating potential GPS spoofing or mock-location software.',
+        actionStep:
+          'Instruct the intern to disable any mock-location or developer spoofing apps on their Android phone.'
+      };
+    }
+
+    if (msg.includes('replay') || msg.includes('already scanned') || msg.includes('nonce')) {
+      return {
+        category: 'REPLAY_DETECTED',
+        title: 'Replayed QR Nonce Rejected',
+        icon: 'block',
+        badge: 'Replay Attack Blocked',
+        color: 'red',
+        explanation:
+          'Every dynamic QR payload includes a single-use cryptographic nonce. This exact QR code has already been scanned and consumed.',
+        actionStep:
+          'Wait for the student’s QR code to rotate to the next 30-second window before scanning again.'
+      };
+    }
+
+    if (
+      msg.includes('unregistered device') ||
+      msg.includes('different phone') ||
+      msg.includes('6-digit gmail otp') ||
+      msg.includes('hardware device signature')
+    ) {
+      return {
+        category: 'DEVICE_MISMATCH',
+        title: 'Unbound Phone / Hardware Signature Mismatch',
+        icon: 'phonelink_lock',
+        badge: 'Device Binding Enforced',
+        color: 'red',
+        explanation:
+          'This QR code was not signed by the ECDSA P-256 private key of the student’s registered Android device.',
+        actionStep:
+          'If the student got a new phone, they must tap "Send 6-Digit OTP to Gmail" on their screen and verify the OTP to re-bind their new device.'
+      };
+    }
 
     if (
       msg.includes('expired') ||
@@ -143,7 +364,84 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
     };
   };
 
-  // Process QR Payload via backend API
+  // Queue an offline scan locally when HR desk has no internet connectivity
+  const queueOfflineScanLocally = (rawPayload, currentTimeLabel) => {
+    let parsed;
+    try {
+      parsed = JSON.parse(rawPayload.trim());
+    } catch (_) {
+      const msg = 'Malformed QR payload cannot be queued offline.';
+      setScanResult({ type: 'error', message: msg });
+      setScanFeedback({ status: 'failed', action: null, message: msg });
+      return;
+    }
+
+    const nowMs = Date.now();
+    const nowSec = Math.floor(nowMs / 1000);
+    const qrTs = parseInt(parsed.ts, 10);
+
+    if (!parsed.sid || isNaN(qrTs) || Math.abs(nowSec - qrTs) > 60) {
+      const msg = 'Offline Scan Rejected: QR code timestamp is expired (>60s old at scan time).';
+      try { playAttendanceErrorChime(); } catch (_) {}
+      setScanResult({ type: 'error', message: msg });
+      setScanFeedback({ status: 'failed', action: null, message: msg });
+      return;
+    }
+
+    const existingQueue = readOfflineQueue();
+    const nonceKey = parsed.n || `v1_${parsed.sid}_${qrTs}`;
+    if (existingQueue.some((item) => item.nonce === nonceKey)) {
+      const msg = 'Offline Replay Rejected: This QR nonce is already in the offline sync queue.';
+      try { playAttendanceErrorChime(); } catch (_) {}
+      setScanResult({ type: 'error', message: msg });
+      setScanFeedback({ status: 'failed', action: null, message: msg });
+      return;
+    }
+
+    const newEntry = {
+      id: `off_${nowMs}_${Math.random().toString(36).slice(2, 7)}`,
+      qr_payload: rawPayload,
+      scanned_at_ms: nowMs,
+      student_id: parsed.sid,
+      nonce: nonceKey,
+      timeLabel: currentTimeLabel
+    };
+
+    const updatedQueue = [...existingQueue, newEntry];
+    writeOfflineQueue(updatedQueue);
+    setOfflineQueue(updatedQueue);
+
+    try { playAttendanceSuccessChime(); } catch (_) {}
+    setScanResult({
+      type: 'success',
+      action: 'offline_queued',
+      message: 'Offline Scan Captured & Queued! Will auto-verify ECDSA signature & TOTP when back online.',
+      data: {
+        student_name: `Student ID #${parsed.sid} (Offline Queue)`,
+        student_id: parsed.sid,
+        student_number: parsed.sid,
+        action: 'offline_queued',
+        time_in: currentTimeLabel,
+        mentor_name: 'Pending Online Sync Verification'
+      }
+    });
+    setScanFeedback({
+      status: 'success',
+      action: 'offline_queued',
+      intern: `Student #${parsed.sid}`,
+      time: currentTimeLabel
+    });
+    addRecentScan({
+      id: nowMs,
+      status: 'success',
+      action: 'time_in',
+      internName: `Student #${parsed.sid}`,
+      detail: 'Queued Offline (Awaiting Sync)',
+      time: currentTimeLabel
+    });
+  };
+
+  // Process QR Payload via backend API (or local offline queue if HR terminal is offline)
   const handleProcessPayload = async (rawPayload) => {
     if (isProcessingRef.current || isStoppingRef.current) return;
     isProcessingRef.current = true;
@@ -162,12 +460,23 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
       hour12: true
     });
 
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      queueOfflineScanLocally(rawPayload, currentTimeLabel);
+      setLoading(false);
+      setTimeout(() => {
+        isProcessingRef.current = false;
+      }, 3500);
+      return;
+    }
+
     try {
       const res = await api.post('/org/attendance/scan-qr', {
         qr_payload: rawPayload
       });
 
-      if (res.status === 404) {
+      if (res.isNetworkError) {
+        queueOfflineScanLocally(rawPayload, currentTimeLabel);
+      } else if (res.status === 404) {
         try {
           playAttendanceErrorChime();
         } catch (_) {}
@@ -760,11 +1069,87 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-surface-container text-on-surface-variant border border-outline-variant">
-                    <span className="w-1.5 h-1.5 rounded-full bg-pinoy-green" />
-                    <span>Standby • Ready for QR</span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-pinoy-green' : 'bg-amber-500'}`} />
+                    <span>{isOnline ? 'Standby • Ready for QR' : 'Offline Mode • Local Queue Active'}</span>
                   </span>
                 )}
               </div>
+
+              {/* Workplace Geofence Status & Calibration Bar */}
+              <div className="p-2.5 bg-surface-container-low rounded-xl border border-outline-variant/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`material-symbols-outlined text-[18px] ${
+                      geofenceConfig?.configured ? 'text-emerald-600' : 'text-amber-600'
+                    }`}
+                  >
+                    {geofenceConfig?.configured ? 'where_to_vote' : 'add_location_alt'}
+                  </span>
+                  <div>
+                    <span className="font-bold text-on-surface text-[11px] block">
+                      {geofenceConfig?.configured
+                        ? `Workplace Geofence Active (${geofenceConfig.geofence_radius_meters || 100}m Radius)`
+                        : 'Workplace Geofence Not Calibrated Yet'}
+                    </span>
+                    <span className="text-[10px] text-on-surface-variant">
+                      {geofenceConfig?.configured
+                        ? `Coords: ${Number(geofenceConfig.latitude).toFixed(4)}, ${Number(geofenceConfig.longitude).toFixed(4)} • Haversine Check On`
+                        : 'Set your office GPS coordinates to enforce 100m Haversine proximity on student scans.'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={calibratingGeofence || !isOnline}
+                  onClick={handleCalibrateGeofence}
+                  className="px-2.5 py-1.5 rounded-lg bg-surface hover:bg-surface-container-high border border-outline-variant text-[11px] font-bold text-on-surface flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer shrink-0"
+                >
+                  <span className="material-symbols-outlined text-[14px] text-vibrant-orange">
+                    my_location
+                  </span>
+                  <span>
+                    {calibratingGeofence
+                      ? 'Calibrating GPS...'
+                      : geofenceConfig?.configured
+                      ? 'Recalibrate Office GPS'
+                      : 'Set Office GPS (100m)'}
+                  </span>
+                </button>
+              </div>
+
+              {/* Offline Scan Queue & Sync Banner */}
+              {(offlineQueue.length > 0 || !isOnline) && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[20px] text-amber-600">
+                      cloud_sync
+                    </span>
+                    <div>
+                      <span className="font-bold text-amber-950 dark:text-amber-200 block">
+                        {offlineQueue.length > 0
+                          ? `${offlineQueue.length} Offline Scan(s) Queued Locally`
+                          : 'Scanner Offline Mode Active'}
+                      </span>
+                      <span className="text-[10px] text-amber-800 dark:text-amber-300">
+                        {isOnline
+                          ? 'Connection restored. Ready to re-validate ECDSA signatures, TOTP windows & nonces.'
+                          : 'Scans are validated for freshness and stored locally until internet returns.'}
+                      </span>
+                    </div>
+                  </div>
+                  {offlineQueue.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={!isOnline || syncingOffline}
+                      onClick={handleSyncOfflineScans}
+                      className="px-3 py-1.5 rounded-lg bg-vibrant-orange hover:bg-deep-orange disabled:opacity-50 text-white text-[11px] font-bold shadow-xs flex items-center gap-1 shrink-0 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">sync</span>
+                      <span>{syncingOffline ? 'Syncing...' : `Sync Now (${offlineQueue.length})`}</span>
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* STATE 1: IDLE / WAITING FOR QR */}
               {!loading && !scanResult && (

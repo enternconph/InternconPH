@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../api/client';
+import { getOrCreateDeviceToken } from '../utils/totpHelper';
 
 const AuthContext = createContext(null);
 
@@ -79,9 +80,13 @@ export const AuthProvider = ({ children }) => {
           if (res.token) {
             localStorage.setItem('token', res.token);
           }
+          if (res.session?.session_id) {
+            localStorage.setItem('session_id', String(res.session.session_id));
+          }
         } else {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
+          localStorage.removeItem('session_id');
           setUser(null);
         }
       } catch (err) {
@@ -100,9 +105,11 @@ export const AuthProvider = ({ children }) => {
     // Purge any residual or previous session state before logging in
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('session_id');
     setUser(null);
 
-    const payload = portal ? { email, password, portal } : { email, password };
+    const deviceId = getOrCreateDeviceToken();
+    const payload = portal ? { email, password, portal, device_id: deviceId } : { email, password, device_id: deviceId };
     const res = await api.post('/auth/login', payload);
     if (res.success && (res.token || res.session_token)) {
       const userRole = res.user?.role_name || res.user?.role;
@@ -132,6 +139,7 @@ export const AuthProvider = ({ children }) => {
           } catch (_) {}
           localStorage.removeItem('token');
           localStorage.removeItem('user');
+          localStorage.removeItem('session_id');
           setUser(null);
           return {
             success: false,
@@ -143,6 +151,9 @@ export const AuthProvider = ({ children }) => {
       const activeToken = res.token || res.session_token;
       localStorage.setItem('token', activeToken);
       localStorage.setItem('user', JSON.stringify(res.user));
+      if (res.session_id) {
+        localStorage.setItem('session_id', String(res.session_id));
+      }
       setUser(res.user);
       return { success: true, user: res.user };
     }
@@ -155,6 +166,7 @@ export const AuthProvider = ({ children }) => {
     } catch (_) {}
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('session_id');
     setUser(null);
   };
 

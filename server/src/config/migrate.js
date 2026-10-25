@@ -1386,6 +1386,155 @@ export async function runMigrations() {
       console.warn('[Migration Warning] Upload sync warning:', syncErr.message);
     }
 
+    // 36. Mobile QR Attendance Security Hardening (Device Keypair, Email OTP, Single Active Session, Geofence, Offline Nonces)
+    try {
+      // 36a. Align student_attendance_devices for WebCrypto ECDSA P-256 public key + GPS velocity tracking + offline secret TTL
+      const [sadCols] = await pool.query('DESCRIBE student_attendance_devices');
+      const sadColNames = sadCols.map(c => c.Field);
+
+      if (!sadColNames.includes('device_id')) {
+        await pool.query('ALTER TABLE student_attendance_devices ADD COLUMN device_id VARCHAR(128) NULL AFTER device_token');
+        await pool.query('CREATE INDEX idx_sad_device_id ON student_attendance_devices(device_id)').catch(() => {});
+      }
+      if (!sadColNames.includes('public_key_spki')) {
+        await pool.query('ALTER TABLE student_attendance_devices ADD COLUMN public_key_spki TEXT NULL AFTER device_name');
+      }
+      if (!sadColNames.includes('public_key_jwk')) {
+        await pool.query('ALTER TABLE student_attendance_devices ADD COLUMN public_key_jwk TEXT NULL AFTER public_key_spki');
+      }
+      if (!sadColNames.includes('device_label')) {
+        await pool.query('ALTER TABLE student_attendance_devices ADD COLUMN device_label VARCHAR(150) NULL AFTER device_name');
+      }
+      if (!sadColNames.includes('secret_expires_at')) {
+        await pool.query('ALTER TABLE student_attendance_devices ADD COLUMN secret_expires_at DATETIME NULL AFTER totp_secret');
+      }
+      if (!sadColNames.includes('last_latitude')) {
+        await pool.query('ALTER TABLE student_attendance_devices ADD COLUMN last_latitude DECIMAL(10,7) NULL AFTER last_used_at');
+      }
+      if (!sadColNames.includes('last_longitude')) {
+        await pool.query('ALTER TABLE student_attendance_devices ADD COLUMN last_longitude DECIMAL(10,7) NULL AFTER last_latitude');
+      }
+      if (!sadColNames.includes('last_location_accuracy')) {
+        await pool.query('ALTER TABLE student_attendance_devices ADD COLUMN last_location_accuracy DECIMAL(8,2) NULL AFTER last_longitude');
+      }
+      if (!sadColNames.includes('last_location_at')) {
+        await pool.query('ALTER TABLE student_attendance_devices ADD COLUMN last_location_at DATETIME NULL AFTER last_location_accuracy');
+      }
+      if (!sadColNames.includes('unbound_at')) {
+        await pool.query('ALTER TABLE student_attendance_devices ADD COLUMN unbound_at DATETIME NULL AFTER last_location_at');
+      }
+
+      // 36b. Email OTP table for secure device re-binding (hashed OTP, 5-min expiry, max 5 attempts, IP & account rate-limiting)
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS device_rebind_otps (
+          otp_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          student_id BIGINT UNSIGNED NOT NULL,
+          user_id BIGINT UNSIGNED NOT NULL,
+          email VARCHAR(150) NOT NULL,
+          otp_hash VARCHAR(128) NOT NULL,
+          pending_device_id VARCHAR(128) NULL,
+          pending_public_key_spki TEXT NULL,
+          pending_public_key_jwk TEXT NULL,
+          pending_device_label VARCHAR(150) NULL,
+          attempts INT UNSIGNED NOT NULL DEFAULT 0,
+          max_attempts INT UNSIGNED NOT NULL DEFAULT 5,
+          ip_address VARCHAR(45) NULL,
+          expires_at DATETIME NOT NULL,
+          consumed_at DATETIME NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_otp_student (student_id, consumed_at, expires_at),
+          INDEX idx_otp_ip (ip_address, created_at),
+          INDEX idx_otp_user (user_id, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+
+      // 36c. Align user_sessions with device_id and last_seen, and ensure sessions table exists
+      const [usCols] = await pool.query('DESCRIBE user_sessions');
+      const usColNames = usCols.map(c => c.Field);
+      if (!usColNames.includes('device_id')) {
+        await pool.query('ALTER TABLE user_sessions ADD COLUMN device_id VARCHAR(128) NULL AFTER user_id');
+      }
+      if (!usColNames.includes('last_seen')) {
+        await pool.query('ALTER TABLE user_sessions ADD COLUMN last_seen DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER last_activity_at');
+      }
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS sessions (
+          session_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          user_id BIGINT UNSIGNED NOT NULL,
+          device_id VARCHAR(128) NULL,
+          ip_address VARCHAR(45) NULL,
+          user_agent TEXT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          last_seen DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          revoked_at DATETIME NULL,
+          revoked_reason VARCHAR(100) NULL,
+          INDEX idx_sess_user (user_id, revoked_at),
+          INDEX idx_sess_device (device_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+
+      // 36d. Align hiring_organizations with geofence coordinates and configurable radius (default 100m)
+      const [hoGeoCols] = await pool.query('DESCRIBE hiring_organizations');
+      const hoGeoColNames = hoGeoCols.map(c => c.Field);
+      if (!hoGeoColNames.includes('latitude')) {
+        await pool.query('ALTER TABLE hiring_organizations ADD COLUMN latitude DECIMAL(10,7) NULL');
+      }
+      if (!hoGeoColNames.includes('longitude')) {
+        await pool.query('ALTER TABLE hiring_organizations ADD COLUMN longitude DECIMAL(10,7) NULL');
+      }
+      if (!hoGeoColNames.includes('geofence_radius_meters')) {
+        await pool.query('ALTER TABLE hiring_organizations ADD COLUMN geofence_radius_meters INT UNSIGNED NOT NULL DEFAULT 100');
+      }
+      if (!hoGeoColNames.includes('enforce_geofence')) {
+        await pool.query('ALTER TABLE hiring_organizations ADD COLUMN enforce_geofence TINYINT(1) NOT NULL DEFAULT 1');
+      }
+
+      // 36e. Nonce replay-protection table for online & offline QR scans
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS attendance_qr_nonces (
+          nonce_hash VARCHAR(64) NOT NULL PRIMARY KEY,
+          student_id BIGINT UNSIGNED NOT NULL,
+          device_id VARCHAR(128) NULL,
+          qr_timestamp BIGINT NOT NULL,
+          scan_mode ENUM('online', 'offline') DEFAULT 'online',
+          used_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          expires_at DATETIME NOT NULL,
+          INDEX idx_nonce_expires (expires_at),
+          INDEX idx_nonce_student (student_id, used_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+
+      // 36f. Align ojt_attendance_logs with location & offline sync audit columns
+      const [attSecCols] = await pool.query('DESCRIBE ojt_attendance_logs');
+      const attSecColNames = attSecCols.map(c => c.Field);
+      if (!attSecColNames.includes('scan_latitude')) {
+        await pool.query('ALTER TABLE ojt_attendance_logs ADD COLUMN scan_latitude DECIMAL(10,7) NULL');
+      }
+      if (!attSecColNames.includes('scan_longitude')) {
+        await pool.query('ALTER TABLE ojt_attendance_logs ADD COLUMN scan_longitude DECIMAL(10,7) NULL');
+      }
+      if (!attSecColNames.includes('scan_accuracy_meters')) {
+        await pool.query('ALTER TABLE ojt_attendance_logs ADD COLUMN scan_accuracy_meters DECIMAL(8,2) NULL');
+      }
+      if (!attSecColNames.includes('distance_from_org_meters')) {
+        await pool.query('ALTER TABLE ojt_attendance_logs ADD COLUMN distance_from_org_meters DECIMAL(8,2) NULL');
+      }
+      if (!attSecColNames.includes('device_id')) {
+        await pool.query('ALTER TABLE ojt_attendance_logs ADD COLUMN device_id VARCHAR(128) NULL');
+      }
+      if (!attSecColNames.includes('is_offline_synced')) {
+        await pool.query('ALTER TABLE ojt_attendance_logs ADD COLUMN is_offline_synced TINYINT(1) NOT NULL DEFAULT 0');
+      }
+      if (!attSecColNames.includes('offline_scanned_at')) {
+        await pool.query('ALTER TABLE ojt_attendance_logs ADD COLUMN offline_scanned_at DATETIME NULL');
+      }
+
+      console.log('[Migration] Mobile QR Attendance Security Hardening schema ready.');
+    } catch (secMigErr) {
+      console.warn('[Migration Warning] Mobile QR security migration warning:', secMigErr.message);
+    }
+
     console.log('[Migration] All schema alignments completed successfully!');
   } catch (error) {
     console.error('[Migration Error]', error);
