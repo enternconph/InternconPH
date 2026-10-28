@@ -1,3 +1,4 @@
+import nodemailer from 'nodemailer';
 import tls from 'tls';
 import { sendNotification } from './notification.helper.js';
 
@@ -18,8 +19,53 @@ export function maskEmailAddress(email) {
 }
 
 /**
- * Lightweight native TLS SMTP sender for Gmail (smtp.gmail.com:465)
- * Uses Node.js built-in `tls` module (no external dependency required).
+ * Send email using Nodemailer with Gmail SMTP or custom SMTP
+ */
+async function sendViaNodemailer({ to, subject, html, text }) {
+  const smtpUser =
+    process.env.GMAIL_USER ||
+    process.env.SMTP_USER ||
+    process.env.EMAIL_USER ||
+    DEFAULT_OTP_RECIPIENT_EMAIL;
+  const smtpPass = (
+    process.env.GMAIL_APP_PASSWORD ||
+    process.env.SMTP_PASS ||
+    process.env.EMAIL_PASS ||
+    ''
+  ).replace(/\s+/g, ''); // strip spaces from Google app passwords
+
+  if (!smtpUser || !smtpPass) {
+    return { sent: false, reason: 'GMAIL_APP_PASSWORD_NOT_CONFIGURED' };
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: smtpUser,
+      pass: smtpPass
+    },
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000
+  });
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"InternConPH Security" <${smtpUser}>`,
+      to,
+      subject,
+      text,
+      html
+    });
+    return { sent: true, transport: 'nodemailer_gmail', messageId: info.messageId };
+  } catch (err) {
+    console.warn('[Mailer] Nodemailer failed:', err.message);
+    return { sent: false, reason: err.message };
+  }
+}
+
+/**
+ * Fallback lightweight native TLS SMTP sender for Gmail (smtp.gmail.com:465)
  */
 async function sendViaGmailSmtp({ to, subject, html, text }) {
   const smtpUser =
@@ -27,10 +73,12 @@ async function sendViaGmailSmtp({ to, subject, html, text }) {
     process.env.SMTP_USER ||
     process.env.EMAIL_USER ||
     DEFAULT_OTP_RECIPIENT_EMAIL;
-  const smtpPass =
+  const smtpPass = (
     process.env.GMAIL_APP_PASSWORD ||
     process.env.SMTP_PASS ||
-    process.env.EMAIL_PASS;
+    process.env.EMAIL_PASS ||
+    ''
+  ).replace(/\s+/g, '');
   const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
   const smtpPort = parseInt(process.env.SMTP_PORT || '465', 10);
 
@@ -52,7 +100,7 @@ async function sendViaGmailSmtp({ to, subject, html, text }) {
       () => {}
     );
 
-    socket.setTimeout(10000, () => {
+    socket.setTimeout(8000, () => {
       socket.destroy();
       finish({ sent: false, reason: 'SMTP_TIMEOUT' });
     });
@@ -109,7 +157,7 @@ async function sendViaGmailSmtp({ to, subject, html, text }) {
           socket.write(cmd + '\r\n');
         } else {
           socket.end();
-          return finish({ sent: true, transport: 'gmail_smtp' });
+          return finish({ sent: true, transport: 'gmail_tls_smtp' });
         }
       }
     });
@@ -119,19 +167,22 @@ async function sendViaGmailSmtp({ to, subject, html, text }) {
     });
 
     socket.on('close', () => {
-      finish({ sent: step >= commands.length, transport: 'gmail_smtp' });
+      finish({ sent: step >= commands.length, transport: 'gmail_tls_smtp' });
     });
   });
 }
 
 /**
- * Fallback HTTP Email Relay via FormSubmit to denmarkcatolico2@gmail.com
- * Works without SMTP credentials once the one-time activation email in denmarkcatolico2@gmail.com is clicked.
+ * Fallback HTTP Email Relay via FormSubmit with 5-second timeout
  */
 async function sendViaFormSubmitRelay({ to, subject, studentName, studentAccountEmail, otpCode, newDeviceLabel }) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+
   try {
     const res = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(to)}`, {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
@@ -149,18 +200,20 @@ async function sendViaFormSubmitRelay({ to, subject, studentName, studentAccount
         Valid_For: '5 minutes (max 5 attempts)'
       })
     });
+    clearTimeout(timeoutId);
     const data = await res.json().catch(() => ({}));
     if (res.ok && (data.success === 'true' || data.success === true)) {
       return { sent: true, transport: 'formsubmit_relay' };
     }
     return { sent: false, reason: data.message || `HTTP_${res.status}` };
   } catch (err) {
-    return { sent: false, reason: err.message };
+    clearTimeout(timeoutId);
+    return { sent: false, reason: err.name === 'AbortError' ? 'FORMSUBMIT_TIMEOUT' : err.message };
   }
 }
 
 /**
- * Send a 6-digit Device Re-binding OTP to denmarkcatolico2@gmail.com (for all student accounts, including fake/test emails)
+ * Send a 6-digit Device Re-binding OTP to denmarkcatolico2@gmail.com
  * Also delivers an in-app notification to the authenticated student session.
  */
 export async function sendDeviceRebindOtpEmail({
@@ -174,11 +227,11 @@ export async function sendDeviceRebindOtpEmail({
   const recipientEmail = DEFAULT_OTP_RECIPIENT_EMAIL;
   const studentAccountEmail = email || 'student@internconph.local';
 
-  const subject = `[InternConPH] ${otpCode} is the 6-digit Attendance OTP for ${studentName || studentAccountEmail}`;
+  const subject = `[InternConPH] ${otpCode} is your 6-digit Attendance OTP`;
   const text = [
     `Hello ${studentName || 'Intern'} (Account: ${studentAccountEmail}),`,
     ``,
-    `A request was made to bind the InternConPH Attendance QR to a new Android device (${newDeviceLabel || 'Mobile Handset'}).`,
+    `A request was made to bind your InternConPH Attendance QR to a new device (${newDeviceLabel || 'Mobile Handset'}).`,
     ``,
     `Your 6-digit verification OTP is: ${otpCode}`,
     ``,
@@ -187,7 +240,7 @@ export async function sendDeviceRebindOtpEmail({
   ].join('\n');
 
   const html = `
-    <div style="font-family: Inter, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
       <h2 style="margin: 0 0 8px; color: #0f172a; font-size: 18px;">Attendance Device Security Verification</h2>
       <p style="color: #475569; font-size: 14px; line-height: 1.5;">
         Student: <strong>${studentName || 'Intern'}</strong> (<code>${studentAccountEmail}</code>)<br/>
@@ -204,17 +257,30 @@ export async function sendDeviceRebindOtpEmail({
     </div>
   `;
 
-  // 1. Try Gmail SMTP first (if GMAIL_APP_PASSWORD is set)
-  let emailResult = await sendViaGmailSmtp({
+  // 1. Try Nodemailer Gmail first
+  let emailResult = await sendViaNodemailer({
     to: recipientEmail,
     subject,
     html,
     text
   }).catch((err) => ({ sent: false, reason: err.message }));
 
-  // 2. If SMTP is not configured, fallback to FormSubmit relay to denmarkcatolico2@gmail.com
+  // 2. If Nodemailer failed, try raw TLS SMTP
   if (!emailResult.sent) {
-    emailResult = await sendViaFormSubmitRelay({
+    const tlsResult = await sendViaGmailSmtp({
+      to: recipientEmail,
+      subject,
+      html,
+      text
+    }).catch((err) => ({ sent: false, reason: err.message }));
+    if (tlsResult.sent) {
+      emailResult = tlsResult;
+    }
+  }
+
+  // 3. Fallback to FormSubmit relay
+  if (!emailResult.sent) {
+    const relayResult = await sendViaFormSubmitRelay({
       to: recipientEmail,
       subject,
       studentName,
@@ -222,9 +288,12 @@ export async function sendDeviceRebindOtpEmail({
       otpCode,
       newDeviceLabel
     });
+    if (relayResult.sent) {
+      emailResult = relayResult;
+    }
   }
 
-  // 3. Also deliver an in-app security notification to the student's account
+  // 4. Always deliver an in-app security notification to the student's account
   if (userId) {
     await sendNotification({
       userId,
@@ -235,12 +304,17 @@ export async function sendDeviceRebindOtpEmail({
     }).catch(() => {});
   }
 
-  console.log(
-    `[Device OTP Mailer] Routed OTP ${otpCode} for student "${studentName}" (${studentAccountEmail}) -> ${recipientEmail} (sent=${emailResult.sent}, reason=${emailResult.reason || emailResult.transport})`
-  );
+  // 5. Always log clearly in console for instant developer feedback & test verification
+  console.log('================================================================');
+  console.log(`[DEVICE OTP DISPATCH] Target: ${recipientEmail}`);
+  console.log(`[DEVICE OTP DISPATCH] Student: "${studentName}" (${studentAccountEmail})`);
+  console.log(`[DEVICE OTP DISPATCH] 6-DIGIT CODE: >>> ${otpCode} <<<`);
+  console.log(`[DEVICE OTP DISPATCH] Delivery Status: ${emailResult.sent ? 'DELIVERED via ' + emailResult.transport : 'PENDING SMTP (' + emailResult.reason + ')'}`);
+  console.log('================================================================');
 
   return {
     ...emailResult,
+    otpCode,
     recipientEmail
   };
 }

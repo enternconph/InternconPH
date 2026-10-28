@@ -8,7 +8,7 @@ import { isValidEmail, normalizeEmail } from '../utils/email.js';
 import multer from 'multer';
 import { getUploadStorage, processUploadedFile, formatFilePath } from '../utils/upload.helper.js';
 import { createMeetSpace, isGoogleMeetConfigured } from '../services/googleMeet.js';
-import { verifyTotpPayload, verifyGeofenceAndTelemetry } from '../utils/totp.helper.js';
+import { verifyTotpPayload, verifyGeofenceAndTelemetry, parseAttendancePayload } from '../utils/totp.helper.js';
 import { validate, Schemas } from '../middleware/validate.js';
 
 const router = express.Router();
@@ -1741,23 +1741,15 @@ router.post('/attendance/geofence', requireHROrAdmin, async (req, res) => {
 // Core single-scan verification & attendance recording engine (used by both live /scan-qr and /sync-offline)
 async function processSingleQrAttendanceScan({
   qrPayload,
+  scannerLoc = null,
   org,
   hrUserId,
   isOfflineSync = false,
   offlineScannedAtMs = null
 }) {
-  // Step 1: Pre-parse to get student ID
-  let rawPayload = qrPayload;
-  let data;
-  try {
-    const jsonStr = String(rawPayload).trim();
-    if (jsonStr.startsWith('{') && jsonStr.endsWith('}')) {
-      data = JSON.parse(jsonStr);
-    } else {
-      const decoded = Buffer.from(jsonStr, 'base64').toString('utf8');
-      data = JSON.parse(decoded);
-    }
-  } catch (_) {
+  // Step 1: Pre-parse to get student ID (supports compact pipe format, JSON, and base64)
+  const data = parseAttendancePayload(qrPayload);
+  if (!data) {
     return {
       httpStatus: 400,
       body: {
@@ -1889,10 +1881,11 @@ async function processSingleQrAttendanceScan({
     };
   }
 
-  // Step 6: Online Geofence & GPS Anti-Spoofing Verification (Haversine distance + accuracy + velocity jump)
+  // Step 6: Online Geofence & GPS Anti-Spoofing Verification (Haversine distance + accuracy + velocity jump + scanner co-location)
   const effectiveMode = isOfflineSync ? 'offline' : verification.mode || 'online';
   const geoCheck = verifyGeofenceAndTelemetry({
     studentLoc: verification.location,
+    scannerLoc,
     org,
     deviceRecord,
     scanTimestampSec: verification.timestamp,
@@ -2265,11 +2258,20 @@ async function processSingleQrAttendanceScan({
 // POST /api/org/attendance/scan-qr
 // HR-Exclusive Scanner: Verifies student dynamic TOTP + ECDSA + Geofence QR code and logs Time-In or Time-Out
 router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
-  const { qr_payload } = req.body;
+  const { qr_payload, scanner_lat, scanner_lng, scanner_acc } = req.body;
 
   if (!qr_payload) {
     return res.status(400).json({ success: false, message: 'Missing QR payload data from scanner.' });
   }
+
+  const scannerLoc =
+    scanner_lat != null && scanner_lng != null
+      ? {
+          lat: Number(scanner_lat),
+          lng: Number(scanner_lng),
+          acc: scanner_acc != null ? Number(scanner_acc) : null
+        }
+      : null;
 
   try {
     const org = await getOrgId(req.user.user_id);
@@ -2277,6 +2279,7 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
 
     const result = await processSingleQrAttendanceScan({
       qrPayload: qr_payload,
+      scannerLoc,
       org,
       hrUserId: req.user.user_id,
       isOfflineSync: false

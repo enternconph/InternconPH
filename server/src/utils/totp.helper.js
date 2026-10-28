@@ -127,6 +127,70 @@ export function createPayloadSignature(secret, studentId, deviceToken, timestamp
  * @param {object} deviceRecord - Row from student_attendance_devices
  * @param {object} options - { windowSeconds, isOfflineSync, offlineScannedAtMs }
  */
+/**
+ * Universal attendance QR payload parser: supports compact pipe format, JSON, and base64
+ */
+export function parseAttendancePayload(rawPayload) {
+  if (!rawPayload || typeof rawPayload !== 'string') return null;
+  const str = rawPayload.trim();
+
+  // 1. Compact pipe-delimited format: v2|sid|did|c|ts|n|mode|lat,lng,acc|sig|hmac
+  if (str.startsWith('v2|')) {
+    const parts = str.split('|');
+    const sid = parseInt(parts[1], 10);
+    const did = parts[2] || '';
+    const c = parts[3] || '';
+    const ts = parseInt(parts[4], 10);
+    const n = parts[5] || '';
+    const mode = parts[6] || 'online';
+    const locStr = parts[7] || '';
+    let loc = null;
+    if (locStr && locStr !== 'none') {
+      const locParts = locStr.split(',');
+      if (locParts.length >= 2 && !isNaN(Number(locParts[0])) && !isNaN(Number(locParts[1]))) {
+        loc = {
+          lat: Number(Number(locParts[0]).toFixed(6)),
+          lng: Number(Number(locParts[1]).toFixed(6)),
+          acc: locParts[2] && !isNaN(Number(locParts[2])) ? Math.round(Number(locParts[2])) : null
+        };
+      }
+    }
+    const sig = parts[8] || null;
+    const hmac = parts[9] || null;
+    return {
+      v: 2,
+      sid,
+      did,
+      dt: did,
+      c,
+      ts,
+      n,
+      mode,
+      loc,
+      sig: sig || null,
+      hmac: hmac || null
+    };
+  }
+
+  // 2. Standard JSON object
+  if (str.startsWith('{') && str.endsWith('}')) {
+    try {
+      return JSON.parse(str);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // 3. Base64 encoded payload fallback
+  try {
+    const decoded = Buffer.from(str, 'base64').toString('utf8');
+    if (decoded.startsWith('v2|')) return parseAttendancePayload(decoded);
+    return JSON.parse(decoded);
+  } catch (_) {
+    return null;
+  }
+}
+
 export function verifyTotpPayload(
   rawPayload,
   expectedSecretOrRecord,
@@ -138,16 +202,8 @@ export function verifyTotpPayload(
     return { valid: false, code: 'EMPTY_PAYLOAD', reason: 'Invalid or empty QR payload.' };
   }
 
-  let data;
-  try {
-    const jsonStr = rawPayload.trim();
-    if (jsonStr.startsWith('{') && jsonStr.endsWith('}')) {
-      data = JSON.parse(jsonStr);
-    } else {
-      const decoded = Buffer.from(jsonStr, 'base64').toString('utf8');
-      data = JSON.parse(decoded);
-    }
-  } catch (_) {
+  const data = parseAttendancePayload(rawPayload);
+  if (!data) {
     return { valid: false, code: 'MALFORMED_PAYLOAD', reason: 'Malformed QR payload format.' };
   }
 
@@ -393,6 +449,7 @@ export function calculateHaversineMeters(lat1, lon1, lat2, lon2) {
  */
 export function verifyGeofenceAndTelemetry({
   studentLoc,
+  scannerLoc = null,
   org,
   deviceRecord,
   scanTimestampSec = Math.floor(Date.now() / 1000),
@@ -477,19 +534,50 @@ export function verifyGeofenceAndTelemetry({
     }
   }
 
-  // 3. Haversine Geofence Check against Organization Coordinates
+  // 3. Haversine Geofence Check against Organization Coordinates & Scanner Device
   let distanceMeters = null;
+  let scannerDistanceMeters = null;
+  let interDeviceDistanceMeters = null;
+
   if (orgHasCoords) {
     const orgLat = Number(org.latitude);
     const orgLng = Number(org.longitude);
     distanceMeters = Math.round(calculateHaversineMeters(lat, lng, orgLat, orgLng) * 10) / 10;
 
-    if (enforceGeofence && distanceMeters > radiusMeters) {
+    // Check scanner device location if provided by HR terminal
+    let scannerInOffice = false;
+    let studentNearScanner = false;
+    if (
+      scannerLoc &&
+      scannerLoc.lat != null &&
+      scannerLoc.lng != null &&
+      !isNaN(Number(scannerLoc.lat)) &&
+      !isNaN(Number(scannerLoc.lng))
+    ) {
+      scannerDistanceMeters = Math.round(calculateHaversineMeters(Number(scannerLoc.lat), Number(scannerLoc.lng), orgLat, orgLng) * 10) / 10;
+      interDeviceDistanceMeters = Math.round(calculateHaversineMeters(lat, lng, Number(scannerLoc.lat), Number(scannerLoc.lng)) * 10) / 10;
+
+      const scannerAcc = Number(scannerLoc.acc) || 0;
+      const effectiveScannerDist = Math.max(0, scannerDistanceMeters - Math.min(scannerAcc / 2, 30));
+      scannerInOffice = effectiveScannerDist <= radiusMeters;
+      studentNearScanner = interDeviceDistanceMeters <= 60; // Physically present in front of HR scanner
+    }
+
+    // Apply indoor GPS cushion (up to 30m allowance for indoor concrete attenuation)
+    const effectiveDistance = Math.max(0, distanceMeters - Math.min((acc || 0) / 2, 30));
+    const isWithinOfficeGeofence = effectiveDistance <= radiusMeters;
+
+    // Pass if directly inside 100m workplace OR if scanner is at office and student is co-located with scanner
+    const passedGeofence = isWithinOfficeGeofence || (scannerInOffice && studentNearScanner);
+
+    if (enforceGeofence && !passedGeofence) {
       return {
         valid: false,
         code: 'OUTSIDE_GEOFENCE',
         distanceMeters,
         radiusMeters,
+        scannerDistanceMeters,
+        interDeviceDistanceMeters,
         reason: `Outside Workplace Geofence: Student is ${Math.round(distanceMeters)}m away from ${org.organization_name || 'the registered office'} (allowed radius: ${radiusMeters}m). Attendance must be scanned on physical premises.`
       };
     }
@@ -502,6 +590,8 @@ export function verifyGeofenceAndTelemetry({
     accuracyMeters: acc,
     distanceMeters,
     radiusMeters,
+    scannerDistanceMeters,
+    interDeviceDistanceMeters,
     geofenceEnforced: orgHasCoords && enforceGeofence
   };
 }

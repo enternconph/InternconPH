@@ -363,6 +363,7 @@ export default function InstMonitoring() {
                     <th className="py-2.5 px-3">Student Intern</th>
                     <th className="py-2.5 px-3">Host Company</th>
                     <th className="py-2.5 px-3">Progress & Status</th>
+                    <th className="py-2.5 px-3">Workplace GPS & Device Indicator</th>
                     <th className="py-2.5 px-3 text-right">Certificate</th>
                   </tr>
                 </thead>
@@ -401,6 +402,81 @@ export default function InstMonitoring() {
                               {d.status || 'ongoing'}
                             </span>
                           </div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {(() => {
+                            const ind = d.gps_device_indicator || {
+                              code: 'PENDING_SCAN',
+                              label: 'Awaiting Attendance Scan',
+                              detail: 'No scan recorded today',
+                              statusType: 'muted'
+                            };
+
+                            if (ind.code === 'SCAN_SUCCESS_ALL_PASS') {
+                              return (
+                                <div className="inline-flex flex-col gap-0.5 max-w-[240px]">
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs">
+                                    <span className="material-symbols-outlined text-[15px] text-emerald-600">verified</span>
+                                    <span className="truncate">Scan successfully all the restriction pass</span>
+                                  </span>
+                                  <span className="text-[10px] text-emerald-700 font-medium pl-1">
+                                    {ind.detail}
+                                  </span>
+                                </div>
+                              );
+                            }
+
+                            if (ind.code === 'NOT_IN_WORKPLACE') {
+                              return (
+                                <div className="inline-flex flex-col gap-0.5 max-w-[240px]">
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-300 shadow-xs">
+                                    <span className="material-symbols-outlined text-[15px] text-rose-600">wrong_location</span>
+                                    <span className="truncate">Not in the workplace area!!!</span>
+                                  </span>
+                                  <span className="text-[10px] text-rose-700 font-semibold pl-1">
+                                    {ind.detail}
+                                  </span>
+                                </div>
+                              );
+                            }
+
+                            if (ind.code === 'DEVICE_NOT_RECOGNIZED') {
+                              return (
+                                <div className="inline-flex flex-col gap-0.5 max-w-[240px]">
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-300 shadow-xs">
+                                    <span className="material-symbols-outlined text-[15px] text-rose-600">phonelink_lock</span>
+                                    <span className="truncate">Student Device not recognize!!!</span>
+                                  </span>
+                                  <span className="text-[10px] text-rose-700 font-semibold pl-1">
+                                    {ind.detail}
+                                  </span>
+                                </div>
+                              );
+                            }
+
+                            if (ind.code === 'STUDENT_USE_DIFFERENT_DEVICE') {
+                              return (
+                                <div className="inline-flex flex-col gap-0.5 max-w-[240px]">
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 shadow-xs">
+                                    <span className="material-symbols-outlined text-[15px] text-amber-600">devices</span>
+                                    <span className="truncate">Student use different device</span>
+                                  </span>
+                                  <span className="text-[10px] text-amber-700 font-medium pl-1">
+                                    {ind.detail}
+                                  </span>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="inline-flex flex-col gap-0.5 max-w-[240px]">
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-surface-container text-on-surface-variant border border-outline-variant">
+                                  <span className="material-symbols-outlined text-[13px] text-on-surface-variant">schedule</span>
+                                  <span>{ind.label}</span>
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="py-2.5 px-3 text-right">
                           {d.certificate_id ? (

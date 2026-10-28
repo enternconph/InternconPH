@@ -473,19 +473,13 @@ export async function buildDynamicQrPayload(secretOrOptions, studentIdArg, devic
   const hmacBuf = await window.crypto.subtle.sign('HMAC', hmacKey, enc.encode(canonicalStr));
   const hmacHex = bufferToHex(hmacBuf);
 
-  return JSON.stringify({
-    v: 2,
-    sid: studentId,
-    did: deviceId,
-    dt: deviceId,
-    c: totpCode,
-    ts,
-    n: nonce,
-    mode,
-    loc: normalizedLoc,
-    sig: sigHex,
-    hmac: hmacHex
-  });
+  const locStr =
+    normalizedLoc && normalizedLoc.lat != null && normalizedLoc.lng != null
+      ? `${normalizedLoc.lat},${normalizedLoc.lng},${normalizedLoc.acc != null ? normalizedLoc.acc : ''}`
+      : 'none';
+
+  // Compact pipe-delimited format (reduces module density to match standard QR photo)
+  return `v2|${studentId}|${deviceId}|${totpCode}|${ts}|${nonce}|${mode}|${locStr}|${sigHex || ''}|${hmacHex || ''}`;
 }
 
 /**

@@ -347,9 +347,9 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
       });
       await QRCode.toCanvas(canvasRef.current, payload, {
         width: 260,
-        margin: 2,
+        margin: 4,
         color: {
-          dark: '#0f172a',
+          dark: '#000000',
           light: '#ffffff'
         },
         errorCorrectionLevel: 'M'
@@ -514,8 +514,10 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
 
   // Calculate live distance to organization workplace geofence if configured
   const geofence = credentials?.workplaceGeofence;
+  const hasGeofenceCoords = geofence && geofence.latitude != null && geofence.longitude != null;
+  const isGeofenceActive = Boolean(geofence?.configured || hasGeofenceCoords);
   const liveDistanceMeters =
-    geofence?.configured && gpsLocation
+    isGeofenceActive && gpsLocation
       ? calculateHaversineMeters(
           gpsLocation.lat,
           gpsLocation.lng,
@@ -861,7 +863,7 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                             ? 'GPS Required for Online Attendance'
                             : gpsStatus === 'low_accuracy'
                             ? `Low GPS Accuracy (±${gpsLocation?.acc}m)`
-                            : geofence?.configured && liveDistanceMeters !== null
+                            : isGeofenceActive && liveDistanceMeters !== null
                             ? isInsideGeofence
                               ? `Within Workplace Geofence (${Math.round(liveDistanceMeters)}m / ${allowedRadiusMeters}m)`
                               : `Outside Workplace Geofence (${Math.round(liveDistanceMeters)}m away; max ${allowedRadiusMeters}m)`
@@ -882,46 +884,46 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
               </div>
 
               {/* Dynamic QR Canvas Container */}
-              <div className="relative p-4 bg-white rounded-2xl shadow-inner border border-slate-200/80 group">
-                <canvas
-                  ref={canvasRef}
-                  className={`rounded-xl transition-all duration-300 pointer-events-none ${
-                    isShielded ? 'blur-xl opacity-30' : ''
-                  }`}
-                />
-
-                {/* Moving live watermark across the canvas to discourage photography */}
-                <div className="absolute inset-0 flex flex-col justify-between p-3 pointer-events-none overflow-hidden select-none">
-                  <div className="flex justify-between items-center text-[9px] font-mono font-bold text-slate-500/70 uppercase">
-                    <span>{credentials?.student_number || 'INTERN'}</span>
-                    <span>{!isOnline || isOfflineVaultMode ? 'OFFLINE ECDSA' : 'ONLINE GPS+ECDSA'}</span>
-                  </div>
-                  <div className="text-center font-mono text-[10px] font-extrabold tracking-widest text-slate-600/40 rotate-[-18deg] select-none">
-                    {credentials?.full_name?.toUpperCase()}
-                  </div>
-                  <div className="text-center font-mono text-[9px] font-bold text-slate-600/80 bg-white/70 py-0.5 rounded backdrop-blur-xs">
-                    {livePstTime}
-                  </div>
+              <div className="relative p-3 bg-white rounded-2xl shadow-inner border border-slate-200/80 flex flex-col items-center justify-center">
+                {/* Top Info Bar (cleanly above QR matrix) */}
+                <div className="w-full flex justify-between items-center px-1 mb-2 text-[9px] font-mono font-bold text-slate-500 uppercase select-none">
+                  <span>{credentials?.student_number || 'INTERN'} • {credentials?.full_name || 'STUDENT'}</span>
+                  <span className="text-vibrant-orange font-bold">{!isOnline || isOfflineVaultMode ? 'OFFLINE' : 'ONLINE GPS'}</span>
                 </div>
 
-                {/* Shield Overlay when user unfocuses or takes screenshots */}
-                {isShielded && (
-                  <div
-                    onClick={() => setIsShielded(false)}
-                    className="absolute inset-0 bg-slate-900/85 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center p-4 text-white text-center cursor-pointer transition-all"
-                  >
-                    <span className="material-symbols-outlined text-3xl text-vibrant-orange mb-1 animate-bounce">
-                      shield
-                    </span>
-                    <p className="font-bold text-xs">Security Shield Active</p>
-                    <p className="text-[10px] text-slate-300 mt-1">
-                      Dynamic QR code is shielded while window is inactive or screen-capturing.
-                    </p>
-                    <span className="mt-3 px-3 py-1 bg-vibrant-orange text-white rounded-lg text-[10px] font-bold">
-                      Click to Reveal
-                    </span>
-                  </div>
-                )}
+                <div className="relative flex items-center justify-center p-1 bg-white">
+                  <canvas
+                    ref={canvasRef}
+                    className={`rounded-lg transition-all duration-300 pointer-events-none ${
+                      isShielded ? 'blur-xl opacity-30' : ''
+                    }`}
+                  />
+
+                  {/* Shield Overlay when user unfocuses or takes screenshots */}
+                  {isShielded && (
+                    <div
+                      onClick={() => setIsShielded(false)}
+                      className="absolute inset-0 bg-slate-900/85 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center p-4 text-white text-center cursor-pointer transition-all"
+                    >
+                      <span className="material-symbols-outlined text-3xl text-vibrant-orange mb-1 animate-bounce">
+                        shield
+                      </span>
+                      <p className="font-bold text-xs">Security Shield Active</p>
+                      <p className="text-[10px] text-slate-300 mt-1">
+                        Dynamic QR code is shielded while window is inactive or screen-capturing.
+                      </p>
+                      <span className="mt-3 px-3 py-1 bg-vibrant-orange text-white rounded-lg text-[10px] font-bold">
+                        Tap to Reveal QR
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom Watermark Bar (cleanly below QR matrix) */}
+                <div className="w-full flex justify-between items-center px-1 mt-2 text-[9px] font-mono text-slate-500 font-semibold select-none">
+                  <span>{livePstTime || 'PST UTC+8'}</span>
+                  <span>30s Rolling TOTP</span>
+                </div>
               </div>
 
               {/* Circular Countdown Progress Ring */}

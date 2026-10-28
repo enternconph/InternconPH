@@ -85,21 +85,36 @@ export default function AttendanceQrModal({ visible, onClose }) {
             PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
           ).catch(() => {});
         }
-        const geo = global.navigator?.geolocation;
-        if (geo && typeof geo.watchPosition === 'function') {
-          watchId = geo.watchPosition(
-            (pos) => {
-              const loc = {
-                lat: Number(pos.coords.latitude.toFixed(6)),
-                lng: Number(pos.coords.longitude.toFixed(6)),
-                acc: Math.round(pos.coords.accuracy || 0)
-              };
-              gpsCoordsRef.current = loc;
-              setGpsCoords(loc);
-            },
-            () => {},
-            { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
-          );
+        const geo =
+          (typeof navigator !== 'undefined' && navigator.geolocation) ||
+          global.navigator?.geolocation;
+
+        if (geo) {
+          const updateCoords = (pos) => {
+            const loc = {
+              lat: Number(pos.coords.latitude.toFixed(6)),
+              lng: Number(pos.coords.longitude.toFixed(6)),
+              acc: Math.round(pos.coords.accuracy || 0)
+            };
+            gpsCoordsRef.current = loc;
+            setGpsCoords(loc);
+          };
+
+          if (typeof geo.getCurrentPosition === 'function') {
+            geo.getCurrentPosition(updateCoords, () => {}, {
+              enableHighAccuracy: true,
+              maximumAge: 5000,
+              timeout: 8000
+            });
+          }
+
+          if (typeof geo.watchPosition === 'function') {
+            watchId = geo.watchPosition(updateCoords, () => {}, {
+              enableHighAccuracy: true,
+              maximumAge: 5000,
+              timeout: 10000
+            });
+          }
         }
       } catch (_) {}
     }
@@ -524,8 +539,14 @@ export default function AttendanceQrModal({ visible, onClose }) {
     outputRange: [-30, 30]
   });
 
+  const hasGeofenceCoords =
+    workplaceGeofence &&
+    workplaceGeofence.latitude != null &&
+    workplaceGeofence.longitude != null;
+  const isGeofenceActive = Boolean(workplaceGeofence?.configured || hasGeofenceCoords);
+
   const liveDistanceMeters =
-    workplaceGeofence?.configured && gpsCoords
+    isGeofenceActive && gpsCoords
       ? calculateHaversineMeters(
           gpsCoords.lat,
           gpsCoords.lng,
@@ -738,39 +759,35 @@ export default function AttendanceQrModal({ visible, onClose }) {
                   {isOffline
                     ? 'Offline Mode • Device-Bound Secret Active'
                     : liveDistanceMeters !== null
-                    ? `Online GPS • ${Math.round(liveDistanceMeters)}m from workplace (max ${workplaceGeofence?.radius_meters || 100}m)`
+                    ? liveDistanceMeters <= (workplaceGeofence?.radius_meters || 100)
+                      ? `Online GPS • Within workplace (${Math.round(liveDistanceMeters)}m / ${workplaceGeofence?.radius_meters || 100}m)`
+                      : `Online GPS • Outside workplace (${Math.round(liveDistanceMeters)}m away; max ${workplaceGeofence?.radius_meters || 100}m)`
                     : 'Online Synced • 30s Rolling TOTP + Single-Use Nonce'}
                 </Text>
               </View>
 
-              {/* QR Container with Moving Watermark */}
+              {/* QR Container Clean (Watermark outside QR matrix) */}
               <View style={styles.qrWrapper}>
+                <View style={styles.qrHeaderBar}>
+                  <Text style={styles.qrHeaderBarText}>
+                    INTERN #{studentId} • {isOffline ? 'OFFLINE' : 'ONLINE GPS'}
+                  </Text>
+                  <Text style={styles.qrHeaderBarPst}>
+                    {watermarkPst || 'PST UTC+8'}
+                  </Text>
+                </View>
+
                 <View style={styles.qrBox}>
                   {qrPayload ? (
                     <QRCode
                       value={qrPayload}
                       size={200}
-                      color="#0f172a"
+                      color="#000000"
                       backgroundColor="#ffffff"
                     />
                   ) : (
                     <ActivityIndicator size="small" color={colors.primary} />
                   )}
-
-                  <Animated.View
-                    pointerEvents="none"
-                    style={[
-                      styles.watermarkOverlay,
-                      { transform: [{ translateY: watermarkTranslateY }] }
-                    ]}
-                  >
-                    <Text style={styles.watermarkText}>
-                      INTERNCON • {watermarkPst || 'PST UTC+8'}
-                    </Text>
-                    <Text style={styles.watermarkSubtext}>
-                      #{studentId} • {isOffline ? 'OFFLINE' : 'ONLINE'}
-                    </Text>
-                  </Animated.View>
                 </View>
 
                 <View style={styles.timerRow}>
@@ -1072,6 +1089,26 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  qrHeaderBar: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 4
+  },
+  qrHeaderBarText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748b',
+    letterSpacing: 0.5
+  },
+  qrHeaderBarPst: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.primary,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace'
   },
   watermarkOverlay: {
     position: 'absolute',

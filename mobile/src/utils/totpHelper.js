@@ -330,18 +330,13 @@ export async function buildDynamicQrPayload(secret, studentId, deviceToken, opti
 
   const hmac = hmacSha256(String(secret), canonicalStr);
 
-  return JSON.stringify({
-    v: 2,
-    sid: studentId,
-    did: deviceToken,
-    dt: deviceToken,
-    c: totpCode,
-    ts,
-    n: nonce,
-    mode,
-    loc,
-    hmac
-  });
+  const locStr =
+    loc && loc.lat != null && loc.lng != null
+      ? `${loc.lat},${loc.lng},${loc.acc != null ? loc.acc : ''}`
+      : 'none';
+
+  // Compact pipe-delimited payload (reduces module density to match standard QR photo)
+  return `v2|${studentId}|${deviceToken}|${totpCode}|${ts}|${nonce}|${mode}|${locStr}||${hmac || ''}`;
 }
 
 /**

@@ -2242,24 +2242,148 @@ router.get('/monitoring', async (req, res) => {
 
     const scope = await getStaffProgramScope(req.user.user_id, req.user.role, inst.institution_id);
 
-    let depSql = `SELECT o.*, s.first_name, s.last_name, s.student_number, s.required_ojt_hours,
+    let depSql = `SELECT o.*, s.first_name, s.last_name, s.student_number, s.required_ojt_hours, s.user_id as student_user_id,
               p.program_name, p.program_code, ho.organization_name, ho.contact_email as org_email,
+              ho.latitude as org_latitude, ho.longitude as org_longitude, ho.geofence_radius_meters as org_radius,
               (SELECT rating FROM ojt_performance_records WHERE ojt_id = o.ojt_id ORDER BY evaluated_at DESC LIMIT 1) as evaluation_rating,
               (SELECT record_id FROM ojt_performance_records WHERE ojt_id = o.ojt_id ORDER BY evaluated_at DESC LIMIT 1) as evaluation_id,
-              cert.certificate_id, cert.certificate_code, cert.issued_at as certificate_issued_at, cert.certificate_data
+              cert.certificate_id, cert.certificate_code, cert.issued_at as certificate_issued_at, cert.certificate_data,
+              sad.device_token as registered_device_token,
+              sad.device_name as registered_device_name,
+              al.attendance_id as latest_att_id,
+              al.log_date as latest_log_date,
+              al.time_in as latest_time_in,
+              al.time_out as latest_time_out,
+              al.distance_from_org_meters as latest_distance_meters,
+              al.device_id as latest_scan_device_id,
+              al.status as latest_att_status,
+              (SELECT COUNT(*) FROM device_rebind_otps dro WHERE dro.student_id = o.student_id AND dro.consumed_at IS NOT NULL) as otp_rebind_count,
+              (SELECT us.device_id FROM user_sessions us WHERE us.user_id = s.user_id ORDER BY us.last_seen DESC LIMIT 1) as latest_session_device_id
        FROM ojt_records o
        JOIN students s ON o.student_id = s.student_id
        LEFT JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
        LEFT JOIN programs p ON s.program_id = p.program_id
        LEFT JOIN ojt_certificates cert ON o.ojt_id = cert.ojt_id
+       LEFT JOIN student_attendance_devices sad ON o.student_id = sad.student_id
+       LEFT JOIN ojt_attendance_logs al ON al.attendance_id = (
+         SELECT a2.attendance_id FROM ojt_attendance_logs a2
+         WHERE a2.ojt_id = o.ojt_id
+         ORDER BY a2.log_date DESC, a2.created_at DESC LIMIT 1
+       )
        WHERE s.institution_id = ?`;
     const depParams = [inst.institution_id];
     depSql = appendProgramScopeSql(depSql, depParams, scope, 's.program_id');
     depSql += ' ORDER BY o.created_at DESC';
     const [deployments] = await pool.query(depSql, depParams);
 
-    // Auto-generate certificate for any completed and evaluated intern that does not have one yet
+    // Compute GPS & Device Verification Indicators and Certificate sweep
     for (const dep of deployments) {
+      let indicator = {
+        code: 'PENDING_SCAN',
+        label: 'Awaiting Attendance Scan',
+        detail: 'No attendance scan recorded today',
+        statusType: 'muted',
+        is_in_workplace: null,
+        distance_meters: null,
+        device_status: 'unknown'
+      };
+
+      const dist = dep.latest_distance_meters !== null && dep.latest_distance_meters !== undefined
+        ? Number(dep.latest_distance_meters)
+        : null;
+      const allowedRadius = Number(dep.org_radius) || 100;
+      const isWithin100m = dist !== null ? dist <= allowedRadius : true;
+      const hasRegisteredDevice = Boolean(dep.registered_device_token);
+      const isDeviceMatched = hasRegisteredDevice && dep.latest_scan_device_id
+        ? dep.latest_scan_device_id === dep.registered_device_token
+        : true;
+      const isSessionDeviceMatched = hasRegisteredDevice && dep.latest_session_device_id
+        ? dep.latest_session_device_id === dep.registered_device_token
+        : true;
+      const usedOtp = Number(dep.otp_rebind_count) > 0;
+
+      if (dep.latest_att_id) {
+        if (!isWithin100m) {
+          indicator = {
+            code: 'NOT_IN_WORKPLACE',
+            label: 'Not in the workplace area!!!',
+            detail: dist !== null ? `${Math.round(dist)}m away from office (allowed ${allowedRadius}m)` : 'Scanned outside 100m area',
+            statusType: 'danger',
+            is_in_workplace: false,
+            distance_meters: dist,
+            device_status: isDeviceMatched ? 'recognized' : 'unrecognized'
+          };
+        } else if (!isDeviceMatched || !isSessionDeviceMatched) {
+          if (usedOtp) {
+            indicator = {
+              code: 'STUDENT_USE_DIFFERENT_DEVICE',
+              label: 'Student use different device',
+              detail: 'Authorized via 6-digit Gmail OTP',
+              statusType: 'warning',
+              is_in_workplace: true,
+              distance_meters: dist,
+              device_status: 'rebound_via_otp'
+            };
+          } else {
+            indicator = {
+              code: 'DEVICE_NOT_RECOGNIZED',
+              label: 'Student Device not recognize!!!',
+              detail: 'Unregistered hardware device detected',
+              statusType: 'danger',
+              is_in_workplace: true,
+              distance_meters: dist,
+              device_status: 'unrecognized'
+            };
+          }
+        } else if (usedOtp) {
+          indicator = {
+            code: 'STUDENT_USE_DIFFERENT_DEVICE',
+            label: 'Student use different device',
+            detail: `Within workplace (${Math.round(dist || 0)}m) • Re-bound via Gmail OTP`,
+            statusType: 'warning',
+            is_in_workplace: true,
+            distance_meters: dist,
+            device_status: 'rebound_via_otp'
+          };
+        } else {
+          indicator = {
+            code: 'SCAN_SUCCESS_ALL_PASS',
+            label: 'Scan successfully all the restriction pass',
+            detail: dist !== null ? `Within 100m GPS (${Math.round(dist)}m) • Device Verified` : 'All Restrictions Passed',
+            statusType: 'success',
+            is_in_workplace: true,
+            distance_meters: dist,
+            device_status: 'registered'
+          };
+        }
+      } else {
+        // No attendance scan yet, inspect login session device
+        if (hasRegisteredDevice && !isSessionDeviceMatched) {
+          if (usedOtp) {
+            indicator = {
+              code: 'STUDENT_USE_DIFFERENT_DEVICE',
+              label: 'Student use different device',
+              detail: 'Logged in from OTP-authorized device',
+              statusType: 'warning',
+              is_in_workplace: null,
+              distance_meters: null,
+              device_status: 'rebound_via_otp'
+            };
+          } else {
+            indicator = {
+              code: 'DEVICE_NOT_RECOGNIZED',
+              label: 'Student Device not recognize!!!',
+              detail: 'Login session from unrecognized device',
+              statusType: 'danger',
+              is_in_workplace: null,
+              distance_meters: null,
+              device_status: 'unrecognized'
+            };
+          }
+        }
+      }
+
+      dep.gps_device_indicator = indicator;
       const isCompleted = dep.status === 'completed' || Number(dep.rendered_hours) >= Number(dep.required_hours || dep.required_ojt_hours || 600);
       if (isCompleted && dep.evaluation_id && !dep.certificate_id) {
         try {

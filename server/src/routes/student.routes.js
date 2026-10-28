@@ -1240,7 +1240,8 @@ async function getStudentWorkplaceGeofence(studentId) {
       latitude: r.latitude !== null ? Number(r.latitude) : null,
       longitude: r.longitude !== null ? Number(r.longitude) : null,
       radius_meters: Number(r.geofence_radius_meters) || 100,
-      enforce_geofence: Boolean(r.enforce_geofence)
+      enforce_geofence: Boolean(r.enforce_geofence),
+      configured: r.latitude !== null && r.longitude !== null
     };
   } catch (_) {
     return null;
@@ -1539,12 +1540,37 @@ router.post('/attendance/request-device-otp', async (req, res) => {
         masked_email: targetOtpEmail,
         student_account_email: req.user.email,
         expires_in_seconds: 300,
-        max_attempts: 5
+        max_attempts: 5,
+        delivery: emailRes
       }
     });
   } catch (err) {
     console.error('Request device OTP error:', err);
     return res.status(500).json({ success: false, message: 'Failed to generate device verification OTP.' });
+  }
+});
+
+// POST /api/student/attendance/test-otp-email - Direct diagnostic email test to denmarkcatolico2@gmail.com
+router.post('/attendance/test-otp-email', async (req, res) => {
+  try {
+    const student = await getStudentId(req.user.user_id);
+    const testCode = String(crypto.randomInt(100000, 1000000));
+    const result = await sendDeviceRebindOtpEmail({
+      userId: req.user.user_id,
+      email: req.user.email,
+      studentName: student ? `${student.first_name} ${student.last_name}` : 'Test Intern',
+      otpCode: testCode,
+      newDeviceLabel: req.body?.device_label || 'Diagnostic Test Handset',
+      expiresInMinutes: 5
+    });
+
+    return res.json({
+      success: true,
+      message: `Diagnostic OTP ${testCode} dispatched to ${result.recipientEmail}. Delivery result: ${result.sent ? 'DELIVERED' : 'PENDING'} (${result.transport || result.reason})`,
+      data: result
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Test email failed: ' + err.message });
   }
 });
 

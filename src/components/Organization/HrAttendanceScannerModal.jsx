@@ -44,6 +44,36 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
   // Organization Workplace Geofence State
   const [geofenceConfig, setGeofenceConfig] = useState(null);
   const [calibratingGeofence, setCalibratingGeofence] = useState(false);
+  const [scannerGps, setScannerGps] = useState(null);
+  const scannerGpsRef = useRef(null);
+
+  // High-accuracy scanner terminal GPS watcher
+  useEffect(() => {
+    if (!isOpen || typeof navigator === 'undefined' || !navigator.geolocation) return;
+
+    let watchId;
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const loc = {
+            lat: Number(pos.coords.latitude.toFixed(6)),
+            lng: Number(pos.coords.longitude.toFixed(6)),
+            acc: Math.round(pos.coords.accuracy || 0)
+          };
+          scannerGpsRef.current = loc;
+          setScannerGps(loc);
+        },
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+      );
+    } catch (_) {}
+
+    return () => {
+      if (watchId !== undefined && navigator.geolocation.clearWatch) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [isOpen]);
 
   const scannerRef = useRef(null);
   const isProcessingRef = useRef(false);
@@ -470,8 +500,12 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
     }
 
     try {
+      const curScannerGps = scannerGpsRef.current;
       const res = await api.post('/org/attendance/scan-qr', {
-        qr_payload: rawPayload
+        qr_payload: rawPayload,
+        scanner_lat: curScannerGps?.lat,
+        scanner_lng: curScannerGps?.lng,
+        scanner_acc: curScannerGps?.acc
       });
 
       if (res.isNetworkError) {
@@ -673,13 +707,16 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
         const html5QrCode = new Html5Qrcode(qrRegionId);
         scannerRef.current = html5QrCode;
 
-        // Modern responsive QR Box configuration (without restrictive aspectRatio constraint)
+        // Responsive full-view QR configuration with native hardware BarcodeDetector acceleration
         const config = {
-          fps: 15,
+          fps: 20,
           qrbox: (viewfinderWidth, viewfinderHeight) => {
             const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-            const edge = Math.floor(minEdge * 0.72);
-            return { width: Math.max(220, edge), height: Math.max(220, edge) };
+            const edge = Math.floor(minEdge * 0.90);
+            return { width: Math.max(260, edge), height: Math.max(260, edge) };
+          },
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
           }
         };
 
