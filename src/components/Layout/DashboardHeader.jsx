@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSocket, useRealtimeRefresh } from '../../contexts/SocketContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useSidebar } from './DashboardLayout';
-import { playNotificationChime } from '../../utils/audio';
+import { playNotificationChime, playInterviewAlarm } from '../../utils/audio';
 import api from '../../api/client';
 import { findActiveNav, getRoleLabel } from './navConfig';
 
@@ -54,8 +54,12 @@ export default function DashboardHeader() {
     const handleNewNotification = (newNotif) => {
       setNotifications((prev) => [newNotif, ...prev.filter((n) => n.notification_id !== newNotif.notification_id)]);
       setUnreadCount((count) => count + 1);
-      // Play short audible chime if user has sound enabled
-      playNotificationChime();
+      // Play 3-pulse interview alarm for 5-minute interview reminders, or standard chime otherwise
+      if (String(newNotif?.title || '').toLowerCase().includes('interview in 5 minutes')) {
+        playInterviewAlarm();
+      } else {
+        playNotificationChime();
+      }
     };
 
     socket.on('notification', handleNewNotification);

@@ -3324,7 +3324,8 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
     let meetingCode = null;
     let meetLinkGenerated = false;
 
-    const isOnline = (mode || 'online').toLowerCase() === 'online';
+    const normalizedMode = String(mode || 'online').toLowerCase() === 'onsite' ? 'onsite' : 'online';
+    const isOnline = normalizedMode === 'online';
     const shouldAutoGenerate = isOnline && auto_generate_meet !== false;
     const isPreGeneratedRealMeet =
       manualLocationOrLink &&
@@ -3388,7 +3389,7 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
     const [insertResult] = await pool.query(
       `INSERT INTO interviews (application_id, schedule_at, mode, location_or_link, meeting_link, meeting_code, status, notes, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [application_id, schedule_at, mode || 'online', finalLocationOrLink, meetingLink, meetingCode, notes || '']
+      [application_id, schedule_at, normalizedMode, finalLocationOrLink, meetingLink, meetingCode, notes || '']
     );
 
     const interviewId = insertResult.insertId;
@@ -3411,7 +3412,7 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
       meeting_link: meetingLink,
       meeting_code: meetingCode,
       location_or_link: finalLocationOrLink,
-      mode: mode || 'online',
+      mode: normalizedMode,
       schedule_at,
       status: 'scheduled'
     });
@@ -3449,7 +3450,7 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
             senderId: req.user.user_id,
             senderName: appDetail.organization_name || 'Hiring Organization',
             title: 'Interview Request Scheduled',
-            message: `You have received an interview invitation for "${appDetail.job_title}" at ${appDetail.organization_name} scheduled on ${schedFormatted} (${(mode || 'online').toUpperCase()}). Click to view details and join.`,
+            message: `You have received an interview invitation for "${appDetail.job_title}" at ${appDetail.organization_name} scheduled on ${schedFormatted} (${normalizedMode.toUpperCase()}). Click to view details and join.`,
             type: 'job',
             link: '/dashboard/student/applications',
             relatedType: 'interview',
@@ -3457,7 +3458,7 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
             meta: {
               interview_id: interviewId,
               meeting_link: meetingLink,
-              mode: mode || 'online'
+              mode: normalizedMode
             }
           });
         }
@@ -3476,7 +3477,7 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
           meta: {
             interview_id: interviewId,
             meeting_link: meetingLink,
-            mode: mode || 'online'
+            mode: normalizedMode
           }
         });
       }
@@ -3518,10 +3519,17 @@ router.put('/interviews/:id', requireHROrAdmin, async (req, res) => {
     );
     const interview = interviews[0];
 
-    await pool.query(
-      'UPDATE interviews SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE interview_id = ?',
-      [finalStatus, notes || '', req.params.id]
-    );
+    if (notes !== undefined) {
+      await pool.query(
+        'UPDATE interviews SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE interview_id = ?',
+        [finalStatus, notes, req.params.id]
+      );
+    } else {
+      await pool.query(
+        'UPDATE interviews SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE interview_id = ?',
+        [finalStatus, req.params.id]
+      );
+    }
 
     // If marked completed, update the job application status to 'interviewed'
     if (finalStatus === 'completed' && interview?.application_id) {

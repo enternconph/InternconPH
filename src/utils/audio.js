@@ -240,3 +240,50 @@ export const playAttendanceErrorChime = (volume = 0.45) => {
     console.warn('Attendance error chime failed:', err);
   }
 };
+
+/**
+ * Plays a clear 3-pulse harmonic desk-bell alarm for 5-minute advance interview reminders.
+ * @param {number} volume - Master volume (0.0 to 1.0)
+ * @param {boolean} force - Bypass mute setting when user explicitly clicks "Test Alarm"
+ */
+export const playInterviewAlarm = (volume = 0.5, force = false) => {
+  try {
+    if (!force) {
+      const soundEnabled = localStorage.getItem('interncon_sound_enabled');
+      if (soundEnabled === 'false' || soundEnabled === '0') return;
+    }
+
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(volume, now);
+    masterGain.connect(ctx.destination);
+
+    // Three rhythmic two-note bell chimes (G5 -> D6) spaced 0.55s apart
+    const rings = [0, 0.55, 1.1];
+    rings.forEach((offset) => {
+      const notes = [
+        { freq: 783.99, delay: 0, dur: 0.22 },     // G5
+        { freq: 1174.66, delay: 0.11, dur: 0.36 }  // D6
+      ];
+      notes.forEach(({ freq, delay, dur }) => {
+        const startAt = now + offset + delay;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startAt);
+        gain.gain.setValueAtTime(0.001, startAt);
+        gain.gain.linearRampToValueAtTime(0.6, startAt + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + dur);
+        osc.connect(gain);
+        gain.connect(masterGain);
+        osc.start(startAt);
+        osc.stop(startAt + dur + 0.02);
+      });
+    });
+  } catch (err) {
+    console.warn('Interview alarm playback failed:', err);
+  }
+};
