@@ -4304,18 +4304,27 @@ router.post('/journals', async (req, res) => {
       });
     }
 
-    const resolvedHours = (hours_rendered !== null && hours_rendered !== undefined && !isNaN(Number(hours_rendered)))
-      ? Number(hours_rendered)
-      : (dtrMatch[0].hours_rendered ? Number(dtrMatch[0].hours_rendered) : 8.00);
+    // STRICT DTR CREDITED HOURS: Hours rendered is strictly based on the official DTR attendance logbook
+    const resolvedHours = (dtrMatch[0].hours_rendered !== null && dtrMatch[0].hours_rendered !== undefined)
+      ? Number(dtrMatch[0].hours_rendered)
+      : (hours_rendered ? Number(hours_rendered) : 0.00);
 
     // Find active OJT record
     const [ojts] = await pool.query(
-      `SELECT ojt_id, mentor_id, organization_id FROM ojt_records 
+      `SELECT ojt_id, mentor_id, organization_id, start_date FROM ojt_records 
        WHERE student_id = ? AND status IN ('ongoing', 'active') 
        ORDER BY created_at DESC LIMIT 1`,
       [student.student_id]
     );
     const ojtId = ojts.length > 0 ? ojts[0].ojt_id : null;
+
+    // Auto-compute week number based on OJT start date if week_number was omitted
+    let resolvedWeek = week_number ? parseInt(week_number, 10) : 1;
+    if ((!week_number || week_number === 1) && ojts.length > 0 && ojts[0].start_date) {
+      const diffMs = new Date(entry_date).getTime() - new Date(ojts[0].start_date).getTime();
+      const diffWeeks = Math.floor(diffMs / (7 * 24 * 3600 * 1000)) + 1;
+      resolvedWeek = Math.max(1, diffWeeks);
+    }
 
     const [result] = await pool.query(
       `INSERT INTO ojt_daily_journals 
@@ -4325,7 +4334,7 @@ router.post('/journals', async (req, res) => {
         ojtId,
         student.student_id,
         entry_date,
-        week_number,
+        resolvedWeek,
         title,
         tasks_accomplished,
         key_learnings,

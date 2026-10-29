@@ -29,7 +29,8 @@ import {
   Sparkles,
   ChevronRight,
   Check,
-  AlertCircle
+  AlertCircle,
+  Lock
 } from 'lucide-react-native';
 import api from '../api/client';
 import { colors } from '../utils/theme';
@@ -128,14 +129,15 @@ export default function JournalScreen() {
 
     setSubmitting(true);
     try {
+      const creditedHours = chosenDtr ? Number(chosenDtr.hours_rendered || 0) : Number(hoursRendered || 0);
+
       const res = await api.post('/student/journals', {
         entry_date: entryDate,
-        week_number: parseInt(weekNumber) || 1,
         title: title.trim(),
         tasks_accomplished: tasksAccomplished.trim(),
         key_learnings: keyLearnings.trim(),
         challenges_and_solutions: challenges.trim(),
-        hours_rendered: parseFloat(hoursRendered) || 0
+        hours_rendered: creditedHours
       });
 
       if (res.success) {
@@ -145,7 +147,6 @@ export default function JournalScreen() {
         setTasksAccomplished('');
         setKeyLearnings('');
         setChallenges('');
-        setWeekNumber(String(Math.min(16, (parseInt(weekNumber) || 1) + 1)));
         fetchJournals();
       } else {
         Alert.alert('Submission Error', res.message || 'Could not save journal entry.');
@@ -373,29 +374,23 @@ export default function JournalScreen() {
                 </ScrollView>
               </View>
 
-              <View style={styles.formRow}>
-                <View style={[styles.formField, { flex: 1 }]}>
-                  <Text style={styles.fieldLabel}>Week Number</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={weekNumber}
-                    onChangeText={setWeekNumber}
-                    keyboardType="numeric"
-                    placeholder="1"
-                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
-                  />
+              {/* Credited Shift Hours (Locked & Derived from DTR) */}
+              <View style={styles.formField}>
+                <View style={styles.dtrLabelRow}>
+                  <Text style={styles.fieldLabel}>Credited Shift Hours</Text>
+                  <View style={styles.lockedBadge}>
+                    <Lock size={10} color="#80CBC4" />
+                    <Text style={styles.lockedBadgeText}>LOCKED TO DTR</Text>
+                  </View>
                 </View>
-
-                <View style={[styles.formField, { flex: 1 }]}>
-                  <Text style={styles.fieldLabel}>Hours Logged</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={hoursRendered}
-                    onChangeText={setHoursRendered}
-                    keyboardType="numeric"
-                    placeholder="8"
-                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
-                  />
+                <View style={styles.readOnlyInputBox}>
+                  <Clock size={16} color="#80CBC4" />
+                  <Text style={styles.readOnlyInputText}>
+                    {hoursRendered ? `${parseFloat(hoursRendered).toFixed(2)} hrs` : '0.00 hrs'}
+                  </Text>
+                  <Text style={styles.readOnlyInputSubtext}>
+                    Auto-credited from official DTR time-in/out
+                  </Text>
                 </View>
               </View>
 
@@ -914,5 +909,45 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: '#10B981',
     fontWeight: '800'
+  },
+  lockedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(128, 203, 196, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 203, 196, 0.3)',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2
+  },
+  lockedBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#80CBC4',
+    letterSpacing: 0.5
+  },
+  readOnlyInputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)'
+  },
+  readOnlyInputText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF'
+  },
+  readOnlyInputSubtext: {
+    fontSize: 10,
+    color: '#80CBC4',
+    fontStyle: 'italic',
+    flex: 1,
+    textAlign: 'right'
   }
 });
