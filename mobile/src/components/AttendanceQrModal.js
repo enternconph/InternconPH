@@ -13,7 +13,8 @@ import {
   Platform,
   Linking,
   KeyboardAvoidingView,
-  ScrollView
+  ScrollView,
+  useWindowDimensions
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Geolocation from '@react-native-community/geolocation';
@@ -48,6 +49,10 @@ const ROTATION_INTERVAL = TOTP_STEP_SECONDS; // 30-second TOTP rotation
 const DEVICE_STORAGE_KEY = '@internconph_attendance_device_token';
 
 export default function AttendanceQrModal({ visible, onClose }) {
+  const { width: winWidth, height: winHeight } = useWindowDimensions();
+  const cardWidth = Math.min(Math.max(winWidth - 28, 290), 392);
+  const qrSize = winHeight < 700 ? 176 : Math.min(204, cardWidth - 108);
+
   const [loading, setLoading] = useState(true);
   const [qrSecret, setQrSecret] = useState(null);
   const [studentId, setStudentId] = useState(null);
@@ -766,35 +771,50 @@ export default function AttendanceQrModal({ visible, onClose }) {
         )
       : null;
 
+  const allowedRadiusMeters = workplaceGeofence?.radius_meters || 100;
+  const isInsideWorkplace =
+    liveDistanceMeters !== null ? liveDistanceMeters <= allowedRadiusMeters : true;
+
   return (
     <Modal
       visible={visible}
       animationType="fade"
       transparent={true}
+      statusBarTranslucent={true}
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.modalOverlay}
       >
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, { width: cardWidth, maxHeight: Math.round(winHeight * 0.9) }]}>
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <View style={styles.iconCircle}>
-                <Sparkles size={20} color={colors.primary} />
+                <Sparkles size={19} color={colors.primary} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.headerTitle} numberOfLines={1}>
-                  Dynamic Attendance QR
-                </Text>
-                <Text style={styles.headerSubtitle} numberOfLines={1}>
-                  30s Rolling TOTP • Device-Bound
-                </Text>
+              <View style={styles.headerTextCol}>
+                <View style={styles.headerTitleRow}>
+                  <Text style={styles.headerTitle} numberOfLines={1}>
+                    Dynamic Attendance QR
+                  </Text>
+                </View>
+                <View style={styles.headerSubRow}>
+                  <View
+                    style={[
+                      styles.modeStatusDot,
+                      { backgroundColor: isOffline ? '#FFB433' : '#10B981' }
+                    ]}
+                  />
+                  <Text style={styles.headerSubtitle} numberOfLines={1}>
+                    {isOffline ? 'Offline Vault • 30s TOTP' : 'Online GPS • 30s Rolling TOTP'}
+                  </Text>
+                </View>
               </View>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-              <X size={20} color={colors.textSecondary} />
+              <X size={19} color="#E2E8F0" />
             </TouchableOpacity>
           </View>
 
@@ -954,7 +974,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
             </ScrollView>
           ) : errorMessage ? (
             <View style={styles.errorContainer}>
-              <ShieldAlert size={48} color={colors.danger} />
+              <ShieldAlert size={44} color={colors.danger} />
               <Text style={styles.errorTitle}>Attendance Security Notice</Text>
               <Text style={styles.errorDesc}>{errorMessage}</Text>
               <TouchableOpacity onPress={onClose} style={styles.retryBtn}>
@@ -962,7 +982,11 @@ export default function AttendanceQrModal({ visible, onClose }) {
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.body}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              contentContainerStyle={styles.bodyScrollContent}
+            >
               {/* Real-time Scan Confirmation Notice */}
               {scanNotice && (
                 <View
@@ -972,7 +996,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
                   ]}
                 >
                   <View style={styles.scanNoticeRow}>
-                    <CheckCircle2 size={20} color="#ffffff" />
+                    <CheckCircle2 size={19} color="#ffffff" />
                     <View style={styles.scanNoticeTextGroup}>
                       <Text style={styles.scanNoticeTitle}>{scanNotice.title}</Text>
                       <Text style={styles.scanNoticeMessage}>{scanNotice.message}</Text>
@@ -988,14 +1012,17 @@ export default function AttendanceQrModal({ visible, onClose }) {
               <View style={styles.shiftStatusContainer}>
                 {todayLog?.time_out ? (
                   <View style={[styles.shiftStatusCard, styles.shiftCardSuccess]}>
-                    <CheckCircle2 size={16} color="#059669" />
+                    <CheckCircle2 size={17} color="#34D399" />
                     <View style={styles.shiftStatusTexts}>
                       <Text style={[styles.shiftStatusLabel, styles.textSuccess]}>
-                        TODAY'S SHIFT COMPLETED
+                        TODAY&apos;S SHIFT COMPLETED
                       </Text>
-                      <Text style={styles.shiftStatusDesc}>
-                        In: {formatTime12(todayLog.time_in)} • Out: {formatTime12(todayLog.time_out)} ({todayLog.hours_rendered || 0} hrs credited)
+                      <Text style={styles.shiftStatusDesc} numberOfLines={2}>
+                        In: {formatTime12(todayLog.time_in)} • Out: {formatTime12(todayLog.time_out)}
                       </Text>
+                    </View>
+                    <View style={[styles.shiftActionPill, { backgroundColor: '#059669' }]}>
+                      <Text style={styles.shiftActionPillText}>{todayLog.hours_rendered || 0} hrs</Text>
                     </View>
                   </View>
                 ) : todayLog?.time_in ? (
@@ -1003,113 +1030,56 @@ export default function AttendanceQrModal({ visible, onClose }) {
                     <View style={styles.livePulseDot} />
                     <View style={styles.shiftStatusTexts}>
                       <Text style={[styles.shiftStatusLabel, styles.textSuccess]}>
-                        CURRENTLY TIMED-IN (ON DUTY)
+                        TIMED-IN • ACTIVE SHIFT
                       </Text>
-                      <Text style={styles.shiftStatusDesc}>
-                        Clocked in at {formatTime12(todayLog.time_in)} ({todayLog.time_in_status === 'late' ? 'Late' : 'On-Time'}) • Scan to Clock-Out
+                      <Text style={styles.shiftStatusDesc} numberOfLines={2}>
+                        In at {formatTime12(todayLog.time_in)} ({todayLog.time_in_status === 'late' ? 'Late' : 'On-Time'})
                       </Text>
+                    </View>
+                    <View style={[styles.shiftActionPill, { backgroundColor: '#FFB433' }]}>
+                      <Text style={[styles.shiftActionPillText, { color: '#193631' }]}>SCAN OUT</Text>
                     </View>
                   </View>
                 ) : (
                   <View style={[styles.shiftStatusCard, styles.shiftCardAwaiting]}>
-                    <Clock size={16} color="#d97706" />
+                    <Clock size={16} color="#FFB433" />
                     <View style={styles.shiftStatusTexts}>
                       <Text style={[styles.shiftStatusLabel, styles.textWarning]}>AWAITING TIME-IN</Text>
-                      <Text style={styles.shiftStatusDesc}>
-                        Present this dynamic QR to HR scanner at premises to Clock-In
+                      <Text style={styles.shiftStatusDesc} numberOfLines={2}>
+                        Present this live QR code to the HR desk scanner
                       </Text>
+                    </View>
+                    <View style={[styles.shiftActionPill, { backgroundColor: '#10B981' }]}>
+                      <Text style={styles.shiftActionPillText}>SCAN IN</Text>
                     </View>
                   </View>
                 )}
               </View>
 
-              {/* Security & Geofence Banner */}
-              <View style={[styles.securityBanner, isOffline && styles.offlineBanner]}>
-                <Lock size={14} color={isOffline ? colors.warningText : colors.infoText} />
-                <Text style={[styles.securityBannerText, isOffline && styles.offlineBannerText]}>
-                  {isOffline
-                    ? 'Offline Mode • Device-Bound Secret Active'
-                    : liveDistanceMeters !== null
-                    ? liveDistanceMeters <= (workplaceGeofence?.radius_meters || 100)
-                      ? `Online GPS • Within workplace (${Math.round(liveDistanceMeters)}m / ${workplaceGeofence?.radius_meters || 100}m)`
-                      : `Online GPS • Outside workplace (${Math.round(liveDistanceMeters)}m away; max ${workplaceGeofence?.radius_meters || 100}m)`
-                    : 'Online Synced • 30s Rolling TOTP + Single-Use Nonce'}
-                </Text>
-              </View>
-
-              {gpsErrorStatus === 'permission_denied' && (
-                <TouchableOpacity
-                  onPress={() => Linking.openSettings()}
-                  style={{
-                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                    borderWidth: 1,
-                    borderColor: '#ef4444',
-                    borderRadius: 12,
-                    padding: 10,
-                    marginBottom: 12,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8
-                  }}
-                >
-                  <ShieldAlert size={18} color="#ef4444" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 12 }}>
-                      Location Permission Denied
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
-                      Tap here to open Settings and allow "Precise Location".
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-
-              {gpsErrorStatus === 'provider_disabled' && (
-                <View
-                  style={{
-                    backgroundColor: 'rgba(217, 119, 6, 0.15)',
-                    borderWidth: 1,
-                    borderColor: '#d97706',
-                    borderRadius: 12,
-                    padding: 10,
-                    marginBottom: 12,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8
-                  }}
-                >
-                  <MapPin size={18} color="#d97706" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: '#d97706', fontWeight: 'bold', fontSize: 12 }}>
-                      Phone Location (GPS) is Switched OFF
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
-                      Please swipe down Android Quick Settings and turn ON Location.
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* QR Container Clean (Watermark outside QR matrix) */}
-              <View style={styles.qrWrapper}>
-                <View style={styles.qrHeaderBar}>
-                  <Text style={styles.qrHeaderBarText}>
-                    INTERN #{studentId} • {isOffline ? 'OFFLINE' : 'ONLINE GPS'}
+              {/* Unified High-Contrast QR Security Pass Ticket */}
+              <View style={styles.qrTicketCard}>
+                {/* Ticket Top Metadata Strip */}
+                <View style={styles.qrTicketHeader}>
+                  <Text style={styles.qrTicketIdText} numberOfLines={1}>
+                    {studentName ? `${studentName.toUpperCase()} • #${studentId}` : `INTERN #${studentId || '---'}`}
                   </Text>
-                  <Text style={styles.qrHeaderBarPst}>
+                  <Text style={styles.qrTicketPstText} numberOfLines={1}>
                     {watermarkPst || 'PST UTC+8'}
                   </Text>
                 </View>
 
-                <View style={styles.qrBox}>
+                {/* Ticket QR Matrix Area */}
+                <View style={[styles.qrMatrixBody, { minHeight: qrSize + 28 }]}>
                   {!isOffline && !gpsCoords ? (
-                    <View style={styles.gpsLockingBox}>
+                    <View style={[styles.gpsLockingBox, { minHeight: qrSize }]}>
                       {gpsErrorStatus === 'provider_disabled' ? (
                         <>
-                          <MapPin size={32} color="#d97706" />
+                          <View style={[styles.gpsStateIconCircle, { backgroundColor: '#FEF3C7' }]}>
+                            <MapPin size={26} color="#D97706" />
+                          </View>
                           <Text style={styles.gpsLockingTitle}>Location Switched OFF</Text>
                           <Text style={styles.gpsLockingSubtitle}>
-                            Turn ON Location in Android Quick Settings to generate your workplace attendance QR.
+                            Turn ON Phone Location in Quick Settings to generate your attendance QR.
                           </Text>
                           <TouchableOpacity
                             onPress={() => {
@@ -1122,65 +1092,95 @@ export default function AttendanceQrModal({ visible, onClose }) {
                               }
                             }}
                             style={styles.gpsOpenSettingsBtn}
-                            activeOpacity={0.8}
+                            activeOpacity={0.85}
                           >
                             <Text style={styles.gpsOpenSettingsBtnText}>Turn ON Location</Text>
                           </TouchableOpacity>
                         </>
                       ) : gpsErrorStatus === 'permission_denied' ? (
                         <>
-                          <ShieldAlert size={32} color="#ef4444" />
-                          <Text style={styles.gpsLockingTitle}>Permission Required</Text>
+                          <View style={[styles.gpsStateIconCircle, { backgroundColor: '#FEE2E2' }]}>
+                            <ShieldAlert size={26} color="#DC2626" />
+                          </View>
+                          <Text style={styles.gpsLockingTitle}>Location Permission Required</Text>
                           <Text style={styles.gpsLockingSubtitle}>
-                            Precise Location is required to verify your physical presence inside the workplace geofence.
+                            Allow Precise Location so your QR can verify workplace geofence presence.
                           </Text>
                           <TouchableOpacity
                             onPress={() => Linking.openSettings()}
                             style={styles.gpsOpenSettingsBtn}
-                            activeOpacity={0.8}
+                            activeOpacity={0.85}
                           >
                             <Text style={styles.gpsOpenSettingsBtnText}>Open App Settings</Text>
                           </TouchableOpacity>
                         </>
                       ) : (
                         <>
-                          <ActivityIndicator size="large" color={colors.primary} />
+                          <ActivityIndicator size="large" color="#D97706" />
                           <Text style={styles.gpsLockingTitle}>Locking Workplace GPS...</Text>
                           <Text style={styles.gpsLockingSubtitle}>
-                            Connecting to Google Fused Location & Satellites. Dynamic QR will automatically display once locked.
+                            Acquiring Google Fused Location & satellite coordinates. Your QR will appear automatically.
                           </Text>
                         </>
                       )}
                     </View>
                   ) : qrPayload ? (
-                    <View style={{ alignItems: 'center' }}>
+                    <View style={styles.qrMatrixCenter}>
                       <QRCode
                         value={qrPayload}
-                        size={200}
-                        color="#000000"
-                        backgroundColor="#ffffff"
+                        size={qrSize}
+                        color="#0F172A"
+                        backgroundColor="#FFFFFF"
                       />
-                      {gpsCoords && (
-                        <View style={styles.gpsLockedPill}>
-                          <CheckCircle2 size={12} color="#059669" />
-                          <Text style={styles.gpsLockedPillText}>
-                            GPS Locked • ±{gpsCoords.acc || 0}m precision
-                          </Text>
-                        </View>
-                      )}
                     </View>
                   ) : (
-                    <ActivityIndicator size="small" color={colors.primary} />
+                    <View style={[styles.gpsLockingBox, { minHeight: qrSize }]}>
+                      <ActivityIndicator size="large" color="#D97706" />
+                      <Text style={styles.gpsLockingTitle}>Generating Dynamic QR...</Text>
+                    </View>
                   )}
                 </View>
 
-                <View style={styles.timerRow}>
-                  <RotateCw size={14} color={colors.primary} />
-                  <Text style={styles.timerText}>
-                    Refreshes in <Text style={styles.timerCountdown}>{secondsRemaining}s</Text>
-                  </Text>
+                {/* Ticket Footer Bar (GPS Precision + Countdown) */}
+                <View style={styles.qrTicketFooter}>
+                  <View
+                    style={[
+                      styles.gpsLockedPill,
+                      isOffline
+                        ? styles.gpsPillOffline
+                        : gpsCoords
+                        ? styles.gpsPillReady
+                        : styles.gpsPillAcquiring
+                    ]}
+                  >
+                    <CheckCircle2
+                      size={12}
+                      color={isOffline ? '#B45309' : gpsCoords ? '#047857' : '#64748B'}
+                    />
+                    <Text
+                      style={[
+                        styles.gpsLockedPillText,
+                        { color: isOffline ? '#B45309' : gpsCoords ? '#047857' : '#475569' }
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {isOffline
+                        ? 'Offline Vault'
+                        : gpsCoords
+                        ? `GPS ±${gpsCoords.acc || 0}m`
+                        : 'Acquiring GPS'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.timerInlinePill}>
+                    <RotateCw size={12} color="#B45309" />
+                    <Text style={styles.timerInlineText}>
+                      Rotates in <Text style={styles.timerInlineCount}>{secondsRemaining}s</Text>
+                    </Text>
+                  </View>
                 </View>
 
+                {/* Edge-to-Edge Animated Progress Track */}
                 <View style={styles.progressBarTrack}>
                   <Animated.View
                     style={[
@@ -1196,12 +1196,71 @@ export default function AttendanceQrModal({ visible, onClose }) {
                 </View>
               </View>
 
-              {/* Student and Device Security Badges */}
+              {/* Geofence & Hardware Security Telemetry Card */}
               <View style={styles.badgeCard}>
+                {/* Geofence / Security Row */}
+                <View style={styles.badgeRow}>
+                  <View style={styles.badgeLeftShrink}>
+                    <View style={styles.badgeIconBox}>
+                      {isOffline ? (
+                        <Lock size={14} color="#FFB433" />
+                      ) : (
+                        <MapPin
+                          size={14}
+                          color={
+                            gpsErrorStatus || !isInsideWorkplace ? '#F87171' : '#34D399'
+                          }
+                        />
+                      )}
+                    </View>
+                    <Text style={styles.badgeLabel}>
+                      {isOffline ? 'Offline Sync' : 'Geofence'}
+                    </Text>
+                  </View>
+
+                  <Text
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    style={[
+                      styles.badgeValueFlex,
+                      gpsErrorStatus || !isInsideWorkplace
+                        ? { color: '#FCA5A5' }
+                        : gpsCoords
+                        ? { color: '#6EE7B7' }
+                        : { color: colors.textSecondary }
+                    ]}
+                    onPress={() => {
+                      if (gpsErrorStatus === 'permission_denied') Linking.openSettings();
+                      else if (gpsErrorStatus === 'provider_disabled' && Platform.OS === 'android') {
+                        Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS').catch(() =>
+                          Linking.openSettings()
+                        );
+                      }
+                    }}
+                  >
+                    {gpsErrorStatus === 'permission_denied'
+                      ? 'Permission Denied • Tap'
+                      : gpsErrorStatus === 'provider_disabled'
+                      ? 'GPS OFF • Tap to Enable'
+                      : isOffline
+                      ? 'Signed • Queues at HR Desk'
+                      : liveDistanceMeters !== null
+                      ? isInsideWorkplace
+                        ? `Within Radius (${Math.round(liveDistanceMeters)}m / ${allowedRadiusMeters}m)`
+                        : `Outside (${Math.round(liveDistanceMeters)}m > ${allowedRadiusMeters}m)`
+                      : gpsCoords
+                      ? `Locked (±${gpsCoords.acc || 0}m)`
+                      : 'Locking Satellites...'}
+                  </Text>
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* Hardware Lock + Re-bind Row */}
                 <View style={styles.badgeRow}>
                   <View style={styles.badgeLeftFlex}>
                     <View style={styles.badgeIconBox}>
-                      <Smartphone size={15} color="#80CBC4" />
+                      <Smartphone size={14} color="#80CBC4" />
                     </View>
                     <View style={styles.badgeTextCol}>
                       <View style={styles.badgeTitleInline}>
@@ -1216,7 +1275,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
                         </View>
                       </View>
                       <Text style={styles.badgeSublabel} numberOfLines={1}>
-                        Single-device TOTP keypair
+                        Single-use nonce • Device TOTP key
                       </Text>
                     </View>
                   </View>
@@ -1230,54 +1289,8 @@ export default function AttendanceQrModal({ visible, onClose }) {
                     <Text style={styles.rebindBtnText}>Re-bind OTP</Text>
                   </TouchableOpacity>
                 </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.badgeRow}>
-                  <View style={styles.badgeLeftShrink}>
-                    <View style={styles.badgeIconBox}>
-                      <MapPin size={15} color="#80CBC4" />
-                    </View>
-                    <Text style={styles.badgeLabel}>GPS Status</Text>
-                  </View>
-                  <Text
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                    style={[
-                      styles.badgeValueFlex,
-                      gpsErrorStatus
-                        ? { color: '#ef4444', textDecorationLine: 'underline' }
-                        : gpsCoords &&
-                          (gpsCoords.acc > 50 || Math.floor(Date.now() / 1000) - gpsCoords.ts > 30)
-                        ? { color: '#d97706' }
-                        : { color: gpsCoords ? '#34d399' : colors.textSecondary }
-                    ]}
-                    onPress={() => {
-                      if (gpsErrorStatus === 'permission_denied') Linking.openSettings();
-                      else if (gpsErrorStatus === 'provider_disabled' && Platform.OS === 'android') {
-                        Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS').catch(() =>
-                          Linking.openSettings()
-                        );
-                      }
-                    }}
-                  >
-                    {gpsErrorStatus === 'permission_denied'
-                      ? 'Permission Denied • Tap'
-                      : gpsErrorStatus === 'provider_disabled'
-                      ? 'GPS is OFF • Tap to Enable'
-                      : gpsCoords
-                      ? Math.floor(Date.now() / 1000) - gpsCoords.ts > 30
-                        ? `Refreshing (${Math.floor(Date.now() / 1000) - gpsCoords.ts}s)...`
-                        : gpsCoords.acc > 50
-                        ? `Weak ±${gpsCoords.acc}m`
-                        : `Locked ±${gpsCoords.acc}m`
-                      : isOffline
-                      ? 'Offline Vault'
-                      : 'Acquiring GPS...'}
-                  </Text>
-                </View>
               </View>
-            </View>
+            </ScrollView>
           )}
         </View>
       </KeyboardAvoidingView>
@@ -1288,74 +1301,105 @@ export default function AttendanceQrModal({ visible, onClose }) {
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(6, 15, 13, 0.84)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 18
+    paddingHorizontal: 14,
+    paddingVertical: 16
   },
   modalCard: {
-    width: '100%',
-    maxWidth: 380,
-    maxHeight: '92%',
     backgroundColor: '#122824',
-    borderRadius: 28,
-    padding: 18,
+    borderRadius: 26,
+    paddingHorizontal: 16,
+    paddingTop: 15,
+    paddingBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.45,
     shadowRadius: 24,
-    elevation: 12,
+    elevation: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)'
+    borderColor: 'rgba(255, 255, 255, 0.14)',
+    overflow: 'hidden'
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: 14,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)'
   },
   headerLeft: {
     flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     marginRight: 8
   },
   iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.primaryBorder
+    borderColor: colors.primaryBorder,
+    flexShrink: 0
+  },
+  headerTextCol: {
+    flex: 1,
+    minWidth: 0
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 15.5,
     fontWeight: '800',
-    color: '#FFFFFF'
+    color: '#FFFFFF',
+    letterSpacing: -0.2
+  },
+  headerSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2
+  },
+  modeStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3
   },
   headerSubtitle: {
     fontSize: 11,
     color: '#80CBC4',
-    fontWeight: '600'
+    fontWeight: '600',
+    flexShrink: 1
   },
   closeBtn: {
-    padding: 6,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)'
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0
   },
   loadingContainer: {
-    paddingVertical: 60,
+    paddingVertical: 56,
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 14
   },
   loadingText: {
     fontSize: 13,
-    color: colors.textSecondary
+    color: colors.textSecondary,
+    fontWeight: '600'
   },
   otpContainer: {
     paddingTop: 14,
@@ -1564,137 +1608,155 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     textAlign: 'center',
-    paddingHorizontal: 16
+    paddingHorizontal: 16,
+    lineHeight: 18
   },
   retryBtn: {
     marginTop: 10,
     paddingHorizontal: 24,
     paddingVertical: 10,
     backgroundColor: colors.surfaceLow,
-    borderRadius: 12
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)'
   },
   retryBtnText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.text
   },
-  body: {
-    paddingTop: 14,
+  bodyScrollContent: {
+    paddingTop: 12,
+    paddingBottom: 2,
     alignItems: 'center',
     width: '100%'
   },
-  securityBanner: {
+  qrTicketCard: {
     width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.infoBg,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.infoBorder,
-    marginBottom: 14
-  },
-  securityBannerText: {
-    flex: 1,
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.infoText
-  },
-  offlineBanner: {
-    backgroundColor: colors.warningBg,
-    borderColor: colors.warningBorder
-  },
-  offlineBannerText: {
-    color: colors.warningText
-  },
-  qrWrapper: {
-    alignItems: 'center',
-    width: '100%'
-  },
-  qrBox: {
-    padding: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    position: 'relative',
     overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center'
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6
   },
-  qrHeaderBar: {
+  qrTicketHeader: {
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
-    paddingHorizontal: 4
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0'
   },
-  qrHeaderBarText: {
+  qrTicketIdText: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 10,
     fontWeight: '800',
-    color: '#64748b',
-    letterSpacing: 0.5
+    color: '#334155',
+    letterSpacing: 0.4
   },
-  qrHeaderBarPst: {
+  qrTicketPstText: {
+    flexShrink: 0,
     fontSize: 10,
-    fontWeight: '700',
-    color: colors.primary,
+    fontWeight: '800',
+    color: '#B45309',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace'
   },
-  watermarkOverlay: {
-    position: 'absolute',
+  qrMatrixBody: {
+    width: '100%',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
-    justifyContent: 'center',
-    opacity: 0.16
+    justifyContent: 'center'
   },
-  watermarkText: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#0f172a',
-    letterSpacing: 2
+  qrMatrixCenter: {
+    padding: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  watermarkSubtext: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#0f172a',
-    letterSpacing: 1
-  },
-  timerRow: {
+  qrTicketFooter: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 12
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#F8FAFC',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0'
   },
-  timerText: {
-    fontSize: 12,
-    color: colors.textSecondary
+  gpsLockedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderWidth: 1,
+    flexShrink: 1
   },
-  timerCountdown: {
-    fontWeight: '800',
-    color: colors.primary
+  gpsPillReady: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0'
+  },
+  gpsPillOffline: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A'
+  },
+  gpsPillAcquiring: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#CBD5E1'
+  },
+  gpsLockedPillText: {
+    fontSize: 10,
+    fontWeight: '800'
+  },
+  timerInlinePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flexShrink: 0
+  },
+  timerInlineText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569'
+  },
+  timerInlineCount: {
+    fontWeight: '900',
+    color: '#B45309',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace'
   },
   progressBarTrack: {
-    width: '75%',
+    width: '100%',
     height: 4,
-    backgroundColor: colors.surfaceLow,
-    borderRadius: 2,
-    marginTop: 7,
+    backgroundColor: '#E2E8F0',
     overflow: 'hidden'
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: colors.primary
+    backgroundColor: '#F59E0B'
   },
   badgeCard: {
     width: '100%',
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 16,
-    paddingVertical: 11,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    marginTop: 14,
+    marginTop: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
     overflow: 'hidden'
@@ -1716,7 +1778,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9
+    gap: 8
   },
   badgeIconBox: {
     width: 28,
@@ -1743,7 +1805,7 @@ const styles = StyleSheet.create({
   },
   badgeSublabel: {
     fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.55)',
+    color: 'rgba(255, 255, 255, 0.58)',
     marginTop: 1
   },
   boundChip: {
@@ -1760,7 +1822,7 @@ const styles = StyleSheet.create({
   boundChipText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#34d399'
+    color: '#34D399'
   },
   rebindBtn: {
     flexShrink: 0,
@@ -1784,31 +1846,31 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontSize: 11,
     color: colors.textSecondary,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'right'
   },
   statusDot: {
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: '#10b981'
+    backgroundColor: '#10B981'
   },
   divider: {
     height: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    marginVertical: 9
+    marginVertical: 8
   },
   scanNoticeCard: {
     width: '100%',
-    padding: 12,
+    padding: 11,
     borderRadius: 14,
-    marginBottom: 12
+    marginBottom: 10
   },
   scanNoticeSuccess: {
     backgroundColor: '#059669'
   },
   scanNoticeError: {
-    backgroundColor: '#dc2626'
+    backgroundColor: '#DC2626'
   },
   scanNoticeRow: {
     flexDirection: 'row',
@@ -1821,8 +1883,8 @@ const styles = StyleSheet.create({
   scanNoticeTitle: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#ffffff',
-    letterSpacing: 0.5
+    color: '#FFFFFF',
+    letterSpacing: 0.4
   },
   scanNoticeMessage: {
     fontSize: 11,
@@ -1834,102 +1896,108 @@ const styles = StyleSheet.create({
   },
   shiftStatusContainer: {
     width: '100%',
-    marginBottom: 12
+    marginBottom: 10
   },
   shiftStatusCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    padding: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 11,
     borderRadius: 14,
     borderWidth: 1
   },
   shiftCardSuccess: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderColor: 'rgba(16, 185, 129, 0.25)'
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderColor: 'rgba(16, 185, 129, 0.28)'
   },
   shiftCardActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderColor: 'rgba(16, 185, 129, 0.35)'
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.36)'
   },
   shiftCardAwaiting: {
-    backgroundColor: 'rgba(245, 158, 11, 0.08)',
-    borderColor: 'rgba(245, 158, 11, 0.25)'
+    backgroundColor: 'rgba(255, 180, 51, 0.1)',
+    borderColor: 'rgba(255, 180, 51, 0.28)'
   },
   livePulseDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#10b981'
+    backgroundColor: '#10B981'
   },
   shiftStatusTexts: {
-    flex: 1
+    flex: 1,
+    minWidth: 0
   },
   shiftStatusLabel: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '900',
     letterSpacing: 0.5
   },
   textSuccess: {
-    color: '#10b981'
+    color: '#34D399'
   },
   textWarning: {
-    color: '#f59e0b'
+    color: '#FFB433'
   },
   shiftStatusDesc: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 1
+  },
+  shiftActionPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    flexShrink: 0
+  },
+  shiftActionPillText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.4
   },
   gpsLockingBox: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 14,
-    width: 210,
-    minHeight: 200
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    width: '100%'
+  },
+  gpsStateIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2
   },
   gpsLockingTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
-    color: colors.text,
+    color: '#0F172A',
     marginTop: 10,
     textAlign: 'center'
   },
   gpsLockingSubtitle: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 4,
+    fontSize: 11.5,
+    color: '#475569',
+    marginTop: 5,
     textAlign: 'center',
-    lineHeight: 15
+    lineHeight: 16,
+    maxWidth: 250
   },
   gpsOpenSettingsBtn: {
     marginTop: 12,
-    backgroundColor: colors.primary,
+    backgroundColor: '#FFB433',
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8
+    paddingHorizontal: 16,
+    paddingVertical: 9
   },
   gpsOpenSettingsBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 11.5,
+    fontWeight: '900',
     color: '#193631'
-  },
-  gpsLockedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(5, 150, 105, 0.15)',
-    borderWidth: 1,
-    borderColor: '#059669',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    marginTop: 8
-  },
-  gpsLockedPillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#059669'
   }
 });

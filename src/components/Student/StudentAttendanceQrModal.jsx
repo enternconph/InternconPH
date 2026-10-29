@@ -349,10 +349,10 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
         location: locationObj
       });
       await QRCode.toCanvas(canvasRef.current, payload, {
-        width: 260,
-        margin: 4,
+        width: 224,
+        margin: 2,
         color: {
-          dark: '#000000',
+          dark: '#0f172a',
           light: '#ffffff'
         },
         errorCorrectionLevel: 'M'
@@ -368,7 +368,10 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
 
   // Live timer tick: updates countdown, live millisecond watermark, and regenerates QR on 30s step or fresh GPS lock
   useEffect(() => {
-    if (!isOpen || !credentials || isShielded) return;
+    if (!isOpen || loading || !credentials || isShielded) return;
+
+    // Force immediate render when canvas mounts after loading finishes
+    lastGeneratedStepRef.current = 0;
 
     const currentMode = !isOnline || isOfflineVaultMode ? 'offline' : 'online';
 
@@ -414,7 +417,7 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isOpen, credentials, isShielded, isOnline, isOfflineVaultMode, renderQr]);
+  }, [isOpen, loading, credentials, isShielded, isOnline, isOfflineVaultMode, renderQr]);
 
   // Step 1 of Device Re-binding: Request 6-digit OTP to Student's Gmail
   const handleRequestDeviceOtp = async (rotateKey = false) => {
@@ -533,41 +536,40 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
     liveDistanceMeters !== null ? liveDistanceMeters <= allowedRadiusMeters : true;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in select-none overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-fade-in select-none">
       <div
-        className="bg-surface rounded-3xl border border-outline-variant shadow-2xl max-w-md w-full overflow-hidden flex flex-col relative my-auto"
+        className="bg-surface rounded-3xl border border-outline-variant shadow-2xl max-w-[420px] w-full max-h-[92dvh] overflow-hidden flex flex-col relative"
         onContextMenu={(e) => e.preventDefault()}
       >
-        {/* Header */}
-        <div className="p-5 pb-4 bg-gradient-to-b from-vibrant-orange/10 to-transparent border-b border-outline-variant flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-vibrant-orange text-white flex items-center justify-center shadow-md">
-              <span className="material-symbols-outlined text-[24px]">qr_code_scanner</span>
+        {/* Pinned Header */}
+        <div className="shrink-0 px-4 sm:px-5 py-3.5 bg-gradient-to-b from-vibrant-orange/10 to-transparent border-b border-outline-variant flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="w-10 h-10 rounded-2xl bg-vibrant-orange text-white flex items-center justify-center shadow-md shrink-0">
+              <span className="material-symbols-outlined text-[22px]">qr_code_scanner</span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-base text-on-surface flex items-center gap-1.5">
-                  <span>Dynamic Attendance QR</span>
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      !isOnline || isOfflineVaultMode
-                        ? 'bg-amber-500 animate-pulse'
-                        : 'bg-emerald-500 animate-pulse'
-                    }`}
-                    title={!isOnline || isOfflineVaultMode ? 'Offline Mode Active' : 'Live Online Mode'}
-                  />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="font-extrabold text-sm sm:text-base text-on-surface truncate">
+                  Dynamic Attendance QR
                 </h3>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0 ${
                     !isOnline || isOfflineVaultMode
                       ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40'
                       : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
                   }`}
                 >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      !isOnline || isOfflineVaultMode
+                        ? 'bg-amber-500 animate-pulse'
+                        : 'bg-emerald-500 animate-pulse'
+                    }`}
+                  />
                   {!isOnline || isOfflineVaultMode ? 'Offline Vault' : 'Online GPS'}
                 </span>
               </div>
-              <p className="text-xs text-on-surface-variant">
+              <p className="text-[11px] text-on-surface-variant truncate mt-0.5">
                 ECDSA P-256 Hardware-Signed • 30s TOTP
               </p>
             </div>
@@ -575,39 +577,39 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors shrink-0 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[20px]">close</span>
+            <span className="material-symbols-outlined text-[19px]">close</span>
           </button>
         </div>
 
-        {/* Content Body */}
-        <div className="p-5 sm:p-6 flex flex-col items-center text-center space-y-3.5">
+        {/* Scrollable Content Body */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4 flex flex-col items-center text-center space-y-3">
           {/* Real-time Scan Confirmation Toast / Live Alert */}
           {liveAlert && (
             <div
-              className={`w-full p-3.5 rounded-2xl text-white shadow-xl animate-fade-in flex items-start justify-between gap-3 text-left ${
+              className={`w-full p-3 rounded-2xl text-white shadow-lg animate-fade-in flex items-start justify-between gap-2.5 text-left ${
                 liveAlert.type === 'success'
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 border border-emerald-400'
                   : 'bg-gradient-to-r from-red-600 to-rose-600 border border-red-400'
               }`}
             >
-              <div className="flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-[24px] shrink-0 mt-0.5">
+              <div className="flex items-start gap-2 min-w-0">
+                <span className="material-symbols-outlined text-[22px] shrink-0 mt-0.5">
                   {liveAlert.type === 'success' ? 'check_circle' : 'error'}
                 </span>
-                <div className="space-y-0.5">
-                  <h4 className="font-black text-xs sm:text-sm">{liveAlert.title}</h4>
-                  <p className="text-[11px] text-white/95 leading-relaxed">{liveAlert.message}</p>
+                <div className="space-y-0.5 min-w-0">
+                  <h4 className="font-black text-xs sm:text-sm truncate">{liveAlert.title}</h4>
+                  <p className="text-[11px] text-white/95 leading-snug">{liveAlert.message}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setLiveAlert(null)}
-                className="w-6 h-6 rounded-full bg-black/20 hover:bg-black/30 flex items-center justify-center shrink-0 text-white"
+                className="w-6 h-6 rounded-full bg-black/20 hover:bg-black/30 flex items-center justify-center shrink-0 text-white cursor-pointer"
                 title="Dismiss"
               >
-                <span className="material-symbols-outlined text-[16px]">close</span>
+                <span className="material-symbols-outlined text-[15px]">close</span>
               </button>
             </div>
           )}
@@ -616,54 +618,54 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
           {!deviceMismatchData && (
             <div className="w-full">
               {todayLog?.time_out ? (
-                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/40 rounded-2xl flex items-center justify-between text-left shadow-xs">
-                  <div className="flex items-center gap-2.5">
-                    <span className="material-symbols-outlined text-emerald-600 text-[24px]">verified</span>
-                    <div>
+                <div className="p-2.5 sm:p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/40 rounded-2xl flex items-center justify-between gap-2 text-left">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="material-symbols-outlined text-emerald-600 text-[22px] shrink-0">verified</span>
+                    <div className="min-w-0">
                       <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 block">
-                        Today's Shift: Completed
+                        Today&apos;s Shift: Completed
                       </span>
-                      <p className="text-xs font-bold text-emerald-950 dark:text-emerald-100">
+                      <p className="text-xs font-bold text-emerald-950 dark:text-emerald-100 truncate">
                         In: {formatPHT12Hour(todayLog.time_in)} • Out: {formatPHT12Hour(todayLog.time_out)}
                       </p>
                     </div>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black font-mono bg-emerald-600 text-white">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black font-mono bg-emerald-600 text-white shrink-0">
                     {todayLog.hours_rendered || 0} hrs
                   </span>
                 </div>
               ) : todayLog?.time_in ? (
-                <div className="p-3 bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-500/40 rounded-2xl flex items-center justify-between text-left shadow-xs">
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                    <div>
+                <div className="p-2.5 sm:p-3 bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-500/40 rounded-2xl flex items-center justify-between gap-2 text-left">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                    <div className="min-w-0">
                       <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 block">
                         Currently Timed-In (Active Shift)
                       </span>
-                      <p className="text-xs font-bold text-emerald-950 dark:text-emerald-100">
-                        Clocked in at {formatPHT12Hour(todayLog.time_in)} ({todayLog.time_in_status === 'late' ? 'Late' : 'On-Time'})
+                      <p className="text-xs font-bold text-emerald-950 dark:text-emerald-100 truncate">
+                        In at {formatPHT12Hour(todayLog.time_in)} ({todayLog.time_in_status === 'late' ? 'Late' : 'On-Time'})
                       </p>
                     </div>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-vibrant-orange text-white">
-                    Scan to Out
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-vibrant-orange text-white shrink-0">
+                    Scan Out
                   </span>
                 </div>
               ) : (
-                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-500/40 rounded-2xl flex items-center justify-between text-left shadow-xs">
-                  <div className="flex items-center gap-2.5">
-                    <span className="material-symbols-outlined text-amber-600 text-[22px]">schedule</span>
-                    <div>
+                <div className="p-2.5 sm:p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-500/40 rounded-2xl flex items-center justify-between gap-2 text-left">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="material-symbols-outlined text-amber-600 text-[20px] shrink-0">schedule</span>
+                    <div className="min-w-0">
                       <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300 block">
                         Awaiting Time-In
                       </span>
-                      <p className="text-xs font-bold text-amber-950 dark:text-amber-100">
-                        Present this live QR code at the HR desk to clock in
+                      <p className="text-xs font-bold text-amber-950 dark:text-amber-100 truncate">
+                        Present this live QR at the HR desk scanner
                       </p>
                     </div>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-600 text-white">
-                    Scan to In
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-600 text-white shrink-0">
+                    Scan In
                   </span>
                 </div>
               )}
@@ -672,7 +674,7 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
 
           {/* LOADING STATE */}
           {loading ? (
-            <div className="py-14 space-y-3">
+            <div className="py-12 space-y-3">
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-vibrant-orange border-t-transparent mx-auto"></div>
               <p className="text-xs font-bold text-on-surface-variant">
                 Verifying WebCrypto ECDSA P-256 hardware keypair...
@@ -680,13 +682,13 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
             </div>
           ) : deviceMismatchData ? (
             /* DEVICE MISMATCH -> 6-DIGIT GMAIL OTP RE-BINDING FLOW */
-            <div className="w-full p-4 bg-surface-container-low rounded-2xl border-2 border-amber-500/40 text-left space-y-4">
+            <div className="w-full p-4 bg-surface-container-low rounded-2xl border-2 border-amber-500/40 text-left space-y-3.5">
               <div className="flex items-start gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-[26px]">phonelink_lock</span>
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[24px]">phonelink_lock</span>
                 </div>
-                <div>
-                  <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-red-600 text-white">
+                <div className="min-w-0">
+                  <span className="inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-red-600 text-white">
                     Attendance Blocked • Unbound Device
                   </span>
                   <h4 className="font-bold text-sm text-on-surface mt-1">
@@ -694,7 +696,7 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                   </h4>
                   <p className="text-xs text-on-surface-variant leading-relaxed mt-0.5">
                     {deviceMismatchData.message ||
-                      'Your attendance account is currently locked to another phone. To bind this phone and unbind your previous device, verify with a 6-digit OTP sent to your Gmail.'}
+                      'Your attendance account is currently locked to another phone. Verify with a 6-digit OTP sent to your Gmail to bind this device.'}
                   </p>
                 </div>
               </div>
@@ -702,27 +704,27 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
               {/* Device Comparison Box */}
               <div className="p-3 bg-surface rounded-xl border border-outline-variant space-y-2 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-on-surface-variant font-medium">Registered Phone:</span>
-                  <span className="font-bold text-on-surface truncate max-w-[190px]">
+                  <span className="text-on-surface-variant font-medium shrink-0">Registered Phone:</span>
+                  <span className="font-bold text-on-surface truncate">
                     {deviceMismatchData.registered_device_name || 'Previous Android Device'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2 border-t border-outline-variant/60 pt-1.5">
-                  <span className="text-on-surface-variant font-medium">This Phone:</span>
-                  <span className="font-bold text-vibrant-orange truncate max-w-[190px]">
+                  <span className="text-on-surface-variant font-medium shrink-0">This Device:</span>
+                  <span className="font-bold text-vibrant-orange truncate">
                     {deviceMismatchData.current_device_name || getDeviceName()}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2 border-t border-outline-variant/60 pt-1.5">
-                  <span className="text-on-surface-variant font-medium">OTP Gmail Recipient:</span>
-                  <span className="font-mono font-bold text-on-surface">
-                    {deviceMismatchData.masked_email || 'denmarkcatolico2@gmail.com'}
+                  <span className="text-on-surface-variant font-medium shrink-0">OTP Recipient:</span>
+                  <span className="font-mono font-bold text-on-surface truncate">
+                    {deviceMismatchData.masked_email || 'Registered Gmail'}
                   </span>
                 </div>
               </div>
 
               {otpError && (
-                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-600 dark:text-red-300 font-semibold flex items-center gap-2">
+                <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-600 dark:text-red-300 font-semibold flex items-center gap-2">
                   <span className="material-symbols-outlined text-[18px] shrink-0">error</span>
                   <span>{otpError}</span>
                 </div>
@@ -736,11 +738,11 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                     onClick={() => handleRequestDeviceOtp(false)}
                     className="w-full py-2.5 px-4 bg-vibrant-orange hover:bg-deep-orange disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
                   >
-                    <span className="material-symbols-outlined text-[18px]">mail_lock</span>
-                    <span>
+                    <span className="material-symbols-outlined text-[18px] shrink-0">mail_lock</span>
+                    <span className="truncate">
                       {otpStep === 'sending'
-                        ? 'Sending 6-Digit OTP to denmarkcatolico2@gmail.com...'
-                        : `Send 6-Digit OTP to ${deviceMismatchData.masked_email || 'denmarkcatolico2@gmail.com'}`}
+                        ? 'Sending 6-Digit OTP...'
+                        : `Send 6-Digit OTP (${deviceMismatchData.masked_email || 'Gmail'})`}
                     </span>
                   </button>
                   {!isOnline && (
@@ -751,11 +753,11 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                 </div>
               ) : (
                 <form onSubmit={handleVerifyDeviceOtp} className="space-y-3">
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-800 dark:text-emerald-200 flex items-center justify-between">
-                    <span>
-                      OTP sent to <strong>{otpInfo?.masked_email || deviceMismatchData.masked_email || 'denmarkcatolico2@gmail.com'}</strong>
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-800 dark:text-emerald-200 flex items-center justify-between gap-2">
+                    <span className="truncate">
+                      OTP sent to <strong>{otpInfo?.masked_email || deviceMismatchData.masked_email || 'Gmail'}</strong>
                     </span>
-                    <span className="font-mono font-bold">
+                    <span className="font-mono font-bold shrink-0">
                       {Math.floor(otpCountdownSec / 60)}:
                       {String(otpCountdownSec % 60).padStart(2, '0')}
                     </span>
@@ -788,9 +790,9 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                       type="button"
                       disabled={otpStep === 'verifying'}
                       onClick={() => handleRequestDeviceOtp(false)}
-                      className="px-3 py-2.5 bg-surface hover:bg-surface-container-high border border-outline-variant rounded-xl text-xs font-bold text-on-surface transition-colors cursor-pointer"
+                      className="px-3 py-2.5 bg-surface hover:bg-surface-container-high border border-outline-variant rounded-xl text-xs font-bold text-on-surface transition-colors cursor-pointer shrink-0"
                     >
-                      Resend OTP
+                      Resend
                     </button>
                     <button
                       type="submit"
@@ -798,10 +800,10 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                       className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-[18px]">verified_user</span>
-                      <span>
+                      <span className="truncate">
                         {otpStep === 'verifying'
-                          ? 'Verifying & Binding...'
-                          : 'Verify OTP & Bind This Phone'}
+                          ? 'Verifying...'
+                          : 'Verify & Bind Device'}
                       </span>
                     </button>
                   </div>
@@ -815,7 +817,7 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
               <button
                 type="button"
                 onClick={fetchCredentials}
-                className="px-4 py-2 bg-vibrant-orange text-white rounded-xl text-xs font-bold shadow-md hover:bg-deep-orange"
+                className="px-4 py-2 bg-vibrant-orange text-white rounded-xl text-xs font-bold shadow-md hover:bg-deep-orange cursor-pointer"
               >
                 Retry Handshake
               </button>
@@ -826,16 +828,16 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
               <div className="w-full">
                 {!isOnline || isOfflineVaultMode ? (
                   <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-left flex items-center justify-between gap-2 text-[11px]">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[18px] text-amber-600">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="material-symbols-outlined text-[18px] text-amber-600 shrink-0">
                         wifi_off
                       </span>
-                      <div>
-                        <span className="font-bold text-amber-900 dark:text-amber-200 block">
+                      <div className="min-w-0">
+                        <span className="font-bold text-amber-900 dark:text-amber-200 block truncate">
                           Offline Mode • Device-Bound Secret Active
                         </span>
-                        <span className="text-[10px] text-amber-800 dark:text-amber-300">
-                          HR scanner will store your signed QR scan locally and validate upon sync.
+                        <span className="text-[10px] text-amber-800 dark:text-amber-300 block truncate">
+                          HR scanner queues your signed QR locally and validates on sync.
                         </span>
                       </div>
                     </div>
@@ -843,22 +845,30 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                 ) : (
                   <div
                     className={`p-2.5 rounded-xl border text-left flex items-center justify-between gap-2 text-[11px] ${
-                      !isInsideGeofence || gpsStatus === 'denied' || gpsStatus === 'low_accuracy'
+                      gpsStatus === 'acquiring'
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200'
+                        : !isInsideGeofence || gpsStatus === 'denied' || gpsStatus === 'low_accuracy'
                         ? 'bg-red-500/10 border-red-500/30 text-red-900 dark:text-red-200'
                         : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200'
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <span
                         className={`material-symbols-outlined text-[18px] shrink-0 ${
-                          !isInsideGeofence || gpsStatus === 'denied' || gpsStatus === 'low_accuracy'
+                          gpsStatus === 'acquiring'
+                            ? 'text-amber-600 animate-spin'
+                            : !isInsideGeofence || gpsStatus === 'denied' || gpsStatus === 'low_accuracy'
                             ? 'text-red-600'
                             : 'text-emerald-600'
                         }`}
                       >
-                        {gpsStatus === 'ready' && isInsideGeofence ? 'my_location' : 'location_searching'}
+                        {gpsStatus === 'acquiring'
+                          ? 'progress_activity'
+                          : gpsStatus === 'ready' && isInsideGeofence
+                          ? 'my_location'
+                          : 'location_searching'}
                       </span>
-                      <div className="truncate">
+                      <div className="min-w-0 flex-1">
                         <span className="font-bold block truncate">
                           {gpsStatus === 'acquiring'
                             ? 'Acquiring High-Accuracy GPS...'
@@ -878,7 +888,7 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                       </div>
                     </div>
                     {gpsLocation && (
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-black/10 shrink-0">
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-black/10 dark:bg-white/10 shrink-0">
                         ±{gpsLocation.acc}m
                       </span>
                     )}
@@ -886,97 +896,111 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                 )}
               </div>
 
-              {/* Dynamic QR Canvas Container */}
-              <div className="relative p-3 bg-white rounded-2xl shadow-inner border border-slate-200/80 flex flex-col items-center justify-center">
-                {/* Top Info Bar (cleanly above QR matrix) */}
-                <div className="w-full flex justify-between items-center px-1 mb-2 text-[9px] font-mono font-bold text-slate-500 uppercase select-none">
-                  <span>{credentials?.student_number || 'INTERN'} • {credentials?.full_name || 'STUDENT'}</span>
-                  <span className="text-vibrant-orange font-bold">{!isOnline || isOfflineVaultMode ? 'OFFLINE' : 'ONLINE GPS'}</span>
+              {/* Structured Dynamic QR Security Pass Card */}
+              <div className="w-full max-w-[300px] bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden flex flex-col">
+                {/* Top Ticket Metadata Strip */}
+                <div className="w-full flex justify-between items-center gap-2 px-3 py-1.5 bg-slate-50 border-b border-slate-200 text-[9px] font-mono font-bold text-slate-600 uppercase select-none">
+                  <span className="truncate">
+                    {credentials?.student_number || 'INTERN'} • {credentials?.full_name || 'STUDENT'}
+                  </span>
+                  <span className="text-vibrant-orange font-extrabold shrink-0">
+                    {!isOnline || isOfflineVaultMode ? 'OFFLINE' : 'ONLINE GPS'}
+                  </span>
                 </div>
 
-                <div className="relative flex items-center justify-center p-1 bg-white">
-                  <canvas
-                    ref={canvasRef}
-                    className={`rounded-lg transition-all duration-300 pointer-events-none ${
-                      isShielded ? 'blur-xl opacity-30' : ''
-                    }`}
-                  />
+                {/* Square QR Matrix Frame */}
+                <div className="relative flex items-center justify-center p-3 bg-white">
+                  <div className="w-[224px] h-[224px] flex items-center justify-center relative">
+                    <canvas
+                      ref={canvasRef}
+                      className={`!w-[224px] !h-[224px] block rounded-lg transition-all duration-300 pointer-events-none ${
+                        isShielded ? 'blur-xl opacity-30' : ''
+                      }`}
+                    />
+                  </div>
 
                   {/* Shield Overlay when user unfocuses or takes screenshots */}
                   {isShielded && (
                     <div
                       onClick={() => setIsShielded(false)}
-                      className="absolute inset-0 bg-slate-900/85 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center p-4 text-white text-center cursor-pointer transition-all"
+                      className="absolute inset-2 bg-slate-900/90 backdrop-blur-md rounded-xl flex flex-col items-center justify-center p-4 text-white text-center cursor-pointer transition-all"
                     >
                       <span className="material-symbols-outlined text-3xl text-vibrant-orange mb-1 animate-bounce">
                         shield
                       </span>
                       <p className="font-bold text-xs">Security Shield Active</p>
                       <p className="text-[10px] text-slate-300 mt-1">
-                        Dynamic QR code is shielded while window is inactive or screen-capturing.
+                        Dynamic QR is shielded while window is unfocused.
                       </p>
-                      <span className="mt-3 px-3 py-1 bg-vibrant-orange text-white rounded-lg text-[10px] font-bold">
+                      <span className="mt-2.5 px-3 py-1 bg-vibrant-orange text-white rounded-lg text-[10px] font-bold">
                         Tap to Reveal QR
                       </span>
                     </div>
                   )}
                 </div>
 
-                {/* Bottom Watermark Bar (cleanly below QR matrix) */}
-                <div className="w-full flex justify-between items-center px-1 mt-2 text-[9px] font-mono text-slate-500 font-semibold select-none">
-                  <span>{livePstTime || 'PST UTC+8'}</span>
-                  <span>30s Rolling TOTP</span>
+                {/* Bottom Watermark Strip */}
+                <div className="w-full flex justify-between items-center gap-2 px-3 py-1.5 bg-slate-50 border-t border-slate-200 text-[9px] font-mono text-slate-600 font-semibold select-none">
+                  <span className="truncate">{livePstTime || 'PST UTC+8'}</span>
+                  <span className="shrink-0 font-bold text-slate-700">30s Rolling TOTP</span>
                 </div>
               </div>
 
-              {/* Circular Countdown Progress Ring */}
-              <div className="flex items-center gap-3 bg-surface-container-low px-4 py-2 rounded-2xl border border-outline-variant">
-                <div className="relative w-10 h-10 flex items-center justify-center shrink-0">
-                  <svg className="w-10 h-10 -rotate-90">
-                    <circle
-                      cx="20"
-                      cy="20"
-                      r="16"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      fill="transparent"
-                      className="text-surface-container-high"
-                    />
-                    <circle
-                      cx="20"
-                      cy="20"
-                      r="16"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      fill="transparent"
-                      strokeDasharray={2 * Math.PI * 16}
-                      strokeDashoffset={
-                        2 * Math.PI * 16 - (secondsLeft / TIME_STEP) * (2 * Math.PI * 16)
-                      }
-                      strokeLinecap="round"
-                      className="text-vibrant-orange transition-all duration-150"
-                    />
-                  </svg>
-                  <span className="absolute text-[11px] font-mono font-black text-on-surface">
-                    {secondsLeft}s
-                  </span>
+              {/* Circular Countdown Progress Bar */}
+              <div className="w-full flex items-center justify-between gap-3 bg-surface-container-low px-3.5 py-2 rounded-2xl border border-outline-variant">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative w-9 h-9 flex items-center justify-center shrink-0">
+                    <svg className="w-9 h-9 -rotate-90" viewBox="0 0 40 40">
+                      <circle
+                        cx="20"
+                        cy="20"
+                        r="16"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        fill="transparent"
+                        className="text-surface-container-high"
+                      />
+                      <circle
+                        cx="20"
+                        cy="20"
+                        r="16"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        fill="transparent"
+                        strokeDasharray={2 * Math.PI * 16}
+                        strokeDashoffset={
+                          2 * Math.PI * 16 - (secondsLeft / TIME_STEP) * (2 * Math.PI * 16)
+                        }
+                        strokeLinecap="round"
+                        className="text-vibrant-orange transition-all duration-150"
+                      />
+                    </svg>
+                    <span className="absolute text-[10px] font-mono font-black text-on-surface">
+                      {secondsLeft}s
+                    </span>
+                  </div>
+                  <div className="text-left min-w-0">
+                    <p className="text-xs font-bold text-on-surface truncate">
+                      Rotating in {secondsLeft}s
+                    </p>
+                    <p className="text-[10px] text-on-surface-variant truncate">
+                      Single-use Nonce • Signed by Device Keypair
+                    </p>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <p className="text-xs font-bold text-on-surface">Rotating in {secondsLeft}s</p>
-                  <p className="text-[10px] text-on-surface-variant">
-                    Single-use Nonce • Signed by Device Keypair
-                  </p>
-                </div>
+                <span className="px-2 py-0.5 rounded-lg bg-vibrant-orange/10 text-vibrant-orange text-[10px] font-mono font-bold shrink-0">
+                  v2 TOTP
+                </span>
               </div>
 
               {/* Hardware Device Binding Footer */}
-              <div className="w-full pt-1.5 flex items-center justify-between text-[11px] text-on-surface-variant border-t border-outline-variant">
-                <div className="flex items-center gap-1.5 truncate">
-                  <span className="material-symbols-outlined text-[15px] text-emerald-600">
+              <div className="w-full pt-2 flex items-center justify-between gap-2 text-[11px] text-on-surface-variant border-t border-outline-variant">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <span className="material-symbols-outlined text-[15px] text-emerald-600 shrink-0">
                     verified_user
                   </span>
                   <span
-                    className="truncate max-w-[210px] font-medium"
+                    className="truncate font-medium"
                     title={credentials?.registered_device_name || getDeviceName()}
                   >
                     Bound: {credentials?.registered_device_name || getDeviceName()}
@@ -985,9 +1009,9 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                 <button
                   type="button"
                   onClick={() => setShowChangeDeviceConfirm(true)}
-                  className="text-[10px] text-vibrant-orange hover:underline font-bold shrink-0 cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-vibrant-orange/10 hover:bg-vibrant-orange/20 text-[10px] text-vibrant-orange font-bold shrink-0 transition-colors cursor-pointer"
                 >
-                  Re-bind via OTP
+                  Re-bind OTP
                 </button>
               </div>
             </>
