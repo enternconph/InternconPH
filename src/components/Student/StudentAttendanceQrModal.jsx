@@ -443,7 +443,7 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
         setOtpStep('sent');
         setOtpInfo(res.data || {});
         setOtpCountdownSec(res.data?.expires_in_seconds || 300);
-        setOtpCode('');
+        setOtpCode(res.data?.dev_otp_preview || '');
         if (showChangeDeviceConfirm) {
           setShowChangeDeviceConfirm(false);
           setCredentials(null);

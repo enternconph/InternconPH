@@ -173,6 +173,38 @@ async function sendViaGmailSmtp({ to, subject, html, text }) {
 }
 
 /**
+ * Optional HTTP Email Relay via Resend (https://resend.com)
+ */
+async function sendViaResend({ to, subject, html, text }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return { sent: false, reason: 'RESEND_API_KEY_NOT_CONFIGURED' };
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'InternConPH Security <onboarding@resend.dev>',
+        to: [to],
+        subject,
+        html,
+        text
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.id) {
+      return { sent: true, transport: 'resend_api', messageId: data.id };
+    }
+    return { sent: false, reason: data.message || `HTTP_${res.status}` };
+  } catch (err) {
+    return { sent: false, reason: err.message };
+  }
+}
+
+/**
  * Fallback HTTP Email Relay via FormSubmit with 5-second timeout
  */
 async function sendViaFormSubmitRelay({ to, subject, studentName, studentAccountEmail, otpCode, newDeviceLabel }) {
@@ -275,6 +307,19 @@ export async function sendDeviceRebindOtpEmail({
     }).catch((err) => ({ sent: false, reason: err.message }));
     if (tlsResult.sent) {
       emailResult = tlsResult;
+    }
+  }
+
+  // 2.5. Try Resend API if configured
+  if (!emailResult.sent) {
+    const resendResult = await sendViaResend({
+      to: recipientEmail,
+      subject,
+      html,
+      text
+    });
+    if (resendResult.sent) {
+      emailResult = resendResult;
     }
   }
 

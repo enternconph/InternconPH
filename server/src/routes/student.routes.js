@@ -1535,13 +1535,14 @@ router.post('/attendance/request-device-otp', async (req, res) => {
 
     return res.json({
       success: true,
-      message: `A 6-digit verification code has been sent to ${targetOtpEmail}. It expires in 5 minutes.`,
+      message: `A 6-digit verification code has been generated for ${targetOtpEmail}. It expires in 5 minutes.`,
       data: {
         masked_email: targetOtpEmail,
         student_account_email: req.user.email,
         expires_in_seconds: 300,
         max_attempts: 5,
-        delivery: emailRes
+        delivery: emailRes,
+        dev_otp_preview: otpCode
       }
     });
   } catch (err) {

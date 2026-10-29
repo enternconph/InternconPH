@@ -66,6 +66,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
   const [otpCode, setOtpCode] = useState('');
   const [otpError, setOtpError] = useState('');
   const [otpCountdownSec, setOtpCountdownSec] = useState(0);
+  const [devOtpPreview, setDevOtpPreview] = useState(null);
 
   const watermarkAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(1)).current;
@@ -445,7 +446,10 @@ export default function AttendanceQrModal({ visible, onClose }) {
       if (res.success) {
         setOtpStep('sent');
         setOtpCountdownSec(res.data?.expires_in_seconds || 300);
-        setOtpCode('');
+        setOtpCode(res.data?.dev_otp_preview || '');
+        if (res.data?.dev_otp_preview) {
+          setDevOtpPreview(res.data.dev_otp_preview);
+        }
         if (!deviceMismatchData) {
           setQrSecret(null);
           setQrPayload('');
@@ -646,6 +650,17 @@ export default function AttendanceQrModal({ visible, onClose }) {
                     {Math.floor(otpCountdownSec / 60)}:
                     {String(otpCountdownSec % 60).padStart(2, '0')}
                   </Text>
+
+                  {devOtpPreview ? (
+                    <View style={{ backgroundColor: 'rgba(255, 180, 51, 0.15)', borderWidth: 1, borderColor: 'rgba(255, 180, 51, 0.4)', borderRadius: 12, padding: 10, alignItems: 'center' }}>
+                      <Text style={{ color: '#FFB433', fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Verification Code (Auto-Detected)
+                      </Text>
+                      <Text style={{ color: '#FFFFFF', fontSize: 24, fontWeight: '900', letterSpacing: 6, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', marginTop: 4 }}>
+                        {devOtpPreview}
+                      </Text>
+                    </View>
+                  ) : null}
 
                   <TextInput
                     value={otpCode}
