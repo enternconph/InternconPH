@@ -3834,7 +3834,7 @@ router.put('/interviews/:id', requireHROrAdmin, async (req, res) => {
 
     // Look up interview, application, and student to broadcast targeted realtime events
     const [interviews] = await pool.query(
-      `SELECT i.interview_id, i.application_id, ja.student_id, ja.status as app_status, jp.organization_id
+      `SELECT i.interview_id, i.application_id, i.status as current_status, ja.student_id, ja.status as app_status, jp.organization_id
        FROM interviews i
        JOIN job_applications ja ON i.application_id = ja.application_id
        JOIN job_postings jp ON ja.job_id = jp.job_id
@@ -3842,6 +3842,17 @@ router.put('/interviews/:id', requireHROrAdmin, async (req, res) => {
       [req.params.id]
     );
     const interview = interviews[0];
+    if (!interview) {
+      return res.status(404).json({ success: false, message: 'Interview not found.' });
+    }
+
+    // Restriction: User can only change the interview status once
+    if (status && interview.current_status !== 'scheduled' && finalStatus !== interview.current_status) {
+      return res.status(400).json({
+        success: false,
+        message: `This interview status has already been finalized as "${interview.current_status}". Interview status can only be changed once.`
+      });
+    }
 
     // Prevent re-activating an interview to 'scheduled' if another scheduled interview already exists for the same application
     if (finalStatus === 'scheduled' && interview?.application_id) {

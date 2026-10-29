@@ -80,6 +80,14 @@ function formatRelativeAdded(dateInput) {
   return `Added ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 }
 
+function formatStatusLabel(status) {
+  if (status === 'completed') return 'Done (Completed)';
+  if (status === 'cancelled') return 'Cancelled';
+  if (status === 'no_show') return 'No Show';
+  if (status === 'scheduled') return 'Scheduled';
+  return (status || '').replace(/_/g, ' ');
+}
+
 export default function OrgInterviews() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -347,28 +355,54 @@ export default function OrgInterviews() {
   };
 
   const handleUpdateStatus = async (id, status) => {
-    const res = await api.put(`/org/interviews/${id}`, { status });
-    if (res.success) {
-      if (status === 'completed') {
-        setMessage('Interview marked as Done and moved to Interview History.');
-      } else if (status === 'cancelled') {
-        setMessage('Interview cancelled and archived to Interview History.');
-      }
-      await fetchInterviews();
-      window.dispatchEvent(new Event('interncon:interviews-changed'));
+    const all = Array.isArray(data.interviews) ? data.interviews : [];
+    const target = all.find((i) => i.interview_id === id);
 
-      // Update or close active modal if open
-      setModalGroup((prev) => {
-        if (!prev) return null;
-        const updatedItems = prev.items.map((it) =>
-          it.interview_id === id ? { ...it, status } : it
-        );
-        // If user marked it done from Scheduled tab and there are no other items in modal, close cleanly
-        if (status !== 'scheduled' && activeTab === 'scheduled' && updatedItems.length === 1) {
-          return null;
+    // If status is already finalized, prevent modification
+    if (target && target.status !== 'scheduled') {
+      setErrorMessage(
+        `This interview has already been finalized as "${formatStatusLabel(target.status)}". Status can only be changed once.`
+      );
+      return;
+    }
+
+    const label = formatStatusLabel(status);
+    const confirmed = window.confirm(
+      `Set interview status to "${label}"?\n\nNote: Interview status can only be changed once and cannot be modified again once finalized.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setErrorMessage('');
+      const res = await api.put(`/org/interviews/${id}`, { status });
+      if (res.success) {
+        if (status === 'completed') {
+          setMessage('Interview marked as Done and moved to Interview History.');
+        } else if (status === 'cancelled') {
+          setMessage('Interview cancelled and archived to Interview History.');
+        } else if (status === 'no_show') {
+          setMessage('Interview marked as No Show.');
         }
-        return { ...prev, items: updatedItems };
-      });
+        await fetchInterviews();
+        window.dispatchEvent(new Event('interncon:interviews-changed'));
+
+        // Update or close active modal if open
+        setModalGroup((prev) => {
+          if (!prev) return null;
+          const updatedItems = prev.items.map((it) =>
+            it.interview_id === id ? { ...it, status } : it
+          );
+          // If user marked it done from Scheduled tab and there are no other items in modal, close cleanly
+          if (status !== 'scheduled' && activeTab === 'scheduled' && updatedItems.length === 1) {
+            return null;
+          }
+          return { ...prev, items: updatedItems };
+        });
+      } else {
+        setErrorMessage(res.message || 'Failed to update interview status.');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Failed to update interview status.');
     }
   };
 
@@ -665,30 +699,56 @@ export default function OrgInterviews() {
           </div>
         </div>
 
-        {/* Right Actions: Mark Done -> Moves to History */}
+        {/* Right Actions: Mark Done / Status (Can only be changed once) */}
         <div className="flex sm:flex-col items-center sm:items-end gap-2 shrink-0">
-          {item.status === 'scheduled' && (
-            <button
-              type="button"
-              onClick={() => handleUpdateStatus(item.interview_id, 'completed')}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
-              title="Mark interview as done and move to Interview History"
-            >
-              <span className="material-symbols-outlined text-[15px]">task_alt</span>
-              <span>Mark Done</span>
-            </button>
-          )}
+          {item.status === 'scheduled' ? (
+            <>
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus(item.interview_id, 'completed')}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                title="Mark interview as done and move to Interview History (Can only be set once)"
+              >
+                <span className="material-symbols-outlined text-[15px]">task_alt</span>
+                <span>Mark Done</span>
+              </button>
 
-          <select
-            value={item.status}
-            onChange={(e) => handleUpdateStatus(item.interview_id, e.target.value)}
-            className="px-2.5 py-1 rounded-lg border border-outline-variant bg-surface-container text-on-surface text-xs font-bold cursor-pointer"
-          >
-            <option value="scheduled">Scheduled</option>
-            <option value="completed">Done (Completed)</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="no_show">No Show</option>
-          </select>
+              <select
+                value={item.status}
+                onChange={(e) => handleUpdateStatus(item.interview_id, e.target.value)}
+                className="px-2.5 py-1 rounded-lg border border-outline-variant bg-surface-container text-on-surface text-xs font-bold cursor-pointer"
+                title="Change interview status (Can only be set once)"
+              >
+                <option value="scheduled" disabled>
+                  Mark Status...
+                </option>
+                <option value="completed">Done (Completed)</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="no_show">No Show</option>
+              </select>
+            </>
+          ) : (
+            <div
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border shadow-xs ${
+                item.status === 'completed'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                  : item.status === 'cancelled'
+                  ? 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30'
+                  : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'
+              }`}
+              title="Interview status has been finalized and cannot be modified again"
+            >
+              <span className="material-symbols-outlined text-[15px]">
+                {item.status === 'completed'
+                  ? 'check_circle'
+                  : item.status === 'cancelled'
+                  ? 'cancel'
+                  : 'person_off'}
+              </span>
+              <span>{formatStatusLabel(item.status)}</span>
+              <span className="text-[10px] opacity-75 font-normal">(Finalized)</span>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1340,7 +1400,7 @@ export default function OrgInterviews() {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold ${
+                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold ${
                       activeModalInterview.status === 'completed'
                         ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
                         : activeModalInterview.status === 'cancelled' || activeModalInterview.status === 'no_show'
@@ -1348,9 +1408,14 @@ export default function OrgInterviews() {
                         : 'bg-orange-tint text-accent-text'
                     }`}
                   >
-                    {activeModalInterview.status === 'completed'
-                      ? 'Done • Completed'
-                      : activeModalInterview.status.replace('_', ' ')}
+                    {activeModalInterview.status !== 'scheduled' && (
+                      <span className="material-symbols-outlined text-[12px]">lock</span>
+                    )}
+                    <span>
+                      {activeModalInterview.status === 'completed'
+                        ? 'Done • Completed'
+                        : activeModalInterview.status.replace('_', ' ')}
+                    </span>
                   </span>
                   <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-bold uppercase text-[10px]">
                     {(activeModalInterview.mode || 'online').toLowerCase() === 'onsite'
@@ -1493,35 +1558,73 @@ export default function OrgInterviews() {
                 </div>
               </div>
 
-              {/* Status Controls inside Modal */}
+              {/* Status Controls inside Modal (Status can only be changed once) */}
               <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-outline-variant">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-on-surface-variant">Status:</span>
-                  <select
-                    value={activeModalInterview.status}
-                    onChange={(e) =>
-                      handleUpdateStatus(activeModalInterview.interview_id, e.target.value)
-                    }
-                    className="px-3 py-1.5 rounded-xl border border-outline-variant bg-surface-container text-on-surface text-xs font-bold cursor-pointer"
-                  >
-                    <option value="scheduled">Scheduled</option>
-                    <option value="completed">Done (Completed)</option>
-                    <option value="cancelled">Cancelled</option>
-                    <option value="no_show">No Show</option>
-                  </select>
-                </div>
+                {activeModalInterview.status === 'scheduled' ? (
+                  <>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-semibold text-on-surface-variant">Update Status:</span>
+                      <select
+                        value={activeModalInterview.status}
+                        onChange={(e) =>
+                          handleUpdateStatus(activeModalInterview.interview_id, e.target.value)
+                        }
+                        className="px-3 py-1.5 rounded-xl border border-outline-variant bg-surface-container text-on-surface text-xs font-bold cursor-pointer"
+                      >
+                        <option value="scheduled" disabled>
+                          Select Status...
+                        </option>
+                        <option value="completed">Done (Completed)</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="no_show">No Show</option>
+                      </select>
+                      <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[13px]">info</span>
+                        <span>Can only be updated once</span>
+                      </span>
+                    </div>
 
-                {activeModalInterview.status === 'scheduled' && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleUpdateStatus(activeModalInterview.interview_id, 'completed')
-                    }
-                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">task_alt</span>
-                    <span>Mark Interview as Done</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleUpdateStatus(activeModalInterview.interview_id, 'completed')
+                      }
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">task_alt</span>
+                      <span>Mark Interview as Done</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-on-surface-variant">Status:</span>
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border shadow-xs ${
+                          activeModalInterview.status === 'completed'
+                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                            : activeModalInterview.status === 'cancelled'
+                            ? 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30'
+                            : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[15px]">
+                          {activeModalInterview.status === 'completed'
+                            ? 'check_circle'
+                            : activeModalInterview.status === 'cancelled'
+                            ? 'cancel'
+                            : 'person_off'}
+                        </span>
+                        <span>{formatStatusLabel(activeModalInterview.status)}</span>
+                        <span className="text-[10px] opacity-75 font-normal">(Finalized)</span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-[11px] text-on-surface-variant font-medium">
+                      <span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>
+                      <span>Status finalized • Cannot be modified again</span>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
