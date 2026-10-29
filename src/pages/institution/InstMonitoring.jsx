@@ -23,7 +23,6 @@ export default function InstMonitoring() {
   const [justIssuedWarningIds, setJustIssuedWarningIds] = useState([]);
   const [escalateModal, setEscalateModal] = useState(null);
   const [escalateForm, setEscalateForm] = useState({ report_title: '', findings: '', recommendations: '' });
-  const [certModal, setCertModal] = useState(null);
   const [viewReportModal, setViewReportModal] = useState(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -364,7 +363,6 @@ export default function InstMonitoring() {
                     <th className="py-2.5 px-3">Host Company</th>
                     <th className="py-2.5 px-3">Progress & Status</th>
                     <th className="py-2.5 px-3">Workplace GPS & Device Indicator</th>
-                    <th className="py-2.5 px-3 text-right">Certificate</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-container">
@@ -477,24 +475,6 @@ export default function InstMonitoring() {
                               </div>
                             );
                           })()}
-                        </td>
-                        <td className="py-2.5 px-3 text-right">
-                          {d.certificate_id ? (
-                            <button
-                              onClick={() => setCertModal(d)}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm"
-                              title={`Certificate Code: ${d.certificate_code}`}
-                            >
-                              <span className="material-symbols-outlined text-[15px]">workspace_premium</span>
-                              View Cert
-                            </button>
-                          ) : d.status === 'completed' ? (
-                            <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                              {d.evaluation_id ? 'Completed' : 'Awaiting Eval'}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-on-surface-variant italic">In Progress</span>
-                          )}
                         </td>
                       </tr>
                     );
@@ -1303,88 +1283,6 @@ export default function InstMonitoring() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Certificate Viewer Modal */}
-      {certModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-outline-variant rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-emerald-600 text-2xl">workspace_premium</span>
-                <div>
-                  <h3 className="font-bold text-base text-on-surface">OJT Completion Certificate</h3>
-                  <p className="text-xs text-on-surface-variant">Verified Digital Credential</p>
-                </div>
-              </div>
-              <button onClick={() => setCertModal(null)} className="text-on-surface-variant hover:text-on-surface">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            {/* Certificate Canvas / Card */}
-            <div className="border-4 border-double border-emerald-600/40 p-8 rounded-2xl bg-gradient-to-br from-emerald-50/40 via-white to-amber-50/30 text-center space-y-4 relative shadow-inner">
-              <div className="space-y-1">
-                <span className="text-[11px] uppercase tracking-widest text-emerald-700 font-black">Official Certificate of Completion</span>
-                <h4 className="text-2xl font-black text-on-surface font-serif">INTERNSHIP COMPLETION</h4>
-                <p className="text-xs text-on-surface-variant">This is to officially certify that</p>
-              </div>
-
-              <div className="py-2 border-b-2 border-emerald-600/30 inline-block px-8">
-                <span className="text-xl font-bold text-emerald-900 tracking-wide">
-                  {certModal.first_name} {certModal.last_name}
-                </span>
-                <p className="text-xs text-on-surface-variant mt-0.5">Student ID: #{certModal.student_number}</p>
-              </div>
-
-              <p className="text-xs text-on-surface-variant max-w-md mx-auto leading-relaxed">
-                has satisfactorily completed the required <strong>{certModal.rendered_hours || certModal.required_ojt_hours || certModal.required_hours || 600} hours</strong> of On-the-Job Training in <strong>{certModal.program_name || 'Degree Program'}</strong> at <strong>{certModal.organization_name}</strong>.
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 text-left border-t border-outline-variant/60 text-xs">
-                <div>
-                  <span className="text-on-surface-variant block text-[11px]">Evaluation Rating:</span>
-                  <span className="font-bold text-emerald-700 text-sm">
-                    {certModal.overall_rating ? `${certModal.overall_rating} / 5.0 ⭐` : 'Completed & Recommended'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-on-surface-variant block text-[11px]">Date Issued:</span>
-                  <span className="font-bold text-on-surface">
-                    {certModal.cert_issued_at ? new Date(certModal.cert_issued_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
-                  </span>
-                </div>
-              </div>
-
-              <div className="pt-2 text-center">
-                <span className="inline-block px-3 py-1 bg-emerald-100/60 rounded-full text-[11px] font-mono font-bold text-emerald-800 border border-emerald-300">
-                  CODE: {certModal.certificate_code}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-3 pt-2">
-              <span className="text-[11px] text-on-surface-variant text-center sm:text-left">Automatically issued upon OJT & Evaluation completion</span>
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setCertModal(null)}
-                  className="px-4 py-2 bg-surface-container text-xs font-bold text-on-surface rounded-xl hover:bg-surface-container-high w-full sm:w-auto text-center"
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5 w-full sm:w-auto"
-                >
-                  <span className="material-symbols-outlined text-[16px]">print</span>
-                  Print / Save Certificate
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}
