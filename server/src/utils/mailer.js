@@ -31,7 +31,7 @@ async function sendViaNodemailer({ to, subject, html, text }) {
     process.env.GMAIL_APP_PASSWORD ||
     process.env.SMTP_PASS ||
     process.env.EMAIL_PASS ||
-    ''
+    'rjrreoiyerwpdfcw'
   ).replace(/\s+/g, ''); // strip spaces from Google app passwords
 
   if (!smtpUser || !smtpPass) {
@@ -77,7 +77,7 @@ async function sendViaGmailSmtp({ to, subject, html, text }) {
     process.env.GMAIL_APP_PASSWORD ||
     process.env.SMTP_PASS ||
     process.env.EMAIL_PASS ||
-    ''
+    'rjrreoiyerwpdfcw'
   ).replace(/\s+/g, '');
   const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
   const smtpPort = parseInt(process.env.SMTP_PORT || '465', 10);
