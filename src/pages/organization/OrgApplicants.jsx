@@ -5,14 +5,102 @@ import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, isPdfFile, formatPortfolioTitle, formatFileSubtitle, formatCleanFileName, formatAddress } from '../../utils/fileHelper';
 import Pagination from '../../components/ui/Pagination';
 
+function toManilaYearMonth(dateInput) {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit'
+    }).formatToParts(d);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    if (y && m) return `${y}-${m}`;
+  } catch (_) {}
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function formatYearMonthLabel(ym) {
+  if (!ym) return '';
+  const [y, m] = ym.split('-').map(Number);
+  if (!y || !m) return ym;
+  return new Date(y, m - 1, 1).toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric'
+  });
+}
+
+function formatAppliedDate(dateInput) {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  try {
+    return d.toLocaleDateString('en-US', {
+      timeZone: 'Asia/Manila',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  } catch (_) {
+    return d.toLocaleDateString();
+  }
+}
+
+function formatScheduleDateTime(dateInput) {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  try {
+    return d.toLocaleString('en-US', {
+      timeZone: 'Asia/Manila',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch (_) {
+    return d.toLocaleString();
+  }
+}
+
+function isApplicantShortlisted(app) {
+  if (!app) return false;
+  return Boolean(app.is_shortlisted) || app.status === 'shortlisted';
+}
+
+function hasApplicantScheduledInterview(app) {
+  if (!app) return false;
+  if (Number(app.scheduled_interview_count || 0) > 0) return true;
+  return app.status === 'interview' && Number(app.completed_interview_count || 0) === 0;
+}
+
+function hasApplicantCompletedInterview(app) {
+  if (!app) return false;
+  return Number(app.completed_interview_count || 0) > 0 || app.status === 'interviewed';
+}
+
+function hasNoInterviewScheduleYet(app) {
+  if (!app) return false;
+  if (hasApplicantScheduledInterview(app) || hasApplicantCompletedInterview(app)) return false;
+  return !['accepted', 'rejected', 'withdrawn'].includes(app.status);
+}
+
 export default function OrgApplicants() {
   const navigate = useNavigate();
   const [data, setData] = useState({ applicants: [], jobs: [] });
   const [activeTab, setActiveTab] = useState('all');
+  // stageFilter: 'all' | 'no_schedule' | 'has_schedule' | 'interview_done' | 'shortlisted' | 'accepted' | 'rejected'
+  const [stageFilter, setStageFilter] = useState('all');
+  // monthFilter: '' (All Months) or 'YYYY-MM'
+  const [monthFilter, setMonthFilter] = useState('');
   const [candidateSearch, setCandidateSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [shortlistBusyId, setShortlistBusyId] = useState(null);
 
   // Inspect Modal State
   const [inspectAppId, setInspectAppId] = useState(null);
@@ -23,6 +111,27 @@ export default function OrgApplicants() {
 
   const handleRequestInterview = (applicant) => {
     if (!applicant) return;
+    setErrorMsg('');
+
+    if (hasApplicantScheduledInterview(applicant)) {
+      setErrorMsg(
+        `${applicant.first_name || 'This applicant'} ${applicant.last_name || ''} already has a scheduled interview. Duplicate interview schedules are not allowed.`
+      );
+      return;
+    }
+
+    if (hasApplicantCompletedInterview(applicant)) {
+      setErrorMsg(
+        `${applicant.first_name || 'This applicant'} ${applicant.last_name || ''} already completed their interview. Duplicate interview schedules are restricted.`
+      );
+      return;
+    }
+
+    if (applicant.status === 'accepted' || applicant.status === 'rejected') {
+      setErrorMsg(`Cannot schedule an interview because this application is already ${applicant.status}.`);
+      return;
+    }
+
     setInspectAppId(null);
     navigate('/dashboard/organization/interviews', {
       state: {
@@ -31,6 +140,16 @@ export default function OrgApplicants() {
         jobTitle: applicant.job_title || 'Opportunity Applicant'
       }
     });
+  };
+
+  const handleViewExistingInterview = (applicant) => {
+    if (!applicant) return;
+    setInspectAppId(null);
+    if (applicant.scheduled_interview_id) {
+      navigate(`/dashboard/organization/interviews?inspectId=${applicant.scheduled_interview_id}`);
+    } else {
+      navigate('/dashboard/organization/interviews');
+    }
   };
 
   // Pagination state
@@ -77,8 +196,54 @@ export default function OrgApplicants() {
     }
   };
 
+  const handleToggleShortlist = async (applicant, e) => {
+    if (e) e.stopPropagation();
+    if (!applicant) return;
+    const appId = applicant.application_id;
+    setShortlistBusyId(appId);
+    setMessage('');
+    setErrorMsg('');
+
+    try {
+      const nextShortlisted = !isApplicantShortlisted(applicant);
+      const res = await api.post(`/org/applicants/${appId}/shortlist`, {
+        shortlisted: nextShortlisted
+      });
+      if (res.success) {
+        setMessage(res.message);
+        setData((prev) => ({
+          ...prev,
+          applicants: (prev.applicants || []).map((a) =>
+            a.application_id === appId
+              ? { ...a, is_shortlisted: res.is_shortlisted ? 1 : 0, status: res.status || a.status }
+              : a
+          )
+        }));
+        setInspectData((prev) =>
+          prev && prev.applicant?.application_id === appId
+            ? {
+                ...prev,
+                applicant: {
+                  ...prev.applicant,
+                  is_shortlisted: res.is_shortlisted ? 1 : 0,
+                  status: res.status || prev.applicant.status
+                }
+              }
+            : prev
+        );
+      } else {
+        setErrorMsg(res.message || 'Failed to update shortlist mark.');
+      }
+    } catch (err) {
+      setErrorMsg('Error updating shortlist mark.');
+    } finally {
+      setShortlistBusyId(null);
+    }
+  };
+
   const handleStatusChange = async (appId, status) => {
     setMessage('');
+    setErrorMsg('');
     setActionLoading(true);
     const res = await api.post(`/org/applicants/${appId}/status`, { status });
     setActionLoading(false);
@@ -112,7 +277,7 @@ export default function OrgApplicants() {
     }
   };
 
-  // Categorized counts for tabs
+  // Categorized counts for Opportunity Type tabs
   const counts = useMemo(() => {
     const list = data.applicants || [];
     return {
@@ -127,12 +292,18 @@ export default function OrgApplicants() {
     };
   }, [data.applicants]);
 
-  const filteredApplicants = useMemo(() => {
-    return (data.applicants || []).filter(app => {
+  // Base list filtered by Posting Type + Month + Search (used to compute live Stage Pill counts)
+  const baseScopedApplicants = useMemo(() => {
+    return (data.applicants || []).filter((app) => {
       const pType = app.posting_type || 'ojt';
       if (activeTab === 'ojt' && pType !== 'ojt') return false;
       if (activeTab === 'career_job' && (pType !== 'career_job' && (pType === 'ojt' || pType === 'on_call'))) return false;
       if (activeTab === 'on_call' && pType !== 'on_call') return false;
+
+      if (monthFilter) {
+        const appMonth = toManilaYearMonth(app.applied_at || app.created_at);
+        if (appMonth !== monthFilter) return false;
+      }
 
       if (candidateSearch.trim()) {
         const q = candidateSearch.toLowerCase();
@@ -160,11 +331,71 @@ export default function OrgApplicants() {
       }
       return true;
     });
-  }, [data.applicants, activeTab, candidateSearch]);
+  }, [data.applicants, activeTab, monthFilter, candidateSearch]);
+
+  // Live counts for Stage & Shortlist Filter Pills
+  const stageCounts = useMemo(() => {
+    return {
+      all: baseScopedApplicants.length,
+      no_schedule: baseScopedApplicants.filter(hasNoInterviewScheduleYet).length,
+      has_schedule: baseScopedApplicants.filter(hasApplicantScheduledInterview).length,
+      interview_done: baseScopedApplicants.filter(hasApplicantCompletedInterview).length,
+      shortlisted: baseScopedApplicants.filter(isApplicantShortlisted).length,
+      accepted: baseScopedApplicants.filter((a) => a.status === 'accepted').length,
+      rejected: baseScopedApplicants.filter((a) => a.status === 'rejected').length
+    };
+  }, [baseScopedApplicants]);
+
+  // Available Month Options (all 12 months of current year + any other months in applicants, sorted newest first)
+  const monthOptions = useMemo(() => {
+    const countByMonth = {};
+    (data.applicants || []).forEach((app) => {
+      const ym = toManilaYearMonth(app.applied_at || app.created_at);
+      if (ym) {
+        countByMonth[ym] = (countByMonth[ym] || 0) + 1;
+      }
+    });
+
+    const currentYear = new Date().getFullYear();
+    const monthSet = new Set(Object.keys(countByMonth));
+    for (let m = 1; m <= 12; m++) {
+      monthSet.add(`${currentYear}-${String(m).padStart(2, '0')}`);
+    }
+
+    return Array.from(monthSet)
+      .sort((a, b) => b.localeCompare(a))
+      .map((ym) => ({
+        value: ym,
+        label: formatYearMonthLabel(ym),
+        count: countByMonth[ym] || 0
+      }));
+  }, [data.applicants]);
+
+  const filteredApplicants = useMemo(() => {
+    return baseScopedApplicants.filter((app) => {
+      if (stageFilter === 'no_schedule') return hasNoInterviewScheduleYet(app);
+      if (stageFilter === 'has_schedule') return hasApplicantScheduledInterview(app);
+      if (stageFilter === 'interview_done') return hasApplicantCompletedInterview(app);
+      if (stageFilter === 'shortlisted') return isApplicantShortlisted(app);
+      if (stageFilter === 'accepted') return app.status === 'accepted';
+      if (stageFilter === 'rejected') return app.status === 'rejected';
+      return true;
+    });
+  }, [baseScopedApplicants, stageFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, candidateSearch]);
+  }, [activeTab, stageFilter, monthFilter, candidateSearch]);
+
+  const hasActiveFilters =
+    activeTab !== 'all' || stageFilter !== 'all' || Boolean(monthFilter) || Boolean(candidateSearch.trim());
+
+  const resetAllFilters = () => {
+    setActiveTab('all');
+    setStageFilter('all');
+    setMonthFilter('');
+    setCandidateSearch('');
+  };
 
   const paginatedApplicants = useMemo(() => {
     return filteredApplicants.slice((page - 1) * itemsPerPage, page * itemsPerPage);
@@ -177,15 +408,40 @@ export default function OrgApplicants() {
         <div>
           <h1 className="text-2xl font-bold text-on-surface">Candidate Applicants & Talent Pool</h1>
           <p className="text-sm text-on-surface-variant">
-            Inspect applicant portfolios, resumes, OJT evaluations, and accept on-call opportunities with automated credentialing.
+            Inspect applicant portfolios, mark shortlisted talent, filter by interview schedule or month, and manage placements.
           </p>
         </div>
       </div>
 
+      {errorMsg && (
+        <div className="p-3 bg-error-container text-error rounded-xl text-xs font-bold flex items-center justify-between gap-2 border border-error/20">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">block</span>
+            <span>{errorMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMsg('')}
+            className="text-error/70 hover:text-error p-0.5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </div>
+      )}
+
       {message && (
-        <div className="p-3 bg-green-tint text-pinoy-green rounded-lg text-xs font-bold flex items-center gap-2">
-          <span className="material-symbols-outlined text-[18px]">check_circle</span>
-          <span>{message}</span>
+        <div className="p-3 bg-green-tint text-pinoy-green rounded-xl text-xs font-bold flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">check_circle</span>
+            <span>{message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMessage('')}
+            className="text-pinoy-green/70 hover:text-pinoy-green p-0.5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
         </div>
       )}
 
@@ -197,7 +453,7 @@ export default function OrgApplicants() {
             <button
               type="button"
               onClick={() => setActiveTab('all')}
-              className={`px-3.5 py-1.5 rounded-lg transition-all whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === 'all'
                   ? 'bg-surface text-vibrant-orange shadow-xs font-bold'
                   : 'text-on-surface-variant hover:text-on-surface'
@@ -208,7 +464,7 @@ export default function OrgApplicants() {
             <button
               type="button"
               onClick={() => setActiveTab('ojt')}
-              className={`px-3.5 py-1.5 rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'ojt'
                   ? 'bg-surface text-vibrant-orange shadow-xs font-bold'
                   : 'text-on-surface-variant hover:text-on-surface'
@@ -220,7 +476,7 @@ export default function OrgApplicants() {
             <button
               type="button"
               onClick={() => setActiveTab('career_job')}
-              className={`px-3.5 py-1.5 rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'career_job'
                   ? 'bg-surface text-vibrant-orange shadow-xs font-bold'
                   : 'text-on-surface-variant hover:text-on-surface'
@@ -232,7 +488,7 @@ export default function OrgApplicants() {
             <button
               type="button"
               onClick={() => setActiveTab('on_call')}
-              className={`px-3.5 py-1.5 rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'on_call'
                   ? 'bg-surface text-vibrant-orange shadow-xs font-bold'
                   : 'text-on-surface-variant hover:text-on-surface'
@@ -249,8 +505,58 @@ export default function OrgApplicants() {
           </div>
         </div>
 
-        {/* Bottom Row: Candidate Search */}
-        <div className="flex items-center gap-3">
+        {/* Middle Row: Interview Schedule / Shortlist / Finalized Status Filter Pills */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant mr-1 flex items-center gap-1">
+            <span className="material-symbols-outlined text-[15px]">filter_alt</span>
+            <span>Status:</span>
+          </span>
+
+          {[
+            { id: 'all', label: 'All Applicants', icon: 'groups', count: stageCounts.all },
+            { id: 'no_schedule', label: 'No Interview Schedule Yet', icon: 'event_busy', count: stageCounts.no_schedule },
+            { id: 'has_schedule', label: 'Has Interview Schedule', icon: 'event_available', count: stageCounts.has_schedule },
+            ...(stageCounts.interview_done > 0 || stageFilter === 'interview_done'
+              ? [{ id: 'interview_done', label: 'Interview Done', icon: 'fact_check', count: stageCounts.interview_done }]
+              : []),
+            { id: 'shortlisted', label: 'Shortlist Marked', icon: 'star', count: stageCounts.shortlisted },
+            { id: 'accepted', label: 'Application Accepted & Finalized', icon: 'verified', count: stageCounts.accepted },
+            { id: 'rejected', label: 'Rejected', icon: 'cancel', count: stageCounts.rejected }
+          ].map((pill) => {
+            const active = stageFilter === pill.id;
+            return (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => setStageFilter(pill.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                  active
+                    ? 'bg-orange-tint text-accent-text border-brand-teal/50 shadow-2xs'
+                    : 'bg-surface-container-low text-on-surface-variant border-outline-variant hover:text-on-surface'
+                }`}
+              >
+                <span
+                  className={`material-symbols-outlined text-[15px] ${
+                    pill.id === 'shortlisted' && active ? 'text-amber-500' : ''
+                  }`}
+                >
+                  {pill.icon}
+                </span>
+                <span>{pill.label}</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                    active ? 'bg-vibrant-orange/20 text-accent-text' : 'bg-surface-container text-on-surface-variant'
+                  }`}
+                >
+                  {pill.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Bottom Row: Candidate Search + Per-Month Date Filter + Reset */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">
               search
@@ -266,27 +572,46 @@ export default function OrgApplicants() {
               <button
                 type="button"
                 onClick={() => setCandidateSearch('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[16px]">close</span>
               </button>
             )}
           </div>
 
-          {(candidateSearch || activeTab !== 'all') && (
-            <button
-              type="button"
-              onClick={() => {
-                setCandidateSearch('');
-                setActiveTab('all');
-              }}
-              className="px-3 py-2 text-xs font-bold text-vibrant-orange hover:bg-orange-tint rounded-xl transition-colors whitespace-nowrap flex items-center gap-1 shrink-0"
-              title="Reset search & filters"
-            >
-              <span className="material-symbols-outlined text-[16px]">restart_alt</span>
-              <span>Reset</span>
-            </button>
-          )}
+          {/* Per-Month Date Filter */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="relative flex items-center">
+              <span className="material-symbols-outlined absolute left-3 text-vibrant-orange text-[17px] pointer-events-none">
+                calendar_month
+              </span>
+              <select
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                aria-label="Filter applicants by month"
+                className="pl-9 pr-8 py-2 rounded-xl border border-outline-variant bg-surface-container-low text-xs font-bold text-on-surface outline-none focus:border-vibrant-orange cursor-pointer"
+              >
+                <option value="">All Months ({data.applicants?.length || 0})</option>
+                {monthOptions.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label} ({m.count})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={resetAllFilters}
+                className="px-3 py-2 text-xs font-bold text-vibrant-orange hover:bg-orange-tint rounded-xl transition-colors whitespace-nowrap flex items-center gap-1 shrink-0 cursor-pointer"
+                title="Reset search & filters"
+              >
+                <span className="material-symbols-outlined text-[16px]">restart_alt</span>
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -300,16 +625,12 @@ export default function OrgApplicants() {
           <div className="text-center py-12 text-on-surface-variant space-y-2">
             <span className="material-symbols-outlined text-[48px] text-on-surface-variant opacity-50">person_search</span>
             <p className="text-base font-bold text-on-surface">No applicants match your filter criteria.</p>
-            <p className="text-xs text-on-surface-variant">Try adjusting your search keywords, category tab, or opening filter.</p>
-            {(selectedJob || candidateSearch || activeTab !== 'all') && (
+            <p className="text-xs text-on-surface-variant">Try adjusting your status filter, month filter, category tab, or search keywords.</p>
+            {hasActiveFilters && (
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedJob('');
-                  setCandidateSearch('');
-                  setActiveTab('all');
-                }}
-                className="mt-2 px-3 py-1.5 bg-orange-tint text-vibrant-orange rounded-lg text-xs font-bold hover:bg-orange-tint/80"
+                onClick={resetAllFilters}
+                className="mt-2 px-3 py-1.5 bg-orange-tint text-vibrant-orange rounded-lg text-xs font-bold hover:bg-orange-tint/80 cursor-pointer"
               >
                 Clear all filters
               </button>
@@ -318,11 +639,11 @@ export default function OrgApplicants() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm min-w-[760px]">
+              <table className="w-full text-left text-sm min-w-[820px]">
                 <thead>
                   <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
                     <th className="py-3 px-4">Candidate & School</th>
-                    <th className="py-3 px-4">Position Applied</th>
+                    <th className="py-3 px-4">Position & Applied Date</th>
                     <th className="py-3 px-4">Status & Standing</th>
                     <th className="py-3 px-4 text-right">Action</th>
                   </tr>
@@ -331,6 +652,9 @@ export default function OrgApplicants() {
                   {paginatedApplicants.map((app) => {
                     const pType = app.posting_type || 'ojt';
                     const isOnCall = pType === 'on_call';
+                    const shortlisted = isApplicantShortlisted(app);
+                    const hasScheduled = hasApplicantScheduledInterview(app);
+                    const appliedLabel = formatAppliedDate(app.applied_at || app.created_at);
 
                     return (
                       <tr key={app.application_id} className="hover:bg-surface-container-low transition-colors">
@@ -346,14 +670,24 @@ export default function OrgApplicants() {
                               {app.first_name?.[0] || 'A'}
                             </button>
                             <div>
-                              <button
-                                type="button"
-                                onClick={() => handleInspectCandidate(app.application_id)}
-                                className="font-bold text-on-surface hover:text-vibrant-orange text-xs leading-tight text-left transition-colors cursor-pointer block"
-                                title="View Candidate Details"
-                              >
-                                {app.first_name} {app.last_name}
-                              </button>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleInspectCandidate(app.application_id)}
+                                  className="font-bold text-on-surface hover:text-vibrant-orange text-xs leading-tight text-left transition-colors cursor-pointer"
+                                  title="View Candidate Details"
+                                >
+                                  {app.first_name} {app.last_name}
+                                </button>
+                                {shortlisted && (
+                                  <span
+                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-extrabold"
+                                    title="Shortlist Marked Applicant"
+                                  >
+                                    ★ Shortlisted
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant mt-0.5">
                                 <span className="truncate max-w-[170px]" title={app.institution_name}>{app.institution_name || 'Academic Institution'}</span>
                                 <span>•</span>
@@ -363,51 +697,99 @@ export default function OrgApplicants() {
                           </div>
                         </td>
 
-                        {/* Job Position */}
+                        {/* Job Position & Date Applied */}
                         <td className="py-3 px-4 text-xs">
                           <p className="font-bold text-on-surface leading-tight">{app.job_title}</p>
-                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 ${
-                            isOnCall ? 'bg-amber-100 text-amber-800' :
-                            pType === 'career_job' ? 'bg-blue-100 text-blue-800' :
-                            'bg-emerald-100 text-emerald-800'
-                          }`}>
-                            <span className="material-symbols-outlined text-[12px]">
-                              {isOnCall ? 'bolt' : pType === 'career_job' ? 'work' : 'school'}
+                          <div className="flex items-center gap-2 flex-wrap mt-1">
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              isOnCall ? 'bg-amber-100 text-amber-800' :
+                              pType === 'career_job' ? 'bg-blue-100 text-blue-800' :
+                              'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              <span className="material-symbols-outlined text-[12px]">
+                                {isOnCall ? 'bolt' : pType === 'career_job' ? 'work' : 'school'}
+                              </span>
+                              {isOnCall ? 'On-Call' : pType === 'career_job' ? 'Career Job' : 'OJT Training'}
                             </span>
-                            {isOnCall ? 'On-Call' : pType === 'career_job' ? 'Career Job' : 'OJT Training'}
-                          </span>
+                            {appliedLabel && (
+                              <span className="text-[11px] text-on-surface-variant font-medium">
+                                {appliedLabel}
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Status & Standing */}
                         <td className="py-3 px-4">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                              app.status === 'accepted' ? 'bg-green-tint text-pinoy-green' :
-                              app.status === 'rejected' ? 'bg-red-500/10 text-red-500' :
-                              app.status === 'under_review' ? 'bg-blue-500/10 text-blue-500' :
-                              'bg-vibrant-orange/10 text-vibrant-orange'
-                            }`}>
-                              {app.status?.replace('_', ' ') || 'Applied'}
-                            </span>
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.2 rounded text-[10px] font-bold ${
-                              app.is_graduated || app.ojt_status === 'graduated'
-                                ? 'bg-purple-100 text-purple-800'
-                                : app.is_ojt_completer || app.ojt_status === 'completed' || app.ojt_status === 'completed_ojt'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-blue-100 text-blue-800'
-                            }`}>
-                              {app.is_graduated || app.ojt_status === 'graduated'
-                                ? 'Graduated'
-                                : app.is_ojt_completer || app.ojt_status === 'completed' || app.ojt_status === 'completed_ojt'
-                                ? 'OJT Completer'
-                                : 'OJT Student'}
-                            </span>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                app.status === 'accepted' ? 'bg-green-tint text-pinoy-green' :
+                                app.status === 'rejected' ? 'bg-red-500/10 text-red-500' :
+                                app.status === 'under_review' ? 'bg-blue-500/10 text-blue-500' :
+                                'bg-vibrant-orange/10 text-vibrant-orange'
+                              }`}>
+                                {app.status === 'accepted'
+                                  ? 'Accepted & Finalized'
+                                  : app.status?.replace('_', ' ') || 'Applied'}
+                              </span>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.2 rounded text-[10px] font-bold ${
+                                app.is_graduated || app.ojt_status === 'graduated'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : app.is_ojt_completer || app.ojt_status === 'completed' || app.ojt_status === 'completed_ojt'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-blue-100 text-blue-800'
+                              }`}>
+                                {app.is_graduated || app.ojt_status === 'graduated'
+                                  ? 'Graduated'
+                                  : app.is_ojt_completer || app.ojt_status === 'completed' || app.ojt_status === 'completed_ojt'
+                                  ? 'OJT Completer'
+                                  : 'OJT Student'}
+                              </span>
+                            </div>
+
+                            {hasScheduled && (
+                              <button
+                                type="button"
+                                onClick={() => handleViewExistingInterview(app)}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-700 dark:text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                                title="Click to view scheduled interview details"
+                              >
+                                <span className="material-symbols-outlined text-[12px]">event_available</span>
+                                <span>
+                                  {app.scheduled_interview_at
+                                    ? `Scheduled: ${formatScheduleDateTime(app.scheduled_interview_at)}`
+                                    : 'Interview Scheduled'}
+                                </span>
+                              </button>
+                            )}
                           </div>
                         </td>
 
-                        {/* Action */}
+                        {/* Action (Shortlist Star Mark + View Details) */}
                         <td className="py-3 px-4 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end">
+                          <div className="flex items-center justify-end gap-2">
+                            {app.status !== 'rejected' && (
+                              <button
+                                type="button"
+                                disabled={shortlistBusyId === app.application_id}
+                                onClick={(e) => handleToggleShortlist(app, e)}
+                                className={`p-1.5 rounded-lg border text-xs font-bold transition-all inline-flex items-center justify-center cursor-pointer ${
+                                  shortlisted
+                                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-500 hover:bg-amber-500/25'
+                                    : 'bg-surface-container-low border-outline-variant text-on-surface-variant hover:text-amber-500 hover:border-amber-500/40'
+                                }`}
+                                title={shortlisted ? 'Remove Shortlist Mark' : 'Mark Applicant as Shortlisted'}
+                              >
+                                <span
+                                  className="material-symbols-outlined text-[17px]"
+                                  style={shortlisted ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                                >
+                                  star
+                                </span>
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               onClick={() => handleInspectCandidate(app.application_id)}
@@ -442,8 +824,8 @@ export default function OrgApplicants() {
 
       {/* FULL INSPECTION MODAL (STEP 5 & ON-CALL VERIFICATION) */}
       {inspectAppId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl border border-outline-variant shadow-2xl w-full max-w-3xl space-y-4 max-h-[90vh] overflow-y-auto p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-surface text-on-surface rounded-2xl border border-outline-variant shadow-2xl w-full max-w-3xl space-y-4 max-h-[90vh] overflow-y-auto p-6">
             {inspectLoading ? (
               <div className="p-12 flex justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-4 border-vibrant-orange border-t-transparent"></div>
@@ -905,70 +1287,161 @@ export default function OrgApplicants() {
                 {/* Modal Action Bar */}
                 {inspectData.applicant.status === 'accepted' ? (
                   <div className="pt-3 border-t border-outline-variant">
-                    <div className="p-3.5 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-pinoy-green flex items-center justify-between flex-wrap gap-2">
+                    <div className="p-3.5 bg-green-tint border border-pinoy-green/30 rounded-xl text-xs font-bold text-pinoy-green flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <span className="material-symbols-outlined text-[22px] text-pinoy-green">verified</span>
                         <div>
                           <p className="font-bold text-sm text-pinoy-green">Application Accepted & Finalized</p>
-                          <p className="text-[11px] text-green-700 font-normal">
-                            This candidate was officially accepted into the organization. Status updating is disabled because the placement has already been secured.
+                          <p className="text-[11px] text-on-surface-variant font-normal">
+                            This candidate was officially accepted into the organization. Status updating and interview scheduling are locked because the placement has already been secured.
                           </p>
                         </div>
                       </div>
-                      <span className="px-3 py-1 bg-green-100 text-pinoy-green border border-green-300 rounded-full text-[11px] font-bold uppercase tracking-wider">
+                      <span className="px-3 py-1 bg-pinoy-green/15 text-pinoy-green border border-pinoy-green/30 rounded-full text-[11px] font-bold uppercase tracking-wider">
                         Status Locked (Accepted)
                       </span>
                     </div>
                   </div>
                 ) : (
-                  <div className="pt-3 border-t border-outline-variant flex justify-between items-center flex-wrap gap-2 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="text-on-surface-variant font-bold">Update Status:</span>
-                      <button
-                        disabled={actionLoading}
-                        onClick={() => handleStatusChange(inspectData.applicant.application_id, 'shortlisted')}
-                        className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high rounded-lg font-bold text-on-surface transition-colors"
-                      >
-                        Shortlist
-                      </button>
-                      <button
-                        disabled={actionLoading}
-                        onClick={() => handleRequestInterview(inspectData.applicant)}
-                        className="px-3 py-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg font-bold transition-colors flex items-center gap-1 cursor-pointer"
-                        title="Go to Interviews module to schedule and send an invitation"
-                      >
-                        <span className="material-symbols-outlined text-[14px]">event_available</span>
-                        <span>Request Interview</span>
-                      </button>
-                      <button
-                        disabled={actionLoading}
-                        onClick={() => handleStatusChange(inspectData.applicant.application_id, 'rejected')}
-                        className="px-3 py-1.5 bg-error-container text-error hover:bg-red-200 rounded-lg font-bold transition-colors"
-                      >
-                        Reject
-                      </button>
-                    </div>
+                  <div className="pt-3 border-t border-outline-variant space-y-3 text-xs">
+                    {/* Active Scheduled Interview Restriction Callout */}
+                    {hasApplicantScheduledInterview(inspectData.applicant) && (
+                      <div className="p-3 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-teal-600 dark:text-teal-400 text-[20px]">
+                            event_available
+                          </span>
+                          <div>
+                            <p className="font-bold text-on-surface">
+                              Scheduled Interview Active — Duplicate Creation Restricted
+                            </p>
+                            <p className="text-[11px] text-on-surface-variant">
+                              {inspectData.applicant.scheduled_interview_at
+                                ? `Scheduled on ${formatScheduleDateTime(inspectData.applicant.scheduled_interview_at)} PHT (${(inspectData.applicant.scheduled_interview_mode || 'online').toUpperCase()})`
+                                : 'This candidate already has an active interview schedule.'}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleViewExistingInterview(inspectData.applicant)}
+                          className="px-3 py-1.5 rounded-lg bg-surface hover:bg-surface-container border border-outline-variant font-bold text-xs text-teal-700 dark:text-teal-300 flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">calendar_month</span>
+                          <span>View Schedule</span>
+                        </button>
+                      </div>
+                    )}
 
-                    <div className="flex items-center gap-2">
-                      {inspectData.applicant.posting_type === 'on_call' ? (
+                    <div className="flex justify-between items-center flex-wrap gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-on-surface-variant font-bold">Actions:</span>
+
+                        {/* Shortlist Mark Toggle */}
                         <button
-                          disabled={actionLoading}
-                          onClick={() => handleAcceptOnCall(inspectData.applicant.application_id)}
-                          className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+                          type="button"
+                          disabled={actionLoading || shortlistBusyId === inspectData.applicant.application_id}
+                          onClick={() => handleToggleShortlist(inspectData.applicant)}
+                          className={`px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1 cursor-pointer border ${
+                            isApplicantShortlisted(inspectData.applicant)
+                              ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400'
+                              : 'bg-surface-container hover:bg-surface-container-high border-outline-variant text-on-surface'
+                          }`}
                         >
-                          <span className="material-symbols-outlined text-[16px]">verified</span>
-                          <span>Accept On-Call (Auto-Credit Portfolio)</span>
+                          <span
+                            className="material-symbols-outlined text-[15px]"
+                            style={
+                              isApplicantShortlisted(inspectData.applicant)
+                                ? { fontVariationSettings: "'FILL' 1" }
+                                : undefined
+                            }
+                          >
+                            star
+                          </span>
+                          <span>
+                            {isApplicantShortlisted(inspectData.applicant) ? 'Shortlisted' : 'Mark Shortlist'}
+                          </span>
                         </button>
-                      ) : (
-                        <button
-                          disabled={actionLoading}
-                          onClick={() => handleStatusChange(inspectData.applicant.application_id, 'offered')}
-                          className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg font-bold transition-colors flex items-center gap-1.5 shadow-sm"
-                        >
-                          <span className="material-symbols-outlined text-[16px]">assignment_turned_in</span>
-                          <span>Issue Official Offer</span>
-                        </button>
-                      )}
+
+                        {/* Interview Action with Duplicate Schedule Restriction */}
+                        {hasApplicantScheduledInterview(inspectData.applicant) ? (
+                          <button
+                            type="button"
+                            disabled
+                            className="px-3 py-1.5 bg-surface-container-high text-on-surface-variant border border-outline-variant rounded-lg font-bold flex items-center gap-1 cursor-not-allowed opacity-75"
+                            title="Cannot create another schedule: this applicant already has a scheduled interview"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">lock_clock</span>
+                            <span>Interview Already Scheduled</span>
+                          </button>
+                        ) : hasApplicantCompletedInterview(inspectData.applicant) ? (
+                          <button
+                            type="button"
+                            disabled
+                            className="px-3 py-1.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 rounded-lg font-bold flex items-center gap-1 cursor-not-allowed opacity-80"
+                            title="This applicant has already completed their scheduled interview"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">task_alt</span>
+                            <span>Interview Completed</span>
+                          </button>
+                        ) : inspectData.applicant.status === 'rejected' ? (
+                          <button
+                            type="button"
+                            disabled
+                            className="px-3 py-1.5 bg-surface-container text-on-surface-variant rounded-lg font-bold flex items-center gap-1 cursor-not-allowed opacity-60"
+                            title="Cannot schedule an interview while application is rejected"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">block</span>
+                            <span>Interview Disabled (Rejected)</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => handleRequestInterview(inspectData.applicant)}
+                            className="px-3 py-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 rounded-lg font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                            title="Go to Interviews module to schedule and send an invitation"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">event_available</span>
+                            <span>Request Interview</span>
+                          </button>
+                        )}
+
+                        {inspectData.applicant.status !== 'rejected' && (
+                          <button
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => handleStatusChange(inspectData.applicant.application_id, 'rejected')}
+                            className="px-3 py-1.5 bg-error-container text-error hover:opacity-90 rounded-lg font-bold transition-opacity cursor-pointer"
+                          >
+                            Reject
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {inspectData.applicant.posting_type === 'on_call' ? (
+                          <button
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => handleAcceptOnCall(inspectData.applicant.application_id)}
+                            className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg font-bold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">verified</span>
+                            <span>Accept On-Call (Auto-Credit Portfolio)</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => handleStatusChange(inspectData.applicant.application_id, 'offered')}
+                            className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-lg font-bold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">assignment_turned_in</span>
+                            <span>Issue Official Offer</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}

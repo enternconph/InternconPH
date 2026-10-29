@@ -958,17 +958,36 @@ router.get('/applicants', async (req, res) => {
     if (!org) return res.status(404).json({ success: false, message: 'Org not found' });
 
     const [applicants] = await pool.query(
-      `SELECT ja.*, s.first_name, s.last_name, s.student_number, s.contact_number, s.ojt_status, s.classification,
+      `SELECT ja.*, u.email,
+              s.first_name, s.last_name, s.student_number, s.contact_number, s.ojt_status, s.classification,
               s.completed_ojt_hours, s.required_ojt_hours,
               (s.ojt_status = 'graduated' OR s.status_id = 5) as is_graduated,
               (s.ojt_status IN ('completed', 'completed_ojt') OR s.status_id = 4 OR (s.completed_ojt_hours >= s.required_ojt_hours AND s.required_ojt_hours > 0)) as is_ojt_completer,
               p.program_name, p.program_code, i.institution_name,
-              jp.title as job_title, jp.job_id, jp.posting_type, jp.salary_rate, jp.salary_rate_type, jp.on_call_days, jp.finish_time
+              jp.title as job_title, jp.job_id, jp.posting_type, jp.salary_rate, jp.salary_rate_type, jp.on_call_days, jp.finish_time,
+              COALESCE(iv_summary.scheduled_interview_count, 0) as scheduled_interview_count,
+              COALESCE(iv_summary.completed_interview_count, 0) as completed_interview_count,
+              iv_summary.scheduled_interview_id,
+              iv_summary.scheduled_interview_at,
+              active_iv.mode as scheduled_interview_mode,
+              COALESCE(active_iv.meeting_link, active_iv.location_or_link) as scheduled_interview_link
        FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
        JOIN students s ON ja.student_id = s.student_id
+       LEFT JOIN users u ON s.user_id = u.user_id
        LEFT JOIN programs p ON s.program_id = p.program_id
        LEFT JOIN institutions i ON s.institution_id = i.institution_id
+       LEFT JOIN (
+         SELECT
+           application_id,
+           SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END) as scheduled_interview_count,
+           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_interview_count,
+           MAX(CASE WHEN status = 'scheduled' THEN interview_id ELSE NULL END) as scheduled_interview_id,
+           MAX(CASE WHEN status = 'scheduled' THEN schedule_at ELSE NULL END) as scheduled_interview_at
+         FROM interviews
+         GROUP BY application_id
+       ) iv_summary ON iv_summary.application_id = ja.application_id
+       LEFT JOIN interviews active_iv ON active_iv.interview_id = iv_summary.scheduled_interview_id
        WHERE jp.organization_id = ?
        ORDER BY ja.applied_at DESC`,
       [org.organization_id]
@@ -1002,13 +1021,30 @@ router.get('/applicants/:id/profile', async (req, res) => {
               (s.ojt_status IN ('completed', 'completed_ojt') OR s.status_id = 4 OR (s.completed_ojt_hours >= s.required_ojt_hours AND s.required_ojt_hours > 0)) as is_ojt_completer,
               p.program_name, p.program_code, p.department,
               i.institution_name, i.city as institution_city,
-              u.email as student_email
+              u.email as student_email,
+              COALESCE(iv_summary.scheduled_interview_count, 0) as scheduled_interview_count,
+              COALESCE(iv_summary.completed_interview_count, 0) as completed_interview_count,
+              iv_summary.scheduled_interview_id,
+              iv_summary.scheduled_interview_at,
+              active_iv.mode as scheduled_interview_mode,
+              COALESCE(active_iv.meeting_link, active_iv.location_or_link) as scheduled_interview_link
        FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
        JOIN students s ON ja.student_id = s.student_id
        JOIN users u ON s.user_id = u.user_id
        LEFT JOIN programs p ON s.program_id = p.program_id
        LEFT JOIN institutions i ON s.institution_id = i.institution_id
+       LEFT JOIN (
+         SELECT
+           application_id,
+           SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END) as scheduled_interview_count,
+           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_interview_count,
+           MAX(CASE WHEN status = 'scheduled' THEN interview_id ELSE NULL END) as scheduled_interview_id,
+           MAX(CASE WHEN status = 'scheduled' THEN schedule_at ELSE NULL END) as scheduled_interview_at
+         FROM interviews
+         GROUP BY application_id
+       ) iv_summary ON iv_summary.application_id = ja.application_id
+       LEFT JOIN interviews active_iv ON active_iv.interview_id = iv_summary.scheduled_interview_id
        WHERE ja.application_id = ? AND jp.organization_id = ?`,
       [appId, org.organization_id]
     );
@@ -1142,6 +1178,18 @@ router.post('/applicants/:id/status', requireHROrAdmin, async (req, res) => {
       [status, appId]
     );
 
+    try {
+      if (status === 'shortlisted') {
+        await pool.query('UPDATE job_applications SET is_shortlisted = 1 WHERE application_id = ?', [appId]);
+      } else if (status === 'rejected') {
+        await pool.query('UPDATE job_applications SET is_shortlisted = 0 WHERE application_id = ?', [appId]);
+        await pool.query(
+          "UPDATE interviews SET status = 'cancelled', updated_at = NOW() WHERE application_id = ? AND status = 'scheduled'",
+          [appId]
+        );
+      }
+    } catch (_) {}
+
     emitUpdate('application_updated', { application_id: appId, organization_id: org.organization_id, status });
 
     // Send notification to student
@@ -1174,6 +1222,95 @@ router.post('/applicants/:id/status', requireHROrAdmin, async (req, res) => {
   } catch (error) {
     console.error('Update applicant status error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update status.' });
+  }
+});
+
+// POST /api/org/applicants/:id/shortlist - Toggle shortlist mark on an applicant
+router.post('/applicants/:id/shortlist', requireHROrAdmin, async (req, res) => {
+  const appId = req.params.id;
+
+  try {
+    const org = await getOrgId(req.user.user_id);
+    if (!org) return res.status(404).json({ success: false, message: 'Org not found' });
+
+    const [appRows] = await pool.query(
+      `SELECT ja.*, s.user_id as student_user_id, s.first_name, jp.title as job_title, ho.organization_name
+       FROM job_applications ja
+       JOIN job_postings jp ON ja.job_id = jp.job_id
+       JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
+       JOIN students s ON ja.student_id = s.student_id
+       WHERE ja.application_id = ? AND jp.organization_id = ?`,
+      [appId, org.organization_id]
+    );
+
+    if (appRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Application record not found.' });
+    }
+
+    const app = appRows[0];
+    const currentlyShortlisted = Boolean(app.is_shortlisted) || app.status === 'shortlisted';
+    const nextShortlisted =
+      typeof req.body?.shortlisted === 'boolean' ? req.body.shortlisted : !currentlyShortlisted;
+
+    const initialStatuses = ['applied', 'submitted', 'pending', 'under_review'];
+    let nextStatus = app.status;
+    if (nextShortlisted && initialStatuses.includes(app.status)) {
+      nextStatus = 'shortlisted';
+    } else if (!nextShortlisted && app.status === 'shortlisted') {
+      nextStatus = 'under_review';
+    }
+
+    try {
+      await pool.query(
+        'UPDATE job_applications SET is_shortlisted = ?, status = ?, updated_at = NOW() WHERE application_id = ?',
+        [nextShortlisted ? 1 : 0, nextStatus, appId]
+      );
+    } catch (colErr) {
+      if (colErr.code === 'ER_BAD_FIELD_ERROR') {
+        await pool.query('ALTER TABLE job_applications ADD COLUMN is_shortlisted TINYINT(1) NOT NULL DEFAULT 0 AFTER status');
+        await pool.query(
+          'UPDATE job_applications SET is_shortlisted = ?, status = ?, updated_at = NOW() WHERE application_id = ?',
+          [nextShortlisted ? 1 : 0, nextStatus, appId]
+        );
+      } else {
+        throw colErr;
+      }
+    }
+
+    emitUpdate('application_updated', {
+      application_id: appId,
+      organization_id: org.organization_id,
+      status: nextStatus,
+      is_shortlisted: nextShortlisted ? 1 : 0
+    });
+
+    if (nextShortlisted && !currentlyShortlisted && app.student_user_id) {
+      try {
+        await sendNotification({
+          userId: app.student_user_id,
+          senderId: req.user.user_id,
+          senderName: app.organization_name || 'Hiring Organization',
+          title: 'Application Shortlisted!',
+          message: `Your application for "${app.job_title}" at ${app.organization_name} has been marked as Shortlisted.`,
+          type: 'job',
+          link: '/dashboard/student/applications',
+          relatedType: 'application',
+          relatedId: appId
+        });
+      } catch (_) {}
+    }
+
+    return res.json({
+      success: true,
+      is_shortlisted: nextShortlisted,
+      status: nextStatus,
+      message: nextShortlisted
+        ? 'Applicant marked as Shortlisted.'
+        : 'Shortlist mark removed from applicant.'
+    });
+  } catch (error) {
+    console.error('Toggle applicant shortlist error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update shortlist mark.' });
   }
 });
 
@@ -3247,7 +3384,13 @@ router.get('/interviews', async (req, res) => {
        FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
        JOIN students s ON ja.student_id = s.student_id
-       WHERE jp.organization_id = ? AND (ja.status IN ('submitted', 'under_review', 'shortlisted', 'applied', 'pending', 'interview'))
+       WHERE jp.organization_id = ?
+         AND ja.status IN ('submitted', 'under_review', 'shortlisted', 'applied', 'pending')
+         AND NOT EXISTS (
+           SELECT 1 FROM interviews iv
+           WHERE iv.application_id = ja.application_id
+             AND iv.status IN ('scheduled', 'completed')
+         )
        ORDER BY ja.created_at DESC`,
       [org.organization_id]
     );
@@ -3318,6 +3461,63 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
   try {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Org not found' });
+
+    // Verify application belongs to this organization and check status / duplicate interview restriction
+    const [appCheckRows] = await pool.query(
+      `SELECT ja.application_id, ja.status, s.first_name, s.last_name, jp.title as job_title
+       FROM job_applications ja
+       JOIN job_postings jp ON ja.job_id = jp.job_id
+       JOIN students s ON ja.student_id = s.student_id
+       WHERE ja.application_id = ? AND jp.organization_id = ?
+       LIMIT 1`,
+      [application_id, org.organization_id]
+    );
+
+    if (appCheckRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Application record not found.' });
+    }
+
+    const targetApp = appCheckRows[0];
+    const applicantFullName = `${targetApp.first_name || ''} ${targetApp.last_name || ''}`.trim() || 'This applicant';
+
+    if (targetApp.status === 'accepted') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot schedule an interview: ${applicantFullName}'s application is already Accepted & Finalized.`
+      });
+    }
+
+    if (targetApp.status === 'rejected') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot schedule an interview: ${applicantFullName}'s application has been rejected.`
+      });
+    }
+
+    const [existingInterviews] = await pool.query(
+      `SELECT interview_id, schedule_at, status
+       FROM interviews
+       WHERE application_id = ? AND status IN ('scheduled', 'completed')
+       ORDER BY FIELD(status, 'scheduled', 'completed'), interview_id DESC
+       LIMIT 1`,
+      [application_id]
+    );
+
+    if (existingInterviews.length > 0) {
+      const existingIv = existingInterviews[0];
+      if (existingIv.status === 'scheduled') {
+        return res.status(409).json({
+          success: false,
+          code: 'DUPLICATE_INTERVIEW_SCHEDULE',
+          message: `${applicantFullName} already has a scheduled interview for "${targetApp.job_title}". Duplicate interview schedules are not allowed.`
+        });
+      }
+      return res.status(409).json({
+        success: false,
+        code: 'INTERVIEW_ALREADY_COMPLETED',
+        message: `${applicantFullName} already completed an interview for "${targetApp.job_title}". Duplicate interview schedules are not allowed.`
+      });
+    }
 
     const manualLocationOrLink = (location_or_link || '').trim() || null;
     let meetingLink = null;
@@ -3510,7 +3710,7 @@ router.put('/interviews/:id', requireHROrAdmin, async (req, res) => {
 
     // Look up interview, application, and student to broadcast targeted realtime events
     const [interviews] = await pool.query(
-      `SELECT i.interview_id, i.application_id, ja.student_id, jp.organization_id
+      `SELECT i.interview_id, i.application_id, ja.student_id, ja.status as app_status, jp.organization_id
        FROM interviews i
        JOIN job_applications ja ON i.application_id = ja.application_id
        JOIN job_postings jp ON ja.job_id = jp.job_id
@@ -3518,6 +3718,20 @@ router.put('/interviews/:id', requireHROrAdmin, async (req, res) => {
       [req.params.id]
     );
     const interview = interviews[0];
+
+    // Prevent re-activating an interview to 'scheduled' if another scheduled interview already exists for the same application
+    if (finalStatus === 'scheduled' && interview?.application_id) {
+      const [otherScheduled] = await pool.query(
+        "SELECT interview_id FROM interviews WHERE application_id = ? AND status = 'scheduled' AND interview_id <> ? LIMIT 1",
+        [interview.application_id, req.params.id]
+      );
+      if (otherScheduled.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'This applicant already has another active scheduled interview. Duplicate interview schedules are not allowed.'
+        });
+      }
+    }
 
     if (notes !== undefined) {
       await pool.query(
@@ -3531,7 +3745,7 @@ router.put('/interviews/:id', requireHROrAdmin, async (req, res) => {
       );
     }
 
-    // If marked completed, update the job application status to 'interviewed'
+    let updatedAppStatus;
     if (finalStatus === 'completed' && interview?.application_id) {
       await pool.query(
         `UPDATE job_applications 
@@ -3539,6 +3753,37 @@ router.put('/interviews/:id', requireHROrAdmin, async (req, res) => {
          WHERE application_id = ? AND status = 'interview'`,
         [interview.application_id]
       );
+      updatedAppStatus = 'interviewed';
+    } else if ((finalStatus === 'cancelled' || finalStatus === 'no_show') && interview?.application_id) {
+      const [remainingActive] = await pool.query(
+        "SELECT interview_id FROM interviews WHERE application_id = ? AND status IN ('scheduled', 'completed') LIMIT 1",
+        [interview.application_id]
+      );
+      if (remainingActive.length === 0 && interview.app_status === 'interview') {
+        try {
+          await pool.query(
+            `UPDATE job_applications
+             SET status = CASE WHEN is_shortlisted = 1 THEN 'shortlisted' ELSE 'under_review' END,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE application_id = ? AND status = 'interview'`,
+            [interview.application_id]
+          );
+        } catch (_) {
+          await pool.query(
+            `UPDATE job_applications SET status = 'under_review', updated_at = CURRENT_TIMESTAMP WHERE application_id = ? AND status = 'interview'`,
+            [interview.application_id]
+          );
+        }
+        updatedAppStatus = 'under_review';
+      }
+    } else if (finalStatus === 'scheduled' && interview?.application_id) {
+      await pool.query(
+        `UPDATE job_applications
+         SET status = 'interview', updated_at = CURRENT_TIMESTAMP
+         WHERE application_id = ? AND status NOT IN ('accepted', 'rejected')`,
+        [interview.application_id]
+      );
+      updatedAppStatus = 'interview';
     }
 
     emitUpdate('interview_updated', {
@@ -3554,7 +3799,7 @@ router.put('/interviews/:id', requireHROrAdmin, async (req, res) => {
         application_id: interview.application_id,
         student_id: interview.student_id,
         organization_id: interview.organization_id,
-        status: finalStatus === 'completed' ? 'interviewed' : undefined
+        status: updatedAppStatus
       });
     }
 

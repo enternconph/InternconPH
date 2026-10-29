@@ -86,6 +86,7 @@ export default function OrgInterviews() {
   const [data, setData] = useState({ interviews: [], candidates: [] });
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Form State (Online & Onsite only — Phone removed)
   const [appId, setAppId] = useState('');
@@ -130,26 +131,43 @@ export default function OrgInterviews() {
       const res = await api.get('/org/interviews');
       if (res.success && res.data) {
         let candidatesList = res.data.candidates || [];
+        const allInterviews = res.data.interviews || [];
 
         const targetId =
           location.state?.candidateId ||
           location.state?.applicationId ||
           searchParams.get('candidateId');
-        if (targetId && location.state?.candidateName) {
-          const exists = candidatesList.some(
-            (c) => String(c.application_id) === String(targetId)
+        if (targetId) {
+          const existingActive = allInterviews.find(
+            (iv) =>
+              String(iv.application_id) === String(targetId) &&
+              (iv.status === 'scheduled' || iv.status === 'completed')
           );
-          if (!exists) {
-            const names = location.state.candidateName.split(' ');
-            candidatesList = [
-              {
-                application_id: Number(targetId),
-                first_name: names[0] || 'Candidate',
-                last_name: names.slice(1).join(' ') || '',
-                job_title: location.state.jobTitle || 'Applicant'
-              },
-              ...candidatesList
-            ];
+
+          if (existingActive) {
+            setAppId('');
+            setMessage('');
+            setErrorMessage(
+              existingActive.status === 'scheduled'
+                ? `${existingActive.first_name || 'This applicant'} ${existingActive.last_name || ''} already has a scheduled interview. Duplicate interview schedules are restricted.`
+                : `${existingActive.first_name || 'This applicant'} ${existingActive.last_name || ''} already completed their scheduled interview.`
+            );
+          } else if (location.state?.candidateName) {
+            const exists = candidatesList.some(
+              (c) => String(c.application_id) === String(targetId)
+            );
+            if (!exists) {
+              const names = location.state.candidateName.split(' ');
+              candidatesList = [
+                {
+                  application_id: Number(targetId),
+                  first_name: names[0] || 'Candidate',
+                  last_name: names.slice(1).join(' ') || '',
+                  job_title: location.state.jobTitle || 'Applicant'
+                },
+                ...candidatesList
+              ];
+            }
           }
         }
 
@@ -268,6 +286,19 @@ export default function OrgInterviews() {
     e.preventDefault();
     if (!appId || !scheduleAt) return;
     setMessage('');
+    setErrorMessage('');
+
+    const duplicateExisting = (data.interviews || []).find(
+      (iv) =>
+        String(iv.application_id) === String(appId) &&
+        (iv.status === 'scheduled' || iv.status === 'completed')
+    );
+    if (duplicateExisting) {
+      setErrorMessage(
+        'This applicant already has an interview schedule. Duplicate interview schedules are not allowed.'
+      );
+      return;
+    }
 
     // Unlock browser AudioContext & Desktop Notification permission so 5-min alarm can ring unobstructed
     try {
@@ -311,7 +342,7 @@ export default function OrgInterviews() {
       await fetchInterviews();
       window.dispatchEvent(new Event('interncon:interviews-changed'));
     } else {
-      alert(res.message || 'Failed to schedule interview.');
+      setErrorMessage(res.message || 'Failed to schedule interview.');
     }
   };
 
@@ -701,6 +732,22 @@ export default function OrgInterviews() {
           )}
         </div>
       </div>
+
+      {errorMessage && (
+        <div className="p-3 bg-error-container text-error rounded-xl text-xs font-bold flex items-center justify-between gap-2 border border-error/20">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="material-symbols-outlined text-[18px] shrink-0">block</span>
+            <span>{errorMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMessage('')}
+            className="text-error/70 hover:text-error p-0.5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </div>
+      )}
 
       {message && (
         <div className="p-3 bg-green-tint text-pinoy-green rounded-xl text-xs font-bold flex items-center justify-between gap-2">

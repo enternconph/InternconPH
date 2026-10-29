@@ -1109,7 +1109,7 @@ export async function runMigrations() {
       console.warn('[Migration Warning] Flyer image column migration error:', flyerErr.message);
     }
 
-    // 31. Align job_applications table for feedback and rejection_reason
+    // 31. Align job_applications table for feedback, rejection_reason, and is_shortlisted
     try {
       const [jaCols] = await pool.query('DESCRIBE job_applications');
       const jaColNames = jaCols.map(c => c.Field);
@@ -1121,6 +1121,11 @@ export async function runMigrations() {
         await pool.query('ALTER TABLE job_applications ADD COLUMN rejection_reason TEXT NULL AFTER feedback');
         console.log('[Migration] Added rejection_reason to job_applications');
       }
+      if (!jaColNames.includes('is_shortlisted')) {
+        await pool.query('ALTER TABLE job_applications ADD COLUMN is_shortlisted TINYINT(1) NOT NULL DEFAULT 0 AFTER status');
+        console.log('[Migration] Added is_shortlisted to job_applications');
+      }
+      await pool.query("UPDATE job_applications SET is_shortlisted = 1 WHERE status = 'shortlisted' AND is_shortlisted = 0");
     } catch (jaErr) {
       console.warn('[Migration Warning] job_applications migration error:', jaErr.message);
     }
