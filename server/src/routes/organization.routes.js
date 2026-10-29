@@ -20,6 +20,11 @@ const flyerUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }
 });
 
+const evidenceUpload = multer({
+  storage: getUploadStorage('grievances'),
+  limits: { fileSize: 15 * 1024 * 1024 }
+});
+
 // HR-Exclusive operations restriction: Workplace Mentors cannot manage jobs, offers, or HR access codes
 const requireHROrAdmin = (req, res, next) => {
   const role = req.user.role_name || req.user.role;
@@ -712,6 +717,29 @@ router.post('/jobs/upload-flyer', requireHROrAdmin, (req, res) => {
     } catch (processErr) {
       console.error('[Flyer Process Error]', processErr);
       return res.status(500).json({ success: false, message: 'Failed to process flyer image.' });
+    }
+  });
+});
+
+// POST /api/org/grievances/upload-evidence - Upload Evidence Picture for Grievances / Incident Reports
+router.post('/grievances/upload-evidence', (req, res) => {
+  evidenceUpload.single('evidence')(req, res, async (err) => {
+    if (err) {
+      console.error('[Evidence Upload Error]', err);
+      return res.status(400).json({ success: false, message: err.message || 'File upload error.' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No picture file uploaded.' });
+    }
+    if (!req.file.mimetype || !req.file.mimetype.startsWith('image/')) {
+      return res.status(400).json({ success: false, message: 'Only image files (PNG, JPG, JPEG, WEBP) are accepted as photo evidence.' });
+    }
+    try {
+      const url = await processUploadedFile(req.file, 'portfolio');
+      return res.json({ success: true, url: formatFilePath(url), message: 'Evidence picture uploaded successfully!' });
+    } catch (processErr) {
+      console.error('[Evidence Process Error]', processErr);
+      return res.status(500).json({ success: false, message: 'Failed to process evidence picture.' });
     }
   });
 });
@@ -3965,7 +3993,9 @@ const getOrgGrievancesHandler = async (req, res) => {
     const incCatSelect = hasIncidentCategory 
       ? 'COALESCE(c.incident_category, cc.category_name) as category_name, c.incident_category,' 
       : 'cc.category_name, NULL as incident_category,';
-    const evUrlSelect = hasEvidenceUrl ? 'c.evidence_url,' : 'NULL as evidence_url,';
+    const evUrlSelect = hasEvidenceUrl 
+      ? 'COALESCE(c.evidence_url, (SELECT file_path FROM complaint_evidence ce WHERE ce.complaint_id = c.complaint_id ORDER BY ce.evidence_id DESC LIMIT 1)) as evidence_url,' 
+      : '(SELECT file_path FROM complaint_evidence ce WHERE ce.complaint_id = c.complaint_id ORDER BY ce.evidence_id DESC LIMIT 1) as evidence_url,';
 
     const isMentor = await isMentorUser(req, org);
     const mentorStaff = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;

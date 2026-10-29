@@ -89,6 +89,11 @@ export default function OrgGrievances() {
   const [toast, setToast] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
 
+  // Picture Evidence Upload State
+  const [evidenceUploading, setEvidenceUploading] = useState(false);
+  const [evidencePreview, setEvidencePreview] = useState('');
+  const [evidenceError, setEvidenceError] = useState('');
+
   // Form State for filing complaint about an intern
   const [formData, setFormData] = useState({
     student_id: '',
@@ -106,6 +111,60 @@ export default function OrgGrievances() {
     emergency_actions_taken: '',
     preventive_measures: ''
   });
+
+  const handleEvidenceFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setEvidenceError('Please select a valid picture (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setEvidenceError('Image file size must be less than 15MB.');
+      return;
+    }
+
+    setEvidenceError('');
+    setEvidenceUploading(true);
+
+    const localPreviewUrl = URL.createObjectURL(file);
+    setEvidencePreview(localPreviewUrl);
+
+    try {
+      const uploadData = new FormData();
+      uploadData.append('evidence', file);
+      const res = await api.post('/org/grievances/upload-evidence', uploadData);
+      if (res && res.success && res.url) {
+        setFormData(prev => ({ ...prev, evidence_url: res.url }));
+        setEvidencePreview(res.url);
+      } else {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFormData(prev => ({ ...prev, evidence_url: reader.result }));
+          setEvidencePreview(reader.result);
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (uploadErr) {
+      console.warn('Backend evidence upload fallback to Data URL:', uploadErr);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, evidence_url: reader.result }));
+        setEvidencePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setEvidenceUploading(false);
+    }
+  };
+
+  const handleRemoveEvidence = () => {
+    setFormData(prev => ({ ...prev, evidence_url: '' }));
+    setEvidencePreview('');
+    setEvidenceError('');
+  };
 
   const fetchGrievanceData = useCallback(async () => {
     try {
@@ -263,6 +322,8 @@ export default function OrgGrievances() {
           emergency_actions_taken: '',
           preventive_measures: ''
         });
+        setEvidencePreview('');
+        setEvidenceError('');
         setActiveTab('filed');
         fetchGrievanceData();
       } else {
@@ -493,19 +554,78 @@ export default function OrgGrievances() {
                 />
               </div>
 
-              {/* Evidence URL */}
+              {/* Supporting Picture Evidence */}
               <div>
-                <label className="block text-xs font-bold text-on-surface mb-1.5">
-                  Supporting Document or Evidence Link (Optional)
+                <label className="block text-xs font-bold text-on-surface mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-vibrant-orange">photo_camera</span>
+                    Supporting Picture or Photo Evidence (Optional)
+                  </span>
+                  <span className="text-[11px] text-on-surface-variant font-normal">PNG, JPG, JPEG, WEBP up to 15MB</span>
                 </label>
-                <input
-                  type="url"
-                  name="evidence_url"
-                  value={formData.evidence_url}
-                  onChange={handleInputChange}
-                  placeholder="https://drive.google.com/... or uploaded incident log"
-                  className="w-full bg-surface-container border border-outline-variant rounded-xl px-3.5 py-2.5 text-sm text-on-surface focus:outline-none focus:border-vibrant-orange"
-                />
+
+                {!evidencePreview && !formData.evidence_url ? (
+                  <div className="relative border-2 border-dashed border-outline-variant hover:border-vibrant-orange/60 rounded-2xl p-6 bg-surface-container/50 hover:bg-surface-container transition-all text-center group cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleEvidenceFileChange}
+                      disabled={evidenceUploading}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="w-12 h-12 rounded-full bg-vibrant-orange/10 flex items-center justify-center text-vibrant-orange group-hover:scale-110 transition-transform">
+                        <span className="material-symbols-outlined text-2xl">add_a_photo</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-bold text-on-surface">
+                          {evidenceUploading ? 'Uploading picture evidence...' : 'Click or tap to take a photo or select picture evidence'}
+                        </p>
+                        <p className="text-[11px] text-on-surface-variant max-w-md mx-auto">
+                          Upload clear photographs of the incident, damaged property, safety violations, paper incident slips, or medical injury photos
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-surface-container rounded-2xl border border-outline-variant space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                        <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                        Picture Evidence Attached
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleRemoveEvidence}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">delete</span>
+                        Remove Picture
+                      </button>
+                    </div>
+
+                    <div className="relative rounded-xl overflow-hidden border border-outline-variant bg-black/10 flex items-center justify-center max-h-64">
+                      <img
+                        src={evidencePreview || formData.evidence_url}
+                        alt="Evidence Preview"
+                        className="max-h-64 w-auto object-contain rounded-xl"
+                      />
+                      {evidenceUploading && (
+                        <div className="absolute inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center gap-2 text-white text-xs font-bold">
+                          <span className="material-symbols-outlined animate-spin text-lg">progress_activity</span>
+                          Optimizing and saving photo...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {evidenceError && (
+                  <p className="text-xs text-rose-600 mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    {evidenceError}
+                  </p>
+                )}
               </div>
 
               {/* TOGGLE ACCIDENT REPORT DETAILS */}
@@ -1066,20 +1186,31 @@ export default function OrgGrievances() {
                     </p>
                   </div>
 
-                  {/* Supporting Document / Evidence */}
+                  {/* Supporting Picture Evidence */}
                   {item.evidence_url && (
                     <div>
-                      <h4 className="font-bold text-on-surface mb-1">Supporting Document / Evidence:</h4>
-                      <a
-                        href={item.evidence_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 p-2.5 bg-surface-container-low rounded-xl text-vibrant-orange hover:underline text-xs break-all border border-outline-variant/60 w-full"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">attach_file</span>
-                        <span className="truncate flex-1">{item.evidence_url}</span>
-                        <span className="material-symbols-outlined text-[14px] shrink-0">open_in_new</span>
-                      </a>
+                      <h4 className="font-bold text-on-surface mb-1.5 flex items-center gap-1.5 text-xs">
+                        <span className="material-symbols-outlined text-vibrant-orange text-[16px]">photo_camera</span>
+                        Supporting Picture Evidence:
+                      </h4>
+                      <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/60 space-y-2">
+                        <div className="rounded-lg overflow-hidden border border-outline-variant bg-black/10 flex items-center justify-center">
+                          <img
+                            src={item.evidence_url}
+                            alt="Supporting Picture Evidence"
+                            className="max-h-72 w-auto object-contain rounded-lg shadow-xs"
+                          />
+                        </div>
+                        <a
+                          href={item.evidence_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-surface-container hover:bg-surface-container-high rounded-lg text-xs font-semibold text-vibrant-orange transition-colors w-full border border-outline-variant"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+                          <span>View Full-Resolution Picture</span>
+                        </a>
+                      </div>
                     </div>
                   )}
 

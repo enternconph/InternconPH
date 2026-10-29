@@ -965,6 +965,26 @@ export default function InstMonitoring() {
               </p>
               <p className="text-on-surface-variant">Target Org: <span className="font-bold text-on-surface">{selectedComplaint.organization_name}</span></p>
               <p className="mt-2 text-on-surface font-mono">{selectedComplaint.description}</p>
+              {selectedComplaint.evidence_url && (
+                <div className="mt-2.5 pt-2.5 border-t border-outline-variant/60 space-y-1.5">
+                  <span className="text-[11px] font-bold text-on-surface flex items-center gap-1 text-vibrant-orange">
+                    <span className="material-symbols-outlined text-[15px]">photo_camera</span>
+                    Supporting Picture Evidence:
+                  </span>
+                  <a
+                    href={selectedComplaint.evidence_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-lg overflow-hidden border border-outline-variant bg-black/10 hover:opacity-90 transition-opacity"
+                  >
+                    <img
+                      src={selectedComplaint.evidence_url}
+                      alt="Supporting Evidence"
+                      className="max-h-48 w-full object-contain"
+                    />
+                  </a>
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleReviewComplaint} className="space-y-3">
