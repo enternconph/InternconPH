@@ -94,7 +94,8 @@ export default function AttendanceQrModal({ visible, onClose }) {
             const loc = {
               lat: Number(pos.coords.latitude.toFixed(6)),
               lng: Number(pos.coords.longitude.toFixed(6)),
-              acc: Math.round(pos.coords.accuracy || 0)
+              acc: Math.round(pos.coords.accuracy || 0),
+              ts: Math.floor(pos.timestamp ? pos.timestamp / 1000 : Date.now() / 1000)
             };
             gpsCoordsRef.current = loc;
             setGpsCoords(loc);
@@ -103,15 +104,15 @@ export default function AttendanceQrModal({ visible, onClose }) {
           if (typeof geo.getCurrentPosition === 'function') {
             geo.getCurrentPosition(updateCoords, () => {}, {
               enableHighAccuracy: true,
-              maximumAge: 5000,
-              timeout: 8000
+              maximumAge: 0, // Fresh fix only - reject cached stale location
+              timeout: 10000
             });
           }
 
           if (typeof geo.watchPosition === 'function') {
             watchId = geo.watchPosition(updateCoords, () => {}, {
               enableHighAccuracy: true,
-              maximumAge: 5000,
+              maximumAge: 0, // Fresh continuous satellite fixes
               timeout: 10000
             });
           }

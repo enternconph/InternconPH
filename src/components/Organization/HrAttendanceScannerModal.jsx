@@ -239,6 +239,13 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
       return;
     }
 
+    if (lat > 25 && lng < 25) {
+      alert(
+        `Latitude and Longitude appear to be SWAPPED!\n\nYou entered:\nLatitude: ${lat}\nLongitude: ${lng}\n\nIn the Philippines (e.g. Davao is ~7.1° N, 125.6° E), Latitude must be ~4°–21° and Longitude must be ~116°–127°.\n\nPlease swap the values.`
+      );
+      return;
+    }
+
     setSavingManualCoords(true);
     try {
       const res = await api.post('/org/attendance/geofence', {
@@ -1735,6 +1742,57 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
                 <li>Paste directly into the Latitude field below!</li>
               </ol>
             </div>
+
+            {/* Coordinates Swapped Detection Warning */}
+            {(() => {
+              const inputLat = parseFloat(manualCoordsInput.latitude);
+              const inputLng = parseFloat(manualCoordsInput.longitude);
+              const isCoordsSwapped = !isNaN(inputLat) && !isNaN(inputLng) && inputLat > 25 && inputLng < 25;
+              const hasValidPin = !isNaN(inputLat) && !isNaN(inputLng) && inputLat >= -90 && inputLat <= 90 && inputLng >= -180 && inputLng <= 180;
+
+              return (
+                <>
+                  {isCoordsSwapped && (
+                    <div className="p-2.5 bg-amber-500/15 border border-amber-500/40 rounded-xl flex items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-200 animate-pulse">
+                      <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[18px] text-amber-600">warning</span>
+                        <span className="text-[11px]">
+                          <strong>Swapped Coordinates Detected:</strong> In the Philippines (e.g. Davao ~7.1° N, 125.6° E), Latitude must be ~4°–21°.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setManualCoordsInput({
+                            ...manualCoordsInput,
+                            latitude: manualCoordsInput.longitude,
+                            longitude: manualCoordsInput.latitude
+                          })
+                        }
+                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold shrink-0 cursor-pointer shadow-xs"
+                      >
+                        Swap Lat & Lng
+                      </button>
+                    </div>
+                  )}
+
+                  {hasValidPin && !isCoordsSwapped && (
+                    <div className="flex items-center justify-between text-xs px-1">
+                      <span className="text-[11px] text-on-surface-variant font-medium">Verify your office location:</span>
+                      <a
+                        href={`https://www.google.com/maps?q=${inputLat},${inputLng}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-vibrant-orange hover:underline font-bold inline-flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                        <span>View Pin on Google Maps ({inputLat.toFixed(4)}, {inputLng.toFixed(4)})</span>
+                      </a>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             <form onSubmit={handleSaveManualCoords} className="space-y-3">
               <div>

@@ -1757,6 +1757,21 @@ router.post('/attendance/geofence', requireHROrAdmin, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid GPS latitude or longitude coordinates.' });
     }
 
+    // Coordinate validation for the Philippines (e.g. Davao is ~7.1° N, 125.6° E)
+    let coordinateWarning = null;
+    if (lat !== null && lng !== null) {
+      if (lat > 25 && lng < 25) {
+        return res.status(400).json({
+          success: false,
+          code: 'SWAPPED_COORDINATES',
+          message: `Latitude and Longitude appear to be SWAPPED! You entered Latitude: ${lat} and Longitude: ${lng}. In the Philippines (e.g. Davao ~7.1° N, 125.6° E), Latitude must be ~4°–21° and Longitude must be ~116°–127°. Please swap the values.`
+        });
+      }
+      if (lat < 4 || lat > 22 || lng < 116 || lng > 128) {
+        coordinateWarning = `Note: Coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)}) appear to be outside standard Philippine territory (Lat 4°–22°, Lng 116°–128°). Please verify your office map pin.`;
+      }
+    }
+
     const shouldEnforce = lat !== null && lng !== null ? (enforce_geofence !== false ? 1 : 0) : 0;
 
     await pool.query(
@@ -1932,13 +1947,22 @@ async function processSingleQrAttendanceScan({
 
   // Step 6: Online Geofence & GPS Anti-Spoofing Verification (Haversine distance + accuracy + velocity jump + scanner co-location)
   const effectiveMode = isOfflineSync ? 'offline' : verification.mode || 'online';
+  const studentUserAgent = String(deviceRecord.device_label || deviceRecord.device_name || '');
+  const deviceType =
+    verification.mode === 'web_unverified' ||
+    studentUserAgent.toLowerCase().includes('browser') ||
+    studentUserAgent.toLowerCase().includes('windows')
+      ? 'desktop_browser'
+      : 'mobile';
+
   const geoCheck = verifyGeofenceAndTelemetry({
     studentLoc: verification.location,
     scannerLoc,
     org,
     deviceRecord,
     scanTimestampSec: verification.timestamp,
-    mode: effectiveMode
+    mode: effectiveMode,
+    deviceType
   });
 
   if (!geoCheck.valid) {

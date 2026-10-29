@@ -314,7 +314,8 @@ export async function buildDynamicQrPayload(secret, studentId, deviceToken, opti
       ? {
           lat: Number(Number(options.location.lat).toFixed(6)),
           lng: Number(Number(options.location.lng).toFixed(6)),
-          acc: options.location.acc != null ? Math.round(Number(options.location.acc)) : null
+          acc: options.location.acc != null ? Math.round(Number(options.location.acc)) : null,
+          ts: options.location.ts ? parseInt(options.location.ts, 10) : ts
         }
       : null;
 
@@ -332,7 +333,7 @@ export async function buildDynamicQrPayload(secret, studentId, deviceToken, opti
 
   const locStr =
     loc && loc.lat != null && loc.lng != null
-      ? `${loc.lat},${loc.lng},${loc.acc != null ? loc.acc : ''}`
+      ? `${loc.lat},${loc.lng},${loc.acc != null ? loc.acc : ''},${loc.ts || ts}`
       : 'none';
 
   // Compact pipe-delimited payload (reduces module density to match standard QR photo)

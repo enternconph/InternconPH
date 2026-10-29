@@ -338,11 +338,14 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
     if (!canvasRef.current || !secret || !studentId || !deviceId) return;
 
     try {
+      const isMobileDevice = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const effectiveMode = !isMobileDevice ? 'web_unverified' : mode;
+
       const payload = await buildDynamicQrPayload({
         secret,
         studentId,
         deviceId,
-        mode,
+        mode: effectiveMode,
         location: locationObj
       });
       await QRCode.toCanvas(canvasRef.current, payload, {

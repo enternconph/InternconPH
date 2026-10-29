@@ -151,7 +151,8 @@ export function parseAttendancePayload(rawPayload) {
         loc = {
           lat: Number(Number(locParts[0]).toFixed(6)),
           lng: Number(Number(locParts[1]).toFixed(6)),
-          acc: locParts[2] && !isNaN(Number(locParts[2])) ? Math.round(Number(locParts[2])) : null
+          acc: locParts[2] && !isNaN(Number(locParts[2])) ? Math.round(Number(locParts[2])) : null,
+          ts: locParts[3] && !isNaN(Number(locParts[3])) ? parseInt(locParts[3], 10) : ts
         };
       }
     }
@@ -453,7 +454,8 @@ export function verifyGeofenceAndTelemetry({
   org,
   deviceRecord,
   scanTimestampSec = Math.floor(Date.now() / 1000),
-  mode = 'online'
+  mode = 'online',
+  deviceType = 'mobile'
 }) {
   const orgHasCoords =
     org &&
@@ -467,9 +469,37 @@ export function verifyGeofenceAndTelemetry({
   const radiusMeters = Number(org?.geofence_radius_meters) || DEFAULT_GEOFENCE_RADIUS_METERS;
   const enforceGeofence = org?.enforce_geofence !== undefined ? Boolean(org.enforce_geofence) : true;
 
+  // Check: Desktop/browser block or unverified mark
+  const isDesktop = mode === 'web_unverified' || deviceType === 'desktop_browser';
+  if (isDesktop && orgHasCoords && enforceGeofence) {
+    const debugLog = {
+      event: 'GEOFENCE_EVALUATION',
+      timestamp: new Date().toISOString(),
+      studentId: deviceRecord?.student_id || studentLoc?.sid,
+      deviceType: 'desktop_browser',
+      decision: 'REJECTED',
+      reason: 'Desktop / Browser QR generation blocked. Mobile device with satellite GPS required.'
+    };
+    console.log('[GEOFENCE_AUDIT]', JSON.stringify(debugLog, null, 2));
+    return {
+      valid: false,
+      code: 'DESKTOP_BLOCKED',
+      reason: 'Mobile Device Required: Online attendance requires physical presence verified via the InternConPH Android App. Desktop web browsers cannot provide satellite GPS telemetry.'
+    };
+  }
+
   // In online mode, if the organization has configured office coordinates, GPS location is mandatory
   if (!studentLoc || studentLoc.lat == null || studentLoc.lng == null) {
     if (mode === 'online' && orgHasCoords && enforceGeofence) {
+      const debugLog = {
+        event: 'GEOFENCE_EVALUATION',
+        timestamp: new Date().toISOString(),
+        studentId: deviceRecord?.student_id || studentLoc?.sid,
+        deviceType,
+        decision: 'REJECTED',
+        reason: 'Missing GPS telemetry in attendance payload'
+      };
+      console.log('[GEOFENCE_AUDIT]', JSON.stringify(debugLog, null, 2));
       return {
         valid: false,
         code: 'LOCATION_REQUIRED',
@@ -487,6 +517,8 @@ export function verifyGeofenceAndTelemetry({
   const lat = Number(studentLoc.lat);
   const lng = Number(studentLoc.lng);
   const acc = studentLoc.acc != null ? Number(studentLoc.acc) : null;
+  const locTimestamp = studentLoc.ts ? parseInt(studentLoc.ts, 10) : scanTimestampSec;
+  const locAgeSec = Math.max(0, scanTimestampSec - locTimestamp);
 
   if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
     return {
@@ -496,17 +528,51 @@ export function verifyGeofenceAndTelemetry({
     };
   }
 
-  // 1. Reject low-accuracy readings (e.g., > 150m or > max(150, radius * 1.5))
-  const maxAccuracy = Math.max(MAX_ALLOWED_GPS_ACCURACY_METERS, Math.round(radiusMeters * 1.5));
-  if (acc !== null && !isNaN(acc) && acc > maxAccuracy) {
+  // 1. Strict Accuracy Threshold: Reject if accuracy is worse than 50m
+  if (acc !== null && !isNaN(acc) && acc > 50) {
+    const debugLog = {
+      event: 'GEOFENCE_EVALUATION',
+      timestamp: new Date().toISOString(),
+      studentId: deviceRecord?.student_id || studentLoc?.sid,
+      deviceType,
+      deviceCoords: { lat, lng },
+      accuracyMeters: acc,
+      locTimestamp,
+      locAgeSec,
+      decision: 'REJECTED',
+      reason: `Accuracy ±${Math.round(acc)}m exceeds 50m limit`
+    };
+    console.log('[GEOFENCE_AUDIT]', JSON.stringify(debugLog, null, 2));
     return {
       valid: false,
       code: 'LOW_GPS_ACCURACY',
-      reason: `Low GPS accuracy (±${Math.round(acc)}m exceeds the ${maxAccuracy}m security limit). Please enable High-Accuracy Location on your Android phone and retry.`
+      reason: `GPS accuracy is too low (±${Math.round(acc)}m exceeds the 50m threshold). Please move near a window or outdoors and wait for a precise satellite fix.`
     };
   }
 
-  // 2. Impossible Velocity Jump Check (anti-spoofing between consecutive scans)
+  // 2. Freshness Check: Reject if location fix is older than 30 seconds
+  if (locAgeSec > 30) {
+    const debugLog = {
+      event: 'GEOFENCE_EVALUATION',
+      timestamp: new Date().toISOString(),
+      studentId: deviceRecord?.student_id || studentLoc?.sid,
+      deviceType,
+      deviceCoords: { lat, lng },
+      accuracyMeters: acc,
+      locTimestamp,
+      locAgeSec,
+      decision: 'REJECTED',
+      reason: `Location fix is ${locAgeSec}s old (exceeds 30s limit)`
+    };
+    console.log('[GEOFENCE_AUDIT]', JSON.stringify(debugLog, null, 2));
+    return {
+      valid: false,
+      code: 'STALE_GPS_LOCATION',
+      reason: `Stale GPS reading (${locAgeSec}s old). Please refresh your dynamic QR code to acquire a fresh satellite fix.`
+    };
+  }
+
+  // 3. Impossible Velocity Jump Check (anti-spoofing between consecutive scans)
   if (
     deviceRecord &&
     deviceRecord.last_latitude != null &&
@@ -524,6 +590,17 @@ export function verifyGeofenceAndTelemetry({
       if (jumpDistMeters > 500) {
         const velocityMps = jumpDistMeters / elapsedSec;
         if (velocityMps > MAX_REALISTIC_VELOCITY_MPS) {
+          const debugLog = {
+            event: 'GEOFENCE_EVALUATION',
+            timestamp: new Date().toISOString(),
+            studentId: deviceRecord?.student_id || studentLoc?.sid,
+            deviceType,
+            jumpDistMeters,
+            velocityMps,
+            decision: 'REJECTED',
+            reason: `Impossible velocity jump: ${(jumpDistMeters / 1000).toFixed(2)} km in ${elapsedSec}s`
+          };
+          console.log('[GEOFENCE_AUDIT]', JSON.stringify(debugLog, null, 2));
           return {
             valid: false,
             code: 'IMPOSSIBLE_LOCATION_JUMP',
@@ -534,15 +611,22 @@ export function verifyGeofenceAndTelemetry({
     }
   }
 
-  // 3. Haversine Geofence Check against Organization Coordinates & Scanner Device
-  let distanceMeters = null;
+  // 4. Haversine Distance & Tolerance Buffer Check:
+  // Allowed if: (distance - min(accuracy, 50)) <= radiusMeters
+  let rawDistanceMeters = null;
+  let effectiveDistance = null;
+  let accuracyTolerance = 0;
   let scannerDistanceMeters = null;
   let interDeviceDistanceMeters = null;
 
   if (orgHasCoords) {
     const orgLat = Number(org.latitude);
     const orgLng = Number(org.longitude);
-    distanceMeters = Math.round(calculateHaversineMeters(lat, lng, orgLat, orgLng) * 10) / 10;
+    rawDistanceMeters = Math.round(calculateHaversineMeters(lat, lng, orgLat, orgLng) * 10) / 10;
+
+    accuracyTolerance = Math.min(acc || 0, 50);
+    effectiveDistance = Math.max(0, Math.round((rawDistanceMeters - accuracyTolerance) * 10) / 10);
+    const isWithinOfficeGeofence = effectiveDistance <= radiusMeters;
 
     // Check scanner device location if provided by HR terminal
     let scannerInOffice = false;
@@ -558,27 +642,49 @@ export function verifyGeofenceAndTelemetry({
       interDeviceDistanceMeters = Math.round(calculateHaversineMeters(lat, lng, Number(scannerLoc.lat), Number(scannerLoc.lng)) * 10) / 10;
 
       const scannerAcc = Number(scannerLoc.acc) || 0;
-      const effectiveScannerDist = Math.max(0, scannerDistanceMeters - Math.min(scannerAcc / 2, 30));
+      const effectiveScannerDist = Math.max(0, scannerDistanceMeters - Math.min(scannerAcc, 50));
       scannerInOffice = effectiveScannerDist <= radiusMeters;
-      studentNearScanner = interDeviceDistanceMeters <= 60; // Physically present in front of HR scanner
+      studentNearScanner = interDeviceDistanceMeters <= 50; // Directly at the HR scanner desk
     }
 
-    // Apply indoor GPS cushion (up to 30m allowance for indoor concrete attenuation)
-    const effectiveDistance = Math.max(0, distanceMeters - Math.min((acc || 0) / 2, 30));
-    const isWithinOfficeGeofence = effectiveDistance <= radiusMeters;
-
-    // Pass if directly inside 100m workplace OR if scanner is at office and student is co-located with scanner
     const passedGeofence = isWithinOfficeGeofence || (scannerInOffice && studentNearScanner);
+
+    // Comprehensive Debug Logging on every attempt
+    const debugLog = {
+      event: 'GEOFENCE_EVALUATION',
+      timestamp: new Date().toISOString(),
+      studentId: deviceRecord?.student_id || studentLoc?.sid,
+      deviceType,
+      deviceCoords: { lat, lng },
+      accuracyMeters: acc,
+      locTimestamp,
+      locAgeSec,
+      orgCoords: { lat: orgLat, lng: orgLng, name: org.organization_name },
+      rawDistanceMeters,
+      accuracyTolerance,
+      effectiveDistanceMeters: effectiveDistance,
+      allowedRadiusMeters: radiusMeters,
+      scannerCoords: scannerLoc ? { lat: scannerLoc.lat, lng: scannerLoc.lng, acc: scannerLoc.acc } : null,
+      scannerDistanceMeters,
+      interDeviceDistanceMeters,
+      decision: passedGeofence ? 'PASSED' : 'REJECTED',
+      reason: passedGeofence
+        ? `Within perimeter: raw=${rawDistanceMeters}m - tolerance=${accuracyTolerance}m -> effective=${effectiveDistance}m <= ${radiusMeters}m`
+        : `Outside perimeter: raw=${rawDistanceMeters}m - tolerance=${accuracyTolerance}m -> effective=${effectiveDistance}m > ${radiusMeters}m`
+    };
+    console.log('[GEOFENCE_AUDIT]', JSON.stringify(debugLog, null, 2));
 
     if (enforceGeofence && !passedGeofence) {
       return {
         valid: false,
         code: 'OUTSIDE_GEOFENCE',
-        distanceMeters,
+        distanceMeters: rawDistanceMeters,
+        effectiveDistanceMeters: effectiveDistance,
         radiusMeters,
+        accuracyTolerance,
         scannerDistanceMeters,
         interDeviceDistanceMeters,
-        reason: `Outside Workplace Geofence: Student is ${Math.round(distanceMeters)}m away from ${org.organization_name || 'the registered office'} (allowed radius: ${radiusMeters}m). Attendance must be scanned on physical premises.`
+        reason: `Outside Workplace Geofence: Student is ${Math.round(rawDistanceMeters)}m away (effective: ${Math.round(effectiveDistance)}m with ±${Math.round(acc || 0)}m accuracy; allowed radius: ${radiusMeters}m). Attendance must be scanned on physical premises.`
       };
     }
   }
@@ -588,7 +694,8 @@ export function verifyGeofenceAndTelemetry({
     latitude: lat,
     longitude: lng,
     accuracyMeters: acc,
-    distanceMeters,
+    distanceMeters: rawDistanceMeters,
+    effectiveDistanceMeters: effectiveDistance,
     radiusMeters,
     scannerDistanceMeters,
     interDeviceDistanceMeters,
