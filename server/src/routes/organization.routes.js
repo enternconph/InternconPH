@@ -1722,15 +1722,18 @@ router.get('/attendance/geofence', requireHROrAdmin, async (req, res) => {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
 
+    const isConfigured = org.latitude !== null && org.longitude !== null && !isNaN(Number(org.latitude)) && !isNaN(Number(org.longitude));
+
     return res.json({
       success: true,
       data: {
         organization_id: org.organization_id,
         organization_name: org.organization_name,
-        latitude: org.latitude !== null && org.latitude !== undefined ? Number(org.latitude) : null,
-        longitude: org.longitude !== null && org.longitude !== undefined ? Number(org.longitude) : null,
+        latitude: isConfigured ? Number(org.latitude) : null,
+        longitude: isConfigured ? Number(org.longitude) : null,
         geofence_radius_meters: Number(org.geofence_radius_meters) || 100,
-        enforce_geofence: org.enforce_geofence !== undefined ? Boolean(org.enforce_geofence) : true
+        enforce_geofence: org.enforce_geofence !== undefined ? Boolean(org.enforce_geofence) : true,
+        configured: isConfigured
       }
     });
   } catch (err) {
@@ -1754,23 +1757,28 @@ router.post('/attendance/geofence', requireHROrAdmin, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid GPS latitude or longitude coordinates.' });
     }
 
+    const shouldEnforce = lat !== null && lng !== null ? (enforce_geofence !== false ? 1 : 0) : 0;
+
     await pool.query(
       `UPDATE hiring_organizations
        SET latitude = ?, longitude = ?, geofence_radius_meters = ?, enforce_geofence = ?
        WHERE organization_id = ?`,
-      [lat, lng, radius, enforce_geofence ? 1 : 0, org.organization_id]
+      [lat, lng, radius, shouldEnforce, org.organization_id]
     );
+
+    const isConfigured = lat !== null && lng !== null;
 
     return res.json({
       success: true,
-      message: lat !== null && lng !== null
-        ? `Workplace geofence locked at (${lat.toFixed(6)}, ${lng.toFixed(6)}) with a ${radius}m radius.`
-        : 'Workplace geofence settings updated.',
+      message: isConfigured
+        ? `Workplace geofence successfully locked at (${lat.toFixed(6)}, ${lng.toFixed(6)}) with a ${radius}m radius.`
+        : 'Workplace geofence cleared. Attendance scans are now accepted without location restrictions.',
       data: {
         latitude: lat,
         longitude: lng,
         geofence_radius_meters: radius,
-        enforce_geofence: Boolean(enforce_geofence)
+        enforce_geofence: Boolean(shouldEnforce),
+        configured: isConfigured
       }
     });
   } catch (err) {

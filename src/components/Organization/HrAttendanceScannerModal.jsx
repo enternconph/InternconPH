@@ -114,16 +114,18 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
   // Calibrate workplace geofence coordinates using HR terminal's current GPS position
   const handleCalibrateGeofence = () => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported on this browser.');
+      alert('Geolocation is not supported by your browser.');
       return;
     }
     setCalibratingGeofence(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
           const res = await api.post('/org/attendance/geofence', {
-            latitude: Number(pos.coords.latitude.toFixed(6)),
-            longitude: Number(pos.coords.longitude.toFixed(6)),
+            latitude: lat,
+            longitude: lng,
             geofence_radius_meters: geofenceConfig?.geofence_radius_meters || 100,
             enforce_geofence: true
           });
@@ -131,8 +133,12 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
             setGeofenceConfig({
               ...geofenceConfig,
               ...res.data,
-              configured: true
+              latitude: lat,
+              longitude: lng,
+              configured: true,
+              enforce_geofence: true
             });
+            alert(`Office GPS locked at (${lat.toFixed(4)}, ${lng.toFixed(4)}). Student attendance within ${geofenceConfig?.geofence_radius_meters || 100}m is now strictly enforced.`);
           } else {
             alert(res.message || 'Failed to update workplace geofence.');
           }
@@ -144,10 +150,42 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
       },
       (err) => {
         setCalibratingGeofence(false);
-        alert(err.message || 'Unable to read GPS location. Please allow browser location access.');
+        let errorMsg = 'Unable to read GPS location. Please allow browser location access.';
+        if (err.code === 1) {
+          errorMsg = 'Location permission denied by your browser. Please click the site settings / padlock icon in your browser URL bar and allow Location access for interncon-ph.vercel.app.';
+        } else if (err.code === 2) {
+          errorMsg = 'Location unavailable: Your device or network cannot determine GPS coordinates. Ensure Windows Location Services are turned ON in Windows Settings > Privacy & security > Location.';
+        } else if (err.code === 3) {
+          errorMsg = 'Location request timed out. Please try calibrating again.';
+        }
+        alert(errorMsg);
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     );
+  };
+
+  // Clear or disable geofence enforcement (allows attendance from any location)
+  const handleClearGeofence = async () => {
+    if (!window.confirm('Disable workplace geofence? Student scans will be accepted from any location.')) return;
+    try {
+      const res = await api.post('/org/attendance/geofence', {
+        latitude: null,
+        longitude: null,
+        enforce_geofence: false
+      });
+      if (res.success) {
+        setGeofenceConfig({
+          ...geofenceConfig,
+          latitude: null,
+          longitude: null,
+          enforce_geofence: false,
+          configured: false
+        });
+        alert('Workplace geofence disabled. Intern attendance scans are now allowed from any location.');
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to clear geofence.');
+    }
   };
 
   // Sync queued offline scans to backend when connection is restored
@@ -1113,46 +1151,70 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
               </div>
 
               {/* Workplace Geofence Status & Calibration Bar */}
-              <div className="p-2.5 bg-surface-container-low rounded-xl border border-outline-variant/80 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`material-symbols-outlined text-[18px] ${
-                      geofenceConfig?.configured ? 'text-emerald-600' : 'text-amber-600'
-                    }`}
-                  >
-                    {geofenceConfig?.configured ? 'where_to_vote' : 'add_location_alt'}
-                  </span>
-                  <div>
-                    <span className="font-bold text-on-surface text-[11px] block">
-                      {geofenceConfig?.configured
-                        ? `Workplace Geofence Active (${geofenceConfig.geofence_radius_meters || 100}m Radius)`
-                        : 'Workplace Geofence Not Calibrated Yet'}
-                    </span>
-                    <span className="text-[10px] text-on-surface-variant">
-                      {geofenceConfig?.configured
-                        ? `Coords: ${Number(geofenceConfig.latitude).toFixed(4)}, ${Number(geofenceConfig.longitude).toFixed(4)} • Haversine Check On`
-                        : 'Set your office GPS coordinates to enforce 100m Haversine proximity on student scans.'}
-                    </span>
+              {(() => {
+                const isGeofenceActive = Boolean(
+                  geofenceConfig?.configured ||
+                  (geofenceConfig?.latitude != null && geofenceConfig?.longitude != null && geofenceConfig?.enforce_geofence !== false)
+                );
+
+                return (
+                  <div className="p-2.5 bg-surface-container-low rounded-xl border border-outline-variant/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`material-symbols-outlined text-[18px] ${
+                          isGeofenceActive ? 'text-emerald-600' : 'text-amber-600'
+                        }`}
+                      >
+                        {isGeofenceActive ? 'where_to_vote' : 'add_location_alt'}
+                      </span>
+                      <div>
+                        <span className="font-bold text-on-surface text-[11px] block">
+                          {isGeofenceActive
+                            ? `Workplace Geofence Active (${geofenceConfig.geofence_radius_meters || 100}m Radius)`
+                            : 'Workplace Geofence Disabled / Not Set'}
+                        </span>
+                        <span className="text-[10px] text-on-surface-variant">
+                          {isGeofenceActive
+                            ? `Coords: ${Number(geofenceConfig.latitude).toFixed(4)}, ${Number(geofenceConfig.longitude).toFixed(4)} • 100m Co-location Enforced`
+                            : 'Scans will be accepted from anywhere unless GPS coordinates are calibrated.'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        disabled={calibratingGeofence || !isOnline}
+                        onClick={handleCalibrateGeofence}
+                        className="px-2.5 py-1.5 rounded-lg bg-surface hover:bg-surface-container-high border border-outline-variant text-[11px] font-bold text-on-surface flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer shrink-0"
+                      >
+                        <span className="material-symbols-outlined text-[14px] text-vibrant-orange">
+                          my_location
+                        </span>
+                        <span>
+                          {calibratingGeofence
+                            ? 'Calibrating GPS...'
+                            : isGeofenceActive
+                            ? 'Recalibrate Office GPS'
+                            : 'Set Office GPS (100m)'}
+                        </span>
+                      </button>
+
+                      {isGeofenceActive && (
+                        <button
+                          type="button"
+                          onClick={handleClearGeofence}
+                          className="px-2 py-1.5 rounded-lg text-error hover:bg-rose-50 border border-error/20 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                          title="Disable 100m workplace geofence check (useful when testing or working remotely)"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">location_off</span>
+                          <span>Clear Geofence</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <button
-                  type="button"
-                  disabled={calibratingGeofence || !isOnline}
-                  onClick={handleCalibrateGeofence}
-                  className="px-2.5 py-1.5 rounded-lg bg-surface hover:bg-surface-container-high border border-outline-variant text-[11px] font-bold text-on-surface flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer shrink-0"
-                >
-                  <span className="material-symbols-outlined text-[14px] text-vibrant-orange">
-                    my_location
-                  </span>
-                  <span>
-                    {calibratingGeofence
-                      ? 'Calibrating GPS...'
-                      : geofenceConfig?.configured
-                      ? 'Recalibrate Office GPS'
-                      : 'Set Office GPS (100m)'}
-                  </span>
-                </button>
-              </div>
+                );
+              })()}
 
               {/* Offline Scan Queue & Sync Banner */}
               {(offlineQueue.length > 0 || !isOnline) && (
