@@ -24,12 +24,38 @@ function useMediaQuery(query) {
 }
 
 // Navigation item: amber pill when expanded, circular icon button in the collapsed rail.
-function SidebarNavItem({ to, end = false, icon, label, badge, isCollapsed, onClick, onHover, onLeave }) {
+function SidebarNavItem({ to, end = false, icon, label, badge, externalTab = false, isCollapsed, onClick, onHover, onLeave }) {
   const handleMouseEnter = (e) => {
     if (!isCollapsed || !onHover) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    onHover({ label, badge, top: rect.top + rect.height / 2 });
+    onHover({ label: externalTab ? `${label} (New Tab)` : label, badge, top: rect.top + rect.height / 2 });
   };
+
+  if (externalTab) {
+    return (
+      <a
+        href={to}
+        target="internconph_hr_scanner"
+        rel="noopener"
+        onClick={onClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={onLeave}
+        aria-label={`${label} (opens in dedicated tab)`}
+        title="Opens dedicated scanner terminal in a new tab for extended monitors"
+        className={`relative flex items-center transition-all duration-200 outline-none ${
+          isCollapsed
+            ? 'w-11 h-11 mx-auto justify-center rounded-full'
+            : 'w-full gap-3 px-3.5 py-2.5 rounded-full text-[13px]'
+        } text-on-surface-variant font-semibold hover:bg-brand-mint/40 hover:text-on-surface dark:hover:bg-brand-teal/10`}
+      >
+        <span className={`material-symbols-outlined shrink-0 ${isCollapsed ? 'text-[22px]' : 'text-[20px]'}`}>{icon}</span>
+        {!isCollapsed && <span className="truncate flex-1 min-w-0 text-left">{label}</span>}
+        {!isCollapsed && (
+          <span className="material-symbols-outlined text-[15px] text-on-surface-variant/70 shrink-0">open_in_new</span>
+        )}
+      </a>
+    );
+  }
 
   return (
     <NavLink
@@ -166,6 +192,7 @@ export default function Sidebar() {
                   icon={entry.icon}
                   label={entry.label}
                   badge={entry.badge}
+                  externalTab={entry.externalTab}
                   {...navItemProps}
                 />
               ))}

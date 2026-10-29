@@ -4,8 +4,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl, formatFileSize, getFileIcon, isImageFile, formatPortfolioTitle, formatFileSubtitle, formatCleanFileName } from '../../utils/fileHelper';
 import Pagination from '../../components/ui/Pagination';
-import HrAttendanceScannerModal from '../../components/Organization/HrAttendanceScannerModal';
 import { DetailDrawer, DetailRow } from '../../components/ui';
+
+const SCANNER_TAB_URL = '/dashboard/organization/scanner';
+const SCANNER_WINDOW_NAME = 'internconph_hr_scanner';
 
 export default function OrgOJT() {
   const { user } = useAuth();
@@ -24,8 +26,15 @@ export default function OrgOJT() {
   // View Navigation: 'interns' | 'pending_validation' | 'all_logs'
   const [activeViewTab, setActiveViewTab] = useState('interns');
 
-  // HR QR Attendance Scanner Modal State
-  const [showScannerModal, setShowScannerModal] = useState(false);
+  // Open dedicated HR Attendance Desk Scanner in a standalone tab for extended monitors
+  const openScannerTab = useCallback(() => {
+    const win = window.open(SCANNER_TAB_URL, SCANNER_WINDOW_NAME);
+    if (win) {
+      try {
+        win.focus();
+      } catch (_) {}
+    }
+  }, []);
 
   // Mentor Shift Validation States
   const [validatingId, setValidatingId] = useState(null);
@@ -103,8 +112,34 @@ export default function OrgOJT() {
     fetchData();
   }, [fetchData]);
 
-  // Real-time synchronization
+  // Real-time synchronization (WebSocket + Cross-Tab Scanner Sync)
   useRealtimeRefresh(fetchData);
+
+  useEffect(() => {
+    let ch = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        ch = new BroadcastChannel('interncon_attendance_sync');
+        ch.onmessage = () => {
+          fetchData();
+        };
+      }
+    } catch (_) {}
+
+    const handleStorageSync = (e) => {
+      if (e.key === 'interncon_last_qr_scan_ts') {
+        fetchData();
+      }
+    };
+    window.addEventListener('storage', handleStorageSync);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageSync);
+      try {
+        if (ch) ch.close();
+      } catch (_) {}
+    };
+  }, [fetchData]);
 
   const showToast = (msg, isErr = false) => {
     if (isErr) {
@@ -331,16 +366,19 @@ export default function OrgOJT() {
 
         {/* Action Controls & Real-time Timezone Badge */}
         <div className="flex items-center gap-3 flex-wrap self-start sm:self-auto">
-          {/* HR-Exclusive Scanner Button */}
+          {/* HR-Exclusive Dedicated Scanner Tab Button */}
           {isHR && (
-            <button
-              type="button"
-              onClick={() => setShowScannerModal(true)}
+            <a
+              href={SCANNER_TAB_URL}
+              target={SCANNER_WINDOW_NAME}
+              rel="noopener"
+              title="Open dedicated HR Attendance Desk Scanner in a new tab for extended monitors"
               className="px-4 py-2 bg-gradient-to-r from-vibrant-orange to-deep-orange hover:opacity-95 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-transform active:scale-95"
             >
               <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
               <span>QR Attendance Scanner</span>
-            </button>
+              <span className="material-symbols-outlined text-[15px] opacity-85">open_in_new</span>
+            </a>
           )}
 
           {/* Mentor Indicator */}
@@ -588,9 +626,9 @@ export default function OrgOJT() {
                                 {isHR && (
                                   <button
                                     type="button"
-                                    onClick={() => setShowScannerModal(true)}
-                                    className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition-colors inline-flex items-center gap-1 shadow-xs"
-                                    title="Open HR QR Attendance Scanner"
+                                    onClick={openScannerTab}
+                                    className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer"
+                                    title="Open HR Attendance Desk Scanner in dedicated tab"
                                   >
                                     <span className="material-symbols-outlined text-[11px]">qr_code_scanner</span>
                                     <span>Scan</span>
@@ -606,9 +644,9 @@ export default function OrgOJT() {
                                 {isHR ? (
                                   <button
                                     type="button"
-                                    onClick={() => setShowScannerModal(true)}
-                                    className="px-2 py-0.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded text-[10px] font-bold transition-colors inline-flex items-center gap-1 shadow-xs"
-                                    title="Scan student QR for departure clock"
+                                    onClick={openScannerTab}
+                                    className="px-2 py-0.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded text-[10px] font-bold transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer"
+                                    title="Open HR Attendance Desk Scanner in dedicated tab"
                                   >
                                     <span className="material-symbols-outlined text-[11px]">qr_code_scanner</span>
                                     <span>Out</span>
@@ -1604,12 +1642,13 @@ export default function OrgOJT() {
                     type="button"
                     onClick={() => {
                       setSelectedInternForDetail(null);
-                      setShowScannerModal(true);
+                      openScannerTab();
                     }}
-                    className="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors"
+                    className="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
                     <span>Clock In with HR QR Scanner</span>
+                    <span className="material-symbols-outlined text-[14px]">open_in_new</span>
                   </button>
                 )}
 
@@ -1618,12 +1657,13 @@ export default function OrgOJT() {
                     type="button"
                     onClick={() => {
                       setSelectedInternForDetail(null);
-                      setShowScannerModal(true);
+                      openScannerTab();
                     }}
-                    className="w-full mt-2 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors"
+                    className="w-full mt-2 py-2 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
                     <span>Clock Out with HR QR Scanner</span>
+                    <span className="material-symbols-outlined text-[14px]">open_in_new</span>
                   </button>
                 )}
               </div>
@@ -1631,18 +1671,6 @@ export default function OrgOJT() {
           </DetailDrawer>
         );
       })()}
-
-      {/* HR-Exclusive Physical Attendance Scanner Modal */}
-      <HrAttendanceScannerModal
-        isOpen={showScannerModal}
-        onClose={() => {
-          setShowScannerModal(false);
-          fetchData();
-        }}
-        onScanSuccess={() => {
-          fetchData();
-        }}
-      />
     </div>
   );
 }

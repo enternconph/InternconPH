@@ -74,6 +74,7 @@ const HR = [
     title: 'Interns & Mentorship',
     items: [
       item('/dashboard/organization/ojt', 'badge', 'Deployed Interns & DTR', { primary: true, short: 'Interns' }),
+      item('/dashboard/organization/scanner', 'qr_code_scanner', 'HR Desk Scanner', { externalTab: true }),
       item('/dashboard/organization/evaluations', 'rate_review', 'Evaluations'),
       item('/dashboard/organization/grievances', 'report_problem', 'Grievance & Incidents'),
       item('/dashboard/organization/mentors', 'supervisor_account', 'Workplace Mentors'),

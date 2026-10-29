@@ -43,6 +43,7 @@ const OrgOJT = lazy(() => import('./pages/organization/OrgOJT'));
 const OrgEvaluations = lazy(() => import('./pages/organization/OrgEvaluations'));
 const OrgMentors = lazy(() => import('./pages/organization/OrgMentors'));
 const OrgGrievances = lazy(() => import('./pages/organization/OrgGrievances'));
+const OrgAttendanceScanner = lazy(() => import('./pages/organization/OrgAttendanceScanner'));
 
 // Institution Pages (Lazy Loaded)
 const InstitutionDashboard = lazy(() => import('./pages/institution/InstitutionDashboard'));
@@ -99,6 +100,11 @@ function AnimatedRoutes() {
             <Route path="profile" element={<StudentProfile />} />
             <Route path="settings" element={<UserSettingsPage />} />
           </Route>
+        </Route>
+
+        {/* Dedicated Standalone HR Attendance Desk Scanner (Extended Monitor Tab) */}
+        <Route element={<ProtectedRoute allowedRoles={['hiring_organization', 'hr_staff', 'org_admin', 'super_admin', 'system_admin']} />}>
+          <Route path="/dashboard/organization/scanner" element={<OrgAttendanceScanner />} />
         </Route>
 
         {/* Organization & Workplace Mentor Dashboard Routes */}
