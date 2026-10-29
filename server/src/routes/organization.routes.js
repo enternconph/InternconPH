@@ -7,7 +7,7 @@ import { checkAndGenerateCertificate } from '../services/certificate.service.js'
 import { isValidEmail, normalizeEmail } from '../utils/email.js';
 import multer from 'multer';
 import { getUploadStorage, processUploadedFile, formatFilePath } from '../utils/upload.helper.js';
-import { createMeetSpace, isGoogleMeetConfigured } from '../services/googleMeet.js';
+import { createMeetSpace, isGoogleMeetConfigured, getLastMeetError } from '../services/googleMeet.js';
 import { verifyTotpPayload, verifyGeofenceAndTelemetry, parseAttendancePayload, calculateHaversineMeters } from '../utils/totp.helper.js';
 import { validate, Schemas } from '../middleware/validate.js';
 
@@ -3270,7 +3270,11 @@ router.get('/interviews/meet-status', async (req, res) => {
 // POST /api/org/interviews/generate-meet - Dedicated endpoint to preview or generate a Google Meet space
 router.post('/interviews/generate-meet', requireHROrAdmin, async (req, res) => {
   try {
-    const meetRes = await createMeetSpace();
+    const { topic, schedule_at } = req.body || {};
+    const meetRes = await createMeetSpace({
+      topic: topic || 'InternConPH OJT Interview',
+      startTime: schedule_at || null
+    });
 
     if (meetRes && meetRes.meetingUri) {
       return res.json({
@@ -3281,18 +3285,20 @@ router.post('/interviews/generate-meet', requireHROrAdmin, async (req, res) => {
         meeting_link: meetRes.meetingUri,
         meeting_code: meetRes.meetingCode,
         name: meetRes.name,
-        message: 'Google Meet space generated successfully!'
+        message: 'Google Meet link generated successfully!'
       });
     }
 
+    const detail = getLastMeetError();
     return res.json({
       success: false,
       meetLinkGenerated: false,
-      message: 'Google Meet API is not configured or failed.',
-      fallbackUri: `https://meet.google.com/ojt-interview-${Date.now().toString(36).slice(-4)}`
+      message: detail
+        ? `Google Meet generation failed: ${detail}`
+        : 'Google Calendar / Meet OAuth2 credentials are not configured yet.'
     });
   } catch (err) {
-    console.warn('[Google Meet API] generate-meet error:', err.message);
+    console.warn('[Google Meet] generate-meet error:', err.message);
     return res.json({
       success: false,
       meetLinkGenerated: false,
@@ -3303,7 +3309,7 @@ router.post('/interviews/generate-meet', requireHROrAdmin, async (req, res) => {
 
 // POST /api/org/interviews
 router.post('/interviews', requireHROrAdmin, async (req, res) => {
-  const { application_id, schedule_at, mode, location_or_link, notes } = req.body;
+  const { application_id, schedule_at, mode, auto_generate_meet, location_or_link, notes } = req.body;
 
   if (!application_id || !schedule_at) {
     return res.status(400).json({ success: false, message: 'Application and schedule datetime are required.' });
@@ -3319,26 +3325,62 @@ router.post('/interviews', requireHROrAdmin, async (req, res) => {
     let meetLinkGenerated = false;
 
     const isOnline = (mode || 'online').toLowerCase() === 'online';
+    const shouldAutoGenerate = isOnline && auto_generate_meet !== false;
+    const isPreGeneratedRealMeet =
+      manualLocationOrLink &&
+      /^https?:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}/i.test(manualLocationOrLink);
 
-    // If online, call createMeetSpace() before inserting the record
-    if (isOnline) {
+    if (isOnline && isPreGeneratedRealMeet) {
+      meetingLink = manualLocationOrLink;
+      meetingCode = manualLocationOrLink.replace(/^https?:\/\/meet\.google\.com\//i, '').split('?')[0];
+      meetLinkGenerated = true;
+    } else if (shouldAutoGenerate) {
       try {
-        const meetRes = await createMeetSpace();
+        // Fetch candidate & job metadata so Calendar event has real title & email invites
+        const [metaRows] = await pool.query(
+          `SELECT s.first_name, s.last_name, u.email as student_email,
+                  jp.title as job_title, ho.organization_name
+           FROM job_applications ja
+           JOIN students s ON ja.student_id = s.student_id
+           JOIN users u ON s.user_id = u.user_id
+           JOIN job_postings jp ON ja.job_id = jp.job_id
+           JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
+           WHERE ja.application_id = ?`,
+          [application_id]
+        );
+        const meta = metaRows[0] || {};
+        const candFullName = [meta.first_name, meta.last_name].filter(Boolean).join(' ') || 'OJT Candidate';
+        const meetTopic = meta.job_title
+          ? `OJT Interview: ${candFullName} — ${meta.job_title} (${meta.organization_name || 'Organization'})`
+          : `OJT Interview: ${candFullName}`;
+        const meetDesc = notes
+          ? `OJT Interview Notes:\n${notes}\n\nScheduled via InternConPH.`
+          : `Online OJT Interview for ${candFullName} scheduled via InternConPH.`;
+
+        const meetRes = await createMeetSpace({
+          topic: meetTopic,
+          description: meetDesc,
+          startTime: schedule_at,
+          attendeeEmails: [meta.student_email, req.user?.email].filter(Boolean)
+        });
+
         if (meetRes && meetRes.meetingUri) {
           meetingLink = meetRes.meetingUri;
           meetingCode = meetRes.meetingCode;
           meetLinkGenerated = true;
-          console.log(`[Google Meet API] Generated space ${meetingLink} for application #${application_id}`);
+          console.log(`[Google Meet] Generated Meet room ${meetingLink} for application #${application_id}`);
         } else {
-          // If createMeetSpace fails (returns null), fall back to manual location/link or null
           meetingLink = manualLocationOrLink;
           meetLinkGenerated = false;
         }
       } catch (meetErr) {
-        console.warn('[Google Meet API] Error calling createMeetSpace:', meetErr.message);
+        console.warn('[Google Meet] Error calling createMeetSpace:', meetErr.message);
         meetingLink = manualLocationOrLink;
         meetLinkGenerated = false;
       }
+    } else if (isOnline) {
+      meetingLink = manualLocationOrLink;
+      meetLinkGenerated = false;
     }
 
     const finalLocationOrLink = meetingLink || manualLocationOrLink || (isOnline ? 'Online Video Meeting' : 'Company Office Premises');

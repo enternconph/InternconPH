@@ -95,17 +95,15 @@ export default function OrgInterviews() {
       const selectedCandidate = data.candidates?.find(c => String(c.application_id) === String(appId));
       const candName = selectedCandidate ? `${selectedCandidate.first_name} ${selectedCandidate.last_name}` : 'Candidate';
       const res = await api.post('/org/interviews/generate-meet', {
-        topic: `OJT Interview - ${candName}`
+        topic: `OJT Interview - ${candName}`,
+        schedule_at: scheduleAt || null
       });
 
       if (res.success && res.meetingUri) {
         setLocLink(res.meetingUri);
-        setMessage(`Google Meet space generated: ${res.meetingUri}`);
-      } else if (res.fallbackUri) {
-        setLocLink(res.fallbackUri);
-        setMessage(`Generated meeting link: ${res.fallbackUri}`);
+        setMessage(`Google Meet room created: ${res.meetingUri}`);
       } else {
-        alert(res.message || 'Could not generate Google Meet space. You can enter a link manually.');
+        alert(res.message || 'Could not generate Google Meet link. Check your Google Calendar API OAuth credentials or switch to Custom URL.');
       }
     } catch (err) {
       alert('Error generating Google Meet link: ' + err.message);
