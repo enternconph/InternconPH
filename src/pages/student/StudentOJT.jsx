@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl, formatFileSize, getFileIcon } from '../../utils/fileHelper';
@@ -389,6 +389,13 @@ export default function StudentOJT() {
               </span>
             )}
           </button>
+          <Link
+            to="/dashboard/student/schedule"
+            className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 text-on-surface-variant hover:text-vibrant-orange hover:bg-surface/80"
+          >
+            <span className="material-symbols-outlined text-[18px]">calendar_month</span>
+            <span>Work Schedule & Shifts</span>
+          </Link>
           {certificates.length > 0 && (
             <button
               type="button"

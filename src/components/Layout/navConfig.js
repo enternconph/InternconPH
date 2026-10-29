@@ -23,6 +23,7 @@ const STUDENT = [
       item('/dashboard/student/jobs', 'dynamic_feed', 'Browse Jobs & Feed', { primary: true, short: 'Jobs' }),
       item('/dashboard/student/applications', 'send', 'My Applications'),
       item('/dashboard/student/ojt', 'timelapse', 'OJT Progress & DTR', { primary: true, short: 'OJT' }),
+      item('/dashboard/student/schedule', 'calendar_month', 'Work Schedule & Shifts'),
     ],
   },
   {
@@ -50,6 +51,7 @@ const MENTOR = [
     title: 'Supervision',
     items: [
       item('/dashboard/organization/ojt', 'badge', 'Deployed Interns & DTR', { primary: true, short: 'Interns' }),
+      item('/dashboard/organization/schedules', 'calendar_month', 'Work Schedules & Overtime', { primary: true, short: 'Schedules' }),
       item('/dashboard/organization/evaluations', 'rate_review', 'Student Evaluations', { primary: true, short: 'Evaluate' }),
       item('/dashboard/organization/grievances', 'report_problem', 'Grievance & Incident Reports', { primary: true, short: 'Reports' }),
     ],
@@ -74,6 +76,7 @@ const HR = [
     title: 'Interns & Mentorship',
     items: [
       item('/dashboard/organization/ojt', 'badge', 'Deployed Interns & DTR', { primary: true, short: 'Interns' }),
+      item('/dashboard/organization/schedules', 'calendar_month', 'Work Schedules & Overtime', { primary: true, short: 'Schedules' }),
       item('/dashboard/organization/scanner', 'qr_code_scanner', 'HR Desk Scanner', { externalTab: true }),
       item('/dashboard/organization/evaluations', 'rate_review', 'Evaluations'),
       item('/dashboard/organization/grievances', 'report_problem', 'Grievance & Incidents'),

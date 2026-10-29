@@ -704,6 +704,10 @@ export default function AttendanceQrModal({ visible, onClose }) {
         setQrSecret(secret);
         setDeviceBound(true);
         setIsOffline(false);
+        if (res.data.todayLog) {
+          setTodayLog(res.data.todayLog);
+          prevLogRef.current = res.data.todayLog;
+        }
 
         if (gpsCoordsRef.current) {
           const initialPayload = await buildDynamicQrPayload(secret, sId, activeDevToken, {

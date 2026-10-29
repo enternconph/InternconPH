@@ -28,6 +28,7 @@ const StudentDashboard = lazy(() => import('./pages/student/StudentDashboard'));
 const StudentJobs = lazy(() => import('./pages/student/StudentJobs'));
 const StudentApplications = lazy(() => import('./pages/student/StudentApplications'));
 const StudentOJT = lazy(() => import('./pages/student/StudentOJT'));
+const StudentSchedule = lazy(() => import('./pages/student/StudentSchedule'));
 const StudentSkills = lazy(() => import('./pages/student/StudentSkills'));
 const StudentPortfolio = lazy(() => import('./pages/student/StudentPortfolio'));
 const StudentComplaints = lazy(() => import('./pages/student/StudentComplaints'));
@@ -40,6 +41,7 @@ const OrgApplicants = lazy(() => import('./pages/organization/OrgApplicants'));
 const OrgInterviews = lazy(() => import('./pages/organization/OrgInterviews'));
 const OrgOffers = lazy(() => import('./pages/organization/OrgOffers'));
 const OrgOJT = lazy(() => import('./pages/organization/OrgOJT'));
+const OrgSchedules = lazy(() => import('./pages/organization/OrgSchedules'));
 const OrgEvaluations = lazy(() => import('./pages/organization/OrgEvaluations'));
 const OrgMentors = lazy(() => import('./pages/organization/OrgMentors'));
 const OrgGrievances = lazy(() => import('./pages/organization/OrgGrievances'));
@@ -93,6 +95,7 @@ function AnimatedRoutes() {
             <Route path="jobs" element={<StudentJobs />} />
             <Route path="applications" element={<StudentApplications />} />
             <Route path="ojt" element={<StudentOJT />} />
+            <Route path="schedule" element={<StudentSchedule />} />
             <Route path="requirements" element={<Navigate to="/dashboard/student/ojt?tab=requirements" replace />} />
             <Route path="skills" element={<StudentSkills />} />
             <Route path="portfolio" element={<StudentPortfolio />} />
@@ -110,9 +113,10 @@ function AnimatedRoutes() {
         {/* Organization & Workplace Mentor Dashboard Routes */}
         <Route element={<ProtectedRoute allowedRoles={['hiring_organization', 'workplace_mentor', 'mentor', 'hr_staff', 'system_admin']} />}>
           <Route path="/dashboard/organization" element={<DashboardLayout />}>
-            {/* Shared: Overview, Deployed Interns, Evaluations */}
+            {/* Shared: Overview, Deployed Interns, Schedules, Evaluations */}
             <Route index element={<OrgDashboard />} />
             <Route path="ojt" element={<OrgOJT />} />
+            <Route path="schedules" element={<OrgSchedules />} />
             <Route path="evaluations" element={<OrgEvaluations />} />
             <Route path="grievances" element={<OrgGrievances />} />
             <Route path="settings" element={<UserSettingsPage />} />

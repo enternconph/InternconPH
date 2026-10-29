@@ -1,0 +1,1348 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import api from '../../api/client';
+import { useRealtimeRefresh } from '../../contexts/SocketContext';
+import { DetailLink } from '../../components/ui/kit';
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function toManilaDateKey(dateInput) {
+  if (!dateInput) return '';
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(d);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    if (y && m && day) return `${y}-${m}-${day}`;
+  } catch (_) {}
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatTime12(timeStr) {
+  if (!timeStr) return '';
+  const parts = String(timeStr).split(':').map(Number);
+  const h = isNaN(parts[0]) ? 0 : parts[0];
+  const m = isNaN(parts[1]) ? 0 : parts[1];
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+export default function OrgSchedules() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [data, setData] = useState({
+    interns: [],
+    dailySchedules: [],
+    scheduleRequests: [],
+    pendingOvertimeLogs: [],
+    attendanceLogs: []
+  });
+  const [loading, setLoading] = useState(true);
+  const [selectedStudentId, setSelectedStudentId] = useState('all');
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+  const [filterType, setFilterType] = useState('all'); // 'all' | 'custom' | 'overtime' | 'requests'
+  const [message, setMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Modals state
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [isPendingQueueOpen, setIsPendingQueueOpen] = useState(false);
+  const [activeDayModal, setActiveDayModal] = useState(null); // { dateKey, daySchedules, dayAttendance, dayRequests }
+
+  // Batch Update form state
+  const [batchSelectedStudents, setBatchSelectedStudents] = useState([]);
+  const [batchSelectedDates, setBatchSelectedDates] = useState([]);
+  const [batchStartTime, setBatchStartTime] = useState('08:00');
+  const [batchFinishTime, setBatchFinishTime] = useState('17:00');
+  const [batchIsOvertimeAllowed, setBatchIsOvertimeAllowed] = useState(false);
+  const [batchMaxOvertime, setBatchMaxOvertime] = useState('2.0');
+  const [batchNotes, setBatchNotes] = useState('');
+  const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
+
+  // Attendance editing inside Day Modal
+  const [editingAttendanceId, setEditingAttendanceId] = useState(null);
+  const [editTimeIn, setEditTimeIn] = useState('');
+  const [editTimeOut, setEditTimeOut] = useState('');
+  const [editTasks, setEditTasks] = useState('');
+  const [isSavingAttendance, setIsSavingAttendance] = useState(false);
+
+  // Fetch Schedules & Requests
+  const fetchSchedules = useCallback(async () => {
+    try {
+      setLoading(true);
+      const queryMonth = calendarMonth.month + 1;
+      const queryYear = calendarMonth.year;
+      const studentParam = selectedStudentId !== 'all' ? `&student_id=${selectedStudentId}` : '';
+      const res = await api.get(`/org/schedules?month=${queryMonth}&year=${queryYear}${studentParam}`);
+      if (res.success && res.data) {
+        setData(res.data);
+      }
+    } catch (err) {
+      console.error('Error fetching schedules:', err);
+      setErrorMessage(err.message || 'Could not load work schedules.');
+    } finally {
+      setLoading(false);
+    }
+  }, [calendarMonth, selectedStudentId]);
+
+  useEffect(() => {
+    fetchSchedules();
+  }, [fetchSchedules]);
+
+  useRealtimeRefresh(fetchSchedules);
+
+  // Auto clear banners
+  useEffect(() => {
+    if (message) {
+      const t = setTimeout(() => setMessage(''), 6000);
+      return () => clearTimeout(t);
+    }
+  }, [message]);
+
+  useEffect(() => {
+    if (errorMessage) {
+      const t = setTimeout(() => setErrorMessage(''), 7000);
+      return () => clearTimeout(t);
+    }
+  }, [errorMessage]);
+
+  // Quick navigation
+  const shiftMonth = (delta) => {
+    setCalendarMonth((prev) => {
+      const d = new Date(prev.year, prev.month + delta, 1);
+      return { year: d.getFullYear(), month: d.getMonth() };
+    });
+  };
+
+  const jumpToToday = () => {
+    const now = new Date();
+    setCalendarMonth({ year: now.getFullYear(), month: now.getMonth() });
+  };
+
+  const calendarMonthLabel = useMemo(() => {
+    return new Date(calendarMonth.year, calendarMonth.month, 1).toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric'
+    });
+  }, [calendarMonth]);
+
+  // Aggregate daily mapping for the month
+  const calendarMap = useMemo(() => {
+    const map = {};
+    const { dailySchedules, attendanceLogs, scheduleRequests } = data;
+
+    (dailySchedules || []).forEach((ds) => {
+      const key = ds.schedule_date_str || toManilaDateKey(ds.schedule_date);
+      if (!map[key]) map[key] = { schedules: [], attendance: [], requests: [] };
+      map[key].schedules.push(ds);
+    });
+
+    (attendanceLogs || []).forEach((att) => {
+      const key = att.log_date_str || toManilaDateKey(att.log_date);
+      if (!map[key]) map[key] = { schedules: [], attendance: [], requests: [] };
+      map[key].attendance.push(att);
+    });
+
+    (scheduleRequests || []).forEach((sr) => {
+      const key = sr.schedule_date_str || toManilaDateKey(sr.schedule_date);
+      if (!map[key]) map[key] = { schedules: [], attendance: [], requests: [] };
+      map[key].requests.push(sr);
+    });
+
+    return map;
+  }, [data]);
+
+  // Compute calendar cells
+  const calendarCells = useMemo(() => {
+    const { year, month } = calendarMonth;
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = [];
+
+    for (let i = 0; i < firstDayIndex; i++) {
+      cells.push({ empty: true, key: `pad-${i}` });
+    }
+
+    const todayKey = toManilaDateKey(new Date());
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dayData = calendarMap[dateKey] || { schedules: [], attendance: [], requests: [] };
+      cells.push({
+        empty: false,
+        day,
+        dateKey,
+        isToday: dateKey === todayKey,
+        schedules: dayData.schedules,
+        attendance: dayData.attendance,
+        requests: dayData.requests,
+        key: dateKey
+      });
+    }
+
+    return cells;
+  }, [calendarMonth, calendarMap]);
+
+  // Pending counts
+  const pendingOvertimeCount = useMemo(() => {
+    return (data.pendingOvertimeLogs || []).length;
+  }, [data.pendingOvertimeLogs]);
+
+  const pendingRequestsCount = useMemo(() => {
+    return (data.scheduleRequests || []).filter((r) => r.status === 'pending').length;
+  }, [data.scheduleRequests]);
+
+  // Handle open day modal
+  const handleOpenDayModal = (cell) => {
+    if (cell.empty) return;
+    setActiveDayModal({
+      dateKey: cell.dateKey,
+      day: cell.day,
+      schedules: cell.schedules,
+      attendance: cell.attendance,
+      requests: cell.requests
+    });
+    setEditingAttendanceId(null);
+  };
+
+  // Open batch modal initialized with interns
+  const handleOpenBatchModal = () => {
+    if (data.interns.length === 0) {
+      setErrorMessage('No active interns found in this organization to update schedules for.');
+      return;
+    }
+    setBatchSelectedStudents(data.interns.map((i) => i.student_id));
+    setBatchSelectedDates([]);
+    setBatchStartTime('08:00');
+    setBatchFinishTime('17:00');
+    setBatchIsOvertimeAllowed(false);
+    setBatchMaxOvertime('2.0');
+    setBatchNotes('');
+    setIsBatchModalOpen(true);
+  };
+
+  // Toggle date in batch selection
+  const handleToggleBatchDate = (dateStr) => {
+    setBatchSelectedDates((prev) => {
+      if (prev.includes(dateStr)) {
+        return prev.filter((d) => d !== dateStr);
+      } else {
+        return [...prev, dateStr].sort();
+      }
+    });
+  };
+
+  // Submit batch schedule update
+  const handleSubmitBatch = async (e) => {
+    e.preventDefault();
+    if (batchSelectedStudents.length === 0) {
+      setErrorMessage('Please select at least one intern.');
+      return;
+    }
+    if (batchSelectedDates.length === 0) {
+      setErrorMessage('Please pick at least one date on the calendar.');
+      return;
+    }
+
+    try {
+      setIsSubmittingBatch(true);
+      const res = await api.post('/org/schedules/batch', {
+        student_ids: batchSelectedStudents,
+        dates: batchSelectedDates,
+        start_time: batchStartTime,
+        finish_time: batchFinishTime,
+        is_overtime_allowed: batchIsOvertimeAllowed,
+        max_overtime_hours: parseFloat(batchMaxOvertime) || 0,
+        notes: batchNotes
+      });
+
+      if (res.success) {
+        setMessage(res.message || 'Work schedules updated and students notified!');
+        setIsBatchModalOpen(false);
+        await fetchSchedules();
+      } else {
+        setErrorMessage(res.message || 'Failed to update schedules.');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Error updating schedules.');
+    } finally {
+      setIsSubmittingBatch(false);
+    }
+  };
+
+  // Respond to Student Schedule Request
+  const handleRespondRequest = async (requestId, action, mentorNotes = '') => {
+    try {
+      const res = await api.post(`/org/schedules/requests/${requestId}/respond`, {
+        action,
+        mentor_notes: mentorNotes
+      });
+      if (res.success) {
+        setMessage(res.message || `Request ${action}d successfully!`);
+        await fetchSchedules();
+        if (activeDayModal) {
+          // Refresh active day modal
+          const updatedReqs = activeDayModal.requests.map((r) =>
+            r.request_id === requestId ? { ...r, status: action === 'approve' ? 'approved' : 'rejected' } : r
+          );
+          setActiveDayModal((prev) => ({ ...prev, requests: updatedReqs }));
+        }
+      } else {
+        setErrorMessage(res.message || 'Failed to respond to request.');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Error processing request.');
+    }
+  };
+
+  // Approve / Reject Overtime
+  const handleApproveOvertime = async (attendanceId, action, approvedHours = null) => {
+    try {
+      const res = await api.post(`/org/schedules/overtime/${attendanceId}/approve`, {
+        action,
+        approved_hours: approvedHours
+      });
+      if (res.success) {
+        setMessage(res.message || `Overtime ${action}d successfully!`);
+        await fetchSchedules();
+        if (activeDayModal) {
+          const updatedAtt = activeDayModal.attendance.map((a) =>
+            a.attendance_id === attendanceId
+              ? { ...a, overtime_status: action === 'approve' ? 'approved' : 'rejected' }
+              : a
+          );
+          setActiveDayModal((prev) => ({ ...prev, attendance: updatedAtt }));
+        }
+      } else {
+        setErrorMessage(res.message || 'Failed to process overtime.');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Error updating overtime.');
+    }
+  };
+
+  // Save Attendance adjustment
+  const handleSaveAttendanceAdjustment = async (attendanceId) => {
+    try {
+      setIsSavingAttendance(true);
+      const res = await api.put(`/org/schedules/attendance/${attendanceId}`, {
+        time_in: editTimeIn || null,
+        time_out: editTimeOut || null,
+        tasks_accomplished: editTasks || null
+      });
+
+      if (res.success) {
+        setMessage(res.message || 'Attendance record adjusted and student notified!');
+        setEditingAttendanceId(null);
+        await fetchSchedules();
+        if (activeDayModal) {
+          const updatedAtt = activeDayModal.attendance.map((a) =>
+            a.attendance_id === attendanceId
+              ? {
+                  ...a,
+                  time_in: res.data.time_in,
+                  time_out: res.data.time_out,
+                  hours_rendered: res.data.hours_rendered,
+                  regular_hours: res.data.regular_hours,
+                  overtime_hours: res.data.overtime_hours,
+                  overtime_status: res.data.overtime_status
+                }
+              : a
+          );
+          setActiveDayModal((prev) => ({ ...prev, attendance: updatedAtt }));
+        }
+      } else {
+        setErrorMessage(res.message || 'Failed to adjust attendance.');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Error saving attendance adjustment.');
+    } finally {
+      setIsSavingAttendance(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto px-2 sm:px-4">
+      {/* Top Header Card */}
+      <div className="p-6 rounded-3xl bg-surface-container-low border border-outline-variant shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-vibrant-orange text-2xl">
+                calendar_month
+              </span>
+              <h1 className="text-xl sm:text-2xl font-black text-on-surface tracking-tight">
+                Work Schedule & Shift Management
+              </h1>
+            </div>
+            <p className="text-xs sm:text-sm text-on-surface-variant font-medium">
+              Standard Daily Work Schedule: <span className="font-bold text-on-surface">08:00 AM - 05:00 PM</span>. Override specific dates, approve overtime, or reschedule intern attendance.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Quick Pending Overtime & Requests Pill */}
+            {(pendingOvertimeCount > 0 || pendingRequestsCount > 0) && (
+              <button
+                type="button"
+                onClick={() => setIsPendingQueueOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-800 dark:text-amber-300 text-xs font-bold flex items-center gap-2 hover:bg-amber-500/25 transition-all cursor-pointer shadow-2xs animate-pulse"
+              >
+                <span className="material-symbols-outlined text-sm">notification_important</span>
+                <span>
+                  {pendingOvertimeCount + pendingRequestsCount} Pending Action(s)
+                </span>
+              </button>
+            )}
+
+            {/* Batch Update Button */}
+            <button
+              type="button"
+              onClick={handleOpenBatchModal}
+              className="px-4 py-2.5 rounded-xl bg-vibrant-orange text-accent-ink text-xs sm:text-sm font-extrabold flex items-center gap-2 hover:opacity-95 shadow-md transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-base">edit_calendar</span>
+              <span>Update Work Schedule</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Filters & Intern Select Bar */}
+        <div className="mt-6 pt-4 border-t border-outline-variant/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-xs font-bold text-on-surface-variant flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm">badge</span>
+              <span>Intern:</span>
+            </label>
+            <select
+              value={selectedStudentId}
+              onChange={(e) => setSelectedStudentId(e.target.value)}
+              className="px-3 py-1.5 rounded-xl bg-surface border border-outline-variant text-xs font-bold text-on-surface focus:outline-hidden focus:border-vibrant-orange cursor-pointer"
+            >
+              <option value="all">All Assigned Interns ({data.interns.length})</option>
+              {data.interns.map((i) => (
+                <option key={i.student_id} value={i.student_id}>
+                  {i.first_name} {i.last_name} ({i.student_number || i.job_title || 'Intern'})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Schedule view mode filter pills */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {[
+              { id: 'all', label: 'All Dates', icon: 'grid_view' },
+              { id: 'custom', label: 'Custom Overrides', icon: 'tune' },
+              { id: 'overtime', label: `Pending Overtime (${pendingOvertimeCount})`, icon: 'alarm_on' },
+              { id: 'requests', label: `Student Requests (${pendingRequestsCount})`, icon: 'front_hand' }
+            ].map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFilterType(f.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                  filterType === f.id
+                    ? 'bg-orange-tint text-accent-text border-brand-teal/50 shadow-2xs'
+                    : 'bg-surface text-on-surface-variant border-outline-variant hover:text-on-surface'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[15px]">{f.icon}</span>
+                <span>{f.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Notifications / Alerts */}
+      {message && (
+        <div className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/30 text-teal-800 dark:text-teal-200 text-xs sm:text-sm font-semibold flex items-center gap-2 animate-fadeIn">
+          <span className="material-symbols-outlined text-teal-600">check_circle</span>
+          <span>{message}</span>
+        </div>
+      )}
+      {errorMessage && (
+        <div className="p-4 rounded-2xl bg-error/10 border border-error/30 text-error text-xs sm:text-sm font-semibold flex items-center gap-2 animate-fadeIn">
+          <span className="material-symbols-outlined text-error">error</span>
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {/* MAIN CALENDAR CARD (Matching OrgInterviews calendar design) */}
+      <div className="p-4 sm:p-6 rounded-3xl bg-surface-container-low border border-outline-variant space-y-4">
+        {/* Month Navigation Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-vibrant-orange text-2xl">
+              event_note
+            </span>
+            <h2 className="font-black text-base sm:text-xl text-on-surface">
+              {calendarMonthLabel}
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Color Legend */}
+            <div className="hidden sm:flex items-center gap-3 text-[11px] font-bold text-on-surface-variant">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-surface-container-high border border-outline" />
+                <span>Standard Shift</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-teal-500" />
+                <span>Custom Override</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                <span>Overtime Pending</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                <span>Student Request</span>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => shiftMonth(-1)}
+                className="p-2 rounded-xl bg-surface hover:bg-surface-container-high border border-outline-variant text-on-surface cursor-pointer"
+                title="Previous Month"
+              >
+                <span className="material-symbols-outlined text-sm block">chevron_left</span>
+              </button>
+              <button
+                type="button"
+                onClick={jumpToToday}
+                className="px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-container-high border border-outline-variant text-xs font-bold text-on-surface cursor-pointer"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => shiftMonth(1)}
+                className="p-2 rounded-xl bg-surface hover:bg-surface-container-high border border-outline-variant text-on-surface cursor-pointer"
+                title="Next Month"
+              >
+                <span className="material-symbols-outlined text-sm block">chevron_right</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Weekday Labels */}
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-center">
+          {WEEKDAYS.map((day) => (
+            <div
+              key={day}
+              className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-on-surface-variant py-1.5"
+            >
+              {day}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar Grid */}
+        {loading ? (
+          <div className="p-16 flex justify-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-4 border-vibrant-orange border-t-transparent" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+            {calendarCells.map((cell) => {
+              if (cell.empty) {
+                return (
+                  <div
+                    key={cell.key}
+                    className="min-h-[80px] sm:min-h-[110px] rounded-2xl bg-transparent"
+                  />
+                );
+              }
+
+              const hasCustom = cell.schedules.length > 0;
+              const hasAttendance = cell.attendance.length > 0;
+              const hasPendingOvertime = cell.attendance.some(
+                (a) => a.overtime_status === 'pending_approval'
+              );
+              const hasPendingRequest = cell.requests.some((r) => r.status === 'pending');
+
+              // Apply active filter if selected
+              let isDimmed = false;
+              if (filterType === 'custom' && !hasCustom) isDimmed = true;
+              if (filterType === 'overtime' && !hasPendingOvertime) isDimmed = true;
+              if (filterType === 'requests' && !hasPendingRequest) isDimmed = true;
+
+              return (
+                <button
+                  key={cell.key}
+                  type="button"
+                  onClick={() => handleOpenDayModal(cell)}
+                  className={`min-h-[80px] sm:min-h-[110px] p-2 sm:p-2.5 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                    isDimmed
+                      ? 'opacity-35 bg-surface/40 border-outline-variant/40'
+                      : hasPendingOvertime
+                      ? 'bg-amber-500/10 border-amber-500/60 shadow-xs hover:border-amber-500'
+                      : hasPendingRequest
+                      ? 'bg-purple-500/10 border-purple-500/60 shadow-xs hover:border-purple-500'
+                      : hasCustom
+                      ? 'bg-teal-500/10 border-teal-500/60 hover:border-teal-500'
+                      : cell.isToday
+                      ? 'bg-surface border-vibrant-orange/70 shadow-2xs'
+                      : 'bg-surface/80 border-outline-variant hover:border-outline hover:bg-surface'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1 w-full">
+                    <span
+                      className={`text-xs font-black leading-none ${
+                        cell.isToday
+                          ? 'px-2 py-1 rounded-lg bg-vibrant-orange text-accent-ink'
+                          : 'text-on-surface'
+                      }`}
+                    >
+                      {cell.day}
+                    </span>
+
+                    {/* Pending alert counter badges */}
+                    <div className="flex items-center gap-1">
+                      {hasPendingOvertime && (
+                        <span
+                          className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"
+                          title="Pending Overtime Approval"
+                        />
+                      )}
+                      {hasPendingRequest && (
+                        <span
+                          className="w-2.5 h-2.5 rounded-full bg-purple-500"
+                          title="Pending Student Request"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Day Content Badges */}
+                  <div className="space-y-1 w-full mt-1.5 overflow-hidden">
+                    {/* Custom Schedule Badge */}
+                    {hasCustom ? (
+                      <div className="px-1.5 py-0.5 rounded-md bg-teal-500/15 border border-teal-500/30 text-teal-800 dark:text-teal-300 text-[10px] font-extrabold truncate">
+                        Custom: {formatTime12(cell.schedules[0].start_time)} - {formatTime12(cell.schedules[0].finish_time)}
+                      </div>
+                    ) : (
+                      <div className="hidden sm:block text-[10px] font-semibold text-on-surface-variant/80 truncate">
+                        08:00 AM - 05:00 PM
+                      </div>
+                    )}
+
+                    {/* Attendance Pill */}
+                    {hasAttendance && (
+                      <div
+                        className={`px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-bold truncate ${
+                          hasPendingOvertime
+                            ? 'bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/30'
+                            : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                        }`}
+                      >
+                        {hasPendingOvertime ? (
+                          <span>OT: +{cell.attendance[0].overtime_hours || 0}h Review</span>
+                        ) : (
+                          <span>
+                            Attended: {cell.attendance[0].hours_rendered || 0}h
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Student Request Pill */}
+                    {hasPendingRequest && (
+                      <div className="px-1.5 py-0.5 rounded-md bg-purple-500/15 border border-purple-500/30 text-purple-800 dark:text-purple-300 text-[9px] sm:text-[10px] font-bold truncate">
+                        Req: {formatTime12(cell.requests[0].requested_start_time)}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* MODAL 1: BATCH SCHEDULE UPDATE (Multi-Date & Multi-Intern Picker)         */}
+      {/* ========================================================================= */}
+      {isBatchModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-scrim/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-surface rounded-3xl border border-outline-variant p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-4">
+              <div>
+                <h3 className="text-lg font-black text-on-surface flex items-center gap-2">
+                  <span className="material-symbols-outlined text-vibrant-orange">edit_calendar</span>
+                  <span>Update Work Schedule (Specific Dates)</span>
+                </h3>
+                <p className="text-xs text-on-surface-variant font-medium mt-0.5">
+                  Assign custom working hours to selected interns for specific dates. Non-updated dates follow standard 08:00 - 17:00.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBatchModalOpen(false)}
+                className="p-1 rounded-xl text-on-surface-variant hover:text-on-surface cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitBatch} className="space-y-5">
+              {/* 1. Intern Selection */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-extrabold text-on-surface uppercase tracking-wider">
+                    1. Select Interns ({batchSelectedStudents.length} selected)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (batchSelectedStudents.length === data.interns.length) {
+                        setBatchSelectedStudents([]);
+                      } else {
+                        setBatchSelectedStudents(data.interns.map((i) => i.student_id));
+                      }
+                    }}
+                    className="text-xs font-bold text-vibrant-orange hover:underline cursor-pointer"
+                  >
+                    {batchSelectedStudents.length === data.interns.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 rounded-2xl bg-surface-container-low border border-outline-variant">
+                  {data.interns.map((intern) => {
+                    const isChecked = batchSelectedStudents.includes(intern.student_id);
+                    return (
+                      <label
+                        key={intern.student_id}
+                        className={`flex items-center gap-2 p-2 rounded-xl text-xs font-bold cursor-pointer transition-colors ${
+                          isChecked ? 'bg-orange-tint text-accent-text' : 'hover:bg-surface-container'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              setBatchSelectedStudents(batchSelectedStudents.filter((id) => id !== intern.student_id));
+                            } else {
+                              setBatchSelectedStudents([...batchSelectedStudents, intern.student_id]);
+                            }
+                          }}
+                          className="rounded text-vibrant-orange focus:ring-vibrant-orange"
+                        />
+                        <span className="truncate">
+                          {intern.first_name} {intern.last_name}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Multi-Date Picker */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-extrabold text-on-surface uppercase tracking-wider">
+                    2. Pick Date(s) to Override ({batchSelectedDates.length} selected)
+                  </label>
+                  {batchSelectedDates.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setBatchSelectedDates([])}
+                      className="text-xs font-bold text-error hover:underline cursor-pointer"
+                    >
+                      Clear Dates
+                    </button>
+                  )}
+                </div>
+
+                {/* Selected dates pills */}
+                {batchSelectedDates.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-surface-container-low border border-outline-variant">
+                    {batchSelectedDates.map((d) => (
+                      <span
+                        key={d}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-500/20 text-teal-800 dark:text-teal-200 text-xs font-bold"
+                      >
+                        <span>{d}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleBatchDate(d)}
+                          className="hover:text-error cursor-pointer ml-1 text-sm font-black"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-on-surface-variant italic">
+                    Click dates below to select multiple dates for this schedule.
+                  </p>
+                )}
+
+                {/* Mini Clickable Date Grid for this month */}
+                <div className="p-3 rounded-2xl bg-surface-container-low border border-outline-variant">
+                  <div className="text-xs font-bold text-on-surface mb-2">
+                    {calendarMonthLabel} — Click to toggle dates:
+                  </div>
+                  <div className="grid grid-cols-7 gap-1 text-center">
+                    {WEEKDAYS.map((w) => (
+                      <span key={w} className="text-[10px] font-black text-on-surface-variant">
+                        {w}
+                      </span>
+                    ))}
+                    {calendarCells.map((c) => {
+                      if (c.empty) return <div key={c.key} className="h-8" />;
+                      const isPicked = batchSelectedDates.includes(c.dateKey);
+                      return (
+                        <button
+                          key={c.key}
+                          type="button"
+                          onClick={() => handleToggleBatchDate(c.dateKey)}
+                          className={`h-8 rounded-lg text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
+                            isPicked
+                              ? 'bg-teal-500 text-white font-black shadow-xs scale-105'
+                              : 'bg-surface hover:bg-surface-container-high text-on-surface'
+                          }`}
+                        >
+                          {c.day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Schedule Times */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-extrabold text-on-surface">Scheduled Start Time</label>
+                  <input
+                    type="time"
+                    value={batchStartTime}
+                    onChange={(e) => setBatchStartTime(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-xl bg-surface border border-outline-variant text-xs font-bold text-on-surface focus:outline-hidden focus:border-vibrant-orange"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-extrabold text-on-surface">Scheduled Finish Time</label>
+                  <input
+                    type="time"
+                    value={batchFinishTime}
+                    onChange={(e) => setBatchFinishTime(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-xl bg-surface border border-outline-variant text-xs font-bold text-on-surface focus:outline-hidden focus:border-vibrant-orange"
+                  />
+                </div>
+              </div>
+
+              {/* 4. Overtime Permission */}
+              <div className="p-3.5 rounded-2xl bg-surface-container-low border border-outline-variant space-y-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={batchIsOvertimeAllowed}
+                    onChange={(e) => setBatchIsOvertimeAllowed(e.target.checked)}
+                    className="rounded text-vibrant-orange focus:ring-vibrant-orange"
+                  />
+                  <span className="text-xs font-bold text-on-surface">
+                    Allow Overtime for these dates
+                  </span>
+                </label>
+
+                {batchIsOvertimeAllowed && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-outline-variant/60">
+                    <span className="text-xs font-semibold text-on-surface-variant">Max Allowed Overtime:</span>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      max="6"
+                      value={batchMaxOvertime}
+                      onChange={(e) => setBatchMaxOvertime(e.target.value)}
+                      className="w-20 px-2 py-1 rounded-lg bg-surface border border-outline-variant text-xs font-bold text-on-surface"
+                    />
+                    <span className="text-xs text-on-surface-variant">hours</span>
+                  </div>
+                )}
+              </div>
+
+              {/* 5. Notes / Assignment */}
+              <div className="space-y-1">
+                <label className="text-xs font-extrabold text-on-surface">Instructions / Work Note</label>
+                <textarea
+                  rows="2"
+                  value={batchNotes}
+                  onChange={(e) => setBatchNotes(e.target.value)}
+                  placeholder="e.g. Saturday client project deployment or adjusted evening shift."
+                  className="w-full px-3 py-2 rounded-xl bg-surface border border-outline-variant text-xs font-medium text-on-surface focus:outline-hidden focus:border-vibrant-orange"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-outline-variant">
+                <button
+                  type="button"
+                  onClick={() => setIsBatchModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingBatch}
+                  className="px-5 py-2.5 rounded-xl bg-vibrant-orange text-accent-ink text-xs font-black shadow-md hover:opacity-95 disabled:opacity-50 cursor-pointer"
+                >
+                  {isSubmittingBatch ? 'Updating...' : 'Save & Update Schedules'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 2: DAY INSPECTION & ATTENDANCE RESCHEDULING MODAL                   */}
+      {/* ========================================================================= */}
+      {activeDayModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-scrim/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-surface rounded-3xl border border-outline-variant p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-4">
+              <div>
+                <span className="text-xs font-extrabold uppercase tracking-wider text-vibrant-orange">
+                  Day Inspection & Shift Details
+                </span>
+                <h3 className="text-xl font-black text-on-surface">
+                  {new Date(activeDayModal.dateKey + 'T00:00:00').toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveDayModal(null)}
+                className="p-1 rounded-xl text-on-surface-variant hover:text-on-surface cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            {/* Section A: Scheduled Shift */}
+            <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant space-y-3">
+              <h4 className="text-xs font-extrabold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-base">schedule</span>
+                <span>Work Shift for this Date</span>
+              </h4>
+
+              {activeDayModal.schedules.length > 0 ? (
+                <div className="space-y-2">
+                  {activeDayModal.schedules.map((ds) => (
+                    <div
+                      key={ds.schedule_id}
+                      className="p-3 rounded-xl bg-teal-500/10 border border-teal-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                    >
+                      <div>
+                        <div className="text-xs font-black text-teal-900 dark:text-teal-200">
+                          {ds.first_name} {ds.last_name}: Custom Shift
+                        </div>
+                        <div className="text-xs text-on-surface-variant mt-0.5">
+                          {formatTime12(ds.start_time)} - {formatTime12(ds.finish_time)}
+                          {ds.notes ? ` • Note: ${ds.notes}` : ''}
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-teal-500 text-white text-[10px] font-extrabold uppercase self-start sm:self-auto">
+                        Custom Override Active
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-surface border border-outline-variant flex items-center justify-between">
+                  <div className="text-xs font-bold text-on-surface">
+                    Standard Daily Schedule: <span className="font-extrabold text-vibrant-orange">08:00 AM - 05:00 PM</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-on-surface-variant uppercase">
+                    Standard Working Hours
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Section B: Attendance Logs & Time-In / Time-Out Rescheduling */}
+            <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant space-y-3">
+              <h4 className="text-xs font-extrabold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-base">punch_clock</span>
+                <span>Recorded Attendance on this Date</span>
+              </h4>
+
+              {activeDayModal.attendance.length > 0 ? (
+                <div className="space-y-3">
+                  {activeDayModal.attendance.map((att) => {
+                    const isEditing = editingAttendanceId === att.attendance_id;
+                    const isOtPending = att.overtime_status === 'pending_approval';
+
+                    return (
+                      <div
+                        key={att.attendance_id}
+                        className="p-3.5 rounded-2xl bg-surface border border-outline-variant space-y-3"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <div className="text-xs font-black text-on-surface">
+                              {att.first_name} {att.last_name} ({att.student_number || 'Intern'})
+                            </div>
+                            <div className="text-xs text-on-surface-variant mt-0.5">
+                              In: <span className="font-bold text-on-surface">{formatTime12(att.time_in) || 'N/A'}</span> • Out: <span className="font-bold text-on-surface">{formatTime12(att.time_out) || 'Open / Clocked In'}</span> • Credited: <span className="font-extrabold text-vibrant-orange">{att.hours_rendered || 0} hrs</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {isOtPending && (
+                              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-200 text-[10px] font-black uppercase border border-amber-500/40">
+                                OT +{att.overtime_hours}h Pending Approval
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isEditing) {
+                                  setEditingAttendanceId(null);
+                                } else {
+                                  setEditingAttendanceId(att.attendance_id);
+                                  setEditTimeIn(att.time_in ? String(att.time_in).slice(0, 5) : '08:00');
+                                  setEditTimeOut(att.time_out ? String(att.time_out).slice(0, 5) : '17:00');
+                                  setEditTasks(att.tasks_accomplished || '');
+                                }
+                              }}
+                              className="px-2.5 py-1 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant text-[11px] font-bold text-on-surface cursor-pointer"
+                            >
+                              {isEditing ? 'Cancel Edit' : 'Reschedule / Edit Hours'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Overtime Approval Banner if pending */}
+                        {isOtPending && (
+                          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                            <div className="text-xs text-amber-900 dark:text-amber-200 font-medium">
+                              Student worked <span className="font-bold">{att.overtime_hours} hrs overtime</span>. Approve to credit these hours to total OJT?
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleApproveOvertime(att.attendance_id, 'approve')}
+                                className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 cursor-pointer"
+                              >
+                                Approve (+{att.overtime_hours}h)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleApproveOvertime(att.attendance_id, 'reject')}
+                                className="px-3 py-1 rounded-lg bg-surface border border-outline-variant text-xs font-bold text-error hover:bg-error/10 cursor-pointer"
+                              >
+                                Decline
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Inline Time-In & Time-Out Editor */}
+                        {isEditing && (
+                          <div className="p-3.5 rounded-xl bg-orange-tint/40 border border-vibrant-orange/40 space-y-3 animate-fadeIn">
+                            <div className="text-xs font-black text-accent-text">
+                              Mentor Time-In & Time-Out Rescheduling:
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="text-[11px] font-bold text-on-surface">Time-In</label>
+                                <input
+                                  type="time"
+                                  value={editTimeIn}
+                                  onChange={(e) => setEditTimeIn(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 rounded-lg bg-surface border border-outline-variant text-xs font-bold"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[11px] font-bold text-on-surface">Time-Out</label>
+                                <input
+                                  type="time"
+                                  value={editTimeOut}
+                                  onChange={(e) => setEditTimeOut(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 rounded-lg bg-surface border border-outline-variant text-xs font-bold"
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-bold text-on-surface">Tasks Accomplished</label>
+                              <input
+                                type="text"
+                                value={editTasks}
+                                onChange={(e) => setEditTasks(e.target.value)}
+                                placeholder="Accomplished daily tasks note"
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-surface border border-outline-variant text-xs font-medium"
+                              />
+                            </div>
+                            <div className="flex justify-end gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setEditingAttendanceId(null)}
+                                className="px-3 py-1 rounded-lg text-xs font-bold text-on-surface-variant hover:bg-surface"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isSavingAttendance}
+                                onClick={() => handleSaveAttendanceAdjustment(att.attendance_id)}
+                                className="px-4 py-1.5 rounded-lg bg-vibrant-orange text-accent-ink text-xs font-black shadow-xs hover:opacity-95 cursor-pointer"
+                              >
+                                {isSavingAttendance ? 'Saving...' : 'Save & Adjust Attendance'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-on-surface-variant italic">
+                  No attendance logged on this date yet.
+                </p>
+              )}
+            </div>
+
+            {/* Section C: Student Schedule Update Requests for this Date */}
+            {activeDayModal.requests.length > 0 && (
+              <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 space-y-3">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-base">front_hand</span>
+                  <span>Student Schedule Requests</span>
+                </h4>
+
+                <div className="space-y-2">
+                  {activeDayModal.requests.map((req) => (
+                    <div
+                      key={req.request_id}
+                      className="p-3 rounded-xl bg-surface border border-outline-variant space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-black text-on-surface">
+                          {req.first_name} {req.last_name}: Requested Shift {formatTime12(req.requested_start_time)} - {formatTime12(req.requested_finish_time)}
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            req.status === 'approved'
+                              ? 'bg-emerald-500/15 text-emerald-700'
+                              : req.status === 'rejected'
+                              ? 'bg-error/15 text-error'
+                              : 'bg-purple-500/20 text-purple-800'
+                          }`}
+                        >
+                          {req.status}
+                        </span>
+                      </div>
+                      {req.reason && (
+                        <p className="text-xs text-on-surface-variant italic font-medium">
+                          Reason: "{req.reason}"
+                        </p>
+                      )}
+
+                      {req.status === 'pending' && (
+                        <div className="flex items-center justify-end gap-2 pt-1 border-t border-outline-variant">
+                          <button
+                            type="button"
+                            onClick={() => handleRespondRequest(req.request_id, 'reject')}
+                            className="px-3 py-1 rounded-lg text-xs font-bold text-error hover:bg-error/10 cursor-pointer"
+                          >
+                            Decline
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRespondRequest(req.request_id, 'approve')}
+                            className="px-3.5 py-1.5 rounded-lg bg-teal-600 text-white text-xs font-extrabold hover:bg-teal-700 cursor-pointer shadow-2xs"
+                          >
+                            Approve & Apply Schedule
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setActiveDayModal(null)}
+                className="px-5 py-2 rounded-xl bg-surface-container text-xs font-bold text-on-surface hover:bg-surface-container-high cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: PENDING QUEUE (Overtime Approvals & Student Requests)             */}
+      {/* ========================================================================= */}
+      {isPendingQueueOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-scrim/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-surface rounded-3xl border border-outline-variant p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-4">
+              <div>
+                <h3 className="text-lg font-black text-on-surface flex items-center gap-2">
+                  <span className="material-symbols-outlined text-amber-500">notification_important</span>
+                  <span>Pending Actions: Overtime & Requests</span>
+                </h3>
+                <p className="text-xs text-on-surface-variant font-medium mt-0.5">
+                  Review student requests and overtime claims that require mentor authorization.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPendingQueueOpen(false)}
+                className="p-1 rounded-xl text-on-surface-variant hover:text-on-surface cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            {/* Overtime Approvals */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-black uppercase text-amber-800 dark:text-amber-200">
+                Pending Overtime Claims ({pendingOvertimeCount})
+              </h4>
+              {pendingOvertimeCount === 0 ? (
+                <p className="text-xs text-on-surface-variant italic p-3 rounded-xl bg-surface-container-low">
+                  No overtime hours pending approval.
+                </p>
+              ) : (
+                data.pendingOvertimeLogs.map((att) => (
+                  <div
+                    key={att.attendance_id}
+                    className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div>
+                      <div className="text-xs font-black text-on-surface">
+                        {att.first_name} {att.last_name} • Date: {att.log_date_str}
+                      </div>
+                      <div className="text-xs text-on-surface-variant mt-1">
+                        Clocked In: <span className="font-bold">{formatTime12(att.time_in)}</span> • Clocked Out: <span className="font-bold">{formatTime12(att.time_out)}</span>
+                      </div>
+                      <div className="text-xs font-extrabold text-amber-800 dark:text-amber-200 mt-1">
+                        Rendered regular: {att.regular_hours || att.hours_rendered}h • Overtime claimed: +{att.overtime_hours}h
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleApproveOvertime(att.attendance_id, 'approve')}
+                        className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 cursor-pointer shadow-xs"
+                      >
+                        Approve (+{att.overtime_hours}h)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApproveOvertime(att.attendance_id, 'reject')}
+                        className="px-3 py-1.5 rounded-xl bg-surface border border-outline-variant text-xs font-bold text-error hover:bg-error/10 cursor-pointer"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Student Requests */}
+            <div className="space-y-3 pt-4 border-t border-outline-variant">
+              <h4 className="text-xs font-black uppercase text-purple-800 dark:text-purple-200">
+                Pending Schedule Update Requests ({pendingRequestsCount})
+              </h4>
+              {pendingRequestsCount === 0 ? (
+                <p className="text-xs text-on-surface-variant italic p-3 rounded-xl bg-surface-container-low">
+                  No student schedule update requests pending.
+                </p>
+              ) : (
+                data.scheduleRequests
+                  .filter((r) => r.status === 'pending')
+                  .map((req) => (
+                    <div
+                      key={req.request_id}
+                      className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div>
+                        <div className="text-xs font-black text-on-surface">
+                          {req.first_name} {req.last_name} • Target Date: {req.schedule_date_str}
+                        </div>
+                        <div className="text-xs text-on-surface-variant mt-1">
+                          Requested Shift: <span className="font-extrabold text-purple-700 dark:text-purple-300">{formatTime12(req.requested_start_time)} - {formatTime12(req.requested_finish_time)}</span>
+                        </div>
+                        {req.reason && (
+                          <div className="text-xs text-on-surface-variant italic mt-1">
+                            Reason: "{req.reason}"
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleRespondRequest(req.request_id, 'approve')}
+                          className="px-3.5 py-1.5 rounded-xl bg-teal-600 text-white text-xs font-black hover:bg-teal-700 cursor-pointer shadow-xs"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRespondRequest(req.request_id, 'reject')}
+                          className="px-3 py-1.5 rounded-xl bg-surface border border-outline-variant text-xs font-bold text-error hover:bg-error/10 cursor-pointer"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setIsPendingQueueOpen(false)}
+                className="px-5 py-2 rounded-xl bg-surface-container text-xs font-bold text-on-surface hover:bg-surface-container-high cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

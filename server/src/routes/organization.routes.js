@@ -2322,170 +2322,84 @@ async function processSingleQrAttendanceScan({
   const currentTimeStr = pht.timeStr;
   const offlineScannedAtDate = isOfflineSync && offlineScannedAtMs ? new Date(Number(offlineScannedAtMs)) : null;
 
-  // Check attendance log for the target date
-  const [attLogs] = await pool.query(
-    'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND log_date = ?',
-    [ojt.ojt_id, currentDate]
+  // Step A: Check for any active unclosed clock-in session for this intern (across any day)
+  const [openLogs] = await pool.query(
+    `SELECT * FROM ojt_attendance_logs 
+     WHERE ojt_id = ? AND student_id = ? AND time_in IS NOT NULL AND time_out IS NULL 
+     ORDER BY log_date DESC, attendance_id DESC LIMIT 1`,
+    [ojt.ojt_id, studentId]
   );
 
-  // CASE A: Student has NOT clocked in on that date -> ACTION: TIME IN
-  if (attLogs.length === 0 || !attLogs[0].time_in) {
-    const schedStartMins = parseTimeToMinutes(ojt.scheduled_start_time, '08:00');
-    const actualInMins = pht.hour * 60 + pht.minute;
-    const timeInStatus = actualInMins <= schedStartMins ? 'on_time' : 'late';
+  // CASE 1: Student HAS an active clock-in session -> ACTION: TIME OUT
+  if (openLogs.length > 0) {
+    const activeLog = openLogs[0];
+    const logDateStr = activeLog.log_date instanceof Date
+      ? activeLog.log_date.toISOString().slice(0, 10)
+      : String(activeLog.log_date).slice(0, 10);
 
-    if (attLogs.length === 0) {
-      await pool.query(
-        `INSERT INTO ojt_attendance_logs (
-          ojt_id, student_id, mentor_id, log_date, time_in, time_in_status, time_in_method,
-          status, scanned_by_hr_id, verified_by, verified_at,
-          scan_latitude, scan_longitude, scan_accuracy_meters, distance_from_org_meters,
-          device_id, is_offline_synced, offline_scanned_at,
-          created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, 'qr_scan', 'verified', ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-        [
-          ojt.ojt_id,
-          studentId,
-          ojt.mentor_id || null,
-          currentDate,
-          currentTimeStr,
-          timeInStatus,
-          hrUserId,
-          hrUserId,
-          geoCheck.latitude ?? null,
-          geoCheck.longitude ?? null,
-          geoCheck.accuracyMeters ?? null,
-          geoCheck.distanceMeters ?? null,
-          verification.deviceId,
-          isOfflineSync ? 1 : 0,
-          offlineScannedAtDate
-        ]
-      );
-    } else {
-      await pool.query(
-        `UPDATE ojt_attendance_logs 
-         SET time_in = ?, time_in_status = ?, time_in_method = 'qr_scan', status = 'verified',
-             scanned_by_hr_id = ?, verified_by = ?, verified_at = NOW(),
-             scan_latitude = COALESCE(?, scan_latitude),
-             scan_longitude = COALESCE(?, scan_longitude),
-             scan_accuracy_meters = COALESCE(?, scan_accuracy_meters),
-             distance_from_org_meters = COALESCE(?, distance_from_org_meters),
-             device_id = COALESCE(?, device_id),
-             is_offline_synced = ?,
-             offline_scanned_at = COALESCE(?, offline_scanned_at),
-             updated_at = NOW()
-         WHERE attendance_id = ?`,
-        [
-          currentTimeStr,
-          timeInStatus,
-          hrUserId,
-          hrUserId,
-          geoCheck.latitude ?? null,
-          geoCheck.longitude ?? null,
-          geoCheck.accuracyMeters ?? null,
-          geoCheck.distanceMeters ?? null,
-          verification.deviceId,
-          isOfflineSync ? 1 : 0,
-          offlineScannedAtDate,
-          attLogs[0].attendance_id
-        ]
-      );
-    }
+    // Fetch custom schedule set by mentor for the clock-in date if exists
+    const [dailySchedRows] = await pool.query(
+      'SELECT * FROM ojt_daily_schedules WHERE student_id = ? AND schedule_date = ? LIMIT 1',
+      [studentId, logDateStr]
+    );
+    const customSched = dailySchedRows.length > 0 ? dailySchedRows[0] : null;
+    const schedStart = customSched?.start_time || ojt.scheduled_start_time || '08:00';
+    const schedFinish = customSched?.finish_time || ojt.scheduled_finish_time || '17:00';
 
-    const statusBadge = timeInStatus === 'on_time' ? 'On-Time' : 'Late';
+    const schedStartMins = parseTimeToMinutes(schedStart, '08:00');
+    const schedFinishMins = parseTimeToMinutes(schedFinish, '17:00');
+    const scheduledShiftMinutes = Math.max(60, schedFinishMins - schedStartMins);
+    const standardShiftHours = Math.min(8, Math.round((scheduledShiftMinutes / 60) * 100) / 100);
 
-    emitUpdate('attendance_logged', {
-      ojt_id: ojt.ojt_id,
-      student_id: studentId,
-      user_id: deviceRecord.student_user_id,
-      organization_id: org.organization_id,
-      action: 'time_in',
-      status: 'success',
-      time_in: currentTimeStr,
-      time_in_status: timeInStatus,
-      status_badge: statusBadge,
-      distance_meters: geoCheck.distanceMeters,
-      is_offline_synced: isOfflineSync,
-      student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
-      student_number: deviceRecord.student_number,
-      message: `Time-In recorded at ${currentTimeStr} (${statusBadge})`
-    });
+    // Calculate actual elapsed minutes between clock-in and current time (PST)
+    const inIso = `${logDateStr}T${activeLog.time_in}+08:00`;
+    const outIso = `${currentDate}T${currentTimeStr}+08:00`;
+    const inMs = new Date(inIso).getTime();
+    const outMs = new Date(outIso).getTime();
+    const rawElapsedMins = !isNaN(inMs) && !isNaN(outMs) && outMs > inMs
+      ? Math.round((outMs - inMs) / 60000)
+      : Math.max(0, (pht.hour * 60 + pht.minute) - parseTimeToMinutes(activeLog.time_in, '08:00'));
+    const totalElapsedHours = Math.max(0.1, Math.round((rawElapsedMins / 60) * 100) / 100);
 
-    if (deviceRecord.student_user_id) {
-      await sendNotification({
-        userId: deviceRecord.student_user_id,
-        senderId: hrUserId,
-        senderName: org.organization_name || 'HR Attendance Desk',
-        title: `Time-In Scanned (${statusBadge})`,
-        message: `HR scanned your dynamic QR code for Time-In at ${currentTimeStr} (${statusBadge}, Philippine Time). Have a productive training shift!`,
-        type: 'ojt',
-        link: '/dashboard/student/ojt',
-        relatedType: 'attendance',
-        relatedId: ojt.ojt_id
-      });
-    }
+    const isCrossDay = logDateStr !== currentDate;
+    const currentOutMins = pht.hour * 60 + pht.minute;
+    const isLateOrOvertime = isCrossDay || (currentOutMins > schedFinishMins + 15);
 
-    if (ojt.mentor_user_id) {
-      await sendNotification({
-        userId: ojt.mentor_user_id,
-        senderId: hrUserId,
-        senderName: 'HR Attendance Scanner',
-        title: `Intern Timed In: ${deviceRecord.first_name} ${deviceRecord.last_name}`,
-        message: `${deviceRecord.first_name} clocked in at ${currentTimeStr} (${statusBadge}).`,
-        type: 'ojt',
-        link: '/dashboard/organization/ojt',
-        relatedType: 'attendance',
-        relatedId: ojt.ojt_id
-      });
-    }
-
-    return {
-      httpStatus: 200,
-      body: {
-        success: true,
-        action: 'time_in',
-        message: `Successfully Timed In ${deviceRecord.first_name} ${deviceRecord.last_name}! (${statusBadge})`,
-        data: {
-          student_id: studentId,
-          student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
-          student_number: deviceRecord.student_number,
-          avatar_url: deviceRecord.avatar_url,
-          action: 'time_in',
-          time_in: currentTimeStr,
-          time_in_status: timeInStatus,
-          distance_meters: geoCheck.distanceMeters,
-          is_offline_synced: isOfflineSync,
-          mentor_name: ojt.mentor_first_name ? `${ojt.mentor_first_name} ${ojt.mentor_last_name}` : (ojt.supervisor_name || 'Assigned Mentor')
-        },
-        telemetry: getTelemetryData(geoCheck, verification)
-      }
-    };
-  }
-
-  // CASE B: Student ALREADY clocked in today, but NOT clocked out -> ACTION: TIME OUT
-  const todayLog = attLogs[0];
-  if (todayLog.time_in && !todayLog.time_out) {
-    const timeInParts = String(todayLog.time_in).split(':');
-    const inMins = parseInt(timeInParts[0], 10) * 60 + parseInt(timeInParts[1], 10);
-    const outMins = pht.hour * 60 + pht.minute;
-    const rawDiffMins = Math.max(0, outMins - inMins);
-
-    const schedFinishMins = parseTimeToMinutes(ojt.scheduled_finish_time, '17:00');
     let timeOutStatus = 'on_time';
-    if (outMins < schedFinishMins - 15) {
-      timeOutStatus = 'early';
-    } else if (outMins > schedFinishMins + 15) {
+    let overtimeStatus = 'none';
+    let regularHours = 0;
+    let overtimeHours = 0;
+
+    if (isLateOrOvertime) {
       timeOutStatus = 'overtime';
+      // To prevent overtime manipulation, student is only automatically credited the regular daily shift (up to 8 hrs).
+      // Excess overtime hours are marked as pending mentor approval.
+      regularHours = Math.min(standardShiftHours, totalElapsedHours);
+      overtimeHours = Math.max(0, Math.round((totalElapsedHours - regularHours) * 100) / 100);
+      overtimeStatus = overtimeHours > 0 ? 'pending_approval' : 'none';
+    } else if (currentOutMins < schedFinishMins - 15) {
+      timeOutStatus = 'early';
+      regularHours = Math.min(standardShiftHours, totalElapsedHours);
+      overtimeHours = 0;
+      overtimeStatus = 'none';
+    } else {
+      timeOutStatus = 'on_time';
+      regularHours = Math.min(standardShiftHours, totalElapsedHours);
+      overtimeHours = 0;
+      overtimeStatus = 'none';
     }
 
-    const calculatedHours = Math.min(12, Math.max(0.1, Math.round((rawDiffMins / 60) * 100) / 100));
-    const prevHours = todayLog.status === 'verified' ? (parseFloat(todayLog.hours_rendered) || 0) : 0;
-    const hoursDiff = calculatedHours - prevHours;
+    const prevCredited = activeLog.status === 'verified' ? (parseFloat(activeLog.hours_rendered) || 0) : 0;
+    const hoursDiff = regularHours - prevCredited;
 
     await pool.query(
       `UPDATE ojt_attendance_logs 
        SET time_out = ?, time_out_status = ?, time_out_method = 'qr_scan',
+           regular_hours = ?, overtime_hours = ?, overtime_status = ?,
            hours_rendered = ?, status = 'verified', verified_by = ?, verified_at = NOW(),
+           scanned_by_hr_id = ?,
+           scheduled_start_time = COALESCE(scheduled_start_time, ?),
+           scheduled_finish_time = COALESCE(scheduled_finish_time, ?),
            scan_latitude = COALESCE(?, scan_latitude),
            scan_longitude = COALESCE(?, scan_longitude),
            scan_accuracy_meters = COALESCE(?, scan_accuracy_meters),
@@ -2498,8 +2412,14 @@ async function processSingleQrAttendanceScan({
       [
         currentTimeStr,
         timeOutStatus,
-        calculatedHours,
+        regularHours,
+        overtimeHours,
+        overtimeStatus,
+        regularHours,
         hrUserId,
+        hrUserId,
+        schedStart,
+        schedFinish,
         geoCheck.latitude ?? null,
         geoCheck.longitude ?? null,
         geoCheck.accuracyMeters ?? null,
@@ -2507,7 +2427,7 @@ async function processSingleQrAttendanceScan({
         verification.deviceId,
         isOfflineSync ? 1 : 0,
         offlineScannedAtDate,
-        todayLog.attendance_id
+        activeLog.attendance_id
       ]
     );
 
@@ -2539,40 +2459,50 @@ async function processSingleQrAttendanceScan({
       organization_id: org.organization_id,
       action: 'time_out',
       status: 'success',
-      time_in: todayLog.time_in,
+      time_in: activeLog.time_in,
       time_out: currentTimeStr,
       time_out_status: timeOutStatus,
-      hours_rendered: calculatedHours,
+      hours_rendered: regularHours,
+      overtime_hours: overtimeHours,
+      overtime_status: overtimeStatus,
       distance_meters: geoCheck.distanceMeters,
       is_offline_synced: isOfflineSync,
       student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
       student_number: deviceRecord.student_number,
-      message: `Time-Out recorded at ${currentTimeStr} (${calculatedHours} hrs automatically credited)`
+      message: `Time-Out recorded at ${currentTimeStr} (${regularHours} hrs regular${overtimeHours > 0 ? `, ${overtimeHours} hrs overtime pending mentor approval` : ''})`
     });
 
     if (deviceRecord.student_user_id) {
+      const otNote = overtimeHours > 0 ? ` (${overtimeHours} hrs overtime pending mentor review/approval)` : '';
       await sendNotification({
         userId: deviceRecord.student_user_id,
         senderId: hrUserId,
         senderName: org.organization_name || 'HR Attendance Desk',
-        title: `Time-Out Recorded (${calculatedHours} hrs)`,
-        message: `HR scanned your dynamic QR code for Time-Out at ${currentTimeStr}. ${calculatedHours} hrs have been automatically recorded and credited to your OJT record.`,
+        title: `Time-Out Recorded (${regularHours} hrs)`,
+        message: `HR scanned your dynamic QR code for Time-Out at ${currentTimeStr}. ${regularHours} regular hours credited${otNote}.`,
         type: 'ojt',
-        link: '/dashboard/student/ojt',
+        link: '/dashboard/student/schedule',
         relatedType: 'attendance',
         relatedId: ojt.ojt_id
       });
     }
 
     if (ojt.mentor_user_id) {
+      const otTitle = overtimeStatus === 'pending_approval'
+        ? `Overtime Pending Approval: ${deviceRecord.first_name} ${deviceRecord.last_name}`
+        : `Intern Shift Recorded: ${deviceRecord.first_name} ${deviceRecord.last_name}`;
+      const otMsg = overtimeStatus === 'pending_approval'
+        ? `${deviceRecord.first_name} timed out with ${overtimeHours} hrs overtime on ${logDateStr}. Please review and approve in Work Schedules.`
+        : `${deviceRecord.first_name} completed shift (${activeLog.time_in.slice(0, 5)} - ${currentTimeStr.slice(0, 5)}, ${regularHours} hrs rendered).`;
+
       await sendNotification({
         userId: ojt.mentor_user_id,
         senderId: hrUserId,
         senderName: 'HR Attendance Scanner',
-        title: `Intern Shift Recorded: ${deviceRecord.first_name} ${deviceRecord.last_name}`,
-        message: `${deviceRecord.first_name} completed their shift (${todayLog.time_in.slice(0, 5)} - ${currentTimeStr.slice(0, 5)}, ${calculatedHours} hrs rendered). Training hours have been automatically recorded and credited.`,
+        title: otTitle,
+        message: otMsg,
         type: 'ojt',
-        link: '/dashboard/organization/ojt',
+        link: '/dashboard/organization/schedules',
         relatedType: 'attendance',
         relatedId: ojt.ojt_id
       });
@@ -2583,16 +2513,20 @@ async function processSingleQrAttendanceScan({
       body: {
         success: true,
         action: 'time_out',
-        message: `Successfully Timed Out ${deviceRecord.first_name} ${deviceRecord.last_name}! (${calculatedHours} hrs automatically recorded and credited)`,
+        message: `Successfully Timed Out ${deviceRecord.first_name} ${deviceRecord.last_name}! (${regularHours} regular hrs credited${overtimeHours > 0 ? `, ${overtimeHours} hrs overtime pending mentor approval` : ''})`,
         data: {
           student_id: studentId,
           student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
           student_number: deviceRecord.student_number,
           avatar_url: deviceRecord.avatar_url,
           action: 'time_out',
-          time_in: todayLog.time_in,
+          log_date: logDateStr,
+          time_in: activeLog.time_in,
           time_out: currentTimeStr,
-          hours_rendered: calculatedHours,
+          hours_rendered: regularHours,
+          regular_hours: regularHours,
+          overtime_hours: overtimeHours,
+          overtime_status: overtimeStatus,
           time_out_status: timeOutStatus,
           distance_meters: geoCheck.distanceMeters,
           is_offline_synced: isOfflineSync,
@@ -2604,23 +2538,184 @@ async function processSingleQrAttendanceScan({
     };
   }
 
-  // CASE C: Student already clocked in AND clocked out today
+  // CASE 2: No active clock-in -> Check if student already completed shift today
+  const [todayCompleted] = await pool.query(
+    `SELECT * FROM ojt_attendance_logs 
+     WHERE ojt_id = ? AND student_id = ? AND log_date = ? AND time_in IS NOT NULL AND time_out IS NOT NULL 
+     ORDER BY attendance_id DESC LIMIT 1`,
+    [ojt.ojt_id, studentId, currentDate]
+  );
+
+  if (todayCompleted.length > 0) {
+    const todayLog = todayCompleted[0];
+    if (deviceRecord.student_user_id) {
+      emitUpdate('attendance_failed', {
+        student_id: studentId,
+        user_id: deviceRecord.student_user_id,
+        organization_id: org.organization_id,
+        action: 'already_completed',
+        status: 'failed',
+        message: `${deviceRecord.first_name} ${deviceRecord.last_name} has already completed their shift today.`
+      });
+    }
+    return {
+      httpStatus: 400,
+      body: {
+        success: false,
+        code: 'SHIFT_ALREADY_COMPLETED',
+        message: `${deviceRecord.first_name} ${deviceRecord.last_name} has already completed their shift today (In: ${todayLog.time_in.slice(0, 5)}, Out: ${todayLog.time_out.slice(0, 5)}, ${todayLog.hours_rendered || 0} hrs). Additional clocking is not required.`,
+        telemetry: getTelemetryData(geoCheck, verification)
+      }
+    };
+  }
+
+  // CASE 3: Student has NOT clocked in today -> ACTION: TIME IN
+  const [todaySchedRows] = await pool.query(
+    'SELECT * FROM ojt_daily_schedules WHERE student_id = ? AND schedule_date = ? LIMIT 1',
+    [studentId, currentDate]
+  );
+  const todayCustomSched = todaySchedRows.length > 0 ? todaySchedRows[0] : null;
+  const schedStart = todayCustomSched?.start_time || ojt.scheduled_start_time || '08:00';
+  const schedFinish = todayCustomSched?.finish_time || ojt.scheduled_finish_time || '17:00';
+  const schedStartMins = parseTimeToMinutes(schedStart, '08:00');
+  const actualInMins = pht.hour * 60 + pht.minute;
+  const timeInStatus = actualInMins <= schedStartMins ? 'on_time' : 'late';
+
+  const [existingDateLogs] = await pool.query(
+    'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND student_id = ? AND log_date = ?',
+    [ojt.ojt_id, studentId, currentDate]
+  );
+
+  if (existingDateLogs.length === 0) {
+    await pool.query(
+      `INSERT INTO ojt_attendance_logs (
+        ojt_id, student_id, mentor_id, log_date, time_in, time_in_status, time_in_method,
+        scheduled_start_time, scheduled_finish_time,
+        status, scanned_by_hr_id, verified_by, verified_at,
+        scan_latitude, scan_longitude, scan_accuracy_meters, distance_from_org_meters,
+        device_id, is_offline_synced, offline_scanned_at,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'qr_scan', ?, ?, 'verified', ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [
+        ojt.ojt_id,
+        studentId,
+        ojt.mentor_id || null,
+        currentDate,
+        currentTimeStr,
+        timeInStatus,
+        schedStart,
+        schedFinish,
+        hrUserId,
+        hrUserId,
+        geoCheck.latitude ?? null,
+        geoCheck.longitude ?? null,
+        geoCheck.accuracyMeters ?? null,
+        geoCheck.distanceMeters ?? null,
+        verification.deviceId,
+        isOfflineSync ? 1 : 0,
+        offlineScannedAtDate
+      ]
+    );
+  } else {
+    await pool.query(
+      `UPDATE ojt_attendance_logs 
+       SET time_in = ?, time_in_status = ?, time_in_method = 'qr_scan', status = 'verified',
+           scheduled_start_time = COALESCE(scheduled_start_time, ?),
+           scheduled_finish_time = COALESCE(scheduled_finish_time, ?),
+           scanned_by_hr_id = ?, verified_by = ?, verified_at = NOW(),
+           scan_latitude = COALESCE(?, scan_latitude),
+           scan_longitude = COALESCE(?, scan_longitude),
+           scan_accuracy_meters = COALESCE(?, scan_accuracy_meters),
+           distance_from_org_meters = COALESCE(?, distance_from_org_meters),
+           device_id = COALESCE(?, device_id),
+           is_offline_synced = ?,
+           offline_scanned_at = COALESCE(?, offline_scanned_at),
+           updated_at = NOW()
+       WHERE attendance_id = ?`,
+      [
+        currentTimeStr,
+        timeInStatus,
+        schedStart,
+        schedFinish,
+        hrUserId,
+        hrUserId,
+        geoCheck.latitude ?? null,
+        geoCheck.longitude ?? null,
+        geoCheck.accuracyMeters ?? null,
+        geoCheck.distanceMeters ?? null,
+        verification.deviceId,
+        isOfflineSync ? 1 : 0,
+        offlineScannedAtDate,
+        existingDateLogs[0].attendance_id
+      ]
+    );
+  }
+
+  const statusBadge = timeInStatus === 'on_time' ? 'On-Time' : 'Late';
+
+  emitUpdate('attendance_logged', {
+    ojt_id: ojt.ojt_id,
+    student_id: studentId,
+    user_id: deviceRecord.student_user_id,
+    organization_id: org.organization_id,
+    action: 'time_in',
+    status: 'success',
+    time_in: currentTimeStr,
+    time_in_status: timeInStatus,
+    status_badge: statusBadge,
+    distance_meters: geoCheck.distanceMeters,
+    is_offline_synced: isOfflineSync,
+    student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
+    student_number: deviceRecord.student_number,
+    message: `Time-In recorded at ${currentTimeStr} (${statusBadge})`
+  });
+
   if (deviceRecord.student_user_id) {
-    emitUpdate('attendance_failed', {
-      student_id: studentId,
-      user_id: deviceRecord.student_user_id,
-      organization_id: org.organization_id,
-      action: 'already_completed',
-      status: 'failed',
-      message: `${deviceRecord.first_name} ${deviceRecord.last_name} has already completed their shift today.`
+    await sendNotification({
+      userId: deviceRecord.student_user_id,
+      senderId: hrUserId,
+      senderName: org.organization_name || 'HR Attendance Desk',
+      title: `Time-In Scanned (${statusBadge})`,
+      message: `HR scanned your dynamic QR code for Time-In at ${currentTimeStr} (${statusBadge}, Philippine Time). Have a productive training shift!`,
+      type: 'ojt',
+      link: '/dashboard/student/schedule',
+      relatedType: 'attendance',
+      relatedId: ojt.ojt_id
     });
   }
+
+  if (ojt.mentor_user_id) {
+    await sendNotification({
+      userId: ojt.mentor_user_id,
+      senderId: hrUserId,
+      senderName: 'HR Attendance Scanner',
+      title: `Intern Timed In: ${deviceRecord.first_name} ${deviceRecord.last_name}`,
+      message: `${deviceRecord.first_name} clocked in at ${currentTimeStr} (${statusBadge}).`,
+      type: 'ojt',
+      link: '/dashboard/organization/schedules',
+      relatedType: 'attendance',
+      relatedId: ojt.ojt_id
+    });
+  }
+
   return {
-    httpStatus: 400,
+    httpStatus: 200,
     body: {
-      success: false,
-      code: 'SHIFT_ALREADY_COMPLETED',
-      message: `${deviceRecord.first_name} ${deviceRecord.last_name} has already completed their shift today (In: ${todayLog.time_in.slice(0, 5)}, Out: ${todayLog.time_out.slice(0, 5)}, ${todayLog.hours_rendered || 0} hrs). Additional clocking is not required.`,
+      success: true,
+      action: 'time_in',
+      message: `Successfully Timed In ${deviceRecord.first_name} ${deviceRecord.last_name}! (${statusBadge})`,
+      data: {
+        student_id: studentId,
+        student_name: `${deviceRecord.first_name} ${deviceRecord.last_name}`,
+        student_number: deviceRecord.student_number,
+        avatar_url: deviceRecord.avatar_url,
+        action: 'time_in',
+        time_in: currentTimeStr,
+        time_in_status: timeInStatus,
+        distance_meters: geoCheck.distanceMeters,
+        is_offline_synced: isOfflineSync,
+        mentor_name: ojt.mentor_first_name ? `${ojt.mentor_first_name} ${ojt.mentor_last_name}` : (ojt.supervisor_name || 'Assigned Mentor')
+      },
       telemetry: getTelemetryData(geoCheck, verification)
     }
   };
@@ -3099,10 +3194,23 @@ router.post('/interns/:ojtId/time-out', async (req, res) => {
     const currentDate = pht.dateStr;
     const timeOutToRecord = pht.timeStr;
 
-    const [existing] = await connection.query(
-      'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND log_date = ?',
-      [ojtId, currentDate]
+    // First, find if there is an unclosed session (even from previous days)
+    const [openRows] = await connection.query(
+      'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND time_in IS NOT NULL AND time_out IS NULL ORDER BY log_date DESC, attendance_id DESC LIMIT 1',
+      [ojtId]
     );
+
+    let existing = openRows;
+    let targetDate = currentDate;
+    if (existing.length > 0) {
+      targetDate = existing[0].log_date instanceof Date ? existing[0].log_date.toISOString().slice(0, 10) : String(existing[0].log_date).slice(0, 10);
+    } else {
+      const [todayRows] = await connection.query(
+        'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND log_date = ?',
+        [ojtId, currentDate]
+      );
+      existing = todayRows;
+    }
 
     const actualInStr = existing.length > 0 && existing[0].time_in ? existing[0].time_in : '08:00:00';
     const schedStartMins = parseTimeToMinutes(ojt.scheduled_start_time, '08:00');
@@ -5113,6 +5221,765 @@ router.post('/complaints', async (req, res) => {
     }
     console.error('Submit org complaint error:', error);
     return res.status(500).json({ success: false, message: 'Failed to submit complaint: ' + error.message });
+  }
+});
+
+// ============================================================================
+// WORK SCHEDULE MANAGEMENT & OVERTIME APPROVAL (MENTOR / HR)
+// ============================================================================
+
+// GET /api/org/schedules - Fetch interns, daily schedule overrides, pending overtime logs, and student requests
+router.get('/schedules', async (req, res) => {
+  try {
+    const org = await getOrgId(req.user.user_id);
+    if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
+
+    const isMentor = req.user.role_name === 'workplace_mentor' || req.user.role === 'workplace_mentor' || req.user.role === 'mentor';
+    const mentorStaffId = org.org_staff_id || null;
+
+    // Fetch interns under this org (filter by mentor if mentor staff)
+    let internQuery = `
+      SELECT o.ojt_id, o.student_id, o.mentor_id, o.status,
+             o.scheduled_start_time, o.scheduled_finish_time,
+             o.rendered_hours, COALESCE(o.required_hours, s.required_ojt_hours, 600) as required_hours,
+             s.student_number, s.first_name, s.last_name, s.avatar_url, s.contact_number,
+             p.program_name, jp.job_title,
+             u.email as student_email
+      FROM ojt_records o
+      JOIN students s ON o.student_id = s.student_id
+      JOIN users u ON s.user_id = u.user_id
+      LEFT JOIN programs p ON s.program_id = p.program_id
+      LEFT JOIN job_postings jp ON o.job_id = jp.job_id
+      WHERE o.organization_id = ? AND o.status IN ('ongoing', 'placed', 'active')
+    `;
+    const internParams = [org.organization_id];
+
+    if (isMentor && mentorStaffId) {
+      internQuery += ` AND (o.mentor_id = ? OR o.mentor_id IS NULL)`;
+      internParams.push(mentorStaffId);
+    }
+    internQuery += ` ORDER BY s.first_name ASC, s.last_name ASC`;
+
+    const [interns] = await pool.query(internQuery, internParams);
+    const studentIds = interns.map(i => i.student_id);
+
+    if (studentIds.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          interns: [],
+          dailySchedules: [],
+          scheduleRequests: [],
+          pendingOvertimeLogs: [],
+          attendanceLogs: []
+        }
+      });
+    }
+
+    // Month & year filter
+    const month = parseInt(req.query.month, 10);
+    const year = parseInt(req.query.year, 10);
+    const targetStudentId = req.query.student_id ? parseInt(req.query.student_id, 10) : null;
+
+    const filteredStudentIds = targetStudentId && studentIds.includes(targetStudentId)
+      ? [targetStudentId]
+      : studentIds;
+
+    // 1. Fetch daily schedule overrides for these students
+    let dailySchedQuery = `
+      SELECT ds.*, 
+             DATE_FORMAT(ds.schedule_date, '%Y-%m-%d') as schedule_date_str,
+             s.first_name, s.last_name, s.student_number
+      FROM ojt_daily_schedules ds
+      JOIN students s ON ds.student_id = s.student_id
+      WHERE ds.student_id IN (?)
+    `;
+    const dailySchedParams = [filteredStudentIds];
+
+    if (!isNaN(month) && !isNaN(year)) {
+      dailySchedQuery += ` AND MONTH(ds.schedule_date) = ? AND YEAR(ds.schedule_date) = ?`;
+      dailySchedParams.push(month, year);
+    }
+    dailySchedQuery += ` ORDER BY ds.schedule_date ASC`;
+
+    const [dailySchedules] = await pool.query(dailySchedQuery, dailySchedParams);
+
+    // 2. Fetch student schedule requests
+    let reqQuery = `
+      SELECT sr.*, 
+             DATE_FORMAT(sr.schedule_date, '%Y-%m-%d') as schedule_date_str,
+             s.first_name, s.last_name, s.student_number, s.avatar_url
+      FROM student_schedule_requests sr
+      JOIN students s ON sr.student_id = s.student_id
+      WHERE sr.student_id IN (?)
+    `;
+    const reqQueryParams = [filteredStudentIds];
+    if (!isNaN(month) && !isNaN(year)) {
+      reqQuery += ` AND MONTH(sr.schedule_date) = ? AND YEAR(sr.schedule_date) = ?`;
+      reqQueryParams.push(month, year);
+    }
+    reqQuery += ` ORDER BY (CASE WHEN sr.status = 'pending' THEN 0 ELSE 1 END), sr.schedule_date DESC`;
+
+    const [scheduleRequests] = await pool.query(reqQuery, reqQueryParams);
+
+    // 3. Fetch pending overtime logs & month attendance
+    let attQuery = `
+      SELECT att.*, 
+             DATE_FORMAT(att.log_date, '%Y-%m-%d') as log_date_str,
+             s.first_name, s.last_name, s.student_number, s.avatar_url,
+             o.scheduled_start_time as default_start_time,
+             o.scheduled_finish_time as default_finish_time
+      FROM ojt_attendance_logs att
+      JOIN students s ON att.student_id = s.student_id
+      JOIN ojt_records o ON att.ojt_id = o.ojt_id
+      WHERE att.student_id IN (?)
+    `;
+    const attParams = [filteredStudentIds];
+    if (!isNaN(month) && !isNaN(year)) {
+      attQuery += ` AND (MONTH(att.log_date) = ? AND YEAR(att.log_date) = ? OR att.overtime_status = 'pending_approval')`;
+      attParams.push(month, year);
+    }
+    attQuery += ` ORDER BY att.log_date DESC, att.attendance_id DESC`;
+
+    const [attendanceLogs] = await pool.query(attQuery, attParams);
+
+    const pendingOvertimeLogs = attendanceLogs.filter(a => a.overtime_status === 'pending_approval');
+
+    return res.json({
+      success: true,
+      data: {
+        interns,
+        dailySchedules,
+        scheduleRequests,
+        pendingOvertimeLogs,
+        attendanceLogs
+      }
+    });
+  } catch (error) {
+    console.error('Fetch org schedules error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch work schedules: ' + error.message });
+  }
+});
+
+// POST /api/org/schedules/batch - Mentor/HR sets or updates daily work schedules for one or more interns across multiple dates
+router.post('/schedules/batch', async (req, res) => {
+  try {
+    const org = await getOrgId(req.user.user_id);
+    if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
+
+    const { student_ids, dates, start_time, finish_time, is_overtime_allowed, max_overtime_hours, notes } = req.body;
+
+    if (!Array.isArray(student_ids) || student_ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'Please select at least one intern.' });
+    }
+    if (!Array.isArray(dates) || dates.length === 0) {
+      return res.status(400).json({ success: false, message: 'Please select at least one date.' });
+    }
+    if (!start_time || !finish_time) {
+      return res.status(400).json({ success: false, message: 'Start time and finish time are required.' });
+    }
+
+    const startMins = parseTimeToMinutes(start_time, '08:00');
+    const finishMins = parseTimeToMinutes(finish_time, '17:00');
+    if (finishMins <= startMins) {
+      return res.status(400).json({ success: false, message: 'Finish time must be later than start time.' });
+    }
+
+    const otAllowed = is_overtime_allowed ? 1 : 0;
+    const maxOt = parseFloat(max_overtime_hours) || 0;
+    const noteText = (notes || '').trim();
+
+    // Verify all selected students belong to this organization
+    const [ojtCheck] = await pool.query(
+      `SELECT o.student_id, o.ojt_id, s.user_id as student_user_id, s.first_name, s.last_name
+       FROM ojt_records o
+       JOIN students s ON o.student_id = s.student_id
+       WHERE o.organization_id = ? AND o.student_id IN (?)`,
+      [org.organization_id, student_ids]
+    );
+
+    if (ojtCheck.length === 0) {
+      return res.status(403).json({ success: false, message: 'No valid interns found for this organization.' });
+    }
+
+    const validStudentMap = new Map();
+    ojtCheck.forEach(o => validStudentMap.set(o.student_id, o));
+
+    let upsertCount = 0;
+    for (const sId of student_ids) {
+      if (!validStudentMap.has(sId)) continue;
+      const intern = validStudentMap.get(sId);
+
+      for (const d of dates) {
+        const dateKey = String(d).slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
+
+        // Upsert into ojt_daily_schedules
+        await pool.query(
+          `INSERT INTO ojt_daily_schedules (
+             student_id, schedule_date, start_time, finish_time,
+             is_overtime_allowed, max_overtime_hours, notes, created_by,
+             created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+           ON DUPLICATE KEY UPDATE
+             start_time = VALUES(start_time),
+             finish_time = VALUES(finish_time),
+             is_overtime_allowed = VALUES(is_overtime_allowed),
+             max_overtime_hours = VALUES(max_overtime_hours),
+             notes = VALUES(notes),
+             created_by = VALUES(created_by),
+             updated_at = NOW()`,
+          [sId, dateKey, start_time, finish_time, otAllowed, maxOt, noteText, req.user.user_id]
+        );
+        upsertCount++;
+
+        // Reconcile existing attendance log for that student & date if already logged
+        const [existingLogs] = await pool.query(
+          'SELECT * FROM ojt_attendance_logs WHERE student_id = ? AND log_date = ? ORDER BY attendance_id DESC LIMIT 1',
+          [sId, dateKey]
+        );
+
+        if (existingLogs.length > 0) {
+          const log = existingLogs[0];
+          let updatedInStatus = log.time_in_status;
+          let updatedOutStatus = log.time_out_status;
+          let updatedRegular = log.regular_hours;
+          let updatedOt = log.overtime_hours;
+          let updatedOtStatus = log.overtime_status;
+          let updatedHours = log.hours_rendered;
+
+          if (log.time_in) {
+            const inMins = parseTimeToMinutes(log.time_in, '08:00');
+            updatedInStatus = inMins <= startMins ? 'on_time' : 'late';
+          }
+
+          if (log.time_in && log.time_out) {
+            const inMins = parseTimeToMinutes(log.time_in, '08:00');
+            const outMins = parseTimeToMinutes(log.time_out, '17:00');
+            const totalMins = Math.max(0, outMins - inMins);
+            const totalHours = Math.max(0.1, Math.round((totalMins / 60) * 100) / 100);
+            const shiftSpanMins = finishMins - startMins;
+            const shiftHours = Math.min(8, Math.round((shiftSpanMins / 60) * 100) / 100);
+
+            if (outMins > finishMins + 15) {
+              updatedOutStatus = 'overtime';
+              updatedRegular = Math.min(shiftHours, totalHours);
+              updatedOt = Math.max(0, Math.round((totalHours - updatedRegular) * 100) / 100);
+              updatedOtStatus = updatedOt > 0 ? (log.overtime_status === 'approved' ? 'approved' : 'pending_approval') : 'none';
+              updatedHours = updatedOtStatus === 'approved' ? (updatedRegular + updatedOt) : updatedRegular;
+            } else if (outMins < finishMins - 15) {
+              updatedOutStatus = 'early';
+              updatedRegular = Math.min(shiftHours, totalHours);
+              updatedOt = 0;
+              updatedOtStatus = 'none';
+              updatedHours = updatedRegular;
+            } else {
+              updatedOutStatus = 'on_time';
+              updatedRegular = Math.min(shiftHours, totalHours);
+              updatedOt = 0;
+              updatedOtStatus = 'none';
+              updatedHours = updatedRegular;
+            }
+
+            const prevHours = parseFloat(log.hours_rendered) || 0;
+            const hoursDiff = updatedHours - prevHours;
+
+            await pool.query(
+              `UPDATE ojt_attendance_logs 
+               SET scheduled_start_time = ?, scheduled_finish_time = ?,
+                   time_in_status = ?, time_out_status = ?,
+                   regular_hours = ?, overtime_hours = ?, overtime_status = ?,
+                   hours_rendered = ?, updated_at = NOW()
+               WHERE attendance_id = ?`,
+              [start_time, finish_time, updatedInStatus, updatedOutStatus, updatedRegular, updatedOt, updatedOtStatus, updatedHours, log.attendance_id]
+            );
+
+            if (hoursDiff !== 0) {
+              await pool.query('UPDATE ojt_records SET rendered_hours = GREATEST(0, rendered_hours + ?), updated_at = NOW() WHERE ojt_id = ?', [hoursDiff, log.ojt_id]);
+              await pool.query('UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?', [hoursDiff, sId]);
+            }
+          } else {
+            await pool.query(
+              `UPDATE ojt_attendance_logs 
+               SET scheduled_start_time = ?, scheduled_finish_time = ?, time_in_status = ?, updated_at = NOW()
+               WHERE attendance_id = ?`,
+              [start_time, finish_time, updatedInStatus, log.attendance_id]
+            );
+          }
+        }
+      }
+
+      // Notify the student
+      if (intern.student_user_id) {
+        const dateSample = dates.length === 1 ? dates[0] : `${dates.length} scheduled dates (${dates[0]}...)`;
+        await sendNotification({
+          userId: intern.student_user_id,
+          senderId: req.user.user_id,
+          senderName: org.organization_name || 'Workplace Mentor',
+          title: `Work Schedule Updated`,
+          message: `Your workplace mentor updated your schedule for ${dateSample}: ${start_time} - ${finish_time}. View your updated calendar.`,
+          type: 'ojt',
+          link: '/dashboard/student/schedule',
+          relatedType: 'schedule'
+        });
+      }
+    }
+
+    emitUpdate('schedule_updated', {
+      organization_id: org.organization_id,
+      student_ids,
+      dates,
+      start_time,
+      finish_time
+    });
+
+    return res.json({
+      success: true,
+      message: `Work schedule successfully updated for ${student_ids.length} intern(s) across ${dates.length} date(s).`
+    });
+  } catch (error) {
+    console.error('Batch update schedule error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update schedules: ' + error.message });
+  }
+});
+
+// PUT /api/org/schedules/attendance/:attendanceId - Mentor directly adjusts recorded Time-In and Time-Out for a specific date
+router.put('/schedules/attendance/:attendanceId', async (req, res) => {
+  try {
+    const org = await getOrgId(req.user.user_id);
+    if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
+
+    const attendanceId = parseInt(req.params.attendanceId, 10);
+    const { time_in, time_out, tasks_accomplished, notes } = req.body;
+
+    const [rows] = await pool.query(
+      `SELECT att.*, o.organization_id, o.scheduled_start_time, o.scheduled_finish_time,
+              s.user_id as student_user_id, s.first_name, s.last_name,
+              DATE_FORMAT(att.log_date, '%Y-%m-%d') as log_date_str
+       FROM ojt_attendance_logs att
+       JOIN ojt_records o ON att.ojt_id = o.ojt_id
+       JOIN students s ON att.student_id = s.student_id
+       WHERE att.attendance_id = ? AND o.organization_id = ?`,
+      [attendanceId, org.organization_id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Attendance record not found or unauthorized.' });
+    }
+
+    const log = rows[0];
+    const logDateStr = log.log_date_str;
+
+    // Fetch custom schedule if any
+    const [dailyScheds] = await pool.query(
+      'SELECT * FROM ojt_daily_schedules WHERE student_id = ? AND schedule_date = ? LIMIT 1',
+      [log.student_id, logDateStr]
+    );
+    const customSched = dailyScheds.length > 0 ? dailyScheds[0] : null;
+    const schedStart = customSched?.start_time || log.scheduled_start_time || '08:00';
+    const schedFinish = customSched?.finish_time || log.scheduled_finish_time || '17:00';
+
+    const schedStartMins = parseTimeToMinutes(schedStart, '08:00');
+    const schedFinishMins = parseTimeToMinutes(schedFinish, '17:00');
+
+    let inTime = time_in !== undefined ? (time_in ? String(time_in).slice(0, 8) : null) : log.time_in;
+    let outTime = time_out !== undefined ? (time_out ? String(time_out).slice(0, 8) : null) : log.time_out;
+
+    let timeInStatus = log.time_in_status;
+    let timeOutStatus = log.time_out_status;
+    let regularHours = 0;
+    let overtimeHours = 0;
+    let overtimeStatus = 'none';
+    let newHoursRendered = 0;
+
+    if (inTime) {
+      const inMins = parseTimeToMinutes(inTime, '08:00');
+      timeInStatus = inMins <= schedStartMins ? 'on_time' : 'late';
+    }
+
+    if (inTime && outTime) {
+      const inMins = parseTimeToMinutes(inTime, '08:00');
+      const outMins = parseTimeToMinutes(outTime, '17:00');
+      const rawElapsed = Math.max(0, outMins - inMins);
+      const totalElapsedHours = Math.max(0.1, Math.round((rawElapsed / 60) * 100) / 100);
+      const shiftSpanMins = schedFinishMins - schedStartMins;
+      const shiftHours = Math.min(8, Math.round((shiftSpanMins / 60) * 100) / 100);
+
+      if (outMins > schedFinishMins + 15) {
+        timeOutStatus = 'overtime';
+        regularHours = Math.min(shiftHours, totalElapsedHours);
+        overtimeHours = Math.max(0, Math.round((totalElapsedHours - regularHours) * 100) / 100);
+        overtimeStatus = 'approved'; // Since mentor explicitly rescheduled/adjusted, approve the adjusted overtime
+        newHoursRendered = totalElapsedHours;
+      } else if (outMins < schedFinishMins - 15) {
+        timeOutStatus = 'early';
+        regularHours = Math.min(shiftHours, totalElapsedHours);
+        overtimeHours = 0;
+        overtimeStatus = 'none';
+        newHoursRendered = regularHours;
+      } else {
+        timeOutStatus = 'on_time';
+        regularHours = Math.min(shiftHours, totalElapsedHours);
+        overtimeHours = 0;
+        overtimeStatus = 'none';
+        newHoursRendered = regularHours;
+      }
+    } else {
+      newHoursRendered = 0;
+    }
+
+    const prevHours = parseFloat(log.hours_rendered) || 0;
+    const hoursDiff = newHoursRendered - prevHours;
+
+    await pool.query(
+      `UPDATE ojt_attendance_logs 
+       SET time_in = ?, time_out = ?, time_in_status = ?, time_out_status = ?,
+           regular_hours = ?, overtime_hours = ?, overtime_status = ?,
+           hours_rendered = ?, tasks_accomplished = COALESCE(?, tasks_accomplished),
+           status = 'verified', verified_by = ?, verified_at = NOW(),
+           updated_at = NOW()
+       WHERE attendance_id = ?`,
+      [
+        inTime, outTime, timeInStatus, timeOutStatus,
+        regularHours, overtimeHours, overtimeStatus,
+        newHoursRendered, tasks_accomplished || null,
+        req.user.user_id, attendanceId
+      ]
+    );
+
+    if (hoursDiff !== 0) {
+      await pool.query('UPDATE ojt_records SET rendered_hours = GREATEST(0, rendered_hours + ?), updated_at = NOW() WHERE ojt_id = ?', [hoursDiff, log.ojt_id]);
+      await pool.query('UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?', [hoursDiff, log.student_id]);
+    }
+
+    emitUpdate('attendance_logged', {
+      ojt_id: log.ojt_id,
+      student_id: log.student_id,
+      organization_id: org.organization_id
+    });
+
+    if (log.student_user_id) {
+      await sendNotification({
+        userId: log.student_user_id,
+        senderId: req.user.user_id,
+        senderName: org.organization_name || 'Workplace Mentor',
+        title: `Attendance Adjusted: ${logDateStr}`,
+        message: `Your mentor updated your attendance for ${logDateStr}: In: ${inTime || 'N/A'}, Out: ${outTime || 'N/A'} (${newHoursRendered} hrs credited).`,
+        type: 'ojt',
+        link: '/dashboard/student/schedule',
+        relatedType: 'attendance'
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `Attendance log for ${log.first_name} ${log.last_name} on ${logDateStr} successfully updated (${newHoursRendered} hrs credited).`,
+      data: {
+        attendance_id: attendanceId,
+        time_in: inTime,
+        time_out: outTime,
+        hours_rendered: newHoursRendered,
+        regular_hours: regularHours,
+        overtime_hours: overtimeHours,
+        overtime_status: overtimeStatus
+      }
+    });
+  } catch (error) {
+    console.error('Adjust attendance error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to adjust attendance: ' + error.message });
+  }
+});
+
+// POST /api/org/schedules/overtime/:attendanceId/approve - Mentor approves or rejects pending overtime hours
+router.post('/schedules/overtime/:attendanceId/approve', async (req, res) => {
+  try {
+    const org = await getOrgId(req.user.user_id);
+    if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
+
+    const attendanceId = parseInt(req.params.attendanceId, 10);
+    const { action, approved_hours, mentor_notes } = req.body; // action: 'approve' | 'reject'
+
+    const [rows] = await pool.query(
+      `SELECT att.*, o.organization_id, s.user_id as student_user_id, s.first_name, s.last_name,
+              DATE_FORMAT(att.log_date, '%Y-%m-%d') as log_date_str
+       FROM ojt_attendance_logs att
+       JOIN ojt_records o ON att.ojt_id = o.ojt_id
+       JOIN students s ON att.student_id = s.student_id
+       WHERE att.attendance_id = ? AND o.organization_id = ?`,
+      [attendanceId, org.organization_id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Attendance record not found.' });
+    }
+
+    const log = rows[0];
+    const isApprove = action === 'approve';
+
+    if (isApprove) {
+      const otHoursToCredit = approved_hours !== undefined && !isNaN(parseFloat(approved_hours))
+        ? Math.max(0, parseFloat(approved_hours))
+        : (parseFloat(log.overtime_hours) || 0);
+
+      const prevRendered = parseFloat(log.hours_rendered) || 0;
+      const newTotalRendered = Math.round((parseFloat(log.regular_hours || prevRendered) + otHoursToCredit) * 100) / 100;
+      const hoursDiff = newTotalRendered - prevRendered;
+
+      await pool.query(
+        `UPDATE ojt_attendance_logs 
+         SET overtime_status = 'approved',
+             overtime_hours = ?,
+             hours_rendered = ?,
+             overtime_approved_by = ?,
+             overtime_approved_at = NOW(),
+             updated_at = NOW()
+         WHERE attendance_id = ?`,
+        [otHoursToCredit, newTotalRendered, req.user.user_id, attendanceId]
+      );
+
+      if (hoursDiff !== 0) {
+        await pool.query('UPDATE ojt_records SET rendered_hours = GREATEST(0, rendered_hours + ?), updated_at = NOW() WHERE ojt_id = ?', [hoursDiff, log.ojt_id]);
+        await pool.query('UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?', [hoursDiff, log.student_id]);
+      }
+
+      if (log.student_user_id) {
+        await sendNotification({
+          userId: log.student_user_id,
+          senderId: req.user.user_id,
+          senderName: org.organization_name || 'Workplace Mentor',
+          title: 'Overtime Approved! (+ ' + otHoursToCredit + ' hrs)',
+          message: `Your workplace mentor approved your ${otHoursToCredit} hrs overtime for ${log.log_date_str}. Credited to your total OJT hours.`,
+          type: 'ojt',
+          link: '/dashboard/student/schedule',
+          relatedType: 'attendance'
+        });
+      }
+
+      emitUpdate('attendance_logged', { ojt_id: log.ojt_id, student_id: log.student_id });
+
+      return res.json({
+        success: true,
+        message: `Overtime of ${otHoursToCredit} hrs approved and credited for ${log.first_name} ${log.last_name}.`
+      });
+    } else {
+      // Reject overtime
+      await pool.query(
+        `UPDATE ojt_attendance_logs 
+         SET overtime_status = 'rejected',
+             overtime_approved_by = ?,
+             overtime_approved_at = NOW(),
+             updated_at = NOW()
+         WHERE attendance_id = ?`,
+        [req.user.user_id, attendanceId]
+      );
+
+      if (log.student_user_id) {
+        await sendNotification({
+          userId: log.student_user_id,
+          senderId: req.user.user_id,
+          senderName: org.organization_name || 'Workplace Mentor',
+          title: 'Overtime Not Approved',
+          message: `Your overtime for ${log.log_date_str} was reviewed and not approved by your mentor.${mentor_notes ? ` Note: ${mentor_notes}` : ''}`,
+          type: 'ojt',
+          link: '/dashboard/student/schedule',
+          relatedType: 'attendance'
+        });
+      }
+
+      emitUpdate('attendance_logged', { ojt_id: log.ojt_id, student_id: log.student_id });
+
+      return res.json({
+        success: true,
+        message: `Overtime rejected for ${log.first_name} ${log.last_name}.`
+      });
+    }
+  } catch (error) {
+    console.error('Overtime approval error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to process overtime: ' + error.message });
+  }
+});
+
+// POST /api/org/schedules/requests/:requestId/respond - Mentor responds to a student schedule update request
+router.post('/schedules/requests/:requestId/respond', async (req, res) => {
+  try {
+    const org = await getOrgId(req.user.user_id);
+    if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
+
+    const requestId = parseInt(req.params.requestId, 10);
+    const { action, mentor_notes } = req.body; // action: 'approve' | 'reject'
+
+    const [rows] = await pool.query(
+      `SELECT sr.*, s.user_id as student_user_id, s.first_name, s.last_name,
+              DATE_FORMAT(sr.schedule_date, '%Y-%m-%d') as schedule_date_str,
+              o.ojt_id
+       FROM student_schedule_requests sr
+       JOIN students s ON sr.student_id = s.student_id
+       JOIN ojt_records o ON s.student_id = o.student_id AND o.organization_id = ?
+       WHERE sr.request_id = ?`,
+      [org.organization_id, requestId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Schedule request not found or unauthorized.' });
+    }
+
+    const request = rows[0];
+    const isApprove = action === 'approve';
+
+    if (isApprove) {
+      // 1. Mark request as approved
+      await pool.query(
+        `UPDATE student_schedule_requests 
+         SET status = 'approved', reviewed_by = ?, reviewed_at = NOW(), mentor_notes = ?, updated_at = NOW()
+         WHERE request_id = ?`,
+        [req.user.user_id, mentor_notes || null, requestId]
+      );
+
+      // 2. Apply schedule to ojt_daily_schedules
+      await pool.query(
+        `INSERT INTO ojt_daily_schedules (
+           student_id, schedule_date, start_time, finish_time, is_overtime_allowed, notes, created_by, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, 1, ?, ?, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE
+           start_time = VALUES(start_time),
+           finish_time = VALUES(finish_time),
+           is_overtime_allowed = 1,
+           notes = VALUES(notes),
+           created_by = VALUES(created_by),
+           updated_at = NOW()`,
+        [request.student_id, request.schedule_date_str, request.requested_start_time, request.requested_finish_time, mentor_notes || `Approved student schedule request: ${request.reason || ''}`, req.user.user_id]
+      );
+
+      // 3. Reconcile attendance on that date if student already logged attendance!
+      const [existingLogs] = await pool.query(
+        'SELECT * FROM ojt_attendance_logs WHERE student_id = ? AND log_date = ? LIMIT 1',
+        [request.student_id, request.schedule_date_str]
+      );
+
+      if (existingLogs.length > 0) {
+        const log = existingLogs[0];
+        const reqStartMins = parseTimeToMinutes(request.requested_start_time, '08:00');
+        const reqFinishMins = parseTimeToMinutes(request.requested_finish_time, '17:00');
+
+        let updatedInStatus = log.time_in_status;
+        let updatedOutStatus = log.time_out_status;
+        let updatedRegular = log.regular_hours;
+        let updatedOt = log.overtime_hours;
+        let updatedOtStatus = log.overtime_status;
+        let updatedHours = log.hours_rendered;
+
+        if (log.time_in) {
+          const inMins = parseTimeToMinutes(log.time_in, '08:00');
+          updatedInStatus = inMins <= reqStartMins ? 'on_time' : 'late';
+        }
+
+        if (log.time_in && log.time_out) {
+          const inMins = parseTimeToMinutes(log.time_in, '08:00');
+          const outMins = parseTimeToMinutes(log.time_out, '17:00');
+          const totalMins = Math.max(0, outMins - inMins);
+          const totalHours = Math.max(0.1, Math.round((totalMins / 60) * 100) / 100);
+          const shiftSpanMins = reqFinishMins - reqStartMins;
+          const shiftHours = Math.min(8, Math.round((shiftSpanMins / 60) * 100) / 100);
+
+          if (outMins > reqFinishMins + 15) {
+            updatedOutStatus = 'overtime';
+            updatedRegular = Math.min(shiftHours, totalHours);
+            updatedOt = Math.max(0, Math.round((totalHours - updatedRegular) * 100) / 100);
+            updatedOtStatus = updatedOt > 0 ? (log.overtime_status === 'approved' ? 'approved' : 'pending_approval') : 'none';
+            updatedHours = updatedOtStatus === 'approved' ? (updatedRegular + updatedOt) : updatedRegular;
+          } else if (outMins < reqFinishMins - 15) {
+            updatedOutStatus = 'early';
+            updatedRegular = Math.min(shiftHours, totalHours);
+            updatedOt = 0;
+            updatedOtStatus = 'none';
+            updatedHours = updatedRegular;
+          } else {
+            updatedOutStatus = 'on_time';
+            updatedRegular = Math.min(shiftHours, totalHours);
+            updatedOt = 0;
+            updatedOtStatus = 'none';
+            updatedHours = updatedRegular;
+          }
+
+          const prevHours = parseFloat(log.hours_rendered) || 0;
+          const hoursDiff = updatedHours - prevHours;
+
+          await pool.query(
+            `UPDATE ojt_attendance_logs 
+             SET scheduled_start_time = ?, scheduled_finish_time = ?,
+                 time_in_status = ?, time_out_status = ?,
+                 regular_hours = ?, overtime_hours = ?, overtime_status = ?,
+                 hours_rendered = ?, updated_at = NOW()
+             WHERE attendance_id = ?`,
+            [request.requested_start_time, request.requested_finish_time, updatedInStatus, updatedOutStatus, updatedRegular, updatedOt, updatedOtStatus, updatedHours, log.attendance_id]
+          );
+
+          if (hoursDiff !== 0) {
+            await pool.query('UPDATE ojt_records SET rendered_hours = GREATEST(0, rendered_hours + ?), updated_at = NOW() WHERE ojt_id = ?', [hoursDiff, log.ojt_id]);
+            await pool.query('UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?', [hoursDiff, request.student_id]);
+          }
+        }
+      }
+
+      if (request.student_user_id) {
+        await sendNotification({
+          userId: request.student_user_id,
+          senderId: req.user.user_id,
+          senderName: org.organization_name || 'Workplace Mentor',
+          title: `Schedule Request Approved!`,
+          message: `Your schedule request for ${request.schedule_date_str} (${request.requested_start_time} - ${request.requested_finish_time}) was approved by your mentor.`,
+          type: 'ojt',
+          link: '/dashboard/student/schedule',
+          relatedType: 'schedule'
+        });
+      }
+
+      emitUpdate('schedule_updated', {
+        organization_id: org.organization_id,
+        student_id: request.student_id,
+        schedule_date: request.schedule_date_str
+      });
+
+      return res.json({
+        success: true,
+        message: `Schedule request for ${request.first_name} ${request.last_name} on ${request.schedule_date_str} was approved and applied.`
+      });
+    } else {
+      // Reject request
+      await pool.query(
+        `UPDATE student_schedule_requests 
+         SET status = 'rejected', reviewed_by = ?, reviewed_at = NOW(), mentor_notes = ?, updated_at = NOW()
+         WHERE request_id = ?`,
+        [req.user.user_id, mentor_notes || null, requestId]
+      );
+
+      if (request.student_user_id) {
+        await sendNotification({
+          userId: request.student_user_id,
+          senderId: req.user.user_id,
+          senderName: org.organization_name || 'Workplace Mentor',
+          title: `Schedule Request Declined`,
+          message: `Your schedule request for ${request.schedule_date_str} was declined by your mentor.${mentor_notes ? ` Note: ${mentor_notes}` : ''}`,
+          type: 'ojt',
+          link: '/dashboard/student/schedule',
+          relatedType: 'schedule'
+        });
+      }
+
+      emitUpdate('schedule_updated', {
+        organization_id: org.organization_id,
+        student_id: request.student_id,
+        schedule_date: request.schedule_date_str
+      });
+
+      return res.json({
+        success: true,
+        message: `Schedule request for ${request.first_name} ${request.last_name} on ${request.schedule_date_str} was declined.`
+      });
+    }
+  } catch (error) {
+    console.error('Respond to schedule request error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to respond to schedule request: ' + error.message });
   }
 });
 
