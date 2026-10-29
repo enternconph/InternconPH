@@ -378,7 +378,21 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
   const getWarningDiagnostic = (message) => {
     const msg = String(message || '').toLowerCase();
 
-    if (msg.includes('outside workplace geofence') || msg.includes('geofence') || msg.includes('away from')) {
+    if (msg.includes('low gps accuracy') || msg.includes('gps location required') || msg.includes('missing gps')) {
+      return {
+        category: 'LOW_GPS_ACCURACY',
+        title: 'Insufficient or Missing GPS Telemetry',
+        icon: 'location_disabled',
+        badge: 'GPS Telemetry Required',
+        color: 'amber',
+        explanation:
+          'The student’s phone has not yet locked onto satellite GPS, or location permissions were restricted. Online attendance requires high-accuracy GPS coordinates.',
+        actionStep:
+          'Instruct the student to ensure Location (GPS) is turned ON with "Precise" accuracy on their phone, wait for the GPS Locked badge, and present the updated QR.'
+      };
+    }
+
+    if (msg.includes('outside workplace geofence') || msg.includes('outside geofence') || msg.includes('away from')) {
       return {
         category: 'OUTSIDE_GEOFENCE',
         title: 'Outside Workplace Geofence Radius',
@@ -386,23 +400,9 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
         badge: 'Haversine Geofence Violation',
         color: 'red',
         explanation:
-          'The student’s high-accuracy GPS location is outside your organization’s allowed geofence radius (default 100m). Online attendance requires physical presence at the workplace.',
+          'The student’s high-accuracy GPS location is outside your organization’s allowed geofence radius. Online attendance requires physical presence at the workplace.',
         actionStep:
-          'Ensure the intern is physically at your office desk with High-Accuracy Location enabled, or click "Calibrate Office GPS" above if your office location moved.'
-      };
-    }
-
-    if (msg.includes('low gps accuracy') || msg.includes('gps location required')) {
-      return {
-        category: 'LOW_GPS_ACCURACY',
-        title: 'Insufficient or Missing GPS Telemetry',
-        icon: 'location_disabled',
-        badge: 'GPS Accuracy Rejected',
-        color: 'amber',
-        explanation:
-          'The student’s phone either blocked location access or reported a coarse cell-tower/IP location exceeding the accuracy threshold.',
-        actionStep:
-          'Instruct the student to enable High-Accuracy Location on their Android phone and refresh their QR modal.'
+          'Ensure the intern is physically at your office desk with High-Accuracy Location enabled, or click "Auto-Calibrate GPS" / "Edit Coords" above if your office location moved.'
       };
     }
 

@@ -13,6 +13,7 @@ import {
   Platform
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import Geolocation from '@react-native-community/geolocation';
 import {
   ShieldAlert,
   RotateCw,
@@ -73,61 +74,107 @@ export default function AttendanceQrModal({ visible, onClose }) {
   const timerRef = useRef(null);
   const prevLogRef = useRef(null);
   const gpsCoordsRef = useRef(null);
+  const qrSecretRef = useRef(null);
+  const studentIdRef = useRef(null);
+  const deviceTokenRef = useRef(null);
+  const isOfflineRef = useRef(false);
 
-  // Request Android high-accuracy GPS location if available
+  // Request Android high-accuracy GPS location via native Geolocation module
   useEffect(() => {
     if (!visible) return;
     let watchId = null;
 
     async function startLocationTracking() {
       try {
-        if (Platform.OS === 'android' && PermissionsAndroid?.request) {
-          await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
-          ).catch(() => {});
+        if (Platform.OS === 'android') {
+          try {
+            const granted = await PermissionsAndroid.requestMultiple([
+              PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+              PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION
+            ]);
+            const fine = granted[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
+            const coarse = granted[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
+            if (!fine && !coarse) {
+              console.warn('GPS location permissions denied by user');
+              return;
+            }
+          } catch (permErr) {
+            console.warn('Error requesting location permissions:', permErr);
+          }
         }
-        const geo =
-          (typeof navigator !== 'undefined' && navigator.geolocation) ||
-          global.navigator?.geolocation;
 
-        if (geo) {
-          const updateCoords = (pos) => {
-            const loc = {
-              lat: Number(pos.coords.latitude.toFixed(6)),
-              lng: Number(pos.coords.longitude.toFixed(6)),
-              acc: Math.round(pos.coords.accuracy || 0),
-              ts: Math.floor(pos.timestamp ? pos.timestamp / 1000 : Date.now() / 1000)
-            };
-            gpsCoordsRef.current = loc;
-            setGpsCoords(loc);
+        Geolocation.setRNConfiguration({
+          skipPermissionRequests: false,
+          authorizationLevel: 'whenInUse',
+          locationProvider: 'auto'
+        });
+
+        const updateCoords = (pos) => {
+          if (!pos || !pos.coords) return;
+          const loc = {
+            lat: Number(pos.coords.latitude.toFixed(6)),
+            lng: Number(pos.coords.longitude.toFixed(6)),
+            acc: Math.round(pos.coords.accuracy || 0),
+            ts: Math.floor(pos.timestamp ? pos.timestamp / 1000 : Date.now() / 1000)
           };
+          gpsCoordsRef.current = loc;
+          setGpsCoords(loc);
 
-          if (typeof geo.getCurrentPosition === 'function') {
-            geo.getCurrentPosition(updateCoords, () => {}, {
-              enableHighAccuracy: true,
-              maximumAge: 0, // Fresh fix only - reject cached stale location
-              timeout: 10000
-            });
+          // CRITICAL: Immediately refresh the QR payload with fresh GPS coordinates so loc is never 'none'
+          const sec = qrSecretRef.current;
+          const sId = studentIdRef.current;
+          const dTok = deviceTokenRef.current;
+          const off = isOfflineRef.current;
+          if (sec && sId && dTok) {
+            regenerateQr(sec, sId, dTok, off ? 'offline' : 'online', false);
           }
+        };
 
-          if (typeof geo.watchPosition === 'function') {
-            watchId = geo.watchPosition(updateCoords, () => {}, {
-              enableHighAccuracy: true,
-              maximumAge: 0, // Fresh continuous satellite fixes
-              timeout: 10000
-            });
+        // 1. Initial position request with high accuracy
+        Geolocation.getCurrentPosition(
+          updateCoords,
+          (err) => {
+            console.warn('High-accuracy GPS fix failed or timed out:', err);
+            // Fallback attempt without high accuracy (network/Wi-Fi assisted)
+            Geolocation.getCurrentPosition(
+              updateCoords,
+              (err2) => console.warn('Coarse fallback fix also failed:', err2),
+              {
+                enableHighAccuracy: false,
+                timeout: 10000,
+                maximumAge: 10000
+              }
+            );
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
           }
-        }
-      } catch (_) {}
+        );
+
+        // 2. Continuous watch for precise satellite lock
+        watchId = Geolocation.watchPosition(
+          updateCoords,
+          (err) => console.warn('Geolocation watchPosition error:', err),
+          {
+            enableHighAccuracy: true,
+            distanceFilter: 1,
+            interval: 3000,
+            fastestInterval: 1000
+          }
+        );
+      } catch (err) {
+        console.warn('Location tracking start error:', err);
+      }
     }
 
     startLocationTracking();
 
     return () => {
       try {
-        const geo = global.navigator?.geolocation;
-        if (watchId !== null && geo && typeof geo.clearWatch === 'function') {
-          geo.clearWatch(watchId);
+        if (watchId !== null) {
+          Geolocation.clearWatch(watchId);
         }
       } catch (_) {}
     };
@@ -215,6 +262,11 @@ export default function AttendanceQrModal({ visible, onClose }) {
             workplaceGeofence: res.data.workplaceGeofence
           });
 
+          qrSecretRef.current = secret;
+          studentIdRef.current = sId;
+          deviceTokenRef.current = activeDevToken;
+          isOfflineRef.current = false;
+
           if (isMounted) {
             setDeviceMismatchData(null);
             setDeviceToken(activeDevToken);
@@ -243,6 +295,11 @@ export default function AttendanceQrModal({ visible, onClose }) {
 
         if (offlineVault && !offlineVault.expired && !offlineVault.deviceMismatch && offlineVault.cached) {
           const c = offlineVault.cached;
+          qrSecretRef.current = c.qrSecret;
+          studentIdRef.current = c.studentId;
+          deviceTokenRef.current = c.deviceToken;
+          isOfflineRef.current = true;
+
           if (isMounted) {
             setDeviceMismatchData(null);
             setDeviceToken(c.deviceToken);
@@ -397,16 +454,17 @@ export default function AttendanceQrModal({ visible, onClose }) {
       setSecondsRemaining(rem);
 
       if (rem === ROTATION_INTERVAL) {
-        regenerateQr(secretArg, sIdArg, devTokenArg, modeArg);
+        regenerateQr(secretArg, sIdArg, devTokenArg, modeArg, true);
       }
     }, 1000);
   };
 
   const regenerateQr = async (
-    sec = qrSecret,
-    sId = studentId,
-    dTok = deviceToken,
-    mode = isOffline ? 'offline' : 'online'
+    sec = qrSecretRef.current || qrSecret,
+    sId = studentIdRef.current || studentId,
+    dTok = deviceTokenRef.current || deviceToken,
+    mode = (isOfflineRef.current ?? isOffline) ? 'offline' : 'online',
+    resetProgress = true
   ) => {
     if (!sec || !sId || !dTok) return;
     try {
@@ -415,12 +473,14 @@ export default function AttendanceQrModal({ visible, onClose }) {
         location: gpsCoordsRef.current
       });
       setQrPayload(freshPayload);
-      progressAnim.setValue(1);
-      Animated.timing(progressAnim, {
-        toValue: 0,
-        duration: ROTATION_INTERVAL * 1000,
-        useNativeDriver: false
-      }).start();
+      if (resetProgress) {
+        progressAnim.setValue(1);
+        Animated.timing(progressAnim, {
+          toValue: 0,
+          duration: ROTATION_INTERVAL * 1000,
+          useNativeDriver: false
+        }).start();
+      }
     } catch (e) {
       console.warn('QR regeneration error:', e);
     }
@@ -506,6 +566,11 @@ export default function AttendanceQrModal({ visible, onClose }) {
           secret_expires_at: res.data.secret_expires_at,
           workplaceGeofence: res.data.workplaceGeofence
         });
+
+        qrSecretRef.current = secret;
+        studentIdRef.current = sId;
+        deviceTokenRef.current = activeDevToken;
+        isOfflineRef.current = false;
 
         setDeviceMismatchData(null);
         setOtpStep('idle');
