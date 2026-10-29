@@ -2431,6 +2431,7 @@ router.get('/monitoring', async (req, res) => {
               COALESCE(c.incident_category, cc.category_name) as category_name,
               c.incident_category,
               c.evidence_url,
+              (SELECT GROUP_CONCAT(file_path SEPARATOR '|||') FROM complaint_evidence ce WHERE ce.complaint_id = c.complaint_id) as evidence_files,
               ar.accident_id, ar.incident_datetime, ar.location as accident_location,
               ar.location as incident_location,
               ar.severity as accident_severity, ar.injury_description,
@@ -2462,7 +2463,30 @@ router.get('/monitoring', async (req, res) => {
           cat = 'General Misconduct / Unprofessional Behavior';
         }
       }
-      return { ...c, category_name: cat, incident_category: cat };
+      const allEvidence = [];
+      if (c.evidence_files) {
+        allEvidence.push(...c.evidence_files.split('|||').map(s => s.trim()).filter(Boolean));
+      }
+      if (c.evidence_url && !allEvidence.includes(c.evidence_url)) {
+        try {
+          const parsed = JSON.parse(c.evidence_url);
+          if (Array.isArray(parsed)) {
+            for (const p of parsed) if (!allEvidence.includes(p)) allEvidence.push(p);
+          } else {
+            allEvidence.unshift(c.evidence_url);
+          }
+        } catch (_) {
+          allEvidence.unshift(c.evidence_url);
+        }
+      }
+
+      return {
+        ...c,
+        category_name: cat,
+        incident_category: cat,
+        evidence_urls: allEvidence,
+        evidence_url: allEvidence[0] || c.evidence_url || null
+      };
     });
     const conductComplaints = employerComplaints.filter(c => !c.is_accident && !c.accident_id);
 

@@ -965,26 +965,39 @@ export default function InstMonitoring() {
               </p>
               <p className="text-on-surface-variant">Target Org: <span className="font-bold text-on-surface">{selectedComplaint.organization_name}</span></p>
               <p className="mt-2 text-on-surface font-mono">{selectedComplaint.description}</p>
-              {selectedComplaint.evidence_url && (
-                <div className="mt-2.5 pt-2.5 border-t border-outline-variant/60 space-y-1.5">
-                  <span className="text-[11px] font-bold text-on-surface flex items-center gap-1 text-vibrant-orange">
-                    <span className="material-symbols-outlined text-[15px]">photo_camera</span>
-                    Supporting Picture Evidence:
-                  </span>
-                  <a
-                    href={selectedComplaint.evidence_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block rounded-lg overflow-hidden border border-outline-variant bg-black/10 hover:opacity-90 transition-opacity"
-                  >
-                    <img
-                      src={selectedComplaint.evidence_url}
-                      alt="Supporting Evidence"
-                      className="max-h-48 w-full object-contain"
-                    />
-                  </a>
-                </div>
-              )}
+              {(() => {
+                const pics = (selectedComplaint.evidence_urls && selectedComplaint.evidence_urls.length > 0)
+                  ? selectedComplaint.evidence_urls
+                  : (selectedComplaint.evidence_url ? [selectedComplaint.evidence_url] : []);
+                if (pics.length === 0) return null;
+
+                return (
+                  <div className="mt-2.5 pt-2.5 border-t border-outline-variant/60 space-y-1.5">
+                    <span className="text-[11px] font-bold text-on-surface flex items-center gap-1 text-vibrant-orange">
+                      <span className="material-symbols-outlined text-[15px]">photo_library</span>
+                      Supporting Picture Evidence ({pics.length} Photo{pics.length > 1 ? 's' : ''}):
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {pics.map((picUrl, idx) => (
+                        <a
+                          key={idx}
+                          href={picUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block rounded-lg overflow-hidden border border-outline-variant bg-black/10 hover:opacity-90 transition-opacity aspect-video"
+                          title={`Click to view Photo #${idx + 1}`}
+                        >
+                          <img
+                            src={picUrl}
+                            alt={`Evidence ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <form onSubmit={handleReviewComplaint} className="space-y-3">

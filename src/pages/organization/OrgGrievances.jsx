@@ -89,9 +89,9 @@ export default function OrgGrievances() {
   const [toast, setToast] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
 
-  // Picture Evidence Upload State
+  // Picture Evidence Upload State (supports multiple photos)
   const [evidenceUploading, setEvidenceUploading] = useState(false);
-  const [evidencePreview, setEvidencePreview] = useState('');
+  const [evidenceUrls, setEvidenceUrls] = useState([]);
   const [evidenceError, setEvidenceError] = useState('');
 
   // Form State for filing complaint about an intern
@@ -101,6 +101,7 @@ export default function OrgGrievances() {
     title: '',
     description: '',
     evidence_url: '',
+    evidence_urls: [],
     is_accident: false,
     accident_severity: 'moderate',
     incident_date: new Date().toISOString().slice(0, 16),
@@ -112,57 +113,94 @@ export default function OrgGrievances() {
     preventive_measures: ''
   });
 
-  const handleEvidenceFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleEvidenceFilesChange = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    if (!file.type.startsWith('image/')) {
-      setEvidenceError('Please select a valid picture (PNG, JPG, JPEG, WEBP).');
+    const invalidType = files.find(f => !f.type.startsWith('image/'));
+    if (invalidType) {
+      setEvidenceError('Please select valid pictures or photos only (PNG, JPG, JPEG, WEBP).');
       return;
     }
 
-    if (file.size > 15 * 1024 * 1024) {
-      setEvidenceError('Image file size must be less than 15MB.');
+    const oversized = files.find(f => f.size > 15 * 1024 * 1024);
+    if (oversized) {
+      setEvidenceError('Each image file size must be less than 15MB.');
       return;
     }
 
     setEvidenceError('');
     setEvidenceUploading(true);
 
-    const localPreviewUrl = URL.createObjectURL(file);
-    setEvidencePreview(localPreviewUrl);
-
     try {
       const uploadData = new FormData();
-      uploadData.append('evidence', file);
+      files.forEach(f => uploadData.append('evidence', f));
+
       const res = await api.post('/org/grievances/upload-evidence', uploadData);
-      if (res && res.success && res.url) {
-        setFormData(prev => ({ ...prev, evidence_url: res.url }));
-        setEvidencePreview(res.url);
+      let newUrls = [];
+      if (res && res.success && Array.isArray(res.urls) && res.urls.length > 0) {
+        newUrls = res.urls;
+      } else if (res && res.success && res.url) {
+        newUrls = [res.url];
       } else {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setFormData(prev => ({ ...prev, evidence_url: reader.result }));
-          setEvidencePreview(reader.result);
-        };
-        reader.readAsDataURL(file);
+        // Fallback: convert files to base64 Data URLs
+        newUrls = await Promise.all(
+          files.map(file => new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(file);
+          }))
+        );
       }
+
+      setEvidenceUrls(prev => {
+        const combined = [...prev, ...newUrls];
+        setFormData(f => ({
+          ...f,
+          evidence_urls: combined,
+          evidence_url: combined[0] || ''
+        }));
+        return combined;
+      });
     } catch (uploadErr) {
-      console.warn('Backend evidence upload fallback to Data URL:', uploadErr);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, evidence_url: reader.result }));
-        setEvidencePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+      console.warn('Backend evidence upload fallback to Data URLs:', uploadErr);
+      const fallbackUrls = await Promise.all(
+        files.map(file => new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+        }))
+      );
+      setEvidenceUrls(prev => {
+        const combined = [...prev, ...fallbackUrls];
+        setFormData(f => ({
+          ...f,
+          evidence_urls: combined,
+          evidence_url: combined[0] || ''
+        }));
+        return combined;
+      });
     } finally {
       setEvidenceUploading(false);
+      e.target.value = '';
     }
   };
 
-  const handleRemoveEvidence = () => {
-    setFormData(prev => ({ ...prev, evidence_url: '' }));
-    setEvidencePreview('');
+  const handleRemoveSingleEvidence = (indexToRemove) => {
+    setEvidenceUrls(prev => {
+      const updated = prev.filter((_, idx) => idx !== indexToRemove);
+      setFormData(f => ({
+        ...f,
+        evidence_urls: updated,
+        evidence_url: updated[0] || ''
+      }));
+      return updated;
+    });
+  };
+
+  const handleClearAllEvidence = () => {
+    setEvidenceUrls([]);
+    setFormData(prev => ({ ...prev, evidence_urls: [], evidence_url: '' }));
     setEvidenceError('');
   };
 
@@ -312,6 +350,7 @@ export default function OrgGrievances() {
           title: '',
           description: '',
           evidence_url: '',
+          evidence_urls: [],
           is_accident: false,
           accident_severity: 'moderate',
           incident_date: new Date().toISOString().slice(0, 16),
@@ -322,7 +361,7 @@ export default function OrgGrievances() {
           emergency_actions_taken: '',
           preventive_measures: ''
         });
-        setEvidencePreview('');
+        setEvidenceUrls([]);
         setEvidenceError('');
         setActiveTab('filed');
         fetchGrievanceData();
@@ -554,69 +593,107 @@ export default function OrgGrievances() {
                 />
               </div>
 
-              {/* Supporting Picture Evidence */}
+              {/* Supporting Picture Evidence (Multiple Photos Supported) */}
               <div>
                 <label className="block text-xs font-bold text-on-surface mb-1.5 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[16px] text-vibrant-orange">photo_camera</span>
-                    Supporting Picture or Photo Evidence (Optional)
+                    <span className="material-symbols-outlined text-[16px] text-vibrant-orange">photo_library</span>
+                    Supporting Picture Evidence (Optional &mdash; Multiple Photos Allowed)
                   </span>
-                  <span className="text-[11px] text-on-surface-variant font-normal">PNG, JPG, JPEG, WEBP up to 15MB</span>
+                  <span className="text-[11px] text-on-surface-variant font-normal">
+                    {evidenceUrls.length > 0 ? `${evidenceUrls.length} photo(s) selected` : 'PNG, JPG, JPEG, WEBP up to 15MB each'}
+                  </span>
                 </label>
 
-                {!evidencePreview && !formData.evidence_url ? (
+                {evidenceUrls.length === 0 ? (
                   <div className="relative border-2 border-dashed border-outline-variant hover:border-vibrant-orange/60 rounded-2xl p-6 bg-surface-container/50 hover:bg-surface-container transition-all text-center group cursor-pointer">
                     <input
                       type="file"
+                      multiple
                       accept="image/*"
-                      onChange={handleEvidenceFileChange}
+                      onChange={handleEvidenceFilesChange}
                       disabled={evidenceUploading}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                     />
                     <div className="flex flex-col items-center justify-center gap-2">
                       <div className="w-12 h-12 rounded-full bg-vibrant-orange/10 flex items-center justify-center text-vibrant-orange group-hover:scale-110 transition-transform">
-                        <span className="material-symbols-outlined text-2xl">add_a_photo</span>
+                        <span className="material-symbols-outlined text-2xl">add_photo_alternate</span>
                       </div>
                       <div className="space-y-0.5">
                         <p className="text-xs font-bold text-on-surface">
-                          {evidenceUploading ? 'Uploading picture evidence...' : 'Click or tap to take a photo or select picture evidence'}
+                          {evidenceUploading ? 'Uploading pictures...' : 'Click or tap to take photos or select multiple picture evidence'}
                         </p>
                         <p className="text-[11px] text-on-surface-variant max-w-md mx-auto">
-                          Upload clear photographs of the incident, damaged property, safety violations, paper incident slips, or medical injury photos
+                          Select one or multiple photos: incident scene, damaged property, safety violations, paper incident slips, or medical injury photos
                         </p>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="p-3.5 bg-surface-container rounded-2xl border border-outline-variant space-y-3">
+                  <div className="p-4 bg-surface-container rounded-2xl border border-outline-variant space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
                         <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                        Picture Evidence Attached
+                        {evidenceUrls.length} Picture Evidence Attached
                       </span>
                       <button
                         type="button"
-                        onClick={handleRemoveEvidence}
+                        onClick={handleClearAllEvidence}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                       >
-                        <span className="material-symbols-outlined text-[15px]">delete</span>
-                        Remove Picture
+                        <span className="material-symbols-outlined text-[15px]">delete_sweep</span>
+                        Clear All Photos
                       </button>
                     </div>
 
-                    <div className="relative rounded-xl overflow-hidden border border-outline-variant bg-black/10 flex items-center justify-center max-h-64">
-                      <img
-                        src={evidencePreview || formData.evidence_url}
-                        alt="Evidence Preview"
-                        className="max-h-64 w-auto object-contain rounded-xl"
-                      />
-                      {evidenceUploading && (
-                        <div className="absolute inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center gap-2 text-white text-xs font-bold">
-                          <span className="material-symbols-outlined animate-spin text-lg">progress_activity</span>
-                          Optimizing and saving photo...
+                    {/* Photo Gallery Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {evidenceUrls.map((imgUrl, idx) => (
+                        <div key={idx} className="relative group rounded-xl overflow-hidden border border-outline-variant bg-black/10 aspect-square flex items-center justify-center shadow-xs">
+                          <img
+                            src={imgUrl}
+                            alt={`Evidence ${idx + 1}`}
+                            className="w-full h-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-200"
+                          />
+                          <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-black/70 text-white backdrop-blur-xs">
+                            #{idx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSingleEvidence(idx)}
+                            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-md hover:bg-rose-700 transition-colors"
+                            title="Remove this photo"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">close</span>
+                          </button>
                         </div>
-                      )}
+                      ))}
+
+                      {/* Add More Photos Tile */}
+                      <label className="relative border-2 border-dashed border-outline-variant hover:border-vibrant-orange rounded-xl aspect-square flex flex-col items-center justify-center gap-1 cursor-pointer bg-surface-container-high/40 hover:bg-surface-container-high transition-colors group">
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          onChange={handleEvidenceFilesChange}
+                          disabled={evidenceUploading}
+                          className="sr-only"
+                        />
+                        <div className="w-8 h-8 rounded-full bg-vibrant-orange/10 flex items-center justify-center text-vibrant-orange group-hover:scale-110 transition-transform">
+                          <span className="material-symbols-outlined text-lg">add_a_photo</span>
+                        </div>
+                        <span className="text-[11px] font-bold text-on-surface text-center px-1">
+                          {evidenceUploading ? 'Uploading...' : '+ Add More'}
+                        </span>
+                      </label>
                     </div>
+
+                    {evidenceUploading && (
+                      <div className="flex items-center justify-center gap-2 text-vibrant-orange text-xs font-semibold py-1">
+                        <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>
+                        <span>Optimizing and uploading selected pictures...</span>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1186,33 +1263,51 @@ export default function OrgGrievances() {
                     </p>
                   </div>
 
-                  {/* Supporting Picture Evidence */}
-                  {item.evidence_url && (
-                    <div>
-                      <h4 className="font-bold text-on-surface mb-1.5 flex items-center gap-1.5 text-xs">
-                        <span className="material-symbols-outlined text-vibrant-orange text-[16px]">photo_camera</span>
-                        Supporting Picture Evidence:
-                      </h4>
-                      <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/60 space-y-2">
-                        <div className="rounded-lg overflow-hidden border border-outline-variant bg-black/10 flex items-center justify-center">
-                          <img
-                            src={item.evidence_url}
-                            alt="Supporting Picture Evidence"
-                            className="max-h-72 w-auto object-contain rounded-lg shadow-xs"
-                          />
+                  {/* Supporting Picture Evidence (Multiple Photos Gallery) */}
+                  {(() => {
+                    const pics = (item.evidence_urls && item.evidence_urls.length > 0)
+                      ? item.evidence_urls
+                      : (item.evidence_url ? [item.evidence_url] : []);
+                    if (pics.length === 0) return null;
+
+                    return (
+                      <div>
+                        <h4 className="font-bold text-on-surface mb-2 flex items-center gap-1.5 text-xs">
+                          <span className="material-symbols-outlined text-vibrant-orange text-[16px]">photo_library</span>
+                          Supporting Picture Evidence ({pics.length} Photo{pics.length > 1 ? 's' : ''}):
+                        </h4>
+                        <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/60">
+                          <div className={`grid gap-3 ${pics.length === 1 ? 'grid-cols-1' : pics.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
+                            {pics.map((picUrl, pIdx) => (
+                              <div key={pIdx} className="space-y-1.5">
+                                <a
+                                  href={picUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block rounded-lg overflow-hidden border border-outline-variant bg-black/10 group aspect-video sm:aspect-square flex items-center justify-center hover:opacity-95 transition-opacity"
+                                >
+                                  <img
+                                    src={picUrl}
+                                    alt={`Evidence photo ${pIdx + 1}`}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  />
+                                </a>
+                                <a
+                                  href={picUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center justify-center gap-1 py-1 px-2 bg-surface-container hover:bg-surface-container-high rounded-md text-[11px] font-semibold text-vibrant-orange transition-colors w-full border border-outline-variant"
+                                >
+                                  <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                                  <span>Photo #{pIdx + 1} (Full Size)</span>
+                                </a>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <a
-                          href={item.evidence_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-surface-container hover:bg-surface-container-high rounded-lg text-xs font-semibold text-vibrant-orange transition-colors w-full border border-outline-variant"
-                        >
-                          <span className="material-symbols-outlined text-[15px]">open_in_new</span>
-                          <span>View Full-Resolution Picture</span>
-                        </a>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Accident Report Details if applicable */}
                   {isAccident && (

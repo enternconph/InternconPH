@@ -721,25 +721,38 @@ router.post('/jobs/upload-flyer', requireHROrAdmin, (req, res) => {
   });
 });
 
-// POST /api/org/grievances/upload-evidence - Upload Evidence Picture for Grievances / Incident Reports
+// POST /api/org/grievances/upload-evidence - Upload Evidence Pictures (single or multiple)
 router.post('/grievances/upload-evidence', (req, res) => {
-  evidenceUpload.single('evidence')(req, res, async (err) => {
+  evidenceUpload.array('evidence', 10)(req, res, async (err) => {
     if (err) {
       console.error('[Evidence Upload Error]', err);
       return res.status(400).json({ success: false, message: err.message || 'File upload error.' });
     }
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: 'No picture file uploaded.' });
+    const files = req.files || (req.file ? [req.file] : []);
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, message: 'No picture files uploaded.' });
     }
-    if (!req.file.mimetype || !req.file.mimetype.startsWith('image/')) {
+
+    const nonImages = files.filter(f => !f.mimetype || !f.mimetype.startsWith('image/'));
+    if (nonImages.length > 0) {
       return res.status(400).json({ success: false, message: 'Only image files (PNG, JPG, JPEG, WEBP) are accepted as photo evidence.' });
     }
+
     try {
-      const url = await processUploadedFile(req.file, 'portfolio');
-      return res.json({ success: true, url: formatFilePath(url), message: 'Evidence picture uploaded successfully!' });
+      const uploadedUrls = [];
+      for (const file of files) {
+        const url = await processUploadedFile(file, 'portfolio');
+        uploadedUrls.push(formatFilePath(url));
+      }
+      return res.json({
+        success: true,
+        urls: uploadedUrls,
+        url: uploadedUrls[0],
+        message: `${uploadedUrls.length} evidence picture(s) uploaded successfully!`
+      });
     } catch (processErr) {
       console.error('[Evidence Process Error]', processErr);
-      return res.status(500).json({ success: false, message: 'Failed to process evidence picture.' });
+      return res.status(500).json({ success: false, message: 'Failed to process evidence picture(s).' });
     }
   });
 });
@@ -4005,6 +4018,7 @@ const getOrgGrievancesHandler = async (req, res) => {
     let filedQuery = `SELECT c.*, 
               ${incCatSelect}
               ${evUrlSelect}
+              (SELECT GROUP_CONCAT(file_path SEPARATOR '|||') FROM complaint_evidence ce WHERE ce.complaint_id = c.complaint_id) as evidence_files,
               s.first_name, s.last_name, s.student_number, s.institution_id,
               CONCAT(s.first_name, ' ', s.last_name) as student_name,
               p.program_name as course,
@@ -4061,10 +4075,30 @@ const getOrgGrievancesHandler = async (req, res) => {
           }
         }
       }
+
+      const allEvidence = [];
+      if (c.evidence_files) {
+        allEvidence.push(...c.evidence_files.split('|||').map(s => s.trim()).filter(Boolean));
+      }
+      if (c.evidence_url && !allEvidence.includes(c.evidence_url)) {
+        try {
+          const parsed = JSON.parse(c.evidence_url);
+          if (Array.isArray(parsed)) {
+            for (const p of parsed) if (!allEvidence.includes(p)) allEvidence.push(p);
+          } else {
+            allEvidence.unshift(c.evidence_url);
+          }
+        } catch (_) {
+          allEvidence.unshift(c.evidence_url);
+        }
+      }
+
       return {
         ...c,
         category_name: cat,
-        incident_category: cat
+        incident_category: cat,
+        evidence_urls: allEvidence,
+        evidence_url: allEvidence[0] || c.evidence_url || null
       };
     });
 
@@ -4073,6 +4107,7 @@ const getOrgGrievancesHandler = async (req, res) => {
               c.include_student_details, c.status, c.filed_at,
               cc.category_name,
               i.institution_name,
+              (SELECT GROUP_CONCAT(file_path SEPARATOR '|||') FROM complaint_evidence ce WHERE ce.complaint_id = c.complaint_id) as evidence_files,
               CASE WHEN c.include_student_details = 1 THEN CONCAT(s.first_name, ' ', s.last_name) ELSE 'Student Intern' END as student_name,
               CASE WHEN c.include_student_details = 1 THEN s.first_name ELSE 'Student Intern' END as first_name,
               CASE WHEN c.include_student_details = 1 THEN s.last_name ELSE '(Identity Protected by Institution)' END as last_name,
@@ -4194,6 +4229,7 @@ router.post('/complaints', async (req, res) => {
     title,
     description,
     evidence_url,
+    evidence_urls,
     job_id,
     is_accident,
     accident_details: rawAccidentDetails,
@@ -4348,6 +4384,22 @@ router.post('/complaints', async (req, res) => {
     const compPlaceholders = ['?', '?', '?', '?', '?', '?', "'submitted'", 'NOW()', 'NOW()', 'NOW()'];
     const compValues = [student_id, org.organization_id, catId, job_id || null, subject, description];
 
+    // Collect all evidence picture URLs
+    const allEvidenceUrls = [];
+    if (Array.isArray(evidence_urls) && evidence_urls.length > 0) {
+      allEvidenceUrls.push(...evidence_urls.filter(u => typeof u === 'string' && u.trim()));
+    } else if (evidence_url && typeof evidence_url === 'string' && evidence_url.trim()) {
+      try {
+        const parsed = JSON.parse(evidence_url);
+        if (Array.isArray(parsed)) allEvidenceUrls.push(...parsed);
+        else allEvidenceUrls.push(evidence_url.trim());
+      } catch (_) {
+        allEvidenceUrls.push(evidence_url.trim());
+      }
+    }
+
+    const primaryEvidence = allEvidenceUrls[0] || (evidence_url && evidence_url.trim()) || null;
+
     if (compColNames.includes('incident_category')) {
       compFields.push('incident_category');
       compPlaceholders.push('?');
@@ -4356,7 +4408,7 @@ router.post('/complaints', async (req, res) => {
     if (compColNames.includes('evidence_url')) {
       compFields.push('evidence_url');
       compPlaceholders.push('?');
-      compValues.push(evidence_url || null);
+      compValues.push(primaryEvidence);
     }
     if (compColNames.includes('complainant_type')) {
       compFields.push('complainant_type');
@@ -4375,16 +4427,18 @@ router.post('/complaints', async (req, res) => {
 
     const complaintId = resRow.insertId;
 
-    // Save evidence link into complaint_evidence if provided
-    if (evidence_url && evidence_url.trim()) {
-      try {
-        await connection.query(
-          `INSERT INTO complaint_evidence (complaint_id, file_path, description, uploaded_at, created_at, updated_at)
-           VALUES (?, ?, 'Supporting evidence or incident report link', NOW(), NOW(), NOW())`,
-          [complaintId, evidence_url.trim()]
-        );
-      } catch (evErr) {
-        console.warn('Failed to insert into complaint_evidence:', evErr.message);
+    // Save all evidence photos into complaint_evidence
+    if (allEvidenceUrls.length > 0) {
+      for (const evUrl of allEvidenceUrls) {
+        try {
+          await connection.query(
+            `INSERT INTO complaint_evidence (complaint_id, file_path, description, uploaded_at, created_at, updated_at)
+             VALUES (?, ?, 'Supporting picture evidence', NOW(), NOW(), NOW())`,
+            [complaintId, evUrl]
+          );
+        } catch (evErr) {
+          console.warn('Failed to insert into complaint_evidence:', evErr.message);
+        }
       }
     }
 
