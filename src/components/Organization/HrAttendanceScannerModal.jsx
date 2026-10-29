@@ -200,6 +200,22 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
       try {
         const lat = Number(pos.coords.latitude.toFixed(6));
         const lng = Number(pos.coords.longitude.toFixed(6));
+        const acc = Math.round(pos.coords.accuracy || 0);
+
+        // Laptops/PCs have no GPS chip: the browser returns a Wi-Fi/IP estimate that can be
+        // hundreds of meters (or km) off. Saving that as the office pin makes every genuine
+        // student scan fail with "outside geofence" even when standing beside the scanner.
+        if (acc > 100) {
+          setCalibratingGeofence(false);
+          const goManual = window.confirm(
+            `This computer's location is only approximate (±${acc}m, Wi-Fi/IP based), so it was NOT saved as the office pin.\n\n` +
+              `Recommended: scan a student's phone QR at the desk, then click "Use This Phone's GPS as Office Pin" in the inspector, ` +
+              `or paste exact coordinates from Google Maps.\n\nOpen manual coordinate entry now?`
+          );
+          if (goManual) setShowManualCoordsModal(true);
+          return;
+        }
+
         const res = await api.post('/org/attendance/geofence', {
           latitude: lat,
           longitude: lng,
@@ -329,6 +345,43 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
       alert(err.message || 'Error saving coordinates.');
     } finally {
       setSavingManualCoords(false);
+    }
+  };
+
+  // Use the satellite GPS fix decoded from a scanned student phone QR as the office pin.
+  // Phones have real GPS chips; the HR laptop usually only has a Wi-Fi/IP estimate.
+  const handleUsePhoneAsOfficePin = async (phoneCoords) => {
+    if (!phoneCoords || phoneCoords.lat == null || phoneCoords.lng == null) return;
+    const radius = Number(geofenceConfig?.geofence_radius_meters) || 100;
+    const ok = window.confirm(
+      `Set the office pin to this phone's GPS location?\n\n` +
+        `Lat: ${phoneCoords.lat}\nLng: ${phoneCoords.lng}\nAccuracy: ±${phoneCoords.acc ?? '?'}m\nRadius: ${radius}m\n\n` +
+        `Only do this if the phone is physically at your office right now.`
+    );
+    if (!ok) return;
+    try {
+      const res = await api.post('/org/attendance/geofence', {
+        latitude: phoneCoords.lat,
+        longitude: phoneCoords.lng,
+        geofence_radius_meters: radius,
+        enforce_geofence: true
+      });
+      if (res.success) {
+        setGeofenceConfig({
+          ...geofenceConfig,
+          ...(res.data || {}),
+          latitude: phoneCoords.lat,
+          longitude: phoneCoords.lng,
+          configured: true,
+          enforce_geofence: true
+        });
+        alert('Office pin updated from the phone GPS. Ask the student to show a fresh QR and scan again.');
+        handleResetForNextIntern();
+      } else {
+        alert(res.message || 'Failed to update office pin.');
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to update office pin.');
     }
   };
 
@@ -705,7 +758,11 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
     let source = 'VERIFIED';
     let diagnosisText = '';
 
-    if (!phoneCoords) {
+    if (serverRes?.success && phoneCoords) {
+      source = 'VERIFIED';
+      diagnosisText =
+        `GPS Telemetry Verified: Phone is at (${phoneCoords.lat.toFixed(6)}, ${phoneCoords.lng.toFixed(6)}), ${distanceMeters !== null ? Math.round(distanceMeters) + 'm from office' : 'inside perimeter'}.`;
+    } else if (!phoneCoords) {
       source = 'APP';
       diagnosisText =
         'Error Origin: MOBILE APP. The student phone encoded "loc = none" into the QR payload. High-accuracy GPS was not locked or location permissions were restricted in the phone app.';
@@ -1868,6 +1925,20 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
                         <span className="font-bold text-on-surface">Inspector Verdict: </span>
                         <span className="text-on-surface-variant">{scanResult.telemetry.diagnosisText}</span>
                       </div>
+
+                      {/* One-click fix: phone GPS is accurate but the saved office pin is wrong */}
+                      {scanResult.telemetry.source === 'WEB' &&
+                        scanResult.telemetry.phoneCoords &&
+                        (scanResult.telemetry.phoneCoords.acc == null || scanResult.telemetry.phoneCoords.acc <= 50) && (
+                          <button
+                            type="button"
+                            onClick={() => handleUsePhoneAsOfficePin(scanResult.telemetry.phoneCoords)}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">my_location</span>
+                            <span>Use This Phone's GPS as Office Pin</span>
+                          </button>
+                        )}
                     </div>
                   )}
                 </div>

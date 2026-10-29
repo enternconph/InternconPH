@@ -528,8 +528,16 @@ export function verifyGeofenceAndTelemetry({
     };
   }
 
-  // 1. Strict Accuracy Threshold: Reject if accuracy is worse than 50m
-  if (acc !== null && !isNaN(acc) && acc > 50) {
+  // 1. Accuracy Threshold: Reject if accuracy is worse than 50m — UNLESS the entire
+  // uncertainty circle (distance + accuracy) still lies inside the geofence.
+  // In that case the student is provably inside regardless of the accuracy value,
+  // so rejecting would only block genuine indoor users with weaker satellite lock.
+  let certainlyInside = false;
+  if (orgHasCoords && acc !== null && !isNaN(acc)) {
+    const preDistance = calculateHaversineMeters(lat, lng, Number(org.latitude), Number(org.longitude));
+    certainlyInside = preDistance + acc <= radiusMeters;
+  }
+  if (acc !== null && !isNaN(acc) && acc > 50 && !certainlyInside) {
     const debugLog = {
       event: 'GEOFENCE_EVALUATION',
       timestamp: new Date().toISOString(),

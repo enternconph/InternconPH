@@ -78,11 +78,13 @@ export default function AttendanceQrModal({ visible, onClose }) {
   const studentIdRef = useRef(null);
   const deviceTokenRef = useRef(null);
   const isOfflineRef = useRef(false);
+  const qrLocRef = useRef(null); // GPS fix embedded in the QR currently on screen
 
   // Request Android high-accuracy GPS location via native Geolocation module
   useEffect(() => {
     if (!visible) return;
     let watchId = null;
+    let heartbeatId = null;
 
     async function startLocationTracking() {
       try {
@@ -111,59 +113,75 @@ export default function AttendanceQrModal({ visible, onClose }) {
 
         const updateCoords = (pos) => {
           if (!pos || !pos.coords) return;
+          const nowMs = Date.now();
+          // Clamp future timestamps (GPS clock vs phone clock skew) to "now"
+          const fixMs = pos.timestamp ? Math.min(Number(pos.timestamp), nowMs) : nowMs;
           const loc = {
             lat: Number(pos.coords.latitude.toFixed(6)),
             lng: Number(pos.coords.longitude.toFixed(6)),
             acc: Math.round(pos.coords.accuracy || 0),
-            ts: Math.floor(pos.timestamp ? pos.timestamp / 1000 : Date.now() / 1000)
+            ts: Math.floor(fixMs / 1000)
           };
+
+          // Ignore out-of-order fixes older than the one we already hold
+          const prev = gpsCoordsRef.current;
+          if (prev && loc.ts < prev.ts) return;
+
           gpsCoordsRef.current = loc;
           setGpsCoords(loc);
 
-          // CRITICAL: Immediately refresh the QR payload with fresh GPS coordinates so loc is never 'none'
+          // Refresh the QR with the new fix, throttled so the code doesn't flicker on every update:
+          // - QR currently has no GPS, or
+          // - GPS inside the current QR is older than 10s (server rejects > 30s), or
+          // - accuracy improved by more than 10m
+          const qrLoc = qrLocRef.current;
+          const nowSec = Math.floor(nowMs / 1000);
+          const shouldRefresh =
+            !qrLoc ||
+            nowSec - qrLoc.ts > 10 ||
+            (qrLoc.acc != null && loc.acc + 10 < qrLoc.acc);
+
           const sec = qrSecretRef.current;
           const sId = studentIdRef.current;
           const dTok = deviceTokenRef.current;
           const off = isOfflineRef.current;
-          if (sec && sId && dTok) {
+          if (shouldRefresh && sec && sId && dTok) {
             regenerateQr(sec, sId, dTok, off ? 'offline' : 'online', false);
           }
         };
 
-        // 1. Initial position request with high accuracy
+        const highAccuracyOpts = {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 3000 // never accept a cached fix older than 3s
+        };
+
+        // 1. Initial high-accuracy fix (no LOW_POWER fallback: it returns km-level fixes the server rejects)
         Geolocation.getCurrentPosition(
           updateCoords,
-          (err) => {
-            console.warn('High-accuracy GPS fix failed or timed out:', err);
-            // Fallback attempt without high accuracy (network/Wi-Fi assisted)
-            Geolocation.getCurrentPosition(
-              updateCoords,
-              (err2) => console.warn('Coarse fallback fix also failed:', err2),
-              {
-                enableHighAccuracy: false,
-                timeout: 10000,
-                maximumAge: 10000
-              }
-            );
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-          }
+          (err) => console.warn('High-accuracy GPS fix failed or timed out:', err),
+          highAccuracyOpts
         );
 
-        // 2. Continuous watch for precise satellite lock
+        // 2. Continuous watch. distanceFilter MUST be 0: the fused provider maps it to
+        // setMinUpdateDistanceMeters(), so any value > 0 stops updates while the phone is
+        // stationary at the desk and the fix goes stale (> 30s) -> server rejection.
         watchId = Geolocation.watchPosition(
           updateCoords,
           (err) => console.warn('Geolocation watchPosition error:', err),
           {
             enableHighAccuracy: true,
-            distanceFilter: 1,
-            interval: 3000,
-            fastestInterval: 1000
+            distanceFilter: 0,
+            interval: 2000,
+            fastestInterval: 1000,
+            maximumAge: 3000
           }
         );
+
+        // 3. Freshness heartbeat: force a new fix every 8s even if the watcher goes quiet
+        heartbeatId = setInterval(() => {
+          Geolocation.getCurrentPosition(updateCoords, () => {}, highAccuracyOpts);
+        }, 8000);
       } catch (err) {
         console.warn('Location tracking start error:', err);
       }
@@ -173,6 +191,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
 
     return () => {
       try {
+        if (heartbeatId !== null) clearInterval(heartbeatId);
         if (watchId !== null) {
           Geolocation.clearWatch(watchId);
         }
@@ -280,7 +299,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
 
           const initialPayload = await buildDynamicQrPayload(secret, sId, activeDevToken, {
             mode: 'online',
-            location: gpsCoordsRef.current
+            location: (qrLocRef.current = gpsCoordsRef.current)
           });
 
           if (isMounted) {
@@ -312,7 +331,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
           }
           const cachedPayload = await buildDynamicQrPayload(c.qrSecret, c.studentId, c.deviceToken, {
             mode: 'offline',
-            location: gpsCoordsRef.current
+            location: (qrLocRef.current = gpsCoordsRef.current)
           });
           if (isMounted) {
             setQrPayload(cachedPayload);
@@ -470,7 +489,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
     try {
       const freshPayload = await buildDynamicQrPayload(sec, sId, dTok, {
         mode,
-        location: gpsCoordsRef.current
+        location: (qrLocRef.current = gpsCoordsRef.current)
       });
       setQrPayload(freshPayload);
       if (resetProgress) {
@@ -584,7 +603,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
 
         const initialPayload = await buildDynamicQrPayload(secret, sId, activeDevToken, {
           mode: 'online',
-          location: gpsCoordsRef.current
+          location: (qrLocRef.current = gpsCoordsRef.current)
         });
         setQrPayload(initialPayload);
         startCountdown(secret, sId, activeDevToken, 'online');
@@ -918,8 +937,23 @@ export default function AttendanceQrModal({ visible, onClose }) {
                     <MapPin size={16} color={colors.textSecondary} />
                     <Text style={styles.badgeLabel}>GPS Telemetry</Text>
                   </View>
-                  <Text style={styles.badgeValue}>
-                    {gpsCoords ? `Locked (±${gpsCoords.acc}m)` : isOffline ? 'Offline Vault' : 'Acquiring GPS...'}
+                  <Text
+                    style={[
+                      styles.badgeValue,
+                      gpsCoords && (gpsCoords.acc > 50 || Math.floor(Date.now() / 1000) - gpsCoords.ts > 30)
+                        ? { color: '#d97706' }
+                        : null
+                    ]}
+                  >
+                    {gpsCoords
+                      ? Math.floor(Date.now() / 1000) - gpsCoords.ts > 30
+                        ? `Stale fix (${Math.floor(Date.now() / 1000) - gpsCoords.ts}s) • refreshing...`
+                        : gpsCoords.acc > 50
+                        ? `Weak ±${gpsCoords.acc}m • move near a window`
+                        : `Locked ±${gpsCoords.acc}m • ${Math.max(0, Math.floor(Date.now() / 1000) - gpsCoords.ts)}s ago`
+                      : isOffline
+                      ? 'Offline Vault'
+                      : 'Acquiring GPS...'}
                   </Text>
                 </View>
               </View>
