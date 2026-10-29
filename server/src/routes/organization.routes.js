@@ -10,6 +10,7 @@ import { getUploadStorage, processUploadedFile, formatFilePath } from '../utils/
 import { createMeetSpace, isGoogleMeetConfigured, getLastMeetError } from '../services/googleMeet.js';
 import { verifyTotpPayload, verifyGeofenceAndTelemetry, parseAttendancePayload, calculateHaversineMeters } from '../utils/totp.helper.js';
 import { validate, Schemas } from '../middleware/validate.js';
+import { ensureJobTotalSlotsSchema, syncJobPostingSlots } from '../utils/jobSlots.js';
 
 const router = express.Router();
 router.use(verifyToken);
@@ -446,13 +447,16 @@ router.get('/jobs', async (req, res) => {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Org not found' });
 
+    await ensureJobTotalSlotsSchema();
+
     const [jobs] = await pool.query(
       `SELECT jp.*, 
               os.first_name as mentor_first_name, os.last_name as mentor_last_name,
               os.staff_number as mentor_staff_number, os.department as mentor_department,
               os.program_id as mentor_program_id,
               mp.program_name as mentor_program_name, mp.program_code as mentor_program_code,
-              (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = jp.job_id) as applicant_count
+              (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = jp.job_id) as applicant_count,
+              (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = jp.job_id AND ja.status IN ('accepted', 'hired')) as accepted_count
        FROM job_postings jp
        LEFT JOIN organization_staff os ON jp.mentor_id = os.org_staff_id
        LEFT JOIN programs mp ON os.program_id = mp.program_id
@@ -460,6 +464,34 @@ router.get('/jobs', async (req, res) => {
        ORDER BY jp.created_at DESC`,
       [org.organization_id]
     );
+
+    // Ensure every job's remaining slots and auto-deactivation status are synchronized with accepted_count
+    for (const job of jobs) {
+      const acceptedCnt = Number(job.accepted_count || 0);
+      const totalCap = Math.max(
+        1,
+        Number(job.total_slots || 0) || Math.max(Number(job.slots_available || 1), acceptedCnt)
+      );
+      const remaining = Math.max(0, totalCap - acceptedCnt);
+      const needsSync =
+        job.total_slots == null ||
+        Number(job.slots_available) !== remaining ||
+        (remaining <= 0 && job.status === 'active');
+
+      if (needsSync) {
+        const synced = await syncJobPostingSlots(job.job_id, pool, { emitRealtime: false });
+        if (synced) {
+          job.total_slots = synced.totalSlots;
+          job.slots_available = synced.remainingSlots;
+          job.status = synced.status;
+        }
+      } else {
+        job.total_slots = totalCap;
+        job.slots_available = remaining;
+      }
+      job.accepted_count = acceptedCnt;
+      job.applicant_count = Number(job.applicant_count || 0);
+    }
 
     const jobIds = jobs.map(j => j.job_id);
     let approvalsMap = {};
@@ -565,6 +597,8 @@ router.post('/jobs', requireHROrAdmin, async (req, res) => {
     }
   }
 
+  await ensureJobTotalSlotsSchema();
+
   const connection = await pool.getConnection();
   let released = false;
   const safeRelease = () => {
@@ -582,12 +616,14 @@ router.post('/jobs', requireHROrAdmin, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Org not found' });
     }
 
+    const initialSlots = Math.max(1, parseInt(slots_available) || 1);
+
     const [jobRes] = await connection.query(
       `INSERT INTO job_postings (
         organization_id, mentor_id, title, description, requirements, deliverables,
         posting_type, job_type, location, workplace_area, flyer_image_url, start_time, finish_time, on_call_days, salary_rate, salary_rate_type,
-        target_audience, work_setup, slots_available, status, posted_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW(), NOW())`,
+        target_audience, work_setup, slots_available, total_slots, status, posted_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW(), NOW())`,
       [
         org.organization_id,
         mentor_id || null,
@@ -607,7 +643,8 @@ router.post('/jobs', requireHROrAdmin, async (req, res) => {
         pType === 'ojt' ? null : (salary_rate_type || 'daily'),
         target_audience || (pType === 'ojt' ? 'ojt_students' : pType === 'on_call' ? 'ojt_completers_or_graduates' : 'graduated_students'),
         work_setup || 'hybrid',
-        parseInt(slots_available) || 1
+        initialSlots,
+        initialSlots
       ]
     );
 
@@ -770,6 +807,7 @@ router.put('/jobs/:id', requireHROrAdmin, async (req, res) => {
     flyer_image_url,
     work_setup,
     slots_available,
+    total_slots,
     mentor_id,
     start_time,
     finish_time,
@@ -783,6 +821,8 @@ router.put('/jobs/:id', requireHROrAdmin, async (req, res) => {
     institution_ids,
     program_ids
   } = req.body;
+
+  await ensureJobTotalSlotsSchema();
 
   const connection = await pool.getConnection();
   let released = false;
@@ -803,6 +843,23 @@ router.put('/jobs/:id', requireHROrAdmin, async (req, res) => {
 
     const pType = posting_type || 'ojt';
 
+    const [accCheck] = await connection.query(
+      "SELECT COUNT(*) AS accepted_count FROM job_applications WHERE job_id = ? AND status IN ('accepted', 'hired')",
+      [jobId]
+    );
+    const acceptedCount = Number(accCheck[0]?.accepted_count || 0);
+    const rawCapacity = total_slots !== undefined ? parseInt(total_slots) : (slots_available !== undefined ? parseInt(slots_available) : null);
+
+    if (rawCapacity !== null && !isNaN(rawCapacity) && rawCapacity < acceptedCount) {
+      await connection.rollback();
+      return res.status(400).json({
+        success: false,
+        message: `Total slots cannot be set lower than ${acceptedCount} because ${acceptedCount} applicant(s) are already Accepted & Finalized.`
+      });
+    }
+
+    const targetTotalSlots = rawCapacity !== null && !isNaN(rawCapacity) ? Math.max(1, rawCapacity) : null;
+
     await connection.query(
       `UPDATE job_postings SET
         title = COALESCE(?, title),
@@ -815,7 +872,7 @@ router.put('/jobs/:id', requireHROrAdmin, async (req, res) => {
         workplace_area = ?,
         flyer_image_url = ?,
         work_setup = COALESCE(?, work_setup),
-        slots_available = COALESCE(?, slots_available),
+        total_slots = COALESCE(?, total_slots),
         mentor_id = ?,
         start_time = ?,
         finish_time = ?,
@@ -837,7 +894,7 @@ router.put('/jobs/:id', requireHROrAdmin, async (req, res) => {
         workplace_area !== undefined ? (workplace_area ? workplace_area.trim() : null) : null,
         flyer_image_url !== undefined ? (flyer_image_url ? flyer_image_url.trim() : null) : null,
         work_setup,
-        slots_available ? parseInt(slots_available) : null,
+        targetTotalSlots,
         mentor_id || null,
         pType === 'ojt' ? (start_time || '08:00') : null,
         pType === 'ojt' ? (finish_time || '17:00') : (finish_time || null),
@@ -850,6 +907,11 @@ router.put('/jobs/:id', requireHROrAdmin, async (req, res) => {
         org.organization_id
       ]
     );
+
+    const slotSync = await syncJobPostingSlots(jobId, connection, {
+      emitRealtime: false,
+      reopenIfIncreasedFromFull: status !== 'closed'
+    });
 
     if (Array.isArray(institution_ids)) {
       for (const instId of institution_ids) {
@@ -909,6 +971,16 @@ router.put('/jobs/:id/status', requireHROrAdmin, async (req, res) => {
   try {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Org not found' });
+
+    if (status === 'active') {
+      const slotSync = await syncJobPostingSlots(jobId, pool, { emitRealtime: false });
+      if (slotSync && slotSync.remainingSlots <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot reactivate "${slotSync.title}" because all ${slotSync.totalSlots} slot(s) are already full. Edit the opportunity and increase Total Slots to reopen it.`
+        });
+      }
+    }
 
     const [result] = await pool.query(
       'UPDATE job_postings SET status = ?, updated_at = NOW() WHERE job_id = ? AND organization_id = ?',
@@ -1173,10 +1245,22 @@ router.post('/applicants/:id/status', requireHROrAdmin, async (req, res) => {
 
     const app = appRows[0];
 
+    if (status === 'accepted' && app.status !== 'accepted') {
+      const currentSlots = await syncJobPostingSlots(app.job_id, pool, { emitRealtime: false });
+      if (currentSlots && currentSlots.remainingSlots <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot accept candidate: all ${currentSlots.totalSlots} slot(s) for "${app.job_title}" are already full.`
+        });
+      }
+    }
+
     await pool.query(
-      'UPDATE job_applications SET status = ?, updated_at = NOW() WHERE application_id = ?',
-      [status, appId]
+      'UPDATE job_applications SET status = ?, accepted_at = CASE WHEN ? = \'accepted\' THEN COALESCE(accepted_at, NOW()) ELSE accepted_at END, updated_at = NOW() WHERE application_id = ?',
+      [status, status, appId]
     );
+
+    const syncedJob = await syncJobPostingSlots(app.job_id, pool, { emitRealtime: true });
 
     try {
       if (status === 'shortlisted') {
@@ -1317,6 +1401,8 @@ router.post('/applicants/:id/shortlist', requireHROrAdmin, async (req, res) => {
 // POST /api/org/applicants/:id/accept-on-call
 router.post('/applicants/:id/accept-on-call', requireHROrAdmin, async (req, res) => {
   const appId = req.params.id;
+  await ensureJobTotalSlotsSchema();
+
   const connection = await pool.getConnection();
   let released = false;
   const safeRelease = () => {
@@ -1337,12 +1423,14 @@ router.post('/applicants/:id/accept-on-call', requireHROrAdmin, async (req, res)
 
     const [appRows] = await connection.query(
       `SELECT ja.*, jp.title as job_title, jp.finish_time, jp.salary_rate, jp.salary_rate_type, jp.on_call_days,
+              jp.slots_available, jp.total_slots,
               s.student_id, s.user_id as student_user_id, s.first_name, s.last_name, ho.organization_name
        FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
        JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
        JOIN students s ON ja.student_id = s.student_id
-       WHERE ja.application_id = ? AND jp.organization_id = ?`,
+       WHERE ja.application_id = ? AND jp.organization_id = ?
+       FOR UPDATE`,
       [appId, org.organization_id]
     );
 
@@ -1353,11 +1441,32 @@ router.post('/applicants/:id/accept-on-call', requireHROrAdmin, async (req, res)
 
     const app = appRows[0];
 
+    if (app.status !== 'accepted') {
+      const [accRows] = await connection.query(
+        "SELECT COUNT(*) AS accepted_count FROM job_applications WHERE job_id = ? AND status IN ('accepted', 'hired')",
+        [app.job_id]
+      );
+      const acceptedCnt = Number(accRows[0]?.accepted_count || 0);
+      const totalCap = Math.max(
+        1,
+        Number(app.total_slots || 0) || Math.max(Number(app.slots_available || 1), acceptedCnt)
+      );
+      if (acceptedCnt >= totalCap) {
+        await connection.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `Cannot accept candidate: all ${totalCap} slot(s) for "${app.job_title}" are already full.`
+        });
+      }
+    }
+
     // Mark application as accepted
     await connection.query(
-      'UPDATE job_applications SET status = \'accepted\', updated_at = NOW() WHERE application_id = ?',
+      'UPDATE job_applications SET status = \'accepted\', accepted_at = COALESCE(accepted_at, NOW()), updated_at = NOW() WHERE application_id = ?',
       [appId]
     );
+
+    const slotSync = await syncJobPostingSlots(app.job_id, connection, { emitRealtime: false });
 
     // Ensure student portfolio exists
     let portfolioId = null;
@@ -1403,6 +1512,17 @@ router.post('/applicants/:id/accept-on-call', requireHROrAdmin, async (req, res)
     await connection.commit();
 
     emitUpdate('application_updated', { application_id: appId, organization_id: org.organization_id, status: 'accepted' });
+    if (slotSync) {
+      emitUpdate('job_updated', {
+        job_id: slotSync.jobId,
+        organization_id: org.organization_id,
+        total_slots: slotSync.totalSlots,
+        slots_available: slotSync.remainingSlots,
+        accepted_count: slotSync.acceptedCount,
+        status: slotSync.status,
+        auto_deactivated: slotSync.autoDeactivated
+      });
+    }
 
     if (app.student_user_id) {
       await sendNotification({
@@ -1413,9 +1533,13 @@ router.post('/applicants/:id/accept-on-call', requireHROrAdmin, async (req, res)
       });
     }
 
+    const fullMsgSuffix = slotSync?.autoDeactivated
+      ? ' All slots are now filled — opportunity posting has been automatically deactivated.'
+      : '';
+
     return res.json({
       success: true,
-      message: 'On-call candidate accepted and experience credited to portfolio!'
+      message: `On-call candidate accepted and experience credited to portfolio!${fullMsgSuffix}`
     });
   } catch (error) {
     if (connection) {
@@ -3935,6 +4059,8 @@ router.post('/offers', requireHROrAdmin, async (req, res) => {
   const { application_id } = req.body;
   if (!application_id) return res.status(400).json({ success: false, message: 'Application ID is required.' });
 
+  await ensureJobTotalSlotsSchema();
+
   const connection = await pool.getConnection();
   let released = false;
   const safeRelease = () => {
@@ -3954,7 +4080,7 @@ router.post('/offers', requireHROrAdmin, async (req, res) => {
 
     // Fetch the application and job posting details
     const [apps] = await connection.query(
-      `SELECT ja.*, jp.posting_type, jp.job_type
+      `SELECT ja.*, jp.posting_type, jp.job_type, jp.title as job_title, jp.slots_available, jp.total_slots
        FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
        WHERE ja.application_id = ?`,
@@ -3967,6 +4093,23 @@ router.post('/offers', requireHROrAdmin, async (req, res) => {
     }
 
     const app = apps[0];
+
+    const [accCheck] = await connection.query(
+      "SELECT COUNT(*) AS accepted_count FROM job_applications WHERE job_id = ? AND status IN ('accepted', 'hired')",
+      [app.job_id]
+    );
+    const acceptedCnt = Number(accCheck[0]?.accepted_count || 0);
+    const totalCap = Math.max(
+      1,
+      Number(app.total_slots || 0) || Math.max(Number(app.slots_available || 1), acceptedCnt)
+    );
+    if (acceptedCnt >= totalCap) {
+      await connection.rollback();
+      return res.status(400).json({
+        success: false,
+        message: `Cannot issue offer because all ${totalCap} slot(s) for "${app.job_title}" are already filled and the posting is deactivated.`
+      });
+    }
     const postingType = (app.posting_type || app.job_type || 'ojt').toLowerCase();
     const isOjt = postingType === 'ojt' || postingType === 'internship';
     const isOnCall = postingType === 'on_call';

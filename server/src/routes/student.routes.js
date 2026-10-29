@@ -16,6 +16,7 @@ import { getUploadStorage, saveUploadedFile } from '../utils/upload.helper.js';
 import { generateTotpSecret, generateDeviceToken } from '../utils/totp.helper.js';
 import { sendDeviceRebindOtpEmail, maskEmailAddress, DEFAULT_OTP_RECIPIENT_EMAIL } from '../utils/mailer.js';
 import { getClientIp } from '../utils/session.js';
+import { ensureJobTotalSlotsSchema, syncJobPostingSlots } from '../utils/jobSlots.js';
 
 const portfolioFileFilter = (req, file, cb) => {
   const allowedExts = /jpeg|jpg|png|webp|gif|svg|bmp|tiff|heic|heif|pdf|doc|docx|odt|rtf|pages|ppt|pptx|odp|key|xls|xlsx|csv|ods|numbers|txt|zip|rar|7z|tar|gz|json|xml|md|sql/i;
@@ -388,6 +389,8 @@ router.get('/jobs', async (req, res) => {
       ['ongoing', 'in_progress', 'accepted', 'deployed'].includes(student?.ojt_status)
     );
 
+    await ensureJobTotalSlotsSchema();
+
     const studentProgramId = student ? student.program_id || 0 : 0;
     let query = `
       SELECT jp.*, ho.organization_name, ho.industry, ho.website,
@@ -396,6 +399,10 @@ router.get('/jobs', async (req, res) => {
       FROM job_postings jp
       JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
       WHERE (jp.status = 'active' OR jp.status = 'pending_review')
+        AND (
+          COALESCE(jp.slots_available, 1) > 0
+          OR EXISTS (SELECT 1 FROM job_applications ja_self WHERE ja_self.job_id = jp.job_id AND ja_self.student_id = ?)
+        )
         AND (
           -- Either the posting was sent to all, or dispatched to this student's institution
           NOT EXISTS (SELECT 1 FROM institution_job_approvals WHERE job_id = jp.job_id)
@@ -407,7 +414,7 @@ router.get('/jobs', async (req, res) => {
           OR EXISTS (SELECT 1 FROM job_required_programs WHERE job_id = jp.job_id AND program_id = ?)
         )
     `;
-    const params = [studentId, instId, instId, studentProgramId];
+    const params = [studentId, instId, studentId, instId, studentProgramId];
 
     if (search) {
       query += ` AND (jp.title LIKE ? OR jp.description LIKE ? OR ho.organization_name LIKE ?)`;
@@ -474,6 +481,11 @@ router.get('/jobs', async (req, res) => {
         eligibilityNotice = 'Pending University Endorsement: This opportunity is awaiting approval from your institution coordinator before applications open.';
       }
 
+      if (Number(job.slots_available ?? 1) <= 0 || job.status === 'closed') {
+        canApply = false;
+        eligibilityNotice = 'All available slots for this opportunity have been filled.';
+      }
+
       return {
         ...job,
         posting_type: isOjt ? 'ojt' : (isOnCall ? 'on_call' : 'career_job'),
@@ -525,6 +537,8 @@ router.post('/jobs/:id/apply', async (req, res) => {
 
     const studentId = student.student_id;
 
+    await ensureJobTotalSlotsSchema();
+
     // Fetch the job posting details
     const [jobRows] = await pool.query('SELECT * FROM job_postings WHERE job_id = ?', [jobId]);
     if (jobRows.length === 0) {
@@ -532,11 +546,11 @@ router.post('/jobs/:id/apply', async (req, res) => {
     }
     const job = jobRows[0];
 
-    // Verify job is active
-    if (job.status !== 'active') {
+    // Verify job is active and has remaining slots
+    if (job.status !== 'active' || Number(job.slots_available ?? 1) <= 0) {
       return res.status(400).json({
         success: false,
-        message: 'This job posting is not currently accepting applications.'
+        message: 'This job posting is full or deactivated and is no longer accepting applications.'
       });
     }
 
@@ -642,6 +656,7 @@ router.post('/jobs/:id/apply', async (req, res) => {
     );
 
     emitUpdate('application_updated', { job_id: jobId, organization_id: job.organization_id, student_id: studentId, status: 'submitted' });
+    emitUpdate('job_updated', { job_id: Number(jobId), organization_id: job.organization_id });
 
     // Notify organization admin & mentor
     const [orgUsers] = await pool.query(
@@ -789,7 +804,7 @@ router.get('/applications', async (req, res) => {
         const [availableJobs] = await pool.query(
           `SELECT jp.job_id, jp.organization_id, jp.title, jp.posting_type 
            FROM job_postings jp
-           WHERE jp.status NOT IN ('deleted', 'archived')
+           WHERE jp.status = 'active' AND COALESCE(jp.slots_available, 1) > 0
            ORDER BY jp.job_id ASC LIMIT 5`
         );
 
@@ -801,6 +816,7 @@ router.get('/applications', async (req, res) => {
              VALUES (?, ?, 'accepted', 'Congratulations! Your OJT application, resume credentials, and institutional endorsement have been officially approved. Training Agreement MOA certified.', DATE_SUB(NOW(), INTERVAL 7 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 7 DAY), NOW())`,
             [j1.job_id, student.student_id]
           );
+          await syncJobPostingSlots(j1.job_id, pool, { emitRealtime: true });
 
           // 2. Interview Scheduled / Requested with Google Meet link & instructions
           if (availableJobs.length > 1) {
@@ -912,6 +928,8 @@ router.post('/applications/:id/respond', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid action.' });
   }
 
+  await ensureJobTotalSlotsSchema();
+
   const connection = await pool.getConnection();
   let released = false;
   const safeRelease = () => {
@@ -924,15 +942,22 @@ router.post('/applications/:id/respond', async (req, res) => {
     await connection.beginTransaction();
 
     const student = await getStudentId(req.user.user_id);
+    if (!student) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: 'Student profile not found.' });
+    }
     const studentId = student.student_id;
 
-    // Get application details with mentor info from job posting
+    // Get application details with mentor & slot info from job posting (locked FOR UPDATE)
     const [apps] = await connection.query(
-      `SELECT ja.*, jp.organization_id, jp.job_id, jp.title as job_title, jp.mentor_id, ho.organization_name
+      `SELECT ja.*, jp.organization_id, jp.job_id, jp.title as job_title, jp.mentor_id,
+              jp.posting_type, jp.slots_available, jp.total_slots, jp.status as job_status,
+              ho.organization_name
        FROM job_applications ja
        JOIN job_postings jp ON ja.job_id = jp.job_id
        JOIN hiring_organizations ho ON jp.organization_id = ho.organization_id
-       WHERE ja.application_id = ? AND ja.student_id = ?`,
+       WHERE ja.application_id = ? AND ja.student_id = ?
+       FOR UPDATE`,
       [appId, studentId]
     );
 
@@ -942,38 +967,93 @@ router.post('/applications/:id/respond', async (req, res) => {
     }
 
     const app = apps[0];
+
+    if (action === 'accepted' && app.status !== 'accepted') {
+      const [accCheck] = await connection.query(
+        "SELECT COUNT(*) AS accepted_count FROM job_applications WHERE job_id = ? AND status IN ('accepted', 'hired')",
+        [app.job_id]
+      );
+      const acceptedCnt = Number(accCheck[0]?.accepted_count || 0);
+      const totalCap = Math.max(
+        1,
+        Number(app.total_slots || 0) || Math.max(Number(app.slots_available || 1), acceptedCnt)
+      );
+      if (acceptedCnt >= totalCap) {
+        await connection.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `All available slots (${totalCap}) for "${app.job_title}" have already been filled.`
+        });
+      }
+    }
+
     const appStatus = action === 'accepted' ? 'accepted' : 'withdrawn';
 
     // Update application status
     await connection.query(
-      'UPDATE job_applications SET status = ?, accepted_at = ? WHERE application_id = ?',
+      'UPDATE job_applications SET status = ?, accepted_at = ?, updated_at = NOW() WHERE application_id = ?',
       [appStatus, action === 'accepted' ? new Date() : null, appId]
     );
 
-    // If accepted, create active ojt_record with assigned mentor
-    if (action === 'accepted') {
-      let mentorStaff = null;
-      if (app.mentor_id) {
-        const [mRows] = await connection.query(
-          'SELECT org_staff_id, first_name, last_name, contact_number, position FROM organization_staff WHERE org_staff_id = ?',
-          [app.mentor_id]
-        );
-        if (mRows.length > 0) mentorStaff = mRows[0];
-      }
-
-      const supervisorName = mentorStaff ? `${mentorStaff.first_name} ${mentorStaff.last_name}`.trim() : null;
-      const supervisorContact = mentorStaff ? mentorStaff.contact_number : null;
-
+    // Keep job_offers and ojt_deployment_offers synchronized if present
+    try {
       await connection.query(
-        `INSERT INTO ojt_records (student_id, organization_id, mentor_id, program_id, required_hours, rendered_hours, status, supervisor_name, supervisor_contact, start_date)
-         VALUES (?, ?, ?, ?, ?, 0, 'ongoing', ?, ?, CURRENT_DATE)`,
-        [studentId, app.organization_id, app.mentor_id || null, student.program_id, student.required_ojt_hours || 600, supervisorName, supervisorContact]
+        'UPDATE job_offers SET status = ?, responded_at = NOW(), updated_at = NOW() WHERE application_id = ?',
+        [action, appId]
       );
+      await connection.query(
+        `UPDATE ojt_deployment_offers
+         SET status = ?, responded_at = NOW(), updated_at = NOW()
+         WHERE student_id = ? AND job_id = ? AND status = 'offered'`,
+        [action, studentId, app.job_id]
+      );
+    } catch (_) {}
+
+    // If accepted, create active ojt_record with assigned mentor (for OJT/internship postings)
+    const pType = (app.posting_type || 'ojt').toLowerCase();
+    if (action === 'accepted' && (pType === 'ojt' || pType === 'internship')) {
+      const [existingOjt] = await connection.query(
+        "SELECT ojt_id FROM ojt_records WHERE student_id = ? AND organization_id = ? AND status = 'ongoing' LIMIT 1",
+        [studentId, app.organization_id]
+      );
+      if (existingOjt.length === 0) {
+        let mentorStaff = null;
+        if (app.mentor_id) {
+          const [mRows] = await connection.query(
+            'SELECT org_staff_id, first_name, last_name, contact_number, position FROM organization_staff WHERE org_staff_id = ?',
+            [app.mentor_id]
+          );
+          if (mRows.length > 0) mentorStaff = mRows[0];
+        }
+
+        const supervisorName = mentorStaff ? `${mentorStaff.first_name} ${mentorStaff.last_name}`.trim() : null;
+        const supervisorContact = mentorStaff ? mentorStaff.contact_number : null;
+
+        await connection.query(
+          `INSERT INTO ojt_records (student_id, organization_id, mentor_id, program_id, required_hours, rendered_hours, status, supervisor_name, supervisor_contact, start_date)
+           VALUES (?, ?, ?, ?, ?, 0, 'ongoing', ?, ?, CURRENT_DATE)`,
+          [studentId, app.organization_id, app.mentor_id || null, student.program_id, student.required_ojt_hours || 600, supervisorName, supervisorContact]
+        );
+      }
     }
+
+    // Automatically recalculate available slots and deactivate post if full
+    const slotSync = await syncJobPostingSlots(app.job_id, connection, { emitRealtime: false });
 
     await connection.commit();
 
     emitUpdate('application_updated', { application_id: appId, organization_id: app.organization_id, student_id: studentId, status: appStatus });
+    if (slotSync) {
+      emitUpdate('job_updated', {
+        job_id: slotSync.jobId,
+        organization_id: slotSync.organizationId,
+        slots_available: slotSync.remainingSlots,
+        total_slots: slotSync.totalSlots,
+        accepted_count: slotSync.acceptedCount,
+        status: slotSync.status,
+        auto_deactivated: slotSync.autoDeactivated
+      });
+    }
 
     // Notify organization
     const [orgAdmins] = await pool.query(
@@ -981,17 +1061,27 @@ router.post('/applications/:id/respond', async (req, res) => {
       [app.organization_id]
     );
     if (orgAdmins.length > 0 && orgAdmins[0].user_id) {
+      const slotNotice =
+        action === 'accepted' && slotSync
+          ? slotSync.autoDeactivated
+            ? ` All ${slotSync.totalSlots} slots are now filled — the posting was automatically deactivated.`
+            : ` (${slotSync.remainingSlots} of ${slotSync.totalSlots} slots remaining)`
+          : '';
       await sendNotification({
         userId: orgAdmins[0].user_id,
-        title: action === 'accepted' ? 'OJT Offer Accepted' : 'OJT Offer Declined',
-        message: `${student.first_name} ${student.last_name} has ${action} your offer for "${app.job_title}".`,
+        title: action === 'accepted' ? 'Offer Accepted & Slot Updated' : 'Offer Declined',
+        message: `${student.first_name} ${student.last_name} has ${action} your offer for "${app.job_title}".${slotNotice}`,
         type: 'ojt'
       });
     }
 
     return res.json({
       success: true,
-      message: action === 'accepted' ? 'OJT Placement accepted! Your internship is now active.' : 'Offer declined.'
+      message: action === 'accepted'
+        ? (pType === 'ojt' || pType === 'internship'
+            ? 'OJT Placement accepted! Your internship is now active.'
+            : 'Offer accepted and finalized!')
+        : 'Offer declined.'
     });
   } catch (error) {
     try { await connection.rollback(); } catch (_) {}

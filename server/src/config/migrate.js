@@ -1097,7 +1097,7 @@ export async function runMigrations() {
       console.warn('[Migration Warning] Schedule & status migration error:', schedErr.message);
     }
 
-    // 30. Add flyer_image_url to job_postings
+    // 30. Add flyer_image_url and total_slots to job_postings, and sync available slots & auto-deactivation
     try {
       const [jpCols] = await pool.query('DESCRIBE job_postings');
       const jpColNames = jpCols.map(c => c.Field);
@@ -1105,8 +1105,42 @@ export async function runMigrations() {
         await pool.query("ALTER TABLE job_postings ADD COLUMN flyer_image_url TEXT NULL AFTER workplace_area");
         console.log('[Migration] Added flyer_image_url to job_postings');
       }
+      if (!jpColNames.includes('total_slots')) {
+        await pool.query('ALTER TABLE job_postings ADD COLUMN total_slots INT UNSIGNED NULL AFTER slots_available');
+        console.log('[Migration] Added total_slots to job_postings');
+      }
+      await pool.query(`
+        UPDATE job_postings jp
+        LEFT JOIN (
+          SELECT job_id, COUNT(*) AS accepted_cnt
+          FROM job_applications
+          WHERE status IN ('accepted', 'hired')
+          GROUP BY job_id
+        ) acc ON acc.job_id = jp.job_id
+        SET
+          jp.total_slots = COALESCE(
+            jp.total_slots,
+            GREATEST(COALESCE(jp.slots_available, 1), COALESCE(acc.accepted_cnt, 0), 1)
+          ),
+          jp.slots_available = GREATEST(
+            0,
+            COALESCE(
+              jp.total_slots,
+              GREATEST(COALESCE(jp.slots_available, 1), COALESCE(acc.accepted_cnt, 0), 1)
+            ) - COALESCE(acc.accepted_cnt, 0)
+          ),
+          jp.status = CASE
+            WHEN COALESCE(
+              jp.total_slots,
+              GREATEST(COALESCE(jp.slots_available, 1), COALESCE(acc.accepted_cnt, 0), 1)
+            ) - COALESCE(acc.accepted_cnt, 0) <= 0
+              AND jp.status = 'active'
+            THEN 'closed'
+            ELSE jp.status
+          END
+      `);
     } catch (flyerErr) {
-      console.warn('[Migration Warning] Flyer image column migration error:', flyerErr.message);
+      console.warn('[Migration Warning] Flyer image / total_slots column migration error:', flyerErr.message);
     }
 
     // 31. Align job_applications table for feedback, rejection_reason, and is_shortlisted

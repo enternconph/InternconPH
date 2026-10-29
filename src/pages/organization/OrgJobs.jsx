@@ -48,6 +48,7 @@ export default function OrgJobs() {
     flyer_image_url: '',
     work_setup: 'hybrid',
     slots_available: 1,
+    total_slots: 1,
     mentor_id: '',
     start_time: '08:00',
     finish_time: '17:00',
@@ -87,6 +88,15 @@ export default function OrgJobs() {
 
   // Real-time synchronization
   useRealtimeRefresh(fetchData);
+
+  // Keep detail drawer synced with refreshed job state (slots, applicant counts, status)
+  useEffect(() => {
+    if (!selectedJobForDetail) return;
+    const fresh = jobs.find(j => j.job_id === selectedJobForDetail.job_id);
+    if (fresh) {
+      setSelectedJobForDetail(fresh);
+    }
+  }, [jobs]);
 
   // Auto-trigger create modal if navigated with ?create=true
   useEffect(() => {
@@ -148,6 +158,10 @@ export default function OrgJobs() {
   };
 
   const handleOpenEdit = (job) => {
+    const acceptedCount = Number(job.accepted_count || 0);
+    const remainingSlots = Number(job.slots_available ?? 0);
+    const totalCap = Number(job.total_slots || 0) || Math.max(remainingSlots + acceptedCount, 1);
+
     setEditingJob(job);
     setFormData({
       title: job.title || '',
@@ -159,7 +173,8 @@ export default function OrgJobs() {
       workplace_area: job.workplace_area || '',
       flyer_image_url: job.flyer_image_url || '',
       work_setup: job.work_setup || 'hybrid',
-      slots_available: job.slots_available || 1,
+      slots_available: totalCap,
+      total_slots: totalCap,
       mentor_id: job.mentor_id || (mentors.length > 0 ? mentors[0].org_staff_id : ''),
       start_time: job.start_time || '08:00',
       finish_time: job.finish_time || '17:00',
@@ -223,6 +238,14 @@ export default function OrgJobs() {
       return;
     }
 
+    const slotCapacity = Math.max(1, parseInt(formData.slots_available, 10) || 1);
+    if (editingJob && slotCapacity < Number(editingJob.accepted_count || 0)) {
+      setErrorMsg(
+        `Total slot capacity (${slotCapacity}) cannot be less than the ${editingJob.accepted_count} already accepted & finalized applicant(s).`
+      );
+      return;
+    }
+
     setSubmitting(true);
 
     // Compute Philippine address if address selector was utilized
@@ -239,6 +262,8 @@ export default function OrgJobs() {
 
     const submitData = {
       ...formData,
+      slots_available: slotCapacity,
+      total_slots: slotCapacity,
       location: finalLocation,
       ...(formData.posting_type === 'ojt' ? { salary_rate: '', salary_rate_type: '' } : {})
     };
@@ -265,14 +290,34 @@ export default function OrgJobs() {
     }
   };
 
-  const handleToggleStatus = async (jobId, currentStatus) => {
+  const handleToggleStatus = async (job) => {
+    const currentStatus = job.status || 'active';
     const nextStatus = currentStatus === 'active' ? 'closed' : 'active';
-    const res = await api.put(`/org/jobs/${jobId}/status`, { status: nextStatus });
-    if (res.success) {
-      setMessage(`Opportunity status set to ${nextStatus}.`);
-      fetchData();
-    } else {
-      alert(res.message || 'Failed to update job status.');
+    const remainingSlots = Number(job.slots_available ?? 0);
+
+    if (nextStatus === 'active' && remainingSlots <= 0) {
+      setMessage('');
+      setErrorMsg(
+        `"${job.title}" was automatically deactivated because all slots are full (0 available). Edit the posting and increase Total Slot Capacity to reactivate it.`
+      );
+      return;
+    }
+
+    try {
+      setErrorMsg('');
+      const res = await api.put(`/org/jobs/${job.job_id}/status`, { status: nextStatus });
+      if (res.success) {
+        setMessage(
+          nextStatus === 'active'
+            ? `"${job.title}" reactivated.`
+            : `"${job.title}" deactivated.`
+        );
+        fetchData();
+      } else {
+        setErrorMsg(res.message || 'Failed to update job status.');
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to update job status.');
     }
   };
 
@@ -410,9 +455,36 @@ export default function OrgJobs() {
       </div>
 
       {message && (
-        <div className="p-3 bg-green-tint text-pinoy-green rounded-lg text-xs font-bold flex items-center gap-2">
-          <span className="material-symbols-outlined text-[18px]">check_circle</span>
-          <span>{message}</span>
+        <div className="p-3 bg-green-tint text-pinoy-green rounded-lg text-xs font-bold flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">check_circle</span>
+            <span>{message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMessage('')}
+            className="p-0.5 rounded hover:bg-black/10 transition-colors"
+            title="Dismiss"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </div>
+      )}
+
+      {!showModal && errorMsg && (
+        <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-bold flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">error</span>
+            <span>{errorMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMsg('')}
+            className="p-0.5 rounded hover:bg-black/10 transition-colors"
+            title="Dismiss"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
         </div>
       )}
 
@@ -514,13 +586,14 @@ export default function OrgJobs() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-outline-variant/60">
-            <table className="w-full text-left text-sm min-w-[760px]">
+            <table className="w-full text-left text-sm min-w-[880px]">
               <thead>
                 <tr className="border-b border-outline-variant bg-surface-container-low/60 text-on-surface-variant text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
                   <th className="py-3 px-4">Opportunity</th>
                   <th className="py-3 px-4">Workplace Area / Dept</th>
                   <th className="py-3 px-4">Work Setup</th>
-                  <th className="py-3 px-4">Slots Available</th>
+                  <th className="py-3 px-4">Applicants Applied</th>
+                  <th className="py-3 px-4">Available Slots</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -528,17 +601,33 @@ export default function OrgJobs() {
                 {filteredJobs.map((job) => {
                   const pType = job.posting_type || 'ojt';
                   const setupNorm = (job.work_setup || 'on_site').toLowerCase();
+                  const appliedCount = Number(job.applicant_count || 0);
+                  const acceptedCount = Number(job.accepted_count || 0);
+                  const remainingSlots = Math.max(0, Number(job.slots_available ?? 0));
+                  const totalSlots = Math.max(
+                    1,
+                    Number(job.total_slots || 0) || Math.max(remainingSlots + acceptedCount, 1)
+                  );
+                  const isSlotsFull = remainingSlots <= 0;
+                  const isActive = (job.status || 'active').toLowerCase() === 'active' && !isSlotsFull;
 
                   return (
-                    <tr key={job.job_id} className="hover:bg-surface-container-low/70 transition-colors text-xs group">
-                      {/* Opportunity: Title & Type */}
+                    <tr
+                      key={job.job_id}
+                      className={`hover:bg-surface-container-low/70 transition-colors text-xs group ${
+                        !isActive ? 'bg-surface-container-low/30' : ''
+                      }`}
+                    >
+                      {/* Opportunity: Title, Type & Status */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
                           {job.flyer_image_url ? (
                             <img
                               src={resolveFileUrl(job.flyer_image_url)}
                               alt="Flyer thumbnail"
-                              className="w-10 h-10 object-cover rounded-xl border border-outline-variant shrink-0"
+                              className={`w-10 h-10 object-cover rounded-xl border border-outline-variant shrink-0 ${
+                                !isActive ? 'opacity-65 grayscale-[30%]' : ''
+                              }`}
                               loading="lazy"
                               decoding="async"
                               onError={(e) => {
@@ -546,25 +635,59 @@ export default function OrgJobs() {
                               }}
                             />
                           ) : (
-                            <div className="w-10 h-10 rounded-xl bg-orange-tint/70 border border-vibrant-orange/20 flex items-center justify-center text-vibrant-orange shrink-0">
+                            <div
+                              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                                isActive
+                                  ? 'bg-orange-tint/70 border-vibrant-orange/20 text-vibrant-orange'
+                                  : 'bg-surface-container border-outline-variant/60 text-on-surface-variant'
+                              }`}
+                            >
                               <span className="material-symbols-outlined text-[20px]">
                                 {pType === 'ojt' ? 'school' : pType === 'on_call' ? 'bolt' : 'work'}
                               </span>
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="font-bold text-sm text-on-surface truncate group-hover:text-vibrant-orange transition-colors">
+                            <p
+                              className={`font-bold text-sm truncate group-hover:text-vibrant-orange transition-colors ${
+                                isActive ? 'text-on-surface' : 'text-on-surface-variant'
+                              }`}
+                            >
                               {job.title}
                             </p>
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize mt-0.5 shrink-0 ${
-                              pType === 'ojt'
-                                ? 'bg-blue-500/15 text-blue-500 dark:text-blue-400 border border-blue-500/30'
-                                : pType === 'on_call'
-                                ? 'bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30'
-                                : 'bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30'
-                            }`}>
-                              {pType === 'ojt' ? 'OJT Internship' : pType === 'on_call' ? 'On-Call' : 'Career Opening'}
-                            </span>
+                            <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize shrink-0 ${
+                                  pType === 'ojt'
+                                    ? 'bg-blue-500/15 text-blue-500 dark:text-blue-400 border border-blue-500/30'
+                                    : pType === 'on_call'
+                                    ? 'bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30'
+                                    : 'bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30'
+                                }`}
+                              >
+                                {pType === 'ojt' ? 'OJT Internship' : pType === 'on_call' ? 'On-Call' : 'Career Opening'}
+                              </span>
+
+                              {isActive ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shrink-0">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  <span>Active</span>
+                                </span>
+                              ) : isSlotsFull ? (
+                                <span
+                                  title="Automatically deactivated because all available slots have been filled"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 shrink-0"
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                  <span>Deactivated • Full</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-container text-on-surface-variant border border-outline-variant shrink-0">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                  <span>Deactivated</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -579,13 +702,15 @@ export default function OrgJobs() {
 
                       {/* Work Setup */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${
-                          setupNorm.includes('remote')
-                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                            : setupNorm.includes('hybrid')
-                            ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30'
-                            : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
-                        }`}>
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${
+                            setupNorm.includes('remote')
+                              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                              : setupNorm.includes('hybrid')
+                              ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30'
+                              : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                          }`}
+                        >
                           <span className="material-symbols-outlined text-[13px]">
                             {setupNorm.includes('remote')
                               ? 'home_work'
@@ -597,13 +722,60 @@ export default function OrgJobs() {
                         </span>
                       </td>
 
-                      {/* Slots Available */}
+                      {/* Applicants Applied */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container border border-outline-variant/60 text-xs font-bold text-on-surface">
-                          <span className="material-symbols-outlined text-[14px] text-vibrant-orange">group</span>
-                          <span>{job.slots_available || 1}</span>
-                          <span className="text-[11px] font-medium text-on-surface-variant">{job.slots_available === 1 ? 'slot' : 'slots'}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => navigate('/dashboard/organization/applicants')}
+                            title="View applicants in Applicants & Talent"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-container-high border border-outline-variant/60 text-xs font-bold text-on-surface transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[14px] text-vibrant-orange">
+                              assignment_ind
+                            </span>
+                            <span>{appliedCount}</span>
+                            <span className="text-[11px] font-medium text-on-surface-variant">
+                              {appliedCount === 1 ? 'applicant' : 'applicants'}
+                            </span>
+                          </button>
+
+                          {acceptedCount > 0 && (
+                            <span
+                              title="Applicants Accepted & Finalized for this post"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                            >
+                              <span className="material-symbols-outlined text-[12px]">verified</span>
+                              <span>{acceptedCount} Accepted</span>
+                            </span>
+                          )}
                         </div>
+                      </td>
+
+                      {/* Available Slots */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        {isSlotsFull ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-xs font-bold text-rose-600 dark:text-rose-400">
+                            <span className="material-symbols-outlined text-[14px]">block</span>
+                            <span>0 available</span>
+                            <span className="text-[10.5px] font-semibold opacity-90">
+                              • FULL ({totalSlots}/{totalSlots})
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container border border-outline-variant/60 text-xs font-bold text-on-surface">
+                            <span className="material-symbols-outlined text-[14px] text-vibrant-orange">group</span>
+                            <span>{remainingSlots}</span>
+                            <span className="text-[11px] font-medium text-on-surface-variant">
+                              {remainingSlots === 1 ? 'slot' : 'slots'} available
+                            </span>
+                            {acceptedCount > 0 && (
+                              <span className="text-[10.5px] font-semibold text-emerald-600 dark:text-emerald-400 ml-0.5">
+                                ({acceptedCount}/{totalSlots} filled)
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* Actions */}
@@ -630,16 +802,24 @@ export default function OrgJobs() {
 
                           <button
                             type="button"
-                            onClick={() => handleToggleStatus(job.job_id, job.status)}
-                            title={job.status === 'active' ? 'Pause / Close opportunity' : 'Reactivate opportunity'}
+                            onClick={() => handleToggleStatus(job)}
+                            title={
+                              isActive
+                                ? 'Deactivate / Pause opportunity'
+                                : isSlotsFull
+                                ? 'Slots Full — Automatically deactivated. Edit Total Slots to reactivate.'
+                                : 'Reactivate opportunity'
+                            }
                             className={`p-1.5 rounded-lg transition-colors border shadow-xs ${
-                              job.status === 'active'
+                              isActive
                                 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 border-amber-500/30'
+                                : isSlotsFull
+                                ? 'bg-rose-500/10 text-rose-500/70 dark:text-rose-400/70 border-rose-500/25 cursor-not-allowed'
                                 : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/30'
                             }`}
                           >
                             <span className="material-symbols-outlined text-[16px]">
-                              {job.status === 'active' ? 'pause_circle' : 'play_circle'}
+                              {isActive ? 'pause_circle' : isSlotsFull ? 'lock' : 'play_circle'}
                             </span>
                           </button>
 
@@ -726,21 +906,50 @@ export default function OrgJobs() {
                   <span className="material-symbols-outlined text-[16px] text-vibrant-orange">verified_user</span>
                   Status & Approvals
                 </span>
-                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
-                  (selectedJobForDetail.status || 'active').toLowerCase() === 'active'
-                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-surface-container text-on-surface-variant border border-outline-variant'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${
-                    (selectedJobForDetail.status || 'active').toLowerCase() === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'
-                  }`} />
-                  {selectedJobForDetail.status || 'Active'}
-                </span>
+                {(() => {
+                  const detailRemaining = Math.max(0, Number(selectedJobForDetail.slots_available ?? 0));
+                  const detailFull = detailRemaining <= 0;
+                  const detailActive =
+                    (selectedJobForDetail.status || 'active').toLowerCase() === 'active' && !detailFull;
+                  return (
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        detailActive
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                          : detailFull
+                          ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                          : 'bg-surface-container text-on-surface-variant border border-outline-variant'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          detailActive
+                            ? 'bg-emerald-500 animate-pulse'
+                            : detailFull
+                            ? 'bg-rose-500'
+                            : 'bg-slate-400'
+                        }`}
+                      />
+                      {detailActive
+                        ? 'Active'
+                        : detailFull
+                        ? 'Deactivated (Slots Full)'
+                        : 'Deactivated'}
+                    </span>
+                  );
+                })()}
               </div>
 
               <DetailRow label="Candidates Applied">
                 <span className="font-bold text-on-surface">
-                  {selectedJobForDetail.applicant_count || 0} candidate{selectedJobForDetail.applicant_count === 1 ? '' : 's'}
+                  {Number(selectedJobForDetail.applicant_count || 0)}{' '}
+                  {Number(selectedJobForDetail.applicant_count || 0) === 1 ? 'applicant' : 'applicants'}
+                </span>
+              </DetailRow>
+
+              <DetailRow label="Accepted & Finalized">
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  {Number(selectedJobForDetail.accepted_count || 0)} accepted
                 </span>
               </DetailRow>
 
@@ -853,8 +1062,21 @@ export default function OrgJobs() {
                     <span className="font-semibold text-on-surface">{selectedJobForDetail.workplace_area}</span>
                   </DetailRow>
                 )}
-                <DetailRow label="Slots Available">
-                  <span className="font-bold text-on-surface">{selectedJobForDetail.slots_available || 1} {selectedJobForDetail.slots_available === 1 ? 'slot' : 'slots'}</span>
+                <DetailRow label="Available Slots">
+                  {(() => {
+                    const rem = Math.max(0, Number(selectedJobForDetail.slots_available ?? 0));
+                    const acc = Number(selectedJobForDetail.accepted_count || 0);
+                    const tot = Math.max(1, Number(selectedJobForDetail.total_slots || 0) || Math.max(rem + acc, 1));
+                    return rem <= 0 ? (
+                      <span className="font-bold text-rose-600 dark:text-rose-400">
+                        0 available • FULL ({tot}/{tot} filled)
+                      </span>
+                    ) : (
+                      <span className="font-bold text-on-surface">
+                        {rem} {rem === 1 ? 'slot' : 'slots'} available (of {tot} total)
+                      </span>
+                    );
+                  })()}
                 </DetailRow>
               </div>
             </div>
@@ -1119,14 +1341,34 @@ export default function OrgJobs() {
                 </div>
 
                 <div>
-                  <label className="font-bold text-on-surface block mb-1">Available Slots</label>
+                  <label className="font-bold text-on-surface block mb-1">
+                    {editingJob ? 'Total Slot Capacity' : 'Available Slots'}
+                  </label>
                   <input
                     type="number"
-                    min="1"
+                    min={editingJob ? Math.max(1, Number(editingJob.accepted_count || 0)) : 1}
                     value={formData.slots_available}
-                    onChange={(e) => setFormData({ ...formData, slots_available: parseInt(e.target.value) || 1 })}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10) || 1;
+                      setFormData({ ...formData, slots_available: val, total_slots: val });
+                    }}
                     className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-white text-on-surface outline-none"
                   />
+                  {editingJob && (
+                    <p className="text-[10.5px] text-on-surface-variant mt-1">
+                      Accepted & Finalized:{' '}
+                      <strong className="text-emerald-600">{Number(editingJob.accepted_count || 0)}</strong> •
+                      Remaining Available:{' '}
+                      <strong className="text-on-surface">
+                        {Math.max(0, (parseInt(formData.slots_available, 10) || 1) - Number(editingJob.accepted_count || 0))}
+                      </strong>
+                      {Math.max(0, (parseInt(formData.slots_available, 10) || 1) - Number(editingJob.accepted_count || 0)) <= 0
+                        ? ' (Post will auto-deactivate as FULL)'
+                        : Number(editingJob.slots_available ?? 1) <= 0
+                        ? ' (Increasing slots will automatically reactivate post)'
+                        : ''}
+                    </p>
+                  )}
                 </div>
               </div>
 
