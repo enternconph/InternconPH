@@ -6,7 +6,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useSidebar } from './DashboardLayout';
 import { playNotificationChime } from '../../utils/audio';
 import api from '../../api/client';
-import { findActiveNav } from './navConfig';
+import { findActiveNav, getRoleLabel } from './navConfig';
 
 export default function DashboardHeader() {
   const { user, logout, getLoginUrl } = useAuth();
@@ -216,11 +216,16 @@ export default function DashboardHeader() {
           </button>
 
           {/* Mobile branding next to hamburger */}
-          <div className="flex items-center gap-2 lg:hidden overflow-hidden">
-            <img src="/logo.png" alt="internconPH Logo" className="h-7 w-auto object-contain shrink-0" decoding="async" />
-            <span className="font-bold text-base tracking-tight truncate text-on-surface">
-              interncon<span className="text-[#F59E0B]">ph</span>
-            </span>
+          <div className="flex items-center gap-2 lg:hidden min-w-0">
+            <img src="/logo.png" alt="InternconPH Logo" className="h-7 sm:h-8 w-auto object-contain shrink-0" decoding="async" />
+            <div className="flex flex-col text-left min-w-0">
+              <span className="text-base sm:text-lg font-bold tracking-tight leading-tight text-on-surface truncate">
+                interncon<span className="text-[#F59E0B]">ph</span>
+              </span>
+              <span className="text-[8px] sm:text-[9px] font-semibold tracking-wider text-teal-500 uppercase leading-none mt-0.5 truncate">
+                INTERNSHIP CONNECTIVITY
+              </span>
+            </div>
           </div>
 
           {/* Desktop Sidebar Toggle Button */}
@@ -236,11 +241,29 @@ export default function DashboardHeader() {
             </span>
           </button>
 
+          {/* Desktop Brand Wordmark (visible when sidebar is collapsed) */}
+          {sidebarCollapsed && (
+            <div className="hidden lg:flex items-center gap-2.5 pr-3 border-r border-outline-variant/60 shrink-0">
+              <div className="flex flex-col text-left">
+                <span className="text-base font-bold tracking-tight leading-tight text-on-surface">
+                  interncon<span className="text-[#F59E0B]">ph</span>
+                </span>
+                <span className="text-[8px] font-semibold tracking-wider text-teal-500 uppercase leading-none mt-0.5">
+                  INTERNSHIP CONNECTIVITY
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Current page title */}
           {activeNav && (
             <div className="hidden lg:flex flex-col leading-tight min-w-0">
-              <span className="eyebrow">InternconPH</span>
-              <span className="font-headline font-bold text-base text-on-surface truncate">{activeNav.label}</span>
+              <span className="eyebrow truncate">
+                {getRoleLabel(user?.role_name || user?.role || '', user?.position || user?.staff_position || '')}
+              </span>
+              <span className="font-headline font-bold text-sm text-on-surface truncate">
+                {activeNav.item?.label || activeNav.label}
+              </span>
             </div>
           )}
         </div>

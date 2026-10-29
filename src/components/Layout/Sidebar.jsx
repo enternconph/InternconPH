@@ -123,19 +123,21 @@ export default function Sidebar() {
       >
         {/* Brand */}
         <div className={`flex items-center shrink-0 p-4 ${collapsed ? 'justify-center' : 'justify-between gap-3'}`}>
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             <img
               src="/logo.png"
-              alt="InternConPH logo"
-              className="h-9 w-9 object-contain shrink-0"
+              alt="InternconPH Logo"
+              className={`${collapsed ? 'h-9 w-9' : 'h-8 sm:h-9 w-auto'} object-contain shrink-0`}
               loading="lazy"
               decoding="async"
             />
             {!collapsed && (
-              <div className="min-w-0 leading-none">
-                <span className="font-headline font-bold text-lg tracking-tight text-on-surface block">InternconPH</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-accent-text truncate block mt-1">
-                  {getRoleLabel(role, position)}
+              <div className="flex flex-col text-left min-w-0">
+                <span className="text-lg sm:text-xl font-bold tracking-tight leading-tight text-on-surface truncate">
+                  interncon<span className="text-[#F59E0B]">ph</span>
+                </span>
+                <span className="text-[9px] sm:text-[10px] font-semibold tracking-wider text-teal-500 uppercase leading-none mt-0.5 truncate">
+                  INTERNSHIP CONNECTIVITY
                 </span>
               </div>
             )}
@@ -211,11 +213,13 @@ export default function Sidebar() {
 
             {!collapsed && (
               <>
-                <span className="flex-1 min-w-0">
+                <span className="flex-1 min-w-0" title={user.email || ''}>
                   <span className="block font-bold text-xs text-on-surface truncate">
                     {user.display_name || user.full_name || user.email}
                   </span>
-                  <span className="block text-[10px] text-on-surface-variant truncate">{user.email}</span>
+                  <span className="block text-[10px] font-semibold uppercase tracking-wider text-accent-text truncate">
+                    {getRoleLabel(role, position)}
+                  </span>
                 </span>
                 <span className="material-symbols-outlined text-[18px] text-on-surface-variant group-hover:text-accent-text group-hover:rotate-45 transition-all">
                   settings
