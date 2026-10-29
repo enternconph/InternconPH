@@ -17,6 +17,7 @@ import { generateTotpSecret, generateDeviceToken } from '../utils/totp.helper.js
 import { sendDeviceRebindOtpEmail, maskEmailAddress, DEFAULT_OTP_RECIPIENT_EMAIL } from '../utils/mailer.js';
 import { getClientIp } from '../utils/session.js';
 import { ensureJobTotalSlotsSchema, syncJobPostingSlots } from '../utils/jobSlots.js';
+import { ensureAttendanceSchemaAligned } from '../utils/attendanceSchema.js';
 import { getPHTNow, parseTimeToMinutes, formatDateOnly, formatTime12 } from '../utils/time.helper.js';
 import { checkEvaluationMilestones } from '../services/certificate.service.js';
 
@@ -1942,6 +1943,7 @@ router.post('/attendance/clock-out', async (req, res) => {
   const { tasks_accomplished } = req.body;
 
   try {
+    await ensureAttendanceSchemaAligned();
     const student = await getStudentId(req.user.user_id);
     if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
 
@@ -1963,9 +1965,7 @@ router.post('/attendance/clock-out', async (req, res) => {
     }
 
     const log = existing[0];
-    const logDateStr = log.log_date instanceof Date
-      ? log.log_date.toISOString().slice(0, 10)
-      : String(log.log_date).slice(0, 10);
+    const logDateStr = formatDateOnly(log.log_date);
 
     const pht = getPHTNow();
     const currentDate = pht.dateStr;
@@ -2007,7 +2007,7 @@ router.post('/attendance/clock-out', async (req, res) => {
       timeOutStatus = 'overtime';
       // Credit regular daily hours up to standard shift (up to 8 hrs); overtime goes to pending mentor approval
       regularHours = Math.min(standardShiftHours, totalElapsedHours);
-      overtimeHours = Math.max(0, Math.round((totalElapsedHours - regularHours) * 100) / 100);
+      overtimeHours = Math.min(999999.99, Math.max(0, Math.round((totalElapsedHours - regularHours) * 100) / 100));
       overtimeStatus = overtimeHours > 0 ? 'pending_approval' : 'none';
     } else if (currentOutMins < schedFinishMins - 15) {
       timeOutStatus = 'early';
@@ -5351,6 +5351,7 @@ router.put('/notifications/:id/read', async (req, res) => {
 // GET /api/student/schedule - View student's work schedule calendar, overrides, and requests
 router.get('/schedule', async (req, res) => {
   try {
+    await ensureAttendanceSchemaAligned();
     const student = await getStudentId(req.user.user_id);
     if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
 
@@ -5362,13 +5363,17 @@ router.get('/schedule', async (req, res) => {
               ho.organization_name, ho.industry, ho.address as org_address,
               COALESCE(os.first_name, SUBSTRING_INDEX(o.supervisor_name, ' ', 1), '') as mentor_first_name,
               COALESCE(os.last_name, SUBSTRING(o.supervisor_name, LENGTH(SUBSTRING_INDEX(o.supervisor_name, ' ', 1)) + 2), '') as mentor_last_name,
-              COALESCE(os.job_title, 'Workplace Mentor') as mentor_title,
+              COALESCE(os.position, 'Workplace Mentor') as mentor_title,
               COALESCE(os.contact_number, o.supervisor_contact, '') as mentor_contact,
-              jp.job_title
+              COALESCE(
+                (SELECT jp.title FROM job_applications ja JOIN job_postings jp ON ja.job_id = jp.job_id
+                 WHERE ja.student_id = o.student_id AND jp.organization_id = o.organization_id
+                 ORDER BY (CASE WHEN ja.status = 'accepted' THEN 0 WHEN ja.status = 'hired' THEN 1 ELSE 2 END), ja.updated_at DESC LIMIT 1),
+                'OJT Intern'
+              ) as job_title
        FROM ojt_records o
        JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
        LEFT JOIN organization_staff os ON o.mentor_id = os.org_staff_id
-       LEFT JOIN job_postings jp ON o.job_id = jp.job_id
        WHERE o.student_id = ? AND o.status IN ('ongoing', 'active', 'placed')
        ORDER BY o.created_at DESC LIMIT 1`,
       [student.student_id]
@@ -5447,6 +5452,7 @@ router.get('/schedule', async (req, res) => {
 // POST /api/student/schedule-requests - Student requests a schedule update for a specific date
 router.post('/schedule-requests', async (req, res) => {
   try {
+    await ensureAttendanceSchemaAligned();
     const student = await getStudentId(req.user.user_id);
     if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
 
@@ -5495,9 +5501,9 @@ router.post('/schedule-requests', async (req, res) => {
 
     const [insRes] = await pool.query(
       `INSERT INTO student_schedule_requests (
-         student_id, schedule_date, requested_start_time, requested_finish_time, reason, status, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, 'pending', NOW(), NOW())`,
-      [student.student_id, schedule_date, requested_start_time, requested_finish_time, (reason || '').trim() || null]
+         ojt_id, student_id, organization_id, mentor_id, schedule_date, requested_start_time, requested_finish_time, reason, status, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())`,
+      [ojt.ojt_id, student.student_id, ojt.organization_id, ojt.mentor_id || null, schedule_date, requested_start_time, requested_finish_time, (reason || '').trim() || 'Schedule update request']
     );
 
     // Notify mentor and org HR

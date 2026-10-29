@@ -43,13 +43,18 @@ function writeOfflineQueue(items) {
 
 function parseQrTelemetry(payload) {
   if (!payload || typeof payload !== 'string') return null;
+  const trimmed = payload.trim();
   let loc = null;
   let studentId = null;
+  let ts = null;
+  let nonce = null;
   let mode = 'online';
 
-  if (payload.startsWith('v2|')) {
-    const parts = payload.split('|');
-    studentId = parts[1] || null;
+  if (trimmed.startsWith('v2|')) {
+    const parts = trimmed.split('|');
+    studentId = parts[1] ? parseInt(parts[1], 10) || parts[1] : null;
+    ts = parts[4] ? parseInt(parts[4], 10) : null;
+    nonce = parts[5] || null;
     mode = parts[6] || 'online';
     const locStr = parts[7] || '';
     if (locStr && locStr !== 'none') {
@@ -59,27 +64,29 @@ function parseQrTelemetry(payload) {
           lat: Number(Number(p[0]).toFixed(6)),
           lng: Number(Number(p[1]).toFixed(6)),
           acc: p[2] && !isNaN(Number(p[2])) ? Math.round(Number(p[2])) : null,
-          ts: p[3] && !isNaN(Number(p[3])) ? parseInt(p[3], 10) : null
+          ts: p[3] && !isNaN(Number(p[3])) ? parseInt(p[3], 10) : ts
         };
       }
     }
-  } else if (payload.startsWith('{')) {
+  } else if (trimmed.startsWith('{')) {
     try {
-      const json = JSON.parse(payload);
+      const json = JSON.parse(trimmed);
       studentId = json.sid || json.student_id;
+      ts = json.ts != null ? parseInt(json.ts, 10) : null;
+      nonce = json.n || json.nonce || null;
       mode = json.mode || 'online';
       if (json.loc) {
         loc = {
           lat: Number(Number(json.loc.lat).toFixed(6)),
           lng: Number(Number(json.loc.lng).toFixed(6)),
           acc: json.loc.acc != null ? Math.round(Number(json.loc.acc)) : null,
-          ts: json.loc.ts != null ? parseInt(json.loc.ts, 10) : null
+          ts: json.loc.ts != null ? parseInt(json.loc.ts, 10) : ts
         };
       }
     } catch (_) {}
   }
 
-  return { studentId, mode, loc, rawPayload: payload };
+  return { studentId, sid: studentId, ts, n: nonce, nonce, mode, loc, rawPayload: trimmed };
 }
 
 function calcHaversineDistance(lat1, lon1, lat2, lon2) {
@@ -699,6 +706,20 @@ export default function OrgAttendanceScanner() {
       };
     }
 
+    if (msg.includes('server error') || msg.includes('sql') || msg.includes('column')) {
+      return {
+        category: 'SERVER_ERROR',
+        title: 'Server Attendance Processing Error',
+        icon: 'dns',
+        badge: 'Backend Processing Error',
+        color: 'red',
+        explanation:
+          message || 'The server encountered an internal error while recording this attendance log.',
+        actionStep:
+          'Phone GPS and QR signature were read properly. Click Retry Scan or refresh the scanner terminal.'
+      };
+    }
+
     return {
       category: 'GENERAL_VERIFICATION_FAILURE',
       title: 'Verification Rejected',
@@ -713,10 +734,8 @@ export default function OrgAttendanceScanner() {
   };
 
   const queueOfflineScanLocally = (rawPayload, currentTimeLabel) => {
-    let parsed;
-    try {
-      parsed = JSON.parse(rawPayload.trim());
-    } catch (_) {
+    const parsed = parseQrTelemetry(rawPayload);
+    if (!parsed || !parsed.sid) {
       const msg = 'Malformed QR payload cannot be queued offline.';
       setScanResult({ type: 'error', message: msg });
       setScanFeedback({ status: 'failed', action: null, message: msg });
@@ -727,8 +746,8 @@ export default function OrgAttendanceScanner() {
     const nowSec = Math.floor(nowMs / 1000);
     const qrTs = parseInt(parsed.ts, 10);
 
-    if (!parsed.sid || isNaN(qrTs) || Math.abs(nowSec - qrTs) > 60) {
-      const msg = 'Offline Scan Rejected: QR code timestamp is expired (>60s old at scan time).';
+    if (!parsed.sid || isNaN(qrTs) || Math.abs(nowSec - qrTs) > 65) {
+      const msg = 'Offline Scan Rejected: QR code timestamp is expired (>65s old at scan time).';
       try {
         playAttendanceErrorChime();
       } catch (_) {}
@@ -825,6 +844,17 @@ export default function OrgAttendanceScanner() {
       distanceMeters = calcHaversineDistance(phoneCoords.lat, phoneCoords.lng, orgCoords.lat, orgCoords.lng);
     }
 
+    const serverCode = serverRes?.code || '';
+    const isPhoneGpsError = [
+      'LOCATION_REQUIRED',
+      'LOW_GPS_ACCURACY',
+      'STALE_GPS_LOCATION',
+      'INVALID_COORDINATES',
+      'IMPOSSIBLE_LOCATION_JUMP'
+    ].includes(serverCode);
+    const isWithinRadius =
+      orgCoords && distanceMeters !== null && distanceMeters <= orgCoords.radius;
+
     let source = 'VERIFIED';
     let diagnosisText = '';
 
@@ -837,10 +867,16 @@ export default function OrgAttendanceScanner() {
       source = 'APP';
       diagnosisText =
         'Error Origin: MOBILE APP. The student phone encoded "loc = none" into the QR payload. High-accuracy GPS was not locked or location permissions were restricted in the phone app.';
-    } else if (phoneCoords.acc && phoneCoords.acc > 50) {
+    } else if (serverCode === 'LOW_GPS_ACCURACY' || (phoneCoords.acc && phoneCoords.acc > 150)) {
       source = 'APP';
-      diagnosisText = `Error Origin: MOBILE APP. The phone reported a GPS accuracy of ±${phoneCoords.acc}m, which exceeds the allowed 50m limit. The student should step near an open area or window to get satellite lock.`;
-    } else if (orgCoords && distanceMeters !== null && distanceMeters > orgCoords.radius) {
+      diagnosisText = `Error Origin: MOBILE APP. The phone reported a coarse GPS accuracy of ±${phoneCoords.acc}m. The student should step near an open area or window to get a stronger satellite/Wi-Fi lock.`;
+    } else if (isPhoneGpsError) {
+      source = 'APP';
+      diagnosisText = `Error Origin: MOBILE APP GPS. ${serverRes?.message || 'Fresh GPS fix required on student phone.'}`;
+    } else if (
+      serverCode === 'OUTSIDE_GEOFENCE' ||
+      (orgCoords && distanceMeters !== null && distanceMeters > orgCoords.radius)
+    ) {
       source = 'WEB';
       diagnosisText = `Discrepancy Origin: WEB / SAVED OFFICE COORDINATES. The mobile app IS successfully transmitting valid GPS coordinates (${phoneCoords.lat.toFixed(6)}, ${phoneCoords.lng.toFixed(6)}), but the measured distance is ${Math.round(
         distanceMeters
@@ -852,8 +888,15 @@ export default function OrgAttendanceScanner() {
       diagnosisText = `GPS Telemetry Verified: Phone is at (${phoneCoords.lat.toFixed(6)}, ${phoneCoords.lng.toFixed(6)}), ${
         distanceMeters !== null ? Math.round(distanceMeters) + 'm from office' : 'inside perimeter'
       }.`;
+    } else if (isWithinRadius) {
+      source = 'SYSTEM';
+      diagnosisText = `GPS Telemetry Passed: Phone is ${distanceMeters}m from office pin (within ${orgCoords.radius}m radius). Mobile GPS is working properly — rejection cause: ${
+        serverRes?.message || 'non-GPS validation notice'
+      }`;
     } else {
-      source = 'APP';
+      source = ['DEVICE_MISMATCH', 'QR_EXPIRED', 'INVALID_TOTP', 'INVALID_DEVICE_SIGNATURE'].includes(serverCode)
+        ? 'APP'
+        : 'SYSTEM';
       diagnosisText = serverRes?.message || 'Verification issue.';
     }
 
@@ -1998,6 +2041,8 @@ export default function OrgAttendanceScanner() {
                             ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200'
                             : scanResult.telemetry.source === 'WEB'
                             ? 'bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950 dark:text-blue-200'
+                            : scanResult.telemetry.source === 'SYSTEM'
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200'
                             : 'bg-red-100 text-red-900 border-red-300 dark:bg-red-950 dark:text-red-200'
                         }`}
                       >
@@ -2005,6 +2050,8 @@ export default function OrgAttendanceScanner() {
                           ? '📱 Problem in Mobile App'
                           : scanResult.telemetry.source === 'WEB'
                           ? '🏢 Problem in Web / Org Pin'
+                          : scanResult.telemetry.source === 'SYSTEM'
+                          ? '✅ GPS Within Radius • Non-GPS Notice'
                           : '⚠️ Verification Rejected'}
                       </span>
                     </div>

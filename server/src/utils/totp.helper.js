@@ -8,7 +8,7 @@ import crypto from 'crypto';
  * - Haversine geofence distance & impossible-velocity anti-spoofing checks
  */
 
-export const DEFAULT_TIME_WINDOW_SECONDS = 35; // 30s step + 5s network/render grace
+export const DEFAULT_TIME_WINDOW_SECONDS = 65; // 30s step + 35s clock-skew/network grace (protected by single-use nonce)
 export const TOTP_STEP_SECONDS = 30;
 export const DEFAULT_GEOFENCE_RADIUS_METERS = 100;
 export const MAX_ALLOWED_GPS_ACCURACY_METERS = 150;
@@ -296,8 +296,8 @@ export function verifyTotpPayload(
       }
     }
 
-    // 3. Verify 6-digit TOTP code against student's secret
-    const totpCheck = verifyTotpWindow(expectedSecret, totpCode, referenceTimeSec, 1);
+    // 3. Verify 6-digit TOTP code against student's secret (±2 steps tolerance for minor clock skew; single-use nonce blocks replay)
+    const totpCheck = verifyTotpWindow(expectedSecret, totpCode, referenceTimeSec, 2);
     if (!totpCheck.valid) {
       return {
         valid: false,
@@ -518,7 +518,8 @@ export function verifyGeofenceAndTelemetry({
   const lng = Number(studentLoc.lng);
   const acc = studentLoc.acc != null ? Number(studentLoc.acc) : null;
   const locTimestamp = studentLoc.ts ? parseInt(studentLoc.ts, 10) : scanTimestampSec;
-  const locAgeSec = Math.max(0, scanTimestampSec - locTimestamp);
+  const rawAgeSec = scanTimestampSec - locTimestamp;
+  const locAgeSec = rawAgeSec < -60 ? Math.abs(rawAgeSec) : Math.max(0, rawAgeSec);
 
   if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
     return {
@@ -528,14 +529,29 @@ export function verifyGeofenceAndTelemetry({
     };
   }
 
-  // 1. Accuracy Threshold: Reject if accuracy is worse than 50m — UNLESS the entire
-  // uncertainty circle (distance + accuracy) still lies inside the geofence.
-  // In that case the student is provably inside regardless of the accuracy value,
-  // so rejecting would only block genuine indoor users with weaker satellite lock.
+  // 1. Accuracy Threshold: Reject if accuracy is worse than 50m — UNLESS:
+  //    (a) the entire uncertainty circle (distance + accuracy) lies inside the geofence, OR
+  //    (b) the student's pin is inside the geofence radius (or within 75m of the HR desk scanner)
+  //        with indoor Wi-Fi/fused accuracy <= MAX_ALLOWED_GPS_ACCURACY_METERS (150m).
   let certainlyInside = false;
-  if (orgHasCoords && acc !== null && !isNaN(acc)) {
-    const preDistance = calculateHaversineMeters(lat, lng, Number(org.latitude), Number(org.longitude));
-    certainlyInside = preDistance + acc <= radiusMeters;
+  if (acc !== null && !isNaN(acc)) {
+    const nearHrScanner =
+      scannerLoc &&
+      scannerLoc.lat != null &&
+      scannerLoc.lng != null &&
+      !isNaN(Number(scannerLoc.lat)) &&
+      !isNaN(Number(scannerLoc.lng)) &&
+      calculateHaversineMeters(lat, lng, Number(scannerLoc.lat), Number(scannerLoc.lng)) <= 75;
+
+    if (orgHasCoords) {
+      const preDistance = calculateHaversineMeters(lat, lng, Number(org.latitude), Number(org.longitude));
+      certainlyInside =
+        preDistance + acc <= radiusMeters ||
+        (preDistance <= radiusMeters && acc <= MAX_ALLOWED_GPS_ACCURACY_METERS) ||
+        (Boolean(nearHrScanner) && acc <= MAX_ALLOWED_GPS_ACCURACY_METERS);
+    } else if (nearHrScanner && acc <= MAX_ALLOWED_GPS_ACCURACY_METERS) {
+      certainlyInside = true;
+    }
   }
   if (acc !== null && !isNaN(acc) && acc > 50 && !certainlyInside) {
     const debugLog = {
@@ -548,18 +564,18 @@ export function verifyGeofenceAndTelemetry({
       locTimestamp,
       locAgeSec,
       decision: 'REJECTED',
-      reason: `Accuracy ±${Math.round(acc)}m exceeds 50m limit`
+      reason: `Accuracy ±${Math.round(acc)}m exceeds allowed threshold`
     };
     console.log('[GEOFENCE_AUDIT]', JSON.stringify(debugLog, null, 2));
     return {
       valid: false,
       code: 'LOW_GPS_ACCURACY',
-      reason: `GPS accuracy is too low (±${Math.round(acc)}m exceeds the 50m threshold). Please move near a window or outdoors and wait for a precise satellite fix.`
+      reason: `GPS accuracy is too low (±${Math.round(acc)}m). Please move near a window or outdoors and wait for a stronger location fix.`
     };
   }
 
-  // 2. Freshness Check: Reject if location fix is older than 30 seconds
-  if (locAgeSec > 30) {
+  // 2. Freshness Check: Reject if location fix is older than 120 seconds
+  if (locAgeSec > 120) {
     const debugLog = {
       event: 'GEOFENCE_EVALUATION',
       timestamp: new Date().toISOString(),
@@ -570,7 +586,7 @@ export function verifyGeofenceAndTelemetry({
       locTimestamp,
       locAgeSec,
       decision: 'REJECTED',
-      reason: `Location fix is ${locAgeSec}s old (exceeds 30s limit)`
+      reason: `Location fix is ${locAgeSec}s old (exceeds 120s limit)`
     };
     console.log('[GEOFENCE_AUDIT]', JSON.stringify(debugLog, null, 2));
     return {

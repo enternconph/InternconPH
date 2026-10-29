@@ -11,6 +11,8 @@ import { createMeetSpace, isGoogleMeetConfigured, getLastMeetError } from '../se
 import { verifyTotpPayload, verifyGeofenceAndTelemetry, parseAttendancePayload, calculateHaversineMeters } from '../utils/totp.helper.js';
 import { validate, Schemas } from '../middleware/validate.js';
 import { ensureJobTotalSlotsSchema, syncJobPostingSlots } from '../utils/jobSlots.js';
+import { ensureAttendanceSchemaAligned } from '../utils/attendanceSchema.js';
+import { formatDateOnly } from '../utils/time.helper.js';
 
 const router = express.Router();
 router.use(verifyToken);
@@ -2074,6 +2076,8 @@ async function processSingleQrAttendanceScan({
   isOfflineSync = false,
   offlineScannedAtMs = null
 }) {
+  await ensureAttendanceSchemaAligned();
+
   // Step 1: Pre-parse to get student ID (supports compact pipe format, JSON, and base64)
   const data = parseAttendancePayload(qrPayload);
   if (!data) {
@@ -2149,7 +2153,7 @@ async function processSingleQrAttendanceScan({
   const deviceRecord = deviceRows[0];
 
   // Step 3: Cryptographic & Time-bound Verification (ECDSA P-256 signature + TOTP window + Device ID match)
-  const verification = verifyTotpPayload(qrPayload, deviceRecord, deviceRecord.device_token, 35, {
+  const verification = verifyTotpPayload(qrPayload, deviceRecord, deviceRecord.device_token, 65, {
     isOfflineSync,
     offlineScannedAtMs
   });
@@ -2286,8 +2290,10 @@ async function processSingleQrAttendanceScan({
     };
   }
 
-  // Step 7: Record single-use nonce to prevent replay attacks
-  if (verification.nonceHash) {
+  // Step 7: Prepare single-use nonce commit helper (persisted only once attendance write succeeds)
+  const nonceScanMode = effectiveMode === 'offline' ? 'offline' : 'online';
+  const commitQrNonce = async () => {
+    if (!verification.nonceHash) return;
     await pool.query(
       `INSERT IGNORE INTO attendance_qr_nonces (
         nonce_hash, student_id, device_id, qr_timestamp, scan_mode, used_at, expires_at
@@ -2297,10 +2303,10 @@ async function processSingleQrAttendanceScan({
         studentId,
         verification.deviceId,
         verification.timestamp,
-        effectiveMode
+        nonceScanMode
       ]
     );
-  }
+  };
 
   // Update device last_used_at and last known GPS telemetry
   if (geoCheck.latitude != null && geoCheck.longitude != null) {
@@ -2335,9 +2341,7 @@ async function processSingleQrAttendanceScan({
   // CASE 1: Student HAS an active clock-in session -> ACTION: TIME OUT
   if (openLogs.length > 0) {
     const activeLog = openLogs[0];
-    const logDateStr = activeLog.log_date instanceof Date
-      ? activeLog.log_date.toISOString().slice(0, 10)
-      : String(activeLog.log_date).slice(0, 10);
+    const logDateStr = formatDateOnly(activeLog.log_date);
 
     // Fetch custom schedule set by mentor for the clock-in date if exists
     const [dailySchedRows] = await pool.query(
@@ -2377,7 +2381,7 @@ async function processSingleQrAttendanceScan({
       // To prevent overtime manipulation, student is only automatically credited the regular daily shift (up to 8 hrs).
       // Excess overtime hours are marked as pending mentor approval.
       regularHours = Math.min(standardShiftHours, totalElapsedHours);
-      overtimeHours = Math.max(0, Math.round((totalElapsedHours - regularHours) * 100) / 100);
+      overtimeHours = Math.min(999999.99, Math.max(0, Math.round((totalElapsedHours - regularHours) * 100) / 100));
       overtimeStatus = overtimeHours > 0 ? 'pending_approval' : 'none';
     } else if (currentOutMins < schedFinishMins - 15) {
       timeOutStatus = 'early';
@@ -2432,6 +2436,8 @@ async function processSingleQrAttendanceScan({
         activeLog.attendance_id
       ]
     );
+
+    await commitQrNonce();
 
     if (hoursDiff !== 0) {
       await pool.query(
@@ -2656,6 +2662,8 @@ async function processSingleQrAttendanceScan({
     );
   }
 
+  await commitQrNonce();
+
   const statusBadge = timeInStatus === 'on_time' ? 'On-Time' : 'Late';
 
   emitUpdate('attendance_logged', {
@@ -2759,7 +2767,22 @@ router.post('/attendance/scan-qr', requireHROrAdmin, async (req, res) => {
     return res.status(result.httpStatus).json(result.body);
   } catch (error) {
     console.error('QR Attendance Scan Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error processing QR scan: ' + error.message });
+    const parsedFallback = parseAttendancePayload(qr_payload);
+    return res.status(500).json({
+      success: false,
+      code: 'SERVER_ERROR',
+      message: 'Server error processing QR scan: ' + error.message,
+      telemetry: parsedFallback?.loc
+        ? {
+            phone_coords: {
+              latitude: parsedFallback.loc.lat,
+              longitude: parsedFallback.loc.lng,
+              accuracy_meters: parsedFallback.loc.acc ?? null,
+              timestamp: parsedFallback.loc.ts ?? parsedFallback.ts ?? null
+            }
+          }
+        : undefined
+    });
   }
 });
 
@@ -3212,7 +3235,7 @@ router.post('/interns/:ojtId/time-out', async (req, res) => {
     let existing = openRows;
     let targetDate = currentDate;
     if (existing.length > 0) {
-      targetDate = existing[0].log_date instanceof Date ? existing[0].log_date.toISOString().slice(0, 10) : String(existing[0].log_date).slice(0, 10);
+      targetDate = formatDateOnly(existing[0].log_date);
     } else {
       const [todayRows] = await connection.query(
         'SELECT * FROM ojt_attendance_logs WHERE ojt_id = ? AND log_date = ?',
@@ -5350,6 +5373,7 @@ router.post('/complaints', async (req, res) => {
 // GET /api/org/schedules - Fetch interns, daily schedule overrides, pending overtime logs, and student requests
 router.get('/schedules', async (req, res) => {
   try {
+    await ensureAttendanceSchemaAligned();
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
 
@@ -5361,7 +5385,7 @@ router.get('/schedules', async (req, res) => {
       SELECT o.ojt_id, o.student_id, o.mentor_id, o.status,
              o.scheduled_start_time, o.scheduled_finish_time,
              o.rendered_hours, COALESCE(o.required_hours, s.required_ojt_hours, 600) as required_hours,
-             s.student_number, s.first_name, s.last_name, s.avatar_url, s.contact_number,
+             s.student_number, s.first_name, s.last_name, u.avatar_url, s.contact_number,
              p.program_name,
              COALESCE(
                (
@@ -5437,9 +5461,10 @@ router.get('/schedules', async (req, res) => {
     let reqQuery = `
       SELECT sr.*, 
              DATE_FORMAT(sr.schedule_date, '%Y-%m-%d') as schedule_date_str,
-             s.first_name, s.last_name, s.student_number, s.avatar_url
+             s.first_name, s.last_name, s.student_number, u.avatar_url
       FROM student_schedule_requests sr
       JOIN students s ON sr.student_id = s.student_id
+      LEFT JOIN users u ON s.user_id = u.user_id
       WHERE sr.student_id IN (?)
     `;
     const reqQueryParams = [filteredStudentIds];
@@ -5455,11 +5480,12 @@ router.get('/schedules', async (req, res) => {
     let attQuery = `
       SELECT att.*, 
              DATE_FORMAT(att.log_date, '%Y-%m-%d') as log_date_str,
-             s.first_name, s.last_name, s.student_number, s.avatar_url,
+             s.first_name, s.last_name, s.student_number, u.avatar_url,
              o.scheduled_start_time as default_start_time,
              o.scheduled_finish_time as default_finish_time
       FROM ojt_attendance_logs att
       JOIN students s ON att.student_id = s.student_id
+      LEFT JOIN users u ON s.user_id = u.user_id
       JOIN ojt_records o ON att.ojt_id = o.ojt_id
       WHERE att.student_id IN (?)
     `;
@@ -5493,6 +5519,7 @@ router.get('/schedules', async (req, res) => {
 // POST /api/org/schedules/batch - Mentor/HR sets or updates daily work schedules for one or more interns across multiple dates
 router.post('/schedules/batch', async (req, res) => {
   try {
+    await ensureAttendanceSchemaAligned();
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
 
@@ -5546,19 +5573,22 @@ router.post('/schedules/batch', async (req, res) => {
         // Upsert into ojt_daily_schedules
         await pool.query(
           `INSERT INTO ojt_daily_schedules (
-             student_id, schedule_date, start_time, finish_time,
-             is_overtime_allowed, max_overtime_hours, notes, created_by,
+             ojt_id, student_id, organization_id, schedule_date, start_time, finish_time,
+             is_overtime_allowed, max_overtime_hours, notes, updated_by_user_id, created_by,
              created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
            ON DUPLICATE KEY UPDATE
+             ojt_id = COALESCE(VALUES(ojt_id), ojt_id),
+             organization_id = COALESCE(VALUES(organization_id), organization_id),
              start_time = VALUES(start_time),
              finish_time = VALUES(finish_time),
              is_overtime_allowed = VALUES(is_overtime_allowed),
              max_overtime_hours = VALUES(max_overtime_hours),
              notes = VALUES(notes),
+             updated_by_user_id = VALUES(updated_by_user_id),
              created_by = VALUES(created_by),
              updated_at = NOW()`,
-          [sId, dateKey, start_time, finish_time, otAllowed, maxOt, noteText, req.user.user_id]
+          [intern.ojt_id, sId, org.organization_id, dateKey, start_time, finish_time, otAllowed, maxOt, noteText, req.user.user_id, req.user.user_id]
         );
         upsertCount++;
 
@@ -5684,6 +5714,7 @@ router.post('/schedules/batch', async (req, res) => {
 // PUT /api/org/schedules/attendance/:attendanceId - Mentor directly adjusts recorded Time-In and Time-Out for a specific date
 router.put('/schedules/attendance/:attendanceId', async (req, res) => {
   try {
+    await ensureAttendanceSchemaAligned();
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
 
@@ -5832,6 +5863,7 @@ router.put('/schedules/attendance/:attendanceId', async (req, res) => {
 // POST /api/org/schedules/overtime/:attendanceId/approve - Mentor approves or rejects pending overtime hours
 router.post('/schedules/overtime/:attendanceId/approve', async (req, res) => {
   try {
+    await ensureAttendanceSchemaAligned();
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
 
@@ -5942,6 +5974,7 @@ router.post('/schedules/overtime/:attendanceId/approve', async (req, res) => {
 // POST /api/org/schedules/requests/:requestId/respond - Mentor responds to a student schedule update request
 router.post('/schedules/requests/:requestId/respond', async (req, res) => {
   try {
+    await ensureAttendanceSchemaAligned();
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
 
@@ -5978,16 +6011,19 @@ router.post('/schedules/requests/:requestId/respond', async (req, res) => {
       // 2. Apply schedule to ojt_daily_schedules
       await pool.query(
         `INSERT INTO ojt_daily_schedules (
-           student_id, schedule_date, start_time, finish_time, is_overtime_allowed, notes, created_by, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, 1, ?, ?, NOW(), NOW())
+           ojt_id, student_id, organization_id, schedule_date, start_time, finish_time, is_overtime_allowed, notes, updated_by_user_id, created_by, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, NOW(), NOW())
          ON DUPLICATE KEY UPDATE
+           ojt_id = COALESCE(VALUES(ojt_id), ojt_id),
+           organization_id = COALESCE(VALUES(organization_id), organization_id),
            start_time = VALUES(start_time),
            finish_time = VALUES(finish_time),
            is_overtime_allowed = 1,
            notes = VALUES(notes),
+           updated_by_user_id = VALUES(updated_by_user_id),
            created_by = VALUES(created_by),
            updated_at = NOW()`,
-        [request.student_id, request.schedule_date_str, request.requested_start_time, request.requested_finish_time, mentor_notes || `Approved student schedule request: ${request.reason || ''}`, req.user.user_id]
+        [request.ojt_id, request.student_id, org.organization_id, request.schedule_date_str, request.requested_start_time, request.requested_finish_time, mentor_notes || `Approved student schedule request: ${request.reason || ''}`, req.user.user_id, req.user.user_id]
       );
 
       // 3. Reconcile attendance on that date if student already logged attendance!

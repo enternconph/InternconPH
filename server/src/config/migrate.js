@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from './db.js';
+import { ensureAttendanceSchemaAligned } from '../utils/attendanceSchema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1594,90 +1595,7 @@ export async function runMigrations() {
 
     // 37. Intern Daily Work Schedule Overrides & Student Schedule Requests Schema
     try {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS ojt_daily_schedules (
-          schedule_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-          ojt_id BIGINT UNSIGNED NOT NULL,
-          student_id BIGINT UNSIGNED NOT NULL,
-          organization_id BIGINT UNSIGNED NOT NULL,
-          mentor_id BIGINT UNSIGNED NULL,
-          schedule_date DATE NOT NULL,
-          start_time TIME NOT NULL DEFAULT '08:00:00',
-          finish_time TIME NOT NULL DEFAULT '17:00:00',
-          is_overtime_allowed TINYINT(1) NOT NULL DEFAULT 0,
-          max_overtime_hours DECIMAL(4,2) NOT NULL DEFAULT 0.00,
-          notes TEXT NULL,
-          updated_by_user_id BIGINT UNSIGNED NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          UNIQUE KEY uq_student_date (student_id, schedule_date),
-          INDEX idx_ojt_date (ojt_id, schedule_date),
-          INDEX idx_mentor (mentor_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-      `);
-
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS student_schedule_requests (
-          request_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-          ojt_id BIGINT UNSIGNED NOT NULL,
-          student_id BIGINT UNSIGNED NOT NULL,
-          organization_id BIGINT UNSIGNED NOT NULL,
-          mentor_id BIGINT UNSIGNED NULL,
-          schedule_date DATE NOT NULL,
-          requested_start_time TIME NOT NULL,
-          requested_finish_time TIME NOT NULL,
-          reason TEXT NOT NULL,
-          status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
-          mentor_response_notes TEXT NULL,
-          reviewed_by BIGINT UNSIGNED NULL,
-          reviewed_at DATETIME NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          INDEX idx_student_status (student_id, status),
-          INDEX idx_mentor_status (mentor_id, status),
-          INDEX idx_org_date (organization_id, schedule_date)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-      `);
-
-      // Add overtime tracking & scheduled shift columns to ojt_attendance_logs
-      const [attCols] = await pool.query('DESCRIBE ojt_attendance_logs');
-      const attColNames = attCols.map(c => c.Field);
-
-      if (!attColNames.includes('overtime_status')) {
-        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN overtime_status ENUM('none', 'pending_approval', 'approved', 'rejected') NOT NULL DEFAULT 'none' AFTER time_out_status");
-        console.log('[Migration] Added overtime_status to ojt_attendance_logs');
-      }
-
-      if (!attColNames.includes('overtime_hours')) {
-        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN overtime_hours DECIMAL(4,2) NOT NULL DEFAULT 0.00 AFTER overtime_status");
-        console.log('[Migration] Added overtime_hours to ojt_attendance_logs');
-      }
-
-      if (!attColNames.includes('regular_hours')) {
-        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN regular_hours DECIMAL(4,2) NOT NULL DEFAULT 0.00 AFTER overtime_hours");
-        console.log('[Migration] Added regular_hours to ojt_attendance_logs');
-      }
-
-      if (!attColNames.includes('overtime_approved_by')) {
-        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN overtime_approved_by BIGINT UNSIGNED NULL AFTER regular_hours");
-        console.log('[Migration] Added overtime_approved_by to ojt_attendance_logs');
-      }
-
-      if (!attColNames.includes('overtime_approved_at')) {
-        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN overtime_approved_at DATETIME NULL AFTER overtime_approved_by");
-        console.log('[Migration] Added overtime_approved_at to ojt_attendance_logs');
-      }
-
-      if (!attColNames.includes('scheduled_start_time')) {
-        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN scheduled_start_time TIME NULL AFTER overtime_approved_at");
-        console.log('[Migration] Added scheduled_start_time to ojt_attendance_logs');
-      }
-
-      if (!attColNames.includes('scheduled_finish_time')) {
-        await pool.query("ALTER TABLE ojt_attendance_logs ADD COLUMN scheduled_finish_time TIME NULL AFTER scheduled_start_time");
-        console.log('[Migration] Added scheduled_finish_time to ojt_attendance_logs');
-      }
-
+      await ensureAttendanceSchemaAligned();
       console.log('[Migration] Intern work schedule & overtime approval schema ready.');
     } catch (schedMigErr) {
       console.warn('[Migration Warning] Schedule schema migration warning:', schedMigErr.message);

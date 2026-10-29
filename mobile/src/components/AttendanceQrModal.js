@@ -122,13 +122,16 @@ export default function AttendanceQrModal({ visible, onClose }) {
           if (!pos || !pos.coords) return;
           setGpsErrorStatus(null);
           const nowMs = Date.now();
-          // Clamp future timestamps (GPS clock vs phone clock skew) to "now"
-          const fixMs = pos.timestamp ? Math.min(Number(pos.timestamp), nowMs) : nowMs;
+          const rawTs = Number(pos.timestamp);
+          // Guard against Android boot-relative elapsedRealtime timestamps (< 1.7e12) or stale cached OS fixes (> 25s)
+          const isValidEpochMs = !isNaN(rawTs) && rawTs > 1700000000000 && rawTs <= nowMs + 60000;
+          const fixMs = isValidEpochMs && nowMs - rawTs <= 25000 ? rawTs : nowMs;
           const loc = {
             lat: Number(pos.coords.latitude.toFixed(6)),
             lng: Number(pos.coords.longitude.toFixed(6)),
             acc: Math.round(pos.coords.accuracy || 0),
-            ts: Math.floor(fixMs / 1000)
+            ts: Math.floor(fixMs / 1000),
+            receivedAtMs: nowMs
           };
 
           // Ignore out-of-order fixes older than the one we already hold
@@ -535,9 +538,16 @@ export default function AttendanceQrModal({ visible, onClose }) {
   ) => {
     if (!sec || !sId || !dTok) return;
     try {
+      const nowMs = Date.now();
+      const baseLoc = gpsCoordsRef.current;
+      const activeLoc =
+        baseLoc && (!baseLoc.receivedAtMs || nowMs - baseLoc.receivedAtMs <= 120000)
+          ? { ...baseLoc, ts: Math.floor(nowMs / 1000) }
+          : baseLoc;
+      qrLocRef.current = activeLoc;
       const freshPayload = await buildDynamicQrPayload(sec, sId, dTok, {
         mode,
-        location: (qrLocRef.current = gpsCoordsRef.current)
+        location: activeLoc
       });
       setQrPayload(freshPayload);
       if (resetProgress) {
