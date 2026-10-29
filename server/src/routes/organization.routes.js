@@ -8,7 +8,7 @@ import { isValidEmail, normalizeEmail } from '../utils/email.js';
 import multer from 'multer';
 import { getUploadStorage, processUploadedFile, formatFilePath } from '../utils/upload.helper.js';
 import { createMeetSpace, isGoogleMeetConfigured } from '../services/googleMeet.js';
-import { verifyTotpPayload, verifyGeofenceAndTelemetry, parseAttendancePayload } from '../utils/totp.helper.js';
+import { verifyTotpPayload, verifyGeofenceAndTelemetry, parseAttendancePayload, calculateHaversineMeters } from '../utils/totp.helper.js';
 import { validate, Schemas } from '../middleware/validate.js';
 
 const router = express.Router();
@@ -1832,6 +1832,36 @@ async function processSingleQrAttendanceScan({
     };
   }
 
+  const getTelemetryData = (geo = null, presentedVerification = null) => {
+    const phoneLoc = geo?.latitude != null ? { lat: geo.latitude, lng: geo.longitude, acc: geo.accuracyMeters, ts: presentedVerification?.timestamp } : (data?.loc || presentedVerification?.location || null);
+    const orgLat = (org && org.latitude != null && !isNaN(Number(org.latitude))) ? Number(org.latitude) : null;
+    const orgLng = (org && org.longitude != null && !isNaN(Number(org.longitude))) ? Number(org.longitude) : null;
+    const orgRadius = Number(org?.geofence_radius_meters) || 100;
+
+    let dist = geo?.distanceMeters ?? null;
+    if (dist === null && phoneLoc?.lat != null && orgLat !== null) {
+      dist = Math.round(calculateHaversineMeters(phoneLoc.lat, phoneLoc.lng, orgLat, orgLng) * 10) / 10;
+    }
+
+    return {
+      phone_coords: phoneLoc ? {
+        latitude: phoneLoc.lat,
+        longitude: phoneLoc.lng,
+        accuracy_meters: phoneLoc.acc ?? null,
+        timestamp: phoneLoc.ts ?? null
+      } : null,
+      org_coords: orgLat !== null ? {
+        latitude: orgLat,
+        longitude: orgLng,
+        radius_meters: orgRadius
+      } : null,
+      distance_meters: dist,
+      effective_distance_meters: geo?.effectiveDistanceMeters ?? null,
+      device_type: data?.mode === 'web_unverified' ? 'desktop_browser' : 'mobile',
+      mode: data?.mode || presentedVerification?.mode || 'online'
+    };
+  };
+
   // Step 2: Fetch student's registered device, public key, and cryptographic secret
   const [deviceRows] = await pool.query(
     `SELECT sad.*, s.first_name, s.last_name, s.student_number, u.avatar_url, s.user_id as student_user_id
@@ -1878,7 +1908,8 @@ async function processSingleQrAttendanceScan({
       body: {
         success: false,
         code: verification.code || 'VERIFICATION_FAILED',
-        message: verification.reason
+        message: verification.reason,
+        telemetry: getTelemetryData(null, verification)
       }
     };
   }
@@ -1895,7 +1926,8 @@ async function processSingleQrAttendanceScan({
         body: {
           success: false,
           code: 'REPLAY_DETECTED',
-          message: 'Replay Blocked: This QR code has already been scanned and used. A fresh dynamic QR code is required.'
+          message: 'Replay Blocked: This QR code has already been scanned and used. A fresh dynamic QR code is required.',
+          telemetry: getTelemetryData(null, verification)
         }
       };
     }
@@ -1940,7 +1972,8 @@ async function processSingleQrAttendanceScan({
       body: {
         success: false,
         code: 'UNAUTHORIZED_PLACEMENT',
-        message: `${deviceRecord.first_name} ${deviceRecord.last_name} is not currently enrolled in an ongoing OJT placement with your organization.`
+        message: `${deviceRecord.first_name} ${deviceRecord.last_name} is not currently enrolled in an ongoing OJT placement with your organization.`,
+        telemetry: getTelemetryData(null, verification)
       }
     };
   }
@@ -1984,7 +2017,8 @@ async function processSingleQrAttendanceScan({
         code: geoCheck.code || 'OUTSIDE_GEOFENCE',
         distance_meters: geoCheck.distanceMeters,
         allowed_radius_meters: geoCheck.radiusMeters,
-        message: geoCheck.reason
+        message: geoCheck.reason,
+        telemetry: getTelemetryData(geoCheck, verification)
       }
     };
   }
@@ -2161,7 +2195,8 @@ async function processSingleQrAttendanceScan({
           distance_meters: geoCheck.distanceMeters,
           is_offline_synced: isOfflineSync,
           mentor_name: ojt.mentor_first_name ? `${ojt.mentor_first_name} ${ojt.mentor_last_name}` : (ojt.supervisor_name || 'Assigned Mentor')
-        }
+        },
+        telemetry: getTelemetryData(geoCheck, verification)
       }
     };
   }
@@ -2302,7 +2337,8 @@ async function processSingleQrAttendanceScan({
           is_offline_synced: isOfflineSync,
           status: 'verified',
           mentor_name: ojt.mentor_first_name ? `${ojt.mentor_first_name} ${ojt.mentor_last_name}` : (ojt.supervisor_name || 'Assigned Mentor')
-        }
+        },
+        telemetry: getTelemetryData(geoCheck, verification)
       }
     };
   }
@@ -2323,7 +2359,8 @@ async function processSingleQrAttendanceScan({
     body: {
       success: false,
       code: 'SHIFT_ALREADY_COMPLETED',
-      message: `${deviceRecord.first_name} ${deviceRecord.last_name} has already completed their shift today (In: ${todayLog.time_in.slice(0, 5)}, Out: ${todayLog.time_out.slice(0, 5)}, ${todayLog.hours_rendered || 0} hrs). Additional clocking is not required.`
+      message: `${deviceRecord.first_name} ${deviceRecord.last_name} has already completed their shift today (In: ${todayLog.time_in.slice(0, 5)}, Out: ${todayLog.time_out.slice(0, 5)}, ${todayLog.hours_rendered || 0} hrs). Additional clocking is not required.`,
+      telemetry: getTelemetryData(geoCheck, verification)
     }
   };
 }

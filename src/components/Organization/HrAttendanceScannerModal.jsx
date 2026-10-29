@@ -22,6 +22,63 @@ function writeOfflineQueue(items) {
   } catch (_) {}
 }
 
+function parseQrTelemetry(payload) {
+  if (!payload || typeof payload !== 'string') return null;
+  let loc = null;
+  let studentId = null;
+  let mode = 'online';
+
+  if (payload.startsWith('v2|')) {
+    const parts = payload.split('|');
+    studentId = parts[1] || null;
+    mode = parts[6] || 'online';
+    const locStr = parts[7] || '';
+    if (locStr && locStr !== 'none') {
+      const p = locStr.split(',');
+      if (p.length >= 2 && !isNaN(Number(p[0])) && !isNaN(Number(p[1]))) {
+        loc = {
+          lat: Number(Number(p[0]).toFixed(6)),
+          lng: Number(Number(p[1]).toFixed(6)),
+          acc: p[2] && !isNaN(Number(p[2])) ? Math.round(Number(p[2])) : null,
+          ts: p[3] && !isNaN(Number(p[3])) ? parseInt(p[3], 10) : null
+        };
+      }
+    }
+  } else if (payload.startsWith('{')) {
+    try {
+      const json = JSON.parse(payload);
+      studentId = json.sid || json.student_id;
+      mode = json.mode || 'online';
+      if (json.loc) {
+        loc = {
+          lat: Number(Number(json.loc.lat).toFixed(6)),
+          lng: Number(Number(json.loc.lng).toFixed(6)),
+          acc: json.loc.acc != null ? Math.round(Number(json.loc.acc)) : null,
+          ts: json.loc.ts != null ? parseInt(json.loc.ts, 10) : null
+        };
+      }
+    } catch (_) {}
+  }
+
+  return { studentId, mode, loc, rawPayload: payload };
+}
+
+function calcHaversineDistance(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(Number(lat2) - Number(lat1));
+  const dLon = toRad(Number(lon2) - Number(lon1));
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(Number(lat1))) *
+      Math.cos(toRad(Number(lat2))) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
 export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSuccess }) {
   const [scannerActive, setScannerActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
@@ -620,12 +677,73 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
     });
   };
 
+  const buildScanTelemetry = (parsedQr, serverRes) => {
+    const serverPhoneCoords = serverRes?.telemetry?.phone_coords;
+    const phoneCoords = serverPhoneCoords ? {
+      lat: serverPhoneCoords.latitude,
+      lng: serverPhoneCoords.longitude,
+      acc: serverPhoneCoords.accuracy_meters,
+      ts: serverPhoneCoords.timestamp
+    } : (parsedQr?.loc || null);
+
+    const serverOrgCoords = serverRes?.telemetry?.org_coords;
+    const orgCoords = serverOrgCoords ? {
+      lat: serverOrgCoords.latitude,
+      lng: serverOrgCoords.longitude,
+      radius: serverOrgCoords.radius_meters
+    } : (geofenceConfig?.latitude != null && geofenceConfig?.longitude != null ? {
+      lat: Number(geofenceConfig.latitude),
+      lng: Number(geofenceConfig.longitude),
+      radius: Number(geofenceConfig.geofence_radius_meters) || 100
+    } : null);
+
+    let distanceMeters = serverRes?.distance_meters ?? serverRes?.telemetry?.distance_meters ?? null;
+    if (distanceMeters === null && phoneCoords?.lat != null && orgCoords?.lat != null) {
+      distanceMeters = calcHaversineDistance(phoneCoords.lat, phoneCoords.lng, orgCoords.lat, orgCoords.lng);
+    }
+
+    let source = 'VERIFIED';
+    let diagnosisText = '';
+
+    if (!phoneCoords) {
+      source = 'APP';
+      diagnosisText =
+        'Error Origin: MOBILE APP. The student phone encoded "loc = none" into the QR payload. High-accuracy GPS was not locked or location permissions were restricted in the phone app.';
+    } else if (phoneCoords.acc && phoneCoords.acc > 50) {
+      source = 'APP';
+      diagnosisText =
+        `Error Origin: MOBILE APP. The phone reported a GPS accuracy of ±${phoneCoords.acc}m, which exceeds the allowed 50m limit. The student should step near an open area or window to get satellite lock.`;
+    } else if (orgCoords && distanceMeters !== null && distanceMeters > orgCoords.radius) {
+      source = 'WEB';
+      diagnosisText =
+        `Discrepancy Origin: WEB / SAVED OFFICE COORDINATES. The mobile app IS successfully transmitting valid GPS coordinates (${phoneCoords.lat.toFixed(6)}, ${phoneCoords.lng.toFixed(6)}), but the measured distance is ${Math.round(distanceMeters)}m away from the saved office pin (${orgCoords.radius}m radius). Click "Auto-Calibrate GPS" or "Edit Coords" above to update the workplace coordinates to your current position.`;
+    } else if (serverRes?.success) {
+      source = 'VERIFIED';
+      diagnosisText =
+        `GPS Telemetry Verified: Phone is at (${phoneCoords.lat.toFixed(6)}, ${phoneCoords.lng.toFixed(6)}), ${distanceMeters !== null ? Math.round(distanceMeters) + 'm from office' : 'inside perimeter'}.`;
+    } else {
+      source = 'APP';
+      diagnosisText = serverRes?.message || 'Verification issue.';
+    }
+
+    return {
+      phoneCoords,
+      orgCoords,
+      distanceMeters,
+      source,
+      diagnosisText,
+      mode: parsedQr?.mode || 'online'
+    };
+  };
+
   // Process QR Payload via backend API (or local offline queue if HR terminal is offline)
   const handleProcessPayload = async (rawPayload) => {
     if (isProcessingRef.current || isStoppingRef.current) return;
     isProcessingRef.current = true;
     setLoading(true);
     setScanResult(null);
+
+    const parsedQr = parseQrTelemetry(rawPayload);
 
     if (resetTimerRef.current) {
       clearTimeout(resetTimerRef.current);
@@ -657,6 +775,8 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
         scanner_acc: curScannerGps?.acc
       });
 
+      const telemetry = buildScanTelemetry(parsedQr, res);
+
       if (res.isNetworkError) {
         queueOfflineScanLocally(rawPayload, currentTimeLabel);
       } else if (res.status === 404) {
@@ -667,7 +787,8 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
           'The attendance QR scanner service is currently updating. Please wait ~15-30 seconds and try again.';
         setScanResult({
           type: 'error',
-          message: errMsg
+          message: errMsg,
+          telemetry
         });
         setScanFeedback({ status: 'failed', action: null, message: errMsg });
         addRecentScan({
@@ -686,7 +807,8 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
           type: 'success',
           action: res.action,
           message: res.message,
-          data: res.data
+          data: res.data,
+          telemetry
         });
         setScanFeedback({
           status: 'success',
@@ -727,7 +849,8 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
         const failMsg = res.message || 'Verification failed. QR is invalid or expired.';
         setScanResult({
           type: 'error',
-          message: failMsg
+          message: failMsg,
+          telemetry
         });
         setScanFeedback({ status: 'failed', action: null, message: failMsg });
         addRecentScan({
@@ -744,9 +867,11 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
         playAttendanceErrorChime();
       } catch (_) {}
       const netMsg = err.message || 'Network error scanning QR code.';
+      const telemetry = buildScanTelemetry(parsedQr, null);
       setScanResult({
         type: 'error',
-        message: netMsg
+        message: netMsg,
+        telemetry
       });
       setScanFeedback({ status: 'failed', action: null, message: netMsg });
       addRecentScan({
@@ -1527,6 +1652,69 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
                         : 'Shift completed. Rendered training hours have been automatically recorded and credited.'}
                     </span>
                   </div>
+
+                  {/* GPS TELEMETRY & SOURCE INSPECTION CARD */}
+                  {scanResult.telemetry && (
+                    <div className="p-3.5 rounded-xl bg-surface border border-outline-variant text-xs space-y-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between font-bold border-b border-outline-variant/60 pb-2">
+                        <span className="flex items-center gap-1.5 text-on-surface">
+                          <span className="material-symbols-outlined text-[16px] text-vibrant-orange">radar</span>
+                          <span>GPS Telemetry & Source Inspector</span>
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase font-mono border bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200">
+                          ✅ GPS Co-Location Verified
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                        <div className="p-2.5 rounded-lg bg-surface-container-low border border-outline-variant/60">
+                          <span className="font-bold text-on-surface-variant flex items-center gap-1 mb-1">
+                            <span className="material-symbols-outlined text-[14px] text-primary">smartphone</span>
+                            <span>Phone GPS (Decoded from QR):</span>
+                          </span>
+                          {scanResult.telemetry.phoneCoords ? (
+                            <div className="space-y-0.5 font-mono">
+                              <div>Lat: <span className="font-bold text-on-surface">{scanResult.telemetry.phoneCoords.lat}</span></div>
+                              <div>Lng: <span className="font-bold text-on-surface">{scanResult.telemetry.phoneCoords.lng}</span></div>
+                              <div>Accuracy: <span className="font-bold text-emerald-600">±{scanResult.telemetry.phoneCoords.acc ?? '?'}m</span></div>
+                            </div>
+                          ) : (
+                            <div className="text-on-surface-variant font-mono">Co-located (Offline Vault / Terminal)</div>
+                          )}
+                        </div>
+
+                        <div className="p-2.5 rounded-lg bg-surface-container-low border border-outline-variant/60">
+                          <span className="font-bold text-on-surface-variant flex items-center gap-1 mb-1">
+                            <span className="material-symbols-outlined text-[14px] text-vibrant-orange">apartment</span>
+                            <span>Organization Office Pin:</span>
+                          </span>
+                          {scanResult.telemetry.orgCoords ? (
+                            <div className="space-y-0.5 font-mono">
+                              <div>Lat: <span className="font-bold text-on-surface">{scanResult.telemetry.orgCoords.lat}</span></div>
+                              <div>Lng: <span className="font-bold text-on-surface">{scanResult.telemetry.orgCoords.lng}</span></div>
+                              <div>Allowed Radius: <span className="font-bold text-on-surface">{scanResult.telemetry.orgCoords.radius}m</span></div>
+                            </div>
+                          ) : (
+                            <div className="text-on-surface-variant font-mono">No Geofence Set (Disabled)</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {scanResult.telemetry.distanceMeters !== null && (
+                        <div className="p-2 rounded-lg bg-surface-container flex items-center justify-between text-[11px]">
+                          <span className="text-on-surface-variant font-medium">Computed Haversine Distance:</span>
+                          <span className="font-bold font-mono text-emerald-600">
+                            {scanResult.telemetry.distanceMeters} meters (Within Radius)
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="p-2.5 rounded-lg bg-surface-container-low border border-outline-variant/40 text-[11px] leading-relaxed">
+                        <span className="font-bold text-on-surface">Inspector Verdict: </span>
+                        <span className="text-on-surface-variant">{scanResult.telemetry.diagnosisText}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1596,6 +1784,92 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
                       </div>
                     </div>
                   </div>
+
+                  {/* GPS TELEMETRY & SOURCE INSPECTION CARD */}
+                  {scanResult.telemetry && (
+                    <div className="p-3.5 rounded-xl bg-surface border-2 border-outline-variant text-xs space-y-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between font-bold border-b border-outline-variant/60 pb-2">
+                        <span className="flex items-center gap-1.5 text-on-surface">
+                          <span className="material-symbols-outlined text-[16px] text-vibrant-orange">radar</span>
+                          <span>GPS Telemetry & Source Inspector</span>
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase font-mono border ${
+                          scanResult.telemetry.source === 'APP'
+                            ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200'
+                            : scanResult.telemetry.source === 'WEB'
+                            ? 'bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950 dark:text-blue-200'
+                            : 'bg-red-100 text-red-900 border-red-300 dark:bg-red-950 dark:text-red-200'
+                        }`}>
+                          {scanResult.telemetry.source === 'APP'
+                            ? '📱 Problem in Mobile App'
+                            : scanResult.telemetry.source === 'WEB'
+                            ? '🏢 Problem in Web / Org Pin'
+                            : '⚠️ Verification Rejected'}
+                        </span>
+                      </div>
+
+                      {/* Location Comparison Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                        <div className="p-2.5 rounded-lg bg-surface-container-low border border-outline-variant/60">
+                          <span className="font-bold text-on-surface-variant flex items-center gap-1 mb-1">
+                            <span className="material-symbols-outlined text-[14px] text-primary">smartphone</span>
+                            <span>Phone GPS (Decoded from QR):</span>
+                          </span>
+                          {scanResult.telemetry.phoneCoords ? (
+                            <div className="space-y-0.5 font-mono">
+                              <div>Lat: <span className="font-bold text-on-surface">{scanResult.telemetry.phoneCoords.lat}</span></div>
+                              <div>Lng: <span className="font-bold text-on-surface">{scanResult.telemetry.phoneCoords.lng}</span></div>
+                              <div>Accuracy: <span className="font-bold text-emerald-600">±{scanResult.telemetry.phoneCoords.acc ?? '?'}m</span></div>
+                            </div>
+                          ) : (
+                            <div className="text-red-600 font-bold font-mono">
+                              ⚠️ No GPS in QR (loc = 'none')
+                              <div className="text-[10px] text-on-surface-variant font-normal mt-0.5">
+                                The phone generated this QR code without satellite coordinates.
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="p-2.5 rounded-lg bg-surface-container-low border border-outline-variant/60">
+                          <span className="font-bold text-on-surface-variant flex items-center gap-1 mb-1">
+                            <span className="material-symbols-outlined text-[14px] text-vibrant-orange">apartment</span>
+                            <span>Organization Office Pin:</span>
+                          </span>
+                          {scanResult.telemetry.orgCoords ? (
+                            <div className="space-y-0.5 font-mono">
+                              <div>Lat: <span className="font-bold text-on-surface">{scanResult.telemetry.orgCoords.lat}</span></div>
+                              <div>Lng: <span className="font-bold text-on-surface">{scanResult.telemetry.orgCoords.lng}</span></div>
+                              <div>Allowed Radius: <span className="font-bold text-on-surface">{scanResult.telemetry.orgCoords.radius}m</span></div>
+                            </div>
+                          ) : (
+                            <div className="text-on-surface-variant font-mono">No Geofence Set (Disabled)</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Measured Distance */}
+                      {scanResult.telemetry.distanceMeters !== null && (
+                        <div className="p-2 rounded-lg bg-surface-container flex items-center justify-between text-[11px]">
+                          <span className="text-on-surface-variant font-medium">Computed Haversine Distance:</span>
+                          <span className="font-bold font-mono text-on-surface">
+                            {scanResult.telemetry.distanceMeters} meters
+                            {scanResult.telemetry.orgCoords?.radius && (
+                              <span className={scanResult.telemetry.distanceMeters <= scanResult.telemetry.orgCoords.radius ? ' text-emerald-600' : ' text-red-600 font-bold'}>
+                                {' '}({scanResult.telemetry.distanceMeters <= scanResult.telemetry.orgCoords.radius ? 'Within Radius' : 'Outside Allowed Perimeter'})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Root Cause Conclusion */}
+                      <div className="p-2.5 rounded-lg bg-surface-container-low border border-outline-variant/40 text-[11px] leading-relaxed">
+                        <span className="font-bold text-on-surface">Inspector Verdict: </span>
+                        <span className="text-on-surface-variant">{scanResult.telemetry.diagnosisText}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
