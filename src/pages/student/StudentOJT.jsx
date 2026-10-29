@@ -1250,7 +1250,7 @@ export default function StudentOJT() {
                   <h3 className="font-bold text-base sm:text-lg text-on-surface">Workplace Mentor Performance Ratings</h3>
                 </div>
                 <p className="text-xs text-on-surface-variant">
-                  Formal competencies, task performance, and professional diligence ratings submitted by your Workplace Mentor.
+                  Formal Midterm (at 50% required hours) and Final (at 100% required hours) competency ratings submitted by your Workplace Mentor.
                 </p>
               </div>
 
@@ -1266,6 +1266,89 @@ export default function StudentOJT() {
                 </div>
               )}
             </div>
+
+            {/* 2-Stage Evaluation Milestone Tracker */}
+            {(() => {
+              const halfHours = reqHours / 2;
+              const midtermEval = evaluationsList.find((e) => e.evaluation_period === 'midterm');
+              const finalEval = evaluationsList.find((e) => (e.evaluation_period || 'final') === 'final');
+              const reachedHalf = doneHours >= halfHours;
+              const reachedFull = doneHours >= reqHours || activeRecord?.status === 'completed';
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-emerald-500/20">
+                  <div className={`p-3.5 rounded-xl border ${
+                    midtermEval
+                      ? 'bg-purple-500/10 border-purple-500/30'
+                      : reachedHalf
+                      ? 'bg-amber-500/10 border-amber-500/40'
+                      : 'bg-surface border-outline-variant'
+                  }`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-black text-on-surface flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px] text-purple-600 dark:text-purple-400">timelapse</span>
+                        <span>1. Midterm Evaluation (50%)</span>
+                      </span>
+                      {midtermEval ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-600 text-white">
+                          Rated {midtermEval.rating} / 5.0 ★
+                        </span>
+                      ) : reachedHalf ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                          Awaiting Mentor
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-container-high text-on-surface-variant">
+                          Unlocks at {halfHours} hrs
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant mt-1">
+                      {midtermEval
+                        ? `Completed on ${new Date(midtermEval.evaluated_at || midtermEval.created_at).toLocaleDateString()}`
+                        : reachedHalf
+                        ? `You reached ${doneHours}/${reqHours} hrs (50%+ milestone)! Your mentor has been notified to evaluate your Midterm.`
+                        : `Render ${Math.max(0, Math.ceil((halfHours - doneHours) * 10) / 10)} more hrs (${doneHours}/${halfHours} hrs) to unlock Midterm Evaluation.`}
+                    </p>
+                  </div>
+
+                  <div className={`p-3.5 rounded-xl border ${
+                    finalEval
+                      ? 'bg-emerald-500/10 border-emerald-500/30'
+                      : reachedFull
+                      ? 'bg-amber-500/10 border-amber-500/40'
+                      : 'bg-surface border-outline-variant'
+                  }`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-black text-on-surface flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px] text-emerald-600 dark:text-emerald-400">workspace_premium</span>
+                        <span>2. Final Evaluation (100%)</span>
+                      </span>
+                      {finalEval ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                          Rated {finalEval.rating} / 5.0 ★
+                        </span>
+                      ) : reachedFull ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                          Awaiting Mentor
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-container-high text-on-surface-variant">
+                          Unlocks at {reqHours} hrs
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant mt-1">
+                      {finalEval
+                        ? `Finalized on ${new Date(finalEval.evaluated_at || finalEval.created_at).toLocaleDateString()} • Certificate Issued`
+                        : reachedFull
+                        ? 'You fulfilled 100% of required OJT hours! Awaiting final completion rating from your mentor.'
+                        : `Render ${remainingHours} more hrs (${doneHours}/${reqHours} hrs) to unlock Final Evaluation & OJT Certificate.`}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Evaluations Grid */}

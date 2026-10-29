@@ -18,6 +18,7 @@ import { sendDeviceRebindOtpEmail, maskEmailAddress, DEFAULT_OTP_RECIPIENT_EMAIL
 import { getClientIp } from '../utils/session.js';
 import { ensureJobTotalSlotsSchema, syncJobPostingSlots } from '../utils/jobSlots.js';
 import { getPHTNow, parseTimeToMinutes, formatDateOnly, formatTime12 } from '../utils/time.helper.js';
+import { checkEvaluationMilestones } from '../services/certificate.service.js';
 
 const portfolioFileFilter = (req, file, cb) => {
   const allowedExts = /jpeg|jpg|png|webp|gif|svg|bmp|tiff|heic|heif|pdf|doc|docx|odt|rtf|pages|ppt|pptx|odp|key|xls|xlsx|csv|ods|numbers|txt|zip|rar|7z|tar|gz|json|xml|md|sql/i;
@@ -2053,6 +2054,7 @@ router.post('/attendance/clock-out', async (req, res) => {
     if (hoursDiff !== 0) {
       await pool.query('UPDATE ojt_records SET rendered_hours = GREATEST(0, rendered_hours + ?), updated_at = NOW() WHERE ojt_id = ?', [hoursDiff, log.ojt_id]);
       await pool.query('UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?', [hoursDiff, student.student_id]);
+      if (hoursDiff > 0) await checkEvaluationMilestones(log.ojt_id);
     }
 
     emitUpdate('attendance_logged', { ojt_id: log.ojt_id, student_id: student.student_id, organization_id: log.organization_id });

@@ -391,14 +391,31 @@ export default function InstMonitoring() {
                               <span>{done} / {req} hrs</span>
                               <span className="text-vibrant-orange">{pct}%</span>
                             </div>
-                            <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
+                            <div className="relative w-full bg-surface-container h-2 rounded-full overflow-hidden">
                               <div className="bg-vibrant-orange h-full rounded-full transition-all" style={{ width: `${pct}%` }}></div>
+                              <div className="absolute top-0 bottom-0 w-0.5 bg-purple-500/70" style={{ left: '50%' }} title="50% Midterm Milestone" />
                             </div>
-                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
-                              d.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-green-tint text-pinoy-green'
-                            }`}>
-                              {d.status || 'ongoing'}
-                            </span>
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
+                                d.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-green-tint text-pinoy-green'
+                              }`}>
+                                {d.status || 'ongoing'}
+                              </span>
+                              {d.midterm_rating != null ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/25">
+                                  Midterm: {d.midterm_rating}★
+                                </span>
+                              ) : done >= req / 2 && d.final_rating == null ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                                  Midterm Due
+                                </span>
+                              ) : null}
+                              {d.final_rating != null && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25">
+                                  Final: {d.final_rating}★
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="py-2.5 px-3">

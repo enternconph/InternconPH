@@ -3,7 +3,7 @@ import pool from '../config/db.js';
 import { verifyToken, requireRole } from '../middleware/auth.js';
 import { emitUpdate } from '../config/socket.js';
 import { sendNotification } from '../utils/notification.helper.js';
-import { checkAndGenerateCertificate } from '../services/certificate.service.js';
+import { checkAndGenerateCertificate, checkEvaluationMilestones } from '../services/certificate.service.js';
 import { isValidEmail, normalizeEmail } from '../utils/email.js';
 import multer from 'multer';
 import { getUploadStorage, processUploadedFile, formatFilePath } from '../utils/upload.helper.js';
@@ -183,7 +183,9 @@ router.get('/dashboard', async (req, res) => {
               mentor_os.user_id as mentor_user_id,
               mentor_os.first_name as mentor_first_name,
               mentor_os.last_name as mentor_last_name,
-              (SELECT COUNT(*) FROM ojt_performance_records opr WHERE opr.ojt_id = o.ojt_id) as evaluation_count
+              (SELECT COUNT(*) FROM ojt_performance_records opr WHERE opr.ojt_id = o.ojt_id) as evaluation_count,
+              (SELECT opr.rating FROM ojt_performance_records opr WHERE opr.ojt_id = o.ojt_id AND opr.evaluation_period = 'midterm' LIMIT 1) as midterm_rating,
+              (SELECT opr.rating FROM ojt_performance_records opr WHERE opr.ojt_id = o.ojt_id AND opr.evaluation_period = 'final' LIMIT 1) as final_rating
        FROM ojt_records o
        JOIN students s ON o.student_id = s.student_id
        LEFT JOIN programs p ON s.program_id = p.program_id
@@ -1592,6 +1594,8 @@ router.get('/interns', async (req, res) => {
               COALESCE(mentor_os.first_name, '') as mentor_first_name,
               COALESCE(mentor_os.last_name, '') as mentor_last_name,
               mentor_os.job_title as mentor_title,
+              (SELECT opr.rating FROM ojt_performance_records opr WHERE opr.ojt_id = o.ojt_id AND opr.evaluation_period = 'midterm' LIMIT 1) as midterm_rating,
+              (SELECT opr.rating FROM ojt_performance_records opr WHERE opr.ojt_id = o.ojt_id AND opr.evaluation_period = 'final' LIMIT 1) as final_rating,
               today_att.attendance_id as today_attendance_id,
               today_att.time_in as today_time_in,
               today_att.time_in_status as today_time_in_status,
@@ -1860,12 +1864,10 @@ router.post('/interns/:ojtId/hours', async (req, res) => {
 
     await connection.commit();
 
-    if (newRendered >= (parseFloat(ojt.required_hours) || 600)) {
-      try {
-        await checkAndGenerateCertificate(ojtId);
-      } catch (certErr) {
-        console.error('Auto certificate generation check error:', certErr);
-      }
+    try {
+      await checkEvaluationMilestones(ojtId);
+    } catch (certErr) {
+      console.error('Milestone / auto certificate check error:', certErr);
     }
 
     emitUpdate('ojt_updated', { ojt_id: ojtId, organization_id: org.organization_id, hours_added: hoursToAdd });
@@ -2450,6 +2452,9 @@ async function processSingleQrAttendanceScan({
            AND required_ojt_hours > 0 AND completed_ojt_hours >= required_ojt_hours`,
         [studentId]
       );
+      if (hoursDiff > 0) {
+        await checkEvaluationMilestones(ojt.ojt_id);
+      }
     }
 
     emitUpdate('attendance_logged', {
@@ -2939,6 +2944,10 @@ router.post('/attendance/:id/verify', validate(Schemas.verifyAttendance), async 
 
     await connection.commit();
 
+    if (action === 'verify') {
+      await checkEvaluationMilestones(att.ojt_id);
+    }
+
     emitUpdate('attendance_verified', { ojt_id: att.ojt_id, student_id: att.student_id, organization_id: org.organization_id });
 
     if (att.student_user_id) {
@@ -3293,6 +3302,10 @@ router.post('/interns/:ojtId/time-out', async (req, res) => {
 
     await connection.commit();
 
+    if (hoursDiff > 0) {
+      await checkEvaluationMilestones(ojtId);
+    }
+
     emitUpdate('attendance_verified', { ojt_id: ojt.ojt_id, student_id: ojt.student_id, organization_id: org.organization_id });
 
     const statusMap = {
@@ -3383,36 +3396,82 @@ router.get('/evaluations', async (req, res) => {
     const isMentor = isMentorUser(req, org);
     const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
 
-    let internsQuery = `
-      SELECT DISTINCT o.ojt_id, o.rendered_hours, o.required_hours, o.status as ojt_status,
+    let allInternsQuery = `
+      SELECT DISTINCT o.ojt_id,
+              o.rendered_hours,
+              COALESCE(o.required_hours, s.required_ojt_hours, p.required_ojt_hours, 600) as required_hours,
+              COALESCE(o.required_hours, s.required_ojt_hours, p.required_ojt_hours, 600) as required_ojt_hours,
+              o.status as ojt_status,
               s.student_id, s.first_name, s.last_name, s.student_number, p.program_name,
               inst.institution_name,
               COALESCE(mentor_os.first_name, '') as mentor_first_name,
-              COALESCE(mentor_os.last_name, '') as mentor_last_name
+              COALESCE(mentor_os.last_name, '') as mentor_last_name,
+              (SELECT opr.record_id FROM ojt_performance_records opr WHERE opr.ojt_id = o.ojt_id AND opr.evaluation_period = 'midterm' LIMIT 1) as midterm_eval_id,
+              (SELECT opr.rating FROM ojt_performance_records opr WHERE opr.ojt_id = o.ojt_id AND opr.evaluation_period = 'midterm' LIMIT 1) as midterm_rating,
+              (SELECT opr.record_id FROM ojt_performance_records opr WHERE opr.ojt_id = o.ojt_id AND opr.evaluation_period = 'final' LIMIT 1) as final_eval_id,
+              (SELECT opr.rating FROM ojt_performance_records opr WHERE opr.ojt_id = o.ojt_id AND opr.evaluation_period = 'final' LIMIT 1) as final_rating
        FROM ojt_records o
        JOIN students s ON o.student_id = s.student_id
        LEFT JOIN programs p ON s.program_id = p.program_id
        LEFT JOIN institutions inst ON s.institution_id = inst.institution_id
        LEFT JOIN organization_staff mentor_os ON o.mentor_id = mentor_os.org_staff_id
        WHERE o.organization_id = ?
-         AND (o.rendered_hours >= o.required_hours OR o.status = 'completed')
-         AND o.ojt_id NOT IN (SELECT ojt_id FROM ojt_performance_records)
     `;
     const internsParams = [org.organization_id];
 
     if (isMentor && mentor) {
-      internsQuery += ' AND (o.mentor_id = ? OR (o.mentor_id IS NULL AND (o.supervisor_name = ? OR o.supervisor_name = ?)))';
+      allInternsQuery += ` AND (o.mentor_id = ? OR o.supervisor_name = ? OR o.supervisor_name = ? OR (o.mentor_id IS NULL AND (o.supervisor_name IS NULL OR o.supervisor_name = '')))`;
       internsParams.push(mentor.org_staff_id, `${mentor.first_name} ${mentor.last_name}`, mentor.first_name);
     }
 
-    internsQuery += ' ORDER BY s.last_name ASC, s.first_name ASC';
+    allInternsQuery += ' ORDER BY s.last_name ASC, s.first_name ASC';
 
-    const [interns] = await pool.query(internsQuery, internsParams);
+    const [rawInterns] = await pool.query(allInternsQuery, internsParams);
 
-    // Finalized evaluations submitted by this organization
+    const interns = [];
+    const upcomingInterns = [];
+
+    for (const row of rawInterns) {
+      const reqHours = Number(row.required_hours) || 600;
+      const renHours = Number(row.rendered_hours) || 0;
+      const halfHours = reqHours / 2;
+      const hasMidterm = Boolean(row.midterm_eval_id);
+      const hasFinal = Boolean(row.final_eval_id);
+
+      const reachedMidterm = renHours >= halfHours || row.ojt_status === 'completed';
+      const reachedFinal = renHours >= reqHours || row.ojt_status === 'completed';
+
+      const eligibleMidterm = reachedMidterm && !hasMidterm && !hasFinal;
+      const eligibleFinal = reachedFinal && !hasFinal;
+
+      const enriched = {
+        ...row,
+        required_hours: reqHours,
+        required_ojt_hours: reqHours,
+        rendered_hours: renHours,
+        midterm_threshold_hours: halfHours,
+        has_midterm_eval: hasMidterm,
+        has_final_eval: hasFinal,
+        eligible_midterm: eligibleMidterm,
+        eligible_final: eligibleFinal,
+        next_required_period: eligibleMidterm ? 'midterm' : (eligibleFinal ? 'final' : null)
+      };
+
+      if (eligibleMidterm || eligibleFinal) {
+        interns.push(enriched);
+        // Ensure milestone notifications were dispatched if intern crossed 50% or 100%
+        checkEvaluationMilestones(row.ojt_id).catch(() => {});
+      } else if (!hasFinal && row.ojt_status !== 'completed') {
+        upcomingInterns.push(enriched);
+      }
+    }
+
+    // Finalized evaluations submitted by this organization (both midterm and final)
     let evalQuery = `
       SELECT r.*, s.first_name, s.last_name, s.student_number, p.program_name,
-              o.rendered_hours, o.required_hours, o.start_date, o.end_date,
+              o.rendered_hours,
+              COALESCE(o.required_hours, s.required_ojt_hours, p.required_ojt_hours, 600) as required_hours,
+              o.start_date, o.end_date,
               cert.certificate_code, cert.certificate_id,
               COALESCE(eval_os.first_name, '') as evaluator_first_name,
               COALESCE(eval_os.last_name, '') as evaluator_last_name
@@ -3420,14 +3479,14 @@ router.get('/evaluations', async (req, res) => {
        JOIN ojt_records o ON r.ojt_id = o.ojt_id
        JOIN students s ON o.student_id = s.student_id
        LEFT JOIN programs p ON s.program_id = p.program_id
-       LEFT JOIN ojt_certificates cert ON o.ojt_id = cert.ojt_id
+       LEFT JOIN ojt_certificates cert ON o.ojt_id = cert.ojt_id AND r.evaluation_period = 'final'
        LEFT JOIN organization_staff eval_os ON r.evaluator_id = eval_os.user_id
        WHERE o.organization_id = ?
     `;
     const evalParams = [org.organization_id];
 
     if (isMentor && mentor) {
-      evalQuery += ' AND (o.mentor_id = ? OR r.evaluator_id = ? OR (o.mentor_id IS NULL AND (o.supervisor_name = ? OR o.supervisor_name = ?)))';
+      evalQuery += ` AND (o.mentor_id = ? OR r.evaluator_id = ? OR o.supervisor_name = ? OR o.supervisor_name = ? OR (o.mentor_id IS NULL AND (o.supervisor_name IS NULL OR o.supervisor_name = '')))`;
       evalParams.push(mentor.org_staff_id, req.user.user_id, `${mentor.first_name} ${mentor.last_name}`, mentor.first_name);
     }
 
@@ -3435,7 +3494,7 @@ router.get('/evaluations', async (req, res) => {
 
     const [evaluations] = await pool.query(evalQuery, evalParams);
 
-    return res.json({ success: true, data: { interns, evaluations } });
+    return res.json({ success: true, data: { interns, upcomingInterns, evaluations } });
   } catch (error) {
     console.error('Fetch evaluations error:', error);
     return res.status(500).json({ success: false, message: 'Could not fetch evaluations.' });
@@ -3449,6 +3508,8 @@ router.post('/evaluations', async (req, res) => {
   if ((!ojt_id && !student_id) || !rating) {
     return res.status(400).json({ success: false, message: 'Intern selection and rating are required.' });
   }
+
+  const period = evaluation_period === 'midterm' ? 'midterm' : 'final';
 
   try {
     const org = await getOrgId(req.user.user_id);
@@ -3470,9 +3531,13 @@ router.post('/evaluations', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Active OJT record not found for this intern.' });
     }
 
-    // 1. Fetch OJT record and validate completion eligibility
+    // 1. Fetch OJT record and effective required hours
     const [ojtRows] = await pool.query(
-      'SELECT * FROM ojt_records WHERE ojt_id = ? AND organization_id = ?',
+      `SELECT o.*, COALESCE(o.required_hours, s.required_ojt_hours, p.required_ojt_hours, 600) as effective_required_hours
+       FROM ojt_records o
+       JOIN students s ON o.student_id = s.student_id
+       LEFT JOIN programs p ON s.program_id = p.program_id
+       WHERE o.ojt_id = ? AND o.organization_id = ?`,
       [targetOjtId, org.organization_id]
     );
     if (!ojtRows.length) {
@@ -3481,11 +3546,13 @@ router.post('/evaluations', async (req, res) => {
 
     const ojtRecord = ojtRows[0];
 
-    // Enforce workplace mentor isolation: Only assigned mentor can evaluate
+    // Enforce workplace mentor isolation: Assigned mentor (or unassigned org intern)
     if (isMentor && mentor) {
+      const isUnassigned = !ojtRecord.mentor_id && (!ojtRecord.supervisor_name || ojtRecord.supervisor_name === '');
       const isAssigned = (ojtRecord.mentor_id && ojtRecord.mentor_id === mentor.org_staff_id) ||
                          (ojtRecord.supervisor_name === `${mentor.first_name} ${mentor.last_name}`) ||
-                         (ojtRecord.supervisor_name === mentor.first_name);
+                         (ojtRecord.supervisor_name === mentor.first_name) ||
+                         isUnassigned;
       if (!isAssigned) {
         return res.status(403).json({
           success: false,
@@ -3493,26 +3560,58 @@ router.post('/evaluations', async (req, res) => {
         });
       }
     }
+
     const renHours = Number(ojtRecord.rendered_hours) || 0;
-    const reqHours = Number(ojtRecord.required_hours) || 600;
+    const reqHours = Number(ojtRecord.effective_required_hours) || 600;
+    const halfHours = reqHours / 2;
 
-    if (renHours < reqHours && ojtRecord.status !== 'completed') {
-      return res.status(400).json({
-        success: false,
-        message: `Evaluation rejected: Intern has only rendered ${renHours} of ${reqHours} required hours. An organization can only evaluate a student after the student has completed their required OJT hours.`
-      });
-    }
-
-    // 2. Strict One-Time Evaluation Rule: Cannot evaluate more than once or edit submitted evaluations
-    const [prevEval] = await pool.query(
-      'SELECT record_id FROM ojt_performance_records WHERE ojt_id = ?',
+    // 2. Check existing evaluations for this OJT record
+    const [prevEvals] = await pool.query(
+      'SELECT record_id, evaluation_period FROM ojt_performance_records WHERE ojt_id = ?',
       [targetOjtId]
     );
-    if (prevEval.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'An evaluation has already been submitted for this intern. Evaluations are permanently finalized and cannot be modified or re-submitted.'
-      });
+    const hasMidterm = prevEvals.some((e) => e.evaluation_period === 'midterm');
+    const hasFinal = prevEvals.some((e) => e.evaluation_period === 'final');
+
+    if (period === 'midterm') {
+      if (hasMidterm) {
+        return res.status(400).json({
+          success: false,
+          message: 'A Midterm Performance Evaluation has already been submitted for this intern. Submitted scorecards are permanently finalized.'
+        });
+      }
+      if (hasFinal) {
+        return res.status(400).json({
+          success: false,
+          message: 'A Final Performance Evaluation has already been finalized for this intern.'
+        });
+      }
+      if (renHours < halfHours && ojtRecord.status !== 'completed') {
+        return res.status(400).json({
+          success: false,
+          message: `Midterm Evaluation rejected: Intern has rendered ${renHours} of ${reqHours} required hours. Mentors can evaluate Midterm once the student reaches half of the required time (${halfHours} hours).`
+        });
+      }
+    } else {
+      // period === 'final'
+      if (hasFinal) {
+        return res.status(400).json({
+          success: false,
+          message: 'A Final Performance Evaluation has already been submitted for this intern. Evaluations are permanently finalized and cannot be modified.'
+        });
+      }
+      if (!hasMidterm) {
+        return res.status(400).json({
+          success: false,
+          message: 'Midterm Evaluation Required First: Please submit the Midterm Performance Evaluation for this intern before submitting their Final Completion Evaluation.'
+        });
+      }
+      if (renHours < reqHours && ojtRecord.status !== 'completed') {
+        return res.status(400).json({
+          success: false,
+          message: `Final Evaluation rejected: Intern has rendered ${renHours} of ${reqHours} required hours. Final evaluation requires 100% completion of required OJT hours.`
+        });
+      }
     }
 
     const scoreDetailsObj = score_details || {
@@ -3525,23 +3624,35 @@ router.post('/evaluations', async (req, res) => {
       score_learning: Number(req.body.score_learning) || 5
     };
     const scoreDetailsJson = JSON.stringify(scoreDetailsObj);
+    const numericRating = parseFloat(rating) || 5.0;
 
     // Insert permanent evaluation record
     await pool.query(
       `INSERT INTO ojt_performance_records (ojt_id, evaluator_id, evaluation_period, rating, comments, score_details, evaluated_at)
        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-      [targetOjtId, req.user.user_id, evaluation_period || 'final', parseFloat(rating) || 5.0, comments || '', scoreDetailsJson]
+      [targetOjtId, req.user.user_id, period, numericRating, comments || '', scoreDetailsJson]
     );
 
-    // Ensure OJT status is marked completed
-    await pool.query(
-      'UPDATE ojt_records SET status = \'completed\', end_date = COALESCE(end_date, CURRENT_DATE), updated_at = NOW() WHERE ojt_id = ?',
-      [targetOjtId]
-    );
+    if (period === 'final') {
+      // Ensure OJT status is marked completed upon Final Evaluation
+      await pool.query(
+        "UPDATE ojt_records SET status = 'completed', mentor_id = COALESCE(mentor_id, ?), end_date = COALESCE(end_date, CURRENT_DATE), updated_at = NOW() WHERE ojt_id = ?",
+        [mentor ? mentor.org_staff_id : ojtRecord.mentor_id, targetOjtId]
+      );
+    } else if (mentor && !ojtRecord.mentor_id) {
+      await pool.query(
+        'UPDATE ojt_records SET mentor_id = COALESCE(mentor_id, ?), updated_at = NOW() WHERE ojt_id = ?',
+        [mentor.org_staff_id, targetOjtId]
+      );
+    }
 
-    emitUpdate('evaluation_submitted', { ojt_id: targetOjtId, organization_id: org.organization_id });
+    emitUpdate('evaluation_submitted', {
+      ojt_id: targetOjtId,
+      evaluation_period: period,
+      organization_id: org.organization_id
+    });
 
-    // Look up student details to send evaluation received notification
+    // Notify the student
     try {
       const [ojtStudentRows] = await pool.query(
         `SELECT o.student_id, s.user_id as student_user_id, s.first_name, s.last_name, ho.organization_name
@@ -3553,14 +3664,17 @@ router.post('/evaluations', async (req, res) => {
       );
       if (ojtStudentRows.length > 0 && ojtStudentRows[0].student_user_id) {
         const stu = ojtStudentRows[0];
+        const isMidterm = period === 'midterm';
         await sendNotification({
           userId: stu.student_user_id,
           senderId: req.user.user_id,
           senderName: stu.organization_name || 'Workplace Mentor',
-          title: 'Performance Evaluation Received',
-          message: `${stu.organization_name || 'Your host organization'} has submitted your official performance evaluation (Rating: ${parseFloat(rating) || 5.0}/5.0). View your evaluation and OJT records now.`,
+          title: isMidterm ? 'Midterm Performance Evaluation Received' : 'Final Performance Evaluation Received',
+          message: isMidterm
+            ? `${stu.organization_name || 'Your Workplace Mentor'} has submitted your Midterm Performance Evaluation (Rating: ${numericRating.toFixed(1)}/5.0 ★). View your competency breakdown now.`
+            : `${stu.organization_name || 'Your Workplace Mentor'} has submitted your Final End-of-OJT Evaluation (Rating: ${numericRating.toFixed(1)}/5.0 ★). View your evaluation and OJT records now.`,
           type: 'ojt',
-          link: '/dashboard/student/ojt',
+          link: '/dashboard/student/ojt?tab=evaluations',
           relatedType: 'evaluation',
           relatedId: targetOjtId
         });
@@ -3569,17 +3683,22 @@ router.post('/evaluations', async (req, res) => {
       console.warn('[EvaluationNotification Warning] Failed to notify student:', evalNotifErr.message);
     }
 
-    // 3. Automatically trigger OJT Certificate Generation & Career Portfolio insertion
+    // 3. Automatically trigger OJT Certificate Generation ONLY on Final Evaluation
     let certResult = null;
-    try {
-      certResult = await checkAndGenerateCertificate(targetOjtId);
-    } catch (certError) {
-      console.error('Automatic certificate generation error:', certError);
+    if (period === 'final') {
+      try {
+        certResult = await checkAndGenerateCertificate(targetOjtId);
+      } catch (certError) {
+        console.error('Automatic certificate generation error:', certError);
+      }
     }
 
     return res.json({
       success: true,
-      message: 'Performance Evaluation submitted and permanently finalized! Official OJT Certificate has been automatically generated.',
+      evaluation_period: period,
+      message: period === 'midterm'
+        ? `Midterm Performance Evaluation (${numericRating.toFixed(1)} / 5.0 ★) submitted and finalized! Final Evaluation will unlock once the intern completes 100% of required OJT hours.`
+        : 'Final Performance Evaluation submitted and permanently finalized! Official OJT Certificate has been automatically generated.',
       certificate: certResult?.certificate || null
     });
   } catch (error) {
@@ -5515,6 +5634,7 @@ router.post('/schedules/batch', async (req, res) => {
             if (hoursDiff !== 0) {
               await pool.query('UPDATE ojt_records SET rendered_hours = GREATEST(0, rendered_hours + ?), updated_at = NOW() WHERE ojt_id = ?', [hoursDiff, log.ojt_id]);
               await pool.query('UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?', [hoursDiff, sId]);
+              if (hoursDiff > 0) await checkEvaluationMilestones(log.ojt_id);
             }
           } else {
             await pool.query(
@@ -5668,6 +5788,7 @@ router.put('/schedules/attendance/:attendanceId', async (req, res) => {
     if (hoursDiff !== 0) {
       await pool.query('UPDATE ojt_records SET rendered_hours = GREATEST(0, rendered_hours + ?), updated_at = NOW() WHERE ojt_id = ?', [hoursDiff, log.ojt_id]);
       await pool.query('UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?', [hoursDiff, log.student_id]);
+      if (hoursDiff > 0) await checkEvaluationMilestones(log.ojt_id);
     }
 
     emitUpdate('attendance_logged', {
@@ -5758,6 +5879,7 @@ router.post('/schedules/overtime/:attendanceId/approve', async (req, res) => {
       if (hoursDiff !== 0) {
         await pool.query('UPDATE ojt_records SET rendered_hours = GREATEST(0, rendered_hours + ?), updated_at = NOW() WHERE ojt_id = ?', [hoursDiff, log.ojt_id]);
         await pool.query('UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?', [hoursDiff, log.student_id]);
+        if (hoursDiff > 0) await checkEvaluationMilestones(log.ojt_id);
       }
 
       if (log.student_user_id) {
@@ -5935,6 +6057,7 @@ router.post('/schedules/requests/:requestId/respond', async (req, res) => {
           if (hoursDiff !== 0) {
             await pool.query('UPDATE ojt_records SET rendered_hours = GREATEST(0, rendered_hours + ?), updated_at = NOW() WHERE ojt_id = ?', [hoursDiff, log.ojt_id]);
             await pool.query('UPDATE students SET completed_ojt_hours = GREATEST(0, completed_ojt_hours + ?), updated_at = NOW() WHERE student_id = ?', [hoursDiff, request.student_id]);
+            if (hoursDiff > 0) await checkEvaluationMilestones(log.ojt_id);
           }
         }
       }

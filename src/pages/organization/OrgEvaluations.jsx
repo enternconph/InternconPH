@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 
@@ -94,14 +95,18 @@ const parseScoreDetails = (details, fallbackRating = 5) => {
 };
 
 export default function OrgEvaluations() {
-  const [data, setData] = useState({ interns: [], evaluations: [] });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [data, setData] = useState({ interns: [], upcomingInterns: [], evaluations: [] });
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [selectedEvaluation, setSelectedEvaluation] = useState(null);
+  const [historyFilter, setHistoryFilter] = useState('all'); // 'all' | 'midterm' | 'final'
 
   const [formData, setFormData] = useState({
     student_id: '',
-    evaluation_period: 'final',
+    evaluation_period: 'midterm',
     score_instructions: 5,
     score_appearance: 5,
     score_attitude: 5,
@@ -113,18 +118,56 @@ export default function OrgEvaluations() {
     recommend_for_hire: true
   });
 
+  const selectInternAndPeriod = useCallback((intern, preferredPeriod = null) => {
+    if (!intern) {
+      setFormData((prev) => ({ ...prev, student_id: '', evaluation_period: 'midterm' }));
+      return;
+    }
+    const reqHours = Number(intern.required_hours || intern.required_ojt_hours) || 600;
+    const renHours = Number(intern.rendered_hours) || 0;
+    const hasMidterm = Boolean(intern.has_midterm_eval || intern.midterm_eval_id);
+    const canFinal = hasMidterm && (renHours >= reqHours || intern.ojt_status === 'completed');
+
+    let nextPeriod = !hasMidterm ? 'midterm' : 'final';
+    if (preferredPeriod === 'final' && canFinal) {
+      nextPeriod = 'final';
+    } else if (preferredPeriod === 'midterm' && !hasMidterm) {
+      nextPeriod = 'midterm';
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      student_id: String(intern.student_id),
+      evaluation_period: nextPeriod
+    }));
+  }, []);
+
   const fetchEvaluations = useCallback(async () => {
     try {
       const res = await api.get('/org/evaluations');
       if (res.success && res.data) {
-        setData(res.data);
+        const nextData = {
+          interns: res.data.interns || [],
+          upcomingInterns: res.data.upcomingInterns || [],
+          evaluations: res.data.evaluations || []
+        };
+        setData(nextData);
+
+        const paramStudentId = searchParams.get('student_id');
+        const paramPeriod = searchParams.get('period');
+        if (paramStudentId) {
+          const target = nextData.interns.find((i) => String(i.student_id) === String(paramStudentId));
+          if (target) {
+            selectInternAndPeriod(target, paramPeriod);
+          }
+        }
       }
     } catch (err) {
       console.error('Fetch evaluations error:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchParams, selectInternAndPeriod]);
 
   useEffect(() => {
     fetchEvaluations();
@@ -132,6 +175,27 @@ export default function OrgEvaluations() {
 
   // Real-time synchronization
   useRealtimeRefresh(fetchEvaluations);
+
+  const selectedIntern = useMemo(() => {
+    if (!formData.student_id) return null;
+    return data.interns?.find((i) => String(i.student_id) === String(formData.student_id)) || null;
+  }, [data.interns, formData.student_id]);
+
+  const midtermDueInterns = useMemo(
+    () => (data.interns || []).filter((i) => !i.has_midterm_eval && !i.midterm_eval_id),
+    [data.interns]
+  );
+
+  const finalDueInterns = useMemo(
+    () => (data.interns || []).filter((i) => (i.has_midterm_eval || i.midterm_eval_id) && !i.has_final_eval && !i.final_eval_id),
+    [data.interns]
+  );
+
+  const filteredEvaluations = useMemo(() => {
+    const list = data.evaluations || [];
+    if (historyFilter === 'all') return list;
+    return list.filter((ev) => (ev.evaluation_period || 'final') === historyFilter);
+  }, [data.evaluations, historyFilter]);
 
   const overallRating = (
     (formData.score_instructions +
@@ -144,60 +208,172 @@ export default function OrgEvaluations() {
     7
   ).toFixed(1);
 
+  const handleInternSelectChange = (studentIdValue) => {
+    setErrorMessage('');
+    if (!studentIdValue) {
+      setFormData((prev) => ({ ...prev, student_id: '', evaluation_period: 'midterm' }));
+      return;
+    }
+    const found = (data.interns || []).find((i) => String(i.student_id) === String(studentIdValue));
+    selectInternAndPeriod(found);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage('');
-    const payload = {
-      ...formData,
-      rating: parseFloat(overallRating),
-      score_details: {
-        score_instructions: formData.score_instructions,
-        score_appearance: formData.score_appearance,
-        score_attitude: formData.score_attitude,
-        score_interpersonal: formData.score_interpersonal,
-        score_quality: formData.score_quality,
-        score_motivation: formData.score_motivation,
-        score_learning: formData.score_learning
-      }
-    };
+    setErrorMessage('');
+    setSubmitting(true);
 
-    const res = await api.post('/org/evaluations', payload);
-    if (res.success) {
-      setMessage(`Evaluation submitted successfully with Overall Composite Score: ${overallRating} / 5.0!`);
-      setFormData({
-        student_id: '',
-        evaluation_period: 'final',
-        score_instructions: 5,
-        score_appearance: 5,
-        score_attitude: 5,
-        score_interpersonal: 5,
-        score_quality: 5,
-        score_motivation: 5,
-        score_learning: 5,
-        comments: '',
-        recommend_for_hire: true
-      });
-      fetchEvaluations();
-    } else {
-      alert(res.message || 'Submission failed.');
+    try {
+      const payload = {
+        ...formData,
+        rating: parseFloat(overallRating),
+        score_details: {
+          score_instructions: formData.score_instructions,
+          score_appearance: formData.score_appearance,
+          score_attitude: formData.score_attitude,
+          score_interpersonal: formData.score_interpersonal,
+          score_quality: formData.score_quality,
+          score_motivation: formData.score_motivation,
+          score_learning: formData.score_learning
+        }
+      };
+
+      const res = await api.post('/org/evaluations', payload);
+      if (res.success) {
+        const periodLabel = formData.evaluation_period === 'midterm' ? 'Midterm' : 'Final';
+        setMessage(
+          res.message ||
+            `${periodLabel} Evaluation submitted successfully with Overall Composite Score: ${overallRating} / 5.0!`
+        );
+        if (searchParams.has('student_id') || searchParams.has('period')) {
+          setSearchParams({}, { replace: true });
+        }
+        setFormData({
+          student_id: '',
+          evaluation_period: 'midterm',
+          score_instructions: 5,
+          score_appearance: 5,
+          score_attitude: 5,
+          score_interpersonal: 5,
+          score_quality: 5,
+          score_motivation: 5,
+          score_learning: 5,
+          comments: '',
+          recommend_for_hire: true
+        });
+        await fetchEvaluations();
+      } else {
+        setErrorMessage(res.message || 'Submission failed.');
+      }
+    } catch (err) {
+      setErrorMessage(err.response?.data?.message || err.message || 'Submission failed.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
     <div className="p-4 md:p-8 space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-on-surface">Workplace Performance Evaluations</h1>
           <p className="text-sm text-on-surface-variant">
-            Evaluate OJT interns across 7 comprehensive competency standards. These verified scores can be viewed by academic institutions and future employers when students apply for jobs.
+            Evaluate OJT interns at their <strong>Midterm (50% required hours)</strong> and <strong>Final (100% required hours)</strong> milestones across 7 competency standards.
           </p>
         </div>
       </div>
 
       {message && (
-        <div className="p-3 bg-green-tint text-pinoy-green rounded-lg text-xs font-bold flex items-center gap-2">
+        <div className="p-3.5 bg-green-tint text-pinoy-green border border-pinoy-green/30 rounded-xl text-xs font-bold flex items-center gap-2">
           <span className="material-symbols-outlined text-[18px]">check_circle</span>
           <span>{message}</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="p-3.5 bg-error-container text-error border border-error/30 rounded-xl text-xs font-bold flex items-center gap-2">
+          <span className="material-symbols-outlined text-[18px]">error</span>
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {/* Action-Required Alert Banner when interns reach 50% (Midterm) or 100% (Final) */}
+      {(midtermDueInterns.length > 0 || finalDueInterns.length > 0) && (
+        <div className="p-4 rounded-2xl border-2 border-purple-500/40 bg-purple-500/10 space-y-3 shadow-xs">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex items-start gap-2.5">
+              <span className="material-symbols-outlined text-purple-600 dark:text-purple-300 text-[22px] mt-0.5">
+                notification_important
+              </span>
+              <div>
+                <h3 className="text-sm font-black text-on-surface">
+                  Action Required: Intern Milestone Evaluations Pending ({midtermDueInterns.length + finalDueInterns.length})
+                </h3>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  {midtermDueInterns.length > 0 && (
+                    <span>
+                      <strong className="text-purple-700 dark:text-purple-300">{midtermDueInterns.length} intern(s)</strong> have reached at least half (50%) of their required OJT hours and need a <strong>Midterm Evaluation</strong>.{' '}
+                    </span>
+                  )}
+                  {finalDueInterns.length > 0 && (
+                    <span>
+                      <strong className="text-emerald-700 dark:text-emerald-300">{finalDueInterns.length} intern(s)</strong> have completed 100% of their required OJT hours and need a <strong>Final Evaluation</strong>.
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {midtermDueInterns.map((intern) => {
+              const reqH = Number(intern.required_hours || intern.required_ojt_hours) || 600;
+              const renH = Number(intern.rendered_hours) || 0;
+              const pct = Math.min(100, Math.round((renH / reqH) * 100));
+              const isSelected = String(formData.student_id) === String(intern.student_id);
+              return (
+                <button
+                  key={`mid-${intern.ojt_id}`}
+                  type="button"
+                  onClick={() => selectInternAndPeriod(intern, 'midterm')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                    isSelected
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                      : 'bg-surface hover:bg-purple-500/15 text-purple-800 dark:text-purple-200 border-purple-500/40'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[15px]">timelapse</span>
+                  <span>
+                    {intern.first_name} {intern.last_name} ({renH}/{reqH}h • {pct}%) — Evaluate Midterm
+                  </span>
+                </button>
+              );
+            })}
+
+            {finalDueInterns.map((intern) => {
+              const reqH = Number(intern.required_hours || intern.required_ojt_hours) || 600;
+              const renH = Number(intern.rendered_hours) || 0;
+              const isSelected = String(formData.student_id) === String(intern.student_id);
+              return (
+                <button
+                  key={`fin-${intern.ojt_id}`}
+                  type="button"
+                  onClick={() => selectInternAndPeriod(intern, 'final')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                    isSelected
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-surface hover:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-500/40'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[15px]">workspace_premium</span>
+                  <span>
+                    {intern.first_name} {intern.last_name} ({renH}/{reqH}h • 100%) — Evaluate Final
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -216,16 +392,16 @@ export default function OrgEvaluations() {
           </span>
         </div>
 
-        {/* Evaluation Eligibility & Immutability Rules Notice */}
+        {/* Two-Milestone Evaluation Policy Notice */}
         <div className="p-3.5 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-xl flex items-start gap-2.5 text-xs text-blue-900 dark:text-blue-200 shadow-xs">
           <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[20px] shrink-0 mt-0.5">verified_user</span>
           <div className="space-y-1">
-            <p className="font-bold text-blue-950 dark:text-blue-100">Evaluation Eligibility & Immutability Policy</p>
+            <p className="font-bold text-blue-950 dark:text-blue-100">Two-Stage Evaluation Policy (Midterm & Final)</p>
             <p className="text-[11px] text-blue-800 dark:text-blue-300 leading-relaxed">
-              • <strong className="text-blue-950 dark:text-blue-100">Eligibility Condition:</strong> Interns can only be evaluated once they have completed their required OJT hours (Rendered Hours ≥ Required Hours). Ongoing interns cannot be evaluated.
+              • <strong className="text-blue-950 dark:text-blue-100">Stage 1 — Midterm Evaluation (50% Required Time):</strong> Once a student reaches half of their required OJT hours (Rendered Hours ≥ 50% of Required Hours), mentors must evaluate the student's Midterm performance.
             </p>
             <p className="text-[11px] text-blue-800 dark:text-blue-300 leading-relaxed">
-              • <strong className="text-blue-950 dark:text-blue-100">One-Time Evaluation Rule:</strong> An organization can evaluate a student <strong className="text-blue-950 dark:text-blue-100">only once</strong>. Submitted scorecards are permanently finalized (read-only) and trigger institutional certificate issuance.
+              • <strong className="text-blue-950 dark:text-blue-100">Stage 2 — Final Evaluation (100% Required Time):</strong> Unlocks once the Midterm Evaluation has been submitted and the student completes 100% of their required OJT hours. Submitting the Final scorecard permanently finalizes the OJT and generates the official completion certificate.
             </p>
           </div>
         </div>
@@ -233,46 +409,132 @@ export default function OrgEvaluations() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-on-surface-variant uppercase mb-1">
-              Select Completed Intern <span className="text-error">*</span>
+              Select Eligible Intern (≥ 50% Hours) <span className="text-error">*</span>
             </label>
             <select
               required
               value={formData.student_id}
-              onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
+              onChange={(e) => handleInternSelectChange(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low text-xs outline-none focus:ring-2 focus:ring-vibrant-orange font-bold text-on-surface"
             >
               {data.interns?.length === 0 ? (
-                <option value="">No completed interns currently awaiting evaluation (must reach required hours first)</option>
+                <option value="">No interns currently eligible for Midterm (50%) or Final (100%) evaluation</option>
               ) : (
                 <>
-                  <option value="">Choose an eligible intern ({data.interns?.length} completed)...</option>
-                  {data.interns?.map((i) => (
-                    <option key={i.student_id} value={i.student_id}>
-                      {i.first_name} {i.last_name} ({i.student_number}) — {i.rendered_hours || 0}/{i.required_ojt_hours || 600} hrs ({i.institution_name || 'Partner School'})
-                    </option>
-                  ))}
+                  <option value="">Choose an eligible intern ({data.interns?.length} awaiting evaluation)...</option>
+                  {data.interns?.map((i) => {
+                    const reqH = Number(i.required_hours || i.required_ojt_hours) || 600;
+                    const renH = Number(i.rendered_hours) || 0;
+                    const pct = Math.min(100, Math.round((renH / reqH) * 100));
+                    const milestoneTag = !i.has_midterm_eval ? 'MIDTERM DUE' : 'FINAL DUE';
+                    return (
+                      <option key={i.student_id} value={i.student_id}>
+                        [{milestoneTag}] {i.first_name} {i.last_name} ({i.student_number}) — {renH}/{reqH} hrs ({pct}%)
+                      </option>
+                    );
+                  })}
                 </>
               )}
             </select>
             {data.interns?.length === 0 && (
               <p className="text-[11px] text-on-surface-variant mt-1 italic">
-                Only interns who have rendered all required hours appear in this dropdown.
+                Interns automatically appear here as soon as they reach half (50%) of their required OJT hours.
               </p>
             )}
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-on-surface-variant uppercase mb-1">Evaluation Milestone</label>
+            <label className="block text-xs font-bold text-on-surface-variant uppercase mb-1">
+              Evaluation Milestone <span className="text-error">*</span>
+            </label>
             <select
               value={formData.evaluation_period}
               onChange={(e) => setFormData({ ...formData, evaluation_period: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low text-xs outline-none text-on-surface font-medium"
+              disabled={!selectedIntern}
+              className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low text-xs outline-none text-on-surface font-bold disabled:opacity-60"
             >
-              <option value="midterm">Midterm Performance Assessment</option>
-              <option value="final">Final End-of-OJT Completion Rating</option>
+              <option
+                value="midterm"
+                disabled={Boolean(selectedIntern?.has_midterm_eval)}
+              >
+                {selectedIntern?.has_midterm_eval
+                  ? `✓ Midterm Performance Assessment (Completed — ${selectedIntern.midterm_rating} / 5.0 ★)`
+                  : 'Midterm Performance Assessment (50% Hours Milestone)'}
+              </option>
+              <option
+                value="final"
+                disabled={
+                  !selectedIntern ||
+                  !selectedIntern.has_midterm_eval ||
+                  (Number(selectedIntern.rendered_hours || 0) < Number(selectedIntern.required_hours || 600) &&
+                    selectedIntern.ojt_status !== 'completed')
+                }
+              >
+                {!selectedIntern
+                  ? 'Final End-of-OJT Completion Rating (100% Hours Milestone)'
+                  : !selectedIntern.has_midterm_eval
+                  ? 'Final End-of-OJT Completion Rating (Complete Midterm Evaluation First)'
+                  : Number(selectedIntern.rendered_hours || 0) < Number(selectedIntern.required_hours || 600) &&
+                    selectedIntern.ojt_status !== 'completed'
+                  ? `Final End-of-OJT Completion Rating (Unlocks at ${selectedIntern.required_hours || 600} hrs)`
+                  : 'Final End-of-OJT Completion Rating (100% Completed)'}
+              </option>
             </select>
           </div>
         </div>
+
+        {/* Selected Intern Milestone Progress Visual Card */}
+        {selectedIntern && (() => {
+          const reqH = Number(selectedIntern.required_hours || selectedIntern.required_ojt_hours) || 600;
+          const renH = Number(selectedIntern.rendered_hours) || 0;
+          const halfH = reqH / 2;
+          const pct = Math.min(100, Math.round((renH / reqH) * 100));
+          return (
+            <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-on-surface">
+                    {selectedIntern.first_name} {selectedIntern.last_name}
+                  </span>
+                  <span className="text-on-surface-variant">• {selectedIntern.institution_name || 'Partner School'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedIntern.has_midterm_eval ? (
+                    <span className="px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 font-bold text-[11px]">
+                      ✓ Midterm: {selectedIntern.midterm_rating} / 5.0 ★
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 font-bold text-[11px]">
+                      Midterm Required (≥ {halfH} hrs)
+                    </span>
+                  )}
+                  <span className="font-black text-vibrant-orange">
+                    {renH} / {reqH} hrs ({pct}%)
+                  </span>
+                </div>
+              </div>
+
+              <div className="relative w-full bg-surface-container-high h-2.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-vibrant-orange h-full rounded-full transition-all duration-300"
+                  style={{ width: `${pct}%` }}
+                />
+                {/* 50% Midterm Marker */}
+                <div
+                  className="absolute top-0 bottom-0 w-0.5 bg-purple-600 dark:bg-purple-300"
+                  style={{ left: '50%' }}
+                  title={`50% Midterm Threshold (${halfH} hrs)`}
+                />
+              </div>
+
+              <div className="flex justify-between text-[10px] font-bold text-on-surface-variant">
+                <span>0 hrs (Start)</span>
+                <span className="text-purple-700 dark:text-purple-300">50% Midterm ({halfH} hrs)</span>
+                <span>100% Final ({reqH} hrs)</span>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* 7 Competency Rating Grid */}
         <div className="space-y-3">
@@ -321,7 +583,7 @@ export default function OrgEvaluations() {
                     max="5"
                     step="1"
                     value={currentScore}
-                    onChange={(e) => setFormData({ ...formData, [crit.id]: parseInt(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, [crit.id]: parseInt(e.target.value, 10) })}
                     className="w-full accent-vibrant-orange cursor-pointer"
                   />
 
@@ -341,10 +603,16 @@ export default function OrgEvaluations() {
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-on-surface-variant uppercase mb-1">Mentor Comments & Recommendation</label>
+          <label className="block text-xs font-bold text-on-surface-variant uppercase mb-1">
+            Mentor Comments & {formData.evaluation_period === 'midterm' ? 'Midterm Feedback' : 'Final Recommendation'}
+          </label>
           <textarea
             rows="3"
-            placeholder="Describe specific achievements, commendations, or areas for improvement..."
+            placeholder={
+              formData.evaluation_period === 'midterm'
+                ? 'Provide constructive midterm feedback, strengths observed so far, and coaching goals for the second half of OJT...'
+                : 'Describe specific achievements, commendations, or overall completion remarks...'
+            }
             value={formData.comments}
             onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
             className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface-container-low text-xs outline-none focus:ring-2 focus:ring-vibrant-orange"
@@ -364,82 +632,187 @@ export default function OrgEvaluations() {
 
           <button
             type="submit"
-            disabled={!formData.student_id || data.interns?.length === 0}
-            className="px-6 py-2.5 bg-vibrant-orange text-white rounded-lg font-bold text-xs hover:bg-deep-orange transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={submitting || !formData.student_id || data.interns?.length === 0}
+            className="px-6 py-2.5 bg-vibrant-orange text-white rounded-lg font-bold text-xs hover:bg-deep-orange transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px]">verified</span>
-            <span>Submit Trainee Scorecard</span>
+            <span>
+              {submitting
+                ? 'Submitting...'
+                : formData.evaluation_period === 'midterm'
+                ? 'Submit Midterm Scorecard'
+                : 'Submit Final Scorecard'}
+            </span>
           </button>
         </div>
       </form>
 
+      {/* Interns Approaching Milestones Tracker (ongoing interns who haven't unlocked next milestone yet) */}
+      {data.upcomingInterns?.length > 0 && (
+        <div className="bento-card space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h2 className="text-sm font-bold text-on-surface flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-purple-600 text-[18px]">schedule</span>
+                <span>Assigned Interns Progress Towards Next Evaluation Milestone</span>
+              </h2>
+              <p className="text-xs text-on-surface-variant">
+                Midterm unlocks automatically once an intern reaches 50% of their required OJT hours; Final unlocks at 100%.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-surface-container-high text-[11px] font-bold text-on-surface-variant">
+              {data.upcomingInterns.length} In Progress
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {data.upcomingInterns.map((intern) => {
+              const reqH = Number(intern.required_hours || intern.required_ojt_hours) || 600;
+              const renH = Number(intern.rendered_hours) || 0;
+              const halfH = reqH / 2;
+              const hasMidterm = Boolean(intern.has_midterm_eval || intern.midterm_eval_id);
+              const targetH = hasMidterm ? reqH : halfH;
+              const remaining = Math.max(0, Math.ceil((targetH - renH) * 10) / 10);
+              const pct = Math.min(100, Math.round((renH / reqH) * 100));
+
+              return (
+                <div key={intern.ojt_id} className="p-3 rounded-xl bg-surface-container-low border border-outline-variant space-y-2">
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <div className="text-xs font-bold text-on-surface">
+                        {intern.first_name} {intern.last_name}
+                      </div>
+                      <div className="text-[10px] text-on-surface-variant">
+                        ID #{intern.student_number} • {renH}/{reqH} hrs ({pct}%)
+                      </div>
+                    </div>
+                    {hasMidterm ? (
+                      <span className="px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-700 dark:text-purple-300 text-[10px] font-bold">
+                        ✓ Midterm ({intern.midterm_rating}★)
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant text-[10px] font-bold">
+                        Pre-Midterm
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="relative w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-vibrant-orange h-full rounded-full" style={{ width: `${pct}%` }} />
+                    <div className="absolute top-0 bottom-0 w-0.5 bg-purple-500" style={{ left: '50%' }} />
+                  </div>
+
+                  <div className="text-[10px] text-on-surface-variant font-medium">
+                    {hasMidterm
+                      ? `${remaining} hrs remaining to unlock Final Evaluation (${reqH} hrs)`
+                      : `${remaining} hrs remaining to reach 50% Midterm (${halfH} hrs)`}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* History Table */}
       <div className="bento-card space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-bold text-on-surface">Submitted Evaluations History</h2>
-            <p className="text-xs text-on-surface-variant">Records of completed intern performance evaluations.</p>
+            <p className="text-xs text-on-surface-variant">Permanent records of Midterm and Final intern performance evaluations.</p>
           </div>
-          <span className="px-3 py-1 rounded-full bg-surface-container-high text-xs font-bold text-on-surface-variant">
-            {data.evaluations?.length || 0} Records
-          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {[
+              { id: 'all', label: `All (${data.evaluations?.length || 0})` },
+              {
+                id: 'midterm',
+                label: `Midterm (${(data.evaluations || []).filter((e) => e.evaluation_period === 'midterm').length})`
+              },
+              {
+                id: 'final',
+                label: `Final (${(data.evaluations || []).filter((e) => (e.evaluation_period || 'final') === 'final').length})`
+              }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setHistoryFilter(tab.id)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer ${
+                  historyFilter === tab.id
+                    ? 'bg-vibrant-orange text-white'
+                    : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading ? (
           <div className="p-8 flex justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-4 border-vibrant-orange border-t-transparent"></div>
           </div>
-        ) : data.evaluations?.length === 0 ? (
-          <p className="text-xs text-on-surface-variant text-center py-4">No evaluations submitted yet.</p>
+        ) : filteredEvaluations.length === 0 ? (
+          <p className="text-xs text-on-surface-variant text-center py-4">No evaluations found for this filter.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm min-w-[650px]">
               <thead>
                 <tr className="border-b border-outline-variant text-on-surface-variant text-xs whitespace-nowrap">
-                  <th className="py-2.5 px-3">Student & Period</th>
+                  <th className="py-2.5 px-3">Student & Milestone</th>
                   <th className="py-2.5 px-3">Rating & Status</th>
                   <th className="py-2.5 px-3">Date & Comments</th>
                   <th className="py-2.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container">
-                {data.evaluations?.map((ev) => (
-                  <tr key={ev.record_id} className="hover:bg-surface-container-low transition-colors">
-                    <td className="py-2.5 px-3">
-                      <div className="font-bold text-on-surface">{ev.first_name} {ev.last_name}</div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[10px] text-on-surface-variant">ID #{ev.student_number}</span>
-                        <span>•</span>
-                        <span className="px-1.5 py-0.2 rounded-full bg-orange-tint text-vibrant-orange font-bold text-[10px] capitalize">
-                          {ev.evaluation_period}
+                {filteredEvaluations.map((ev) => {
+                  const isMidterm = ev.evaluation_period === 'midterm';
+                  return (
+                    <tr key={ev.record_id} className="hover:bg-surface-container-low transition-colors">
+                      <td className="py-2.5 px-3">
+                        <div className="font-bold text-on-surface">{ev.first_name} {ev.last_name}</div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] text-on-surface-variant">ID #{ev.student_number}</span>
+                          <span>•</span>
+                          <span
+                            className={`px-2 py-0.2 rounded-full font-bold text-[10px] capitalize ${
+                              isMidterm
+                                ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
+                                : 'bg-orange-tint text-vibrant-orange'
+                            }`}
+                          >
+                            {isMidterm ? 'Midterm (50%)' : 'Final (100%)'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="font-bold text-pinoy-green text-xs">
+                          ⭐ {ev.rating} / 5.0
+                        </div>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-[9px] font-bold mt-1">
+                          <span className="material-symbols-outlined text-[11px]">lock</span>
+                          Finalized
                         </span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <div className="font-bold text-pinoy-green text-xs">
-                        ⭐ {ev.rating} / 5.0
-                      </div>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-[9px] font-bold mt-1">
-                        <span className="material-symbols-outlined text-[11px]">lock</span>
-                        Finalized
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-xs">
-                      <div className="text-on-surface-variant text-[11px] font-medium">{new Date(ev.evaluated_at).toLocaleDateString()}</div>
-                      <div className="text-on-surface-variant text-[11px] max-w-xs truncate mt-0.5">{ev.comments || 'No remarks provided'}</div>
-                    </td>
-                    <td className="py-2.5 px-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedEvaluation(ev)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-vibrant-orange/10 hover:bg-vibrant-orange/20 text-vibrant-orange text-xs font-bold transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-[15px]">analytics</span>
-                        <span>View Breakdown</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-2.5 px-3 text-xs">
+                        <div className="text-on-surface-variant text-[11px] font-medium">{new Date(ev.evaluated_at).toLocaleDateString()}</div>
+                        <div className="text-on-surface-variant text-[11px] max-w-xs truncate mt-0.5">{ev.comments || 'No remarks provided'}</div>
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedEvaluation(ev)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-vibrant-orange/10 hover:bg-vibrant-orange/20 text-vibrant-orange text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">analytics</span>
+                          <span>View Breakdown</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -452,7 +825,13 @@ export default function OrgEvaluations() {
           <div className="bg-surface rounded-2xl max-w-2xl w-full p-6 space-y-5 border border-outline-variant shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start border-b border-outline-variant pb-4">
               <div>
-                <span className="px-2.5 py-0.5 rounded-full bg-orange-tint text-vibrant-orange font-bold text-[11px] uppercase tracking-wider">
+                <span
+                  className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] uppercase tracking-wider ${
+                    selectedEvaluation.evaluation_period === 'midterm'
+                      ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300'
+                      : 'bg-orange-tint text-vibrant-orange'
+                  }`}
+                >
                   {selectedEvaluation.evaluation_period} Evaluation Scorecard
                 </span>
                 <h3 className="text-lg font-bold text-on-surface mt-1">
@@ -464,7 +843,7 @@ export default function OrgEvaluations() {
               </div>
               <button
                 onClick={() => setSelectedEvaluation(null)}
-                className="text-on-surface-variant hover:text-on-surface p-1 rounded-lg hover:bg-surface-container"
+                className="text-on-surface-variant hover:text-on-surface p-1 rounded-lg hover:bg-surface-container cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
@@ -545,7 +924,7 @@ export default function OrgEvaluations() {
               <button
                 type="button"
                 onClick={() => setSelectedEvaluation(null)}
-                className="px-4 py-2 bg-surface-container text-on-surface font-bold text-xs rounded-lg hover:bg-surface-container-high transition-colors"
+                className="px-4 py-2 bg-surface-container text-on-surface font-bold text-xs rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer"
               >
                 Close Scorecard
               </button>

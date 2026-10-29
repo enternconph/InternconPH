@@ -7,6 +7,7 @@ import pool, { withTransaction } from '../config/db.js';
 import { emitUpdate } from '../config/socket.js';
 import { sendNotification } from '../utils/notification.helper.js';
 import { verifyTotpPayload } from '../utils/totp.helper.js';
+import { checkEvaluationMilestones } from './certificate.service.js';
 
 export class AttendanceService {
   /**
@@ -115,6 +116,9 @@ export class AttendanceService {
             type: 'ojt_progress',
             link: '/dashboard/student/ojt'
           });
+          if (diff > 0) {
+            checkEvaluationMilestones(log.ojt_id).catch(() => {});
+          }
         }
       } catch (notifyErr) {
         console.warn('[AttendanceService] Notification dispatch warning:', notifyErr.message);

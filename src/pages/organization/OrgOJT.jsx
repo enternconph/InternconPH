@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
@@ -603,12 +604,56 @@ export default function OrgOJT() {
                               {isCompleted ? 'Done' : `${pct}%`}
                             </span>
                           </div>
-                          <div className="w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
+                          <div className="relative w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all ${isCompleted ? 'bg-pinoy-green' : 'bg-vibrant-orange'}`}
                               style={{ width: `${pct}%` }}
                             ></div>
+                            <div className="absolute top-0 bottom-0 w-0.5 bg-purple-500/70" style={{ left: '50%' }} title="50% Midterm Milestone" />
                           </div>
+
+                          {/* Midterm & Final Evaluation Milestone Indicators */}
+                          {(() => {
+                            const hasMid = intern.midterm_rating != null;
+                            const hasFin = intern.final_rating != null;
+                            const midDue = (done >= req / 2 || isCompleted) && !hasMid && !hasFin;
+                            const finDue = isCompleted && hasMid && !hasFin;
+                            if (!midDue && !finDue && !hasMid && !hasFin) return null;
+                            return (
+                              <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                                {midDue && (
+                                  <Link
+                                    to={`/dashboard/organization/evaluations?student_id=${intern.student_id}&period=midterm`}
+                                    className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-600 hover:bg-purple-700 text-white inline-flex items-center gap-1 shadow-xs transition-colors"
+                                    title="Student reached 50% required hours — Click to submit Midterm Evaluation"
+                                  >
+                                    <span className="material-symbols-outlined text-[11px]">rate_review</span>
+                                    <span>Eval Midterm</span>
+                                  </Link>
+                                )}
+                                {hasMid && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/25">
+                                    Midterm: {intern.midterm_rating}★
+                                  </span>
+                                )}
+                                {finDue && (
+                                  <Link
+                                    to={`/dashboard/organization/evaluations?student_id=${intern.student_id}&period=final`}
+                                    className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white inline-flex items-center gap-1 shadow-xs transition-colors"
+                                    title="Student completed 100% required hours — Click to submit Final Evaluation"
+                                  >
+                                    <span className="material-symbols-outlined text-[11px]">workspace_premium</span>
+                                    <span>Eval Final</span>
+                                  </Link>
+                                )}
+                                {hasFin && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25">
+                                    Final: {intern.final_rating}★
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {/* Today's Attendance Badge */}
                           <div className="pt-0.5">

@@ -63,9 +63,9 @@ export async function checkAndGenerateCertificate(ojtId) {
       ojt.status = 'completed';
     }
 
-    // 3. Check if Organization Evaluation is completed
+    // 3. Check if Organization FINAL Evaluation is completed (Midterm alone does not issue completion certificate)
     const [evalRows] = await pool.query(
-      'SELECT record_id, rating, comments, score_details, evaluated_at FROM ojt_performance_records WHERE ojt_id = ? ORDER BY evaluated_at DESC LIMIT 1',
+      "SELECT record_id, evaluation_period, rating, comments, score_details, evaluated_at FROM ojt_performance_records WHERE ojt_id = ? AND evaluation_period = 'final' ORDER BY evaluated_at DESC LIMIT 1",
       [ojtId]
     );
 
@@ -73,11 +73,18 @@ export async function checkAndGenerateCertificate(ojtId) {
       return {
         success: false,
         reason: 'evaluation_pending',
-        message: 'Organization evaluation has not been completed yet.'
+        message: 'Final organization evaluation has not been completed yet.'
       };
     }
 
     const evalRecord = evalRows[0];
+
+    // Optional: fetch midterm rating if available for enriched certificate metadata
+    const [midtermRows] = await pool.query(
+      "SELECT rating FROM ojt_performance_records WHERE ojt_id = ? AND evaluation_period = 'midterm' ORDER BY evaluated_at DESC LIMIT 1",
+      [ojtId]
+    );
+    const midtermRating = midtermRows.length > 0 ? midtermRows[0].rating : null;
 
     // 4. Check if Certificate already exists (Prevent Duplicates)
     const [existingCerts] = await pool.query(
@@ -113,6 +120,7 @@ export async function checkAndGenerateCertificate(ojtId) {
       organization_name: ojt.organization_name,
       required_hours: reqHours,
       rendered_hours: renHours,
+      midterm_rating: midtermRating,
       evaluation_rating: evalRecord.rating,
       completion_date: completionDate,
       issued_at: new Date().toISOString()
@@ -227,5 +235,170 @@ export async function checkAndGenerateCertificate(ojtId) {
   } catch (error) {
     console.error('[Certificate Service Error]', error);
     return { success: false, message: 'Failed to generate certificate: ' + error.message };
+  }
+}
+
+/**
+ * Checks whether an intern has reached OJT evaluation milestones:
+ *  - Midterm Milestone: rendered_hours >= 50% of required_hours (notifies Mentor + Student if no midterm/final eval yet)
+ *  - Final Milestone: rendered_hours >= 100% of required_hours (notifies Mentor if no final eval yet, or issues certificate if final eval exists)
+ */
+export async function checkEvaluationMilestones(ojtId) {
+  try {
+    if (!ojtId) return;
+
+    const [rows] = await pool.query(
+      `SELECT o.*,
+              COALESCE(o.required_hours, s.required_ojt_hours, p.required_ojt_hours, 600) as effective_required_hours,
+              s.user_id as student_user_id, s.first_name, s.last_name, s.student_number,
+              ho.organization_name,
+              mentor_os.user_id as mentor_user_id
+       FROM ojt_records o
+       JOIN students s ON o.student_id = s.student_id
+       LEFT JOIN programs p ON s.program_id = p.program_id
+       JOIN hiring_organizations ho ON o.organization_id = ho.organization_id
+       LEFT JOIN organization_staff mentor_os ON o.mentor_id = mentor_os.org_staff_id
+       WHERE o.ojt_id = ?`,
+      [ojtId]
+    );
+
+    if (rows.length === 0) return;
+    const ojt = rows[0];
+
+    const reqHours = Number(ojt.effective_required_hours) || 600;
+    const renHours = Number(ojt.rendered_hours) || 0;
+    const halfHours = reqHours / 2;
+
+    if (renHours < halfHours && ojt.status !== 'completed') return;
+
+    const [evalRows] = await pool.query(
+      'SELECT record_id, evaluation_period FROM ojt_performance_records WHERE ojt_id = ?',
+      [ojtId]
+    );
+
+    const hasMidterm = evalRows.some((e) => e.evaluation_period === 'midterm');
+    const hasFinal = evalRows.some((e) => e.evaluation_period === 'final');
+
+    // Resolve target mentor / supervisor user_ids to notify
+    const recipientUserIds = new Set();
+    if (ojt.mentor_user_id) {
+      recipientUserIds.add(Number(ojt.mentor_user_id));
+    } else if (ojt.supervisor_name) {
+      const [supStaff] = await pool.query(
+        `SELECT user_id FROM organization_staff
+         WHERE organization_id = ?
+           AND user_id IS NOT NULL
+           AND (CONCAT(first_name, ' ', last_name) = ? OR first_name = ?)`,
+        [ojt.organization_id, ojt.supervisor_name, ojt.supervisor_name]
+      );
+      supStaff.forEach((st) => {
+        if (st.user_id) recipientUserIds.add(Number(st.user_id));
+      });
+    }
+
+    // Fallback: if no specific mentor user resolved, notify organization mentors / HR staff
+    if (recipientUserIds.size === 0) {
+      const [orgStaff] = await pool.query(
+        'SELECT user_id FROM organization_staff WHERE organization_id = ? AND user_id IS NOT NULL',
+        [ojt.organization_id]
+      );
+      orgStaff.forEach((st) => {
+        if (st.user_id) recipientUserIds.add(Number(st.user_id));
+      });
+
+      const [orgRegs] = await pool.query(
+        'SELECT submitted_by FROM organization_registrations WHERE organization_id = ? AND submitted_by IS NOT NULL',
+        [ojt.organization_id]
+      );
+      orgRegs.forEach((rg) => {
+        if (rg.submitted_by) recipientUserIds.add(Number(rg.submitted_by));
+      });
+    }
+
+    const studentFullName = `${ojt.first_name} ${ojt.last_name}`.trim();
+
+    // 1. MIDTERM EVALUATION MILESTONE (50% of required hours reached)
+    if (renHours >= halfHours && !hasMidterm && !hasFinal) {
+      const [existingMidtermNotif] = await pool.query(
+        "SELECT notification_id FROM notifications WHERE related_type = 'midterm_due' AND related_id = ? LIMIT 1",
+        [ojtId]
+      );
+
+      if (existingMidtermNotif.length === 0) {
+        for (const mentorUserId of recipientUserIds) {
+          await sendNotification({
+            userId: mentorUserId,
+            senderId: ojt.student_user_id || null,
+            senderName: studentFullName || 'OJT System',
+            title: 'Midterm Evaluation Required (50% Hours Reached)',
+            message: `${studentFullName} (#${ojt.student_number || ojt.student_id}) has reached ${renHours} of ${reqHours} required OJT hours (50% halfway milestone). Please evaluate this intern for their Midterm Performance Assessment.`,
+            type: 'ojt',
+            link: `/dashboard/organization/evaluations?student_id=${ojt.student_id}&period=midterm`,
+            relatedType: 'midterm_due',
+            relatedId: ojtId
+          });
+        }
+
+        if (ojt.student_user_id) {
+          await sendNotification({
+            userId: ojt.student_user_id,
+            senderName: ojt.organization_name || 'OJT System',
+            title: '50% OJT Milestone Reached — Midterm Evaluation',
+            message: `Congratulations! You have rendered ${renHours} of ${reqHours} required OJT hours (halfway milestone). Your Workplace Mentor has been notified to conduct your Midterm Performance Evaluation.`,
+            type: 'ojt',
+            link: '/dashboard/student/ojt?tab=evaluations',
+            relatedType: 'midterm_milestone',
+            relatedId: ojtId
+          });
+        }
+
+        emitUpdate('evaluation_milestone_reached', {
+          ojt_id: ojtId,
+          milestone: 'midterm',
+          student_id: ojt.student_id,
+          organization_id: ojt.organization_id
+        });
+      }
+    }
+
+    // 2. FINAL EVALUATION MILESTONE (100% of required hours reached)
+    if ((renHours >= reqHours || ojt.status === 'completed') && !hasFinal) {
+      const [existingFinalNotif] = await pool.query(
+        "SELECT notification_id FROM notifications WHERE related_type = 'final_due' AND related_id = ? LIMIT 1",
+        [ojtId]
+      );
+
+      if (existingFinalNotif.length === 0) {
+        const nextPeriod = hasMidterm ? 'final' : 'midterm';
+        for (const mentorUserId of recipientUserIds) {
+          await sendNotification({
+            userId: mentorUserId,
+            senderId: ojt.student_user_id || null,
+            senderName: studentFullName || 'OJT System',
+            title: 'Final OJT Evaluation Required (100% Hours Completed)',
+            message: `${studentFullName} (#${ojt.student_number || ojt.student_id}) has completed ${renHours} of ${reqHours} required OJT hours! ${
+              hasMidterm
+                ? 'Please submit their Final Performance Evaluation to finalize OJT completion.'
+                : 'Please complete their pending Midterm Evaluation followed by their Final Performance Evaluation.'
+            }`,
+            type: 'ojt',
+            link: `/dashboard/organization/evaluations?student_id=${ojt.student_id}&period=${nextPeriod}`,
+            relatedType: 'final_due',
+            relatedId: ojtId
+          });
+        }
+
+        emitUpdate('evaluation_milestone_reached', {
+          ojt_id: ojtId,
+          milestone: 'final',
+          student_id: ojt.student_id,
+          organization_id: ojt.organization_id
+        });
+      }
+    } else if ((renHours >= reqHours || ojt.status === 'completed') && hasFinal) {
+      await checkAndGenerateCertificate(ojtId);
+    }
+  } catch (err) {
+    console.warn('[checkEvaluationMilestones Warning]', err.message);
   }
 }

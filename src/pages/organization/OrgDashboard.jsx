@@ -127,10 +127,10 @@ export default function OrgDashboard() {
             <div className="p-3 bg-surface rounded-xl border border-outline-variant space-y-1">
               <div className="flex items-center gap-2 font-bold text-on-surface">
                 <span className="material-symbols-outlined text-pinoy-green text-[18px]">grade</span>
-                2. Student Evaluations
+                2. Student Evaluations (Midterm & Final)
               </div>
               <p className="text-[11px] text-on-surface-variant">
-                Conduct official performance ratings for your assigned interns once hours are completed to qualify candidates for career opportunities.
+                Evaluate assigned interns at 50% of required OJT hours (Midterm) and upon 100% completion (Final) to certify performance.
               </p>
             </div>
 
@@ -179,6 +179,40 @@ export default function OrgDashboard() {
           </div>
         </div>
 
+        {/* Midterm / Final Evaluation Due Alert for Mentor */}
+        {(() => {
+          const dueMidtermList = assignedToMeInterns.filter((i) => {
+            const ren = Math.max(Number(i.rendered_hours) || 0, Number(i.completed_ojt_hours) || 0);
+            const req = Number(i.required_ojt_hours || i.required_hours) || 600;
+            return (ren >= req / 2 || i.status === 'completed') && i.midterm_rating == null && i.final_rating == null;
+          });
+          if (dueMidtermList.length === 0) return null;
+          return (
+            <div className="p-4 rounded-2xl border-2 border-purple-500/40 bg-purple-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <span className="material-symbols-outlined text-purple-600 dark:text-purple-300 text-[22px] mt-0.5">
+                  notification_important
+                </span>
+                <div>
+                  <p className="text-xs font-black text-on-surface">
+                    Midterm Evaluation Required ({dueMidtermList.length} Intern{dueMidtermList.length > 1 ? 's' : ''})
+                  </p>
+                  <p className="text-[11px] text-on-surface-variant mt-0.5">
+                    {dueMidtermList.map((s) => `${s.first_name} ${s.last_name}`).join(', ')} reached at least half (50%) of required OJT hours and must be evaluated for their Midterm.
+                  </p>
+                </div>
+              </div>
+              <Link
+                to={`/dashboard/organization/evaluations?student_id=${dueMidtermList[0].student_id}&period=midterm`}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-black shrink-0 flex items-center gap-1.5 shadow-sm"
+              >
+                <span className="material-symbols-outlined text-[16px]">rate_review</span>
+                <span>Evaluate Midterm Now</span>
+              </Link>
+            </div>
+          );
+        })()}
+
         {/* Deployed Interns Monitoring Table */}
         <div className="bento-card space-y-4">
           <div className="flex justify-between items-center flex-wrap gap-2">
@@ -214,10 +248,14 @@ export default function OrgDashboard() {
                 </thead>
                 <tbody className="divide-y divide-surface-container">
                   {deployedInterns.map((intern) => {
-                    const completed = intern.completed_ojt_hours || 0;
-                    const required = intern.required_ojt_hours || 600;
+                    const completed = Math.max(Number(intern.rendered_hours) || 0, Number(intern.completed_ojt_hours) || 0);
+                    const required = Number(intern.required_ojt_hours || intern.required_hours) || 600;
                     const pct = Math.min(100, Math.round((completed / required) * 100));
                     const isAssigned = isMentor ? intern.is_assigned_to_mentor !== false : true;
+                    const hasMidterm = intern.midterm_rating != null;
+                    const hasFinal = intern.final_rating != null;
+                    const midtermDue = (completed >= required / 2 || intern.status === 'completed') && !hasMidterm && !hasFinal;
+                    const finalDue = (completed >= required || intern.status === 'completed') && hasMidterm && !hasFinal;
 
                     return (
                       <tr
@@ -248,17 +286,40 @@ export default function OrgDashboard() {
                             <span className="text-on-surface">{completed} / {required} hrs</span>
                             <span className="text-vibrant-orange">{pct}%</span>
                           </div>
-                          <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden mb-1.5">
+                          <div className="relative w-full bg-surface-container h-2 rounded-full overflow-hidden mb-1.5">
                             <div
                               className="bg-vibrant-orange h-full rounded-full transition-all duration-300"
                               style={{ width: `${pct}%` }}
                             />
+                            <div className="absolute top-0 bottom-0 w-0.5 bg-purple-500/70" style={{ left: '50%' }} title="50% Midterm Milestone" />
                           </div>
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
-                            intern.status === 'ongoing' ? 'bg-orange-tint text-vibrant-orange' : 'bg-green-tint text-pinoy-green'
-                          }`}>
-                            {intern.status || 'ongoing'}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
+                              intern.status === 'ongoing' ? 'bg-orange-tint text-vibrant-orange' : 'bg-green-tint text-pinoy-green'
+                            }`}>
+                              {intern.status || 'ongoing'}
+                            </span>
+                            {midtermDue && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30">
+                                Midterm Due (50%+)
+                              </span>
+                            )}
+                            {hasMidterm && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-700 dark:text-purple-300">
+                                Midterm: {intern.midterm_rating}★
+                              </span>
+                            )}
+                            {finalDue && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                Final Due
+                              </span>
+                            )}
+                            {hasFinal && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                                Final: {intern.final_rating}★
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-3 text-right">
                           {isMentor && !isAssigned ? (
@@ -280,10 +341,20 @@ export default function OrgDashboard() {
                                 Attendance
                               </Link>
                               <Link
-                                to="/dashboard/organization/evaluations"
-                                className="px-2.5 py-1 bg-vibrant-orange text-white rounded text-xs font-bold hover:bg-deep-orange transition-colors"
+                                to={
+                                  midtermDue
+                                    ? `/dashboard/organization/evaluations?student_id=${intern.student_id}&period=midterm`
+                                    : finalDue
+                                    ? `/dashboard/organization/evaluations?student_id=${intern.student_id}&period=final`
+                                    : '/dashboard/organization/evaluations'
+                                }
+                                className={`px-2.5 py-1 text-white rounded text-xs font-bold transition-colors ${
+                                  midtermDue
+                                    ? 'bg-purple-600 hover:bg-purple-700'
+                                    : 'bg-vibrant-orange hover:bg-deep-orange'
+                                }`}
                               >
-                                Evaluate
+                                {midtermDue ? 'Eval Midterm' : finalDue ? 'Eval Final' : 'Evaluate'}
                               </Link>
                             </div>
                           )}
