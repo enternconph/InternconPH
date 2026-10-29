@@ -10,7 +10,8 @@ import {
   Animated,
   AppState,
   PermissionsAndroid,
-  Platform
+  Platform,
+  Linking
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Geolocation from '@react-native-community/geolocation';
@@ -60,6 +61,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
   const [scanNotice, setScanNotice] = useState(null);
   const [workplaceGeofence, setWorkplaceGeofence] = useState(null);
   const [gpsCoords, setGpsCoords] = useState(null);
+  const [gpsErrorStatus, setGpsErrorStatus] = useState(null); // 'permission_denied' | 'provider_disabled' | null
 
   // Device Mismatch & 6-Digit Gmail OTP State
   const [deviceMismatchData, setDeviceMismatchData] = useState(null);
@@ -98,8 +100,10 @@ export default function AttendanceQrModal({ visible, onClose }) {
             const coarse = granted[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
             if (!fine && !coarse) {
               console.warn('GPS location permissions denied by user');
+              setGpsErrorStatus('permission_denied');
               return;
             }
+            setGpsErrorStatus(null);
           } catch (permErr) {
             console.warn('Error requesting location permissions:', permErr);
           }
@@ -113,6 +117,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
 
         const updateCoords = (pos) => {
           if (!pos || !pos.coords) return;
+          setGpsErrorStatus(null);
           const nowMs = Date.now();
           // Clamp future timestamps (GPS clock vs phone clock skew) to "now"
           const fixMs = pos.timestamp ? Math.min(Number(pos.timestamp), nowMs) : nowMs;
@@ -159,7 +164,12 @@ export default function AttendanceQrModal({ visible, onClose }) {
         // 1. Initial high-accuracy fix (no LOW_POWER fallback: it returns km-level fixes the server rejects)
         Geolocation.getCurrentPosition(
           updateCoords,
-          (err) => console.warn('High-accuracy GPS fix failed or timed out:', err),
+          (err) => {
+            console.warn('High-accuracy GPS fix failed or timed out:', err);
+            if (err?.code === 2) {
+              setGpsErrorStatus('provider_disabled');
+            }
+          },
           highAccuracyOpts
         );
 
@@ -168,7 +178,12 @@ export default function AttendanceQrModal({ visible, onClose }) {
         // stationary at the desk and the fix goes stale (> 30s) -> server rejection.
         watchId = Geolocation.watchPosition(
           updateCoords,
-          (err) => console.warn('Geolocation watchPosition error:', err),
+          (err) => {
+            console.warn('Geolocation watchPosition error:', err);
+            if (err?.code === 2) {
+              setGpsErrorStatus('provider_disabled');
+            }
+          },
           {
             enableHighAccuracy: true,
             distanceFilter: 0,
@@ -866,6 +881,59 @@ export default function AttendanceQrModal({ visible, onClose }) {
                 </Text>
               </View>
 
+              {gpsErrorStatus === 'permission_denied' && (
+                <TouchableOpacity
+                  onPress={() => Linking.openSettings()}
+                  style={{
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                    borderWidth: 1,
+                    borderColor: '#ef4444',
+                    borderRadius: 12,
+                    padding: 10,
+                    marginBottom: 12,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8
+                  }}
+                >
+                  <ShieldAlert size={18} color="#ef4444" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 12 }}>
+                      Location Permission Denied
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                      Tap here to open Settings and allow "Precise Location".
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {gpsErrorStatus === 'provider_disabled' && (
+                <View
+                  style={{
+                    backgroundColor: 'rgba(217, 119, 6, 0.15)',
+                    borderWidth: 1,
+                    borderColor: '#d97706',
+                    borderRadius: 12,
+                    padding: 10,
+                    marginBottom: 12,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8
+                  }}
+                >
+                  <MapPin size={18} color="#d97706" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#d97706', fontWeight: 'bold', fontSize: 12 }}>
+                      Phone Location (GPS) is Switched OFF
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                      Please swipe down Android Quick Settings and turn ON Location.
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {/* QR Container Clean (Watermark outside QR matrix) */}
               <View style={styles.qrWrapper}>
                 <View style={styles.qrHeaderBar}>
@@ -940,12 +1008,21 @@ export default function AttendanceQrModal({ visible, onClose }) {
                   <Text
                     style={[
                       styles.badgeValue,
-                      gpsCoords && (gpsCoords.acc > 50 || Math.floor(Date.now() / 1000) - gpsCoords.ts > 30)
+                      gpsErrorStatus
+                        ? { color: '#ef4444', textDecorationLine: 'underline' }
+                        : gpsCoords && (gpsCoords.acc > 50 || Math.floor(Date.now() / 1000) - gpsCoords.ts > 30)
                         ? { color: '#d97706' }
                         : null
                     ]}
+                    onPress={() => {
+                      if (gpsErrorStatus === 'permission_denied') Linking.openSettings();
+                    }}
                   >
-                    {gpsCoords
+                    {gpsErrorStatus === 'permission_denied'
+                      ? '⚠️ Permission Denied (Tap to Enable)'
+                      : gpsErrorStatus === 'provider_disabled'
+                      ? '⚠️ Phone GPS is OFF (Turn ON)'
+                      : gpsCoords
                       ? Math.floor(Date.now() / 1000) - gpsCoords.ts > 30
                         ? `Stale fix (${Math.floor(Date.now() / 1000) - gpsCoords.ts}s) • refreshing...`
                         : gpsCoords.acc > 50
@@ -953,7 +1030,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
                         : `Locked ±${gpsCoords.acc}m • ${Math.max(0, Math.floor(Date.now() / 1000) - gpsCoords.ts)}s ago`
                       : isOffline
                       ? 'Offline Vault'
-                      : 'Acquiring GPS...'}
+                      : '🛰️ Acquiring GPS...'}
                   </Text>
                 </View>
               </View>
