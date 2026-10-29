@@ -112,7 +112,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
         Geolocation.setRNConfiguration({
           skipPermissionRequests: false,
           authorizationLevel: 'whenInUse',
-          locationProvider: 'auto'
+          locationProvider: 'playServices'
         });
 
         const updateCoords = (pos) => {
@@ -135,16 +135,16 @@ export default function AttendanceQrModal({ visible, onClose }) {
           gpsCoordsRef.current = loc;
           setGpsCoords(loc);
 
-          // Refresh the QR with the new fix, throttled so the code doesn't flicker on every update:
+          // Refresh the QR with the new fix:
           // - QR currently has no GPS, or
-          // - GPS inside the current QR is older than 10s (server rejects > 30s), or
-          // - accuracy improved by more than 10m
+          // - GPS inside the current QR is older than 8s (server rejects > 30s), or
+          // - accuracy improved by more than 8m
           const qrLoc = qrLocRef.current;
           const nowSec = Math.floor(nowMs / 1000);
           const shouldRefresh =
             !qrLoc ||
-            nowSec - qrLoc.ts > 10 ||
-            (qrLoc.acc != null && loc.acc + 10 < qrLoc.acc);
+            nowSec - qrLoc.ts > 8 ||
+            (qrLoc.acc != null && loc.acc + 8 < qrLoc.acc);
 
           const sec = qrSecretRef.current;
           const sId = studentIdRef.current;
@@ -157,11 +157,11 @@ export default function AttendanceQrModal({ visible, onClose }) {
 
         const highAccuracyOpts = {
           enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 3000 // never accept a cached fix older than 3s
+          timeout: 10000,
+          maximumAge: 10000
         };
 
-        // 1. Initial high-accuracy fix (no LOW_POWER fallback: it returns km-level fixes the server rejects)
+        // 1. Initial high-accuracy fix via Google Fused Location Provider
         Geolocation.getCurrentPosition(
           updateCoords,
           (err) => {
@@ -169,9 +169,31 @@ export default function AttendanceQrModal({ visible, onClose }) {
             if (err?.code === 2) {
               setGpsErrorStatus('provider_disabled');
             }
+            // Fallback to balanced accuracy (Wi-Fi/Cellular) if satellite/high-accuracy is slow indoors
+            Geolocation.getCurrentPosition(
+              updateCoords,
+              (fallbackErr) => {
+                console.warn('Fallback location fix also failed:', fallbackErr);
+                if (fallbackErr?.code === 2) {
+                  setGpsErrorStatus('provider_disabled');
+                }
+              },
+              { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
+            );
           },
           highAccuracyOpts
         );
+
+        // Also trigger fallback proactively after 3.5s if still no coords
+        const fallbackTimer = setTimeout(() => {
+          if (!gpsCoordsRef.current) {
+            Geolocation.getCurrentPosition(
+              updateCoords,
+              () => {},
+              { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
+            );
+          }
+        }, 3500);
 
         // 2. Continuous watch. distanceFilter MUST be 0: the fused provider maps it to
         // setMinUpdateDistanceMeters(), so any value > 0 stops updates while the phone is
@@ -189,7 +211,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
             distanceFilter: 0,
             interval: 2000,
             fastestInterval: 1000,
-            maximumAge: 3000
+            maximumAge: 5000
           }
         );
 
@@ -312,15 +334,23 @@ export default function AttendanceQrModal({ visible, onClose }) {
             setErrorMessage('');
           }
 
-          const initialPayload = await buildDynamicQrPayload(secret, sId, activeDevToken, {
-            mode: 'online',
-            location: (qrLocRef.current = gpsCoordsRef.current)
-          });
-
-          if (isMounted) {
-            setQrPayload(initialPayload);
-            setLoading(false);
-            startCountdown(secret, sId, activeDevToken, 'online');
+          if (gpsCoordsRef.current) {
+            const initialPayload = await buildDynamicQrPayload(secret, sId, activeDevToken, {
+              mode: 'online',
+              location: (qrLocRef.current = gpsCoordsRef.current)
+            });
+            if (isMounted) {
+              setQrPayload(initialPayload);
+              setLoading(false);
+              startCountdown(secret, sId, activeDevToken, 'online');
+            }
+          } else {
+            // Awaiting GPS fix before generating signed v2 QR
+            if (isMounted) {
+              setQrPayload('');
+              setLoading(false);
+              startCountdown(secret, sId, activeDevToken, 'online');
+            }
           }
         }
       } catch (err) {
@@ -946,13 +976,73 @@ export default function AttendanceQrModal({ visible, onClose }) {
                 </View>
 
                 <View style={styles.qrBox}>
-                  {qrPayload ? (
-                    <QRCode
-                      value={qrPayload}
-                      size={200}
-                      color="#000000"
-                      backgroundColor="#ffffff"
-                    />
+                  {!isOffline && !gpsCoords ? (
+                    <View style={styles.gpsLockingBox}>
+                      {gpsErrorStatus === 'provider_disabled' ? (
+                        <>
+                          <MapPin size={32} color="#d97706" />
+                          <Text style={styles.gpsLockingTitle}>Location Switched OFF</Text>
+                          <Text style={styles.gpsLockingSubtitle}>
+                            Turn ON Location in Android Quick Settings to generate your workplace attendance QR.
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => {
+                              if (Platform.OS === 'android') {
+                                Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS').catch(() =>
+                                  Linking.openSettings()
+                                );
+                              } else {
+                                Linking.openSettings();
+                              }
+                            }}
+                            style={styles.gpsOpenSettingsBtn}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.gpsOpenSettingsBtnText}>Turn ON Location</Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : gpsErrorStatus === 'permission_denied' ? (
+                        <>
+                          <ShieldAlert size={32} color="#ef4444" />
+                          <Text style={styles.gpsLockingTitle}>Permission Required</Text>
+                          <Text style={styles.gpsLockingSubtitle}>
+                            Precise Location is required to verify your physical presence inside the workplace geofence.
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => Linking.openSettings()}
+                            style={styles.gpsOpenSettingsBtn}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.gpsOpenSettingsBtnText}>Open App Settings</Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <>
+                          <ActivityIndicator size="large" color={colors.primary} />
+                          <Text style={styles.gpsLockingTitle}>Locking Workplace GPS...</Text>
+                          <Text style={styles.gpsLockingSubtitle}>
+                            Connecting to Google Fused Location & Satellites. Dynamic QR will automatically display once locked.
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  ) : qrPayload ? (
+                    <View style={{ alignItems: 'center' }}>
+                      <QRCode
+                        value={qrPayload}
+                        size={200}
+                        color="#000000"
+                        backgroundColor="#ffffff"
+                      />
+                      {gpsCoords && (
+                        <View style={styles.gpsLockedPill}>
+                          <CheckCircle2 size={12} color="#059669" />
+                          <Text style={styles.gpsLockedPillText}>
+                            GPS Locked • ±{gpsCoords.acc || 0}m precision
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                   ) : (
                     <ActivityIndicator size="small" color={colors.primary} />
                   )}
@@ -1485,5 +1575,55 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     marginTop: 1
+  },
+  gpsLockingBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 14,
+    width: 210,
+    minHeight: 200
+  },
+  gpsLockingTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.text,
+    marginTop: 10,
+    textAlign: 'center'
+  },
+  gpsLockingSubtitle: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
+    lineHeight: 15
+  },
+  gpsOpenSettingsBtn: {
+    marginTop: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8
+  },
+  gpsOpenSettingsBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#193631'
+  },
+  gpsLockedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(5, 150, 105, 0.15)',
+    borderWidth: 1,
+    borderColor: '#059669',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginTop: 8
+  },
+  gpsLockedPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#059669'
   }
 });

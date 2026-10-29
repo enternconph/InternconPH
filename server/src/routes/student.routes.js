@@ -4207,6 +4207,24 @@ router.get('/journals', async (req, res) => {
       [student.student_id]
     );
 
+    // Fetch DTR logbook dates for the student so they can select official attendance dates
+    const [dtrDates] = await pool.query(
+      `SELECT 
+         MAX(att.attendance_id) as attendance_id,
+         DATE_FORMAT(att.log_date, '%Y-%m-%d') as log_date_str,
+         att.log_date,
+         MIN(att.time_in) as time_in,
+         MAX(att.time_out) as time_out,
+         ROUND(SUM(COALESCE(att.hours_rendered, 0)), 2) as hours_rendered,
+         MAX(att.status) as attendance_status,
+         (SELECT COUNT(*) FROM ojt_daily_journals j WHERE j.student_id = att.student_id AND DATE(j.entry_date) = DATE(att.log_date)) as has_journal
+       FROM ojt_attendance_logs att
+       WHERE att.student_id = ?
+       GROUP BY att.log_date
+       ORDER BY att.log_date DESC`,
+      [student.student_id]
+    );
+
     const totalHours = entries.reduce((acc, curr) => acc + (parseFloat(curr.hours_rendered) || 0), 0);
     const reviewedCount = entries.filter(e => e.status === 'reviewed').length;
 
@@ -4215,10 +4233,12 @@ router.get('/journals', async (req, res) => {
       data: {
         journals: entries,
         entries,
+        availableDtrDates: dtrDates,
         summary: {
           totalEntries: entries.length,
           totalHoursLogged: totalHours,
-          reviewedEntries: reviewedCount
+          reviewedEntries: reviewedCount,
+          eligibleDtrDatesCount: dtrDates.filter(d => d.has_journal === 0).length
         }
       }
     });
@@ -4241,7 +4261,7 @@ router.post('/journals', async (req, res) => {
       tasks_accomplished,
       key_learnings,
       challenges_and_solutions = '',
-      hours_rendered = 8.00,
+      hours_rendered = null,
       attachment_url = null,
       status = 'submitted'
     } = req.body;
@@ -4249,9 +4269,44 @@ router.post('/journals', async (req, res) => {
     if (!entry_date || !title || !tasks_accomplished || !key_learnings) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide entry date, title, tasks accomplished, and key learnings.'
+        message: 'Please provide DTR entry date, title, tasks accomplished, and key learnings.'
       });
     }
+
+    // STRICT DTR LOGBOOK CHECK: Student can ONLY write a journal for a date recorded in their DTR logbook
+    const [dtrMatch] = await pool.query(
+      `SELECT attendance_id, hours_rendered, time_in, time_out, status 
+       FROM ojt_attendance_logs 
+       WHERE student_id = ? AND log_date = ? 
+       ORDER BY attendance_id DESC LIMIT 1`,
+      [student.student_id, entry_date]
+    );
+
+    if (dtrMatch.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: `You can only submit journal reflections for dates recorded in your DTR attendance logbook. No attendance record was found for ${entry_date}.`
+      });
+    }
+
+    // Duplicate Check: Each DTR attendance date can only have one journal entry
+    const [existingJournal] = await pool.query(
+      `SELECT journal_id FROM ojt_daily_journals 
+       WHERE student_id = ? AND DATE(entry_date) = DATE(?) 
+       LIMIT 1`,
+      [student.student_id, entry_date]
+    );
+
+    if (existingJournal.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `A journal reflection has already been submitted for ${entry_date}. Each DTR shift can only have one journal entry.`
+      });
+    }
+
+    const resolvedHours = (hours_rendered !== null && hours_rendered !== undefined && !isNaN(Number(hours_rendered)))
+      ? Number(hours_rendered)
+      : (dtrMatch[0].hours_rendered ? Number(dtrMatch[0].hours_rendered) : 8.00);
 
     // Find active OJT record
     const [ojts] = await pool.query(
@@ -4276,7 +4331,7 @@ router.post('/journals', async (req, res) => {
         key_learnings,
         challenges_and_solutions,
         attachment_url,
-        hours_rendered,
+        resolvedHours,
         status
       ]
     );

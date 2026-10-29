@@ -27,22 +27,26 @@ import {
   X,
   Send,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Check,
+  AlertCircle
 } from 'lucide-react-native';
 import api from '../api/client';
 import { colors } from '../utils/theme';
+import { formatTime12 } from '../utils/timeUtils';
 
 export default function JournalScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [journals, setJournals] = useState([]);
+  const [availableDtrDates, setAvailableDtrDates] = useState([]);
   const [summary, setSummary] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [selectedJournal, setSelectedJournal] = useState(null);
 
   // Form State
-  const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
+  const [entryDate, setEntryDate] = useState('');
   const [weekNumber, setWeekNumber] = useState('1');
   const [title, setTitle] = useState('');
   const [tasksAccomplished, setTasksAccomplished] = useState('');
@@ -56,6 +60,7 @@ export default function JournalScreen() {
       if (res.success && res.data) {
         setJournals(res.data.journals || []);
         setSummary(res.data.summary || null);
+        setAvailableDtrDates(res.data.availableDtrDates || []);
       }
     } catch (e) {
       console.warn('Journal fetch error:', e);
@@ -74,7 +79,48 @@ export default function JournalScreen() {
     fetchJournals();
   };
 
+  const handleOpenNewEntryModal = () => {
+    if (!availableDtrDates || availableDtrDates.length === 0) {
+      Alert.alert(
+        'No DTR Logbook Entries',
+        'You can only submit daily journal reflections for dates officially recorded in your DTR attendance logbook. Please record attendance on the workplace scanner first.'
+      );
+      return;
+    }
+
+    const unwrittenDates = availableDtrDates.filter(d => !d.has_journal);
+    if (unwrittenDates.length === 0) {
+      Alert.alert(
+        'All Shifts Completed',
+        'You have already written daily journal reflections for all dates recorded in your DTR logbook! Complete your next OJT shift to submit more reflections.'
+      );
+      return;
+    }
+
+    // Default to the most recent unwritten DTR date
+    const target = unwrittenDates[0];
+    setEntryDate(target.log_date_str);
+    setHoursRendered(String(target.hours_rendered || 8));
+    setModalOpen(true);
+  };
+
   const handleCreateEntry = async () => {
+    if (!entryDate) {
+      Alert.alert('Date Required', 'Please select a DTR shift date from your attendance logbook.');
+      return;
+    }
+
+    const chosenDtr = availableDtrDates.find(d => d.log_date_str === entryDate);
+    if (!chosenDtr) {
+      Alert.alert('Invalid Date', 'The selected date is not in your official DTR logbook.');
+      return;
+    }
+
+    if (chosenDtr.has_journal > 0) {
+      Alert.alert('Duplicate Entry', 'You have already submitted a journal reflection for this DTR date.');
+      return;
+    }
+
     if (!title.trim() || !tasksAccomplished.trim() || !keyLearnings.trim()) {
       Alert.alert('Required Fields', 'Please fill in Title, Tasks Accomplished, and Key Learnings.');
       return;
@@ -185,7 +231,7 @@ export default function JournalScreen() {
               </View>
 
               <TouchableOpacity
-                onPress={() => setModalOpen(true)}
+                onPress={handleOpenNewEntryModal}
                 style={styles.addBtn}
                 activeOpacity={0.85}
               >
@@ -252,6 +298,81 @@ export default function JournalScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.formScroll}>
+              {/* Official DTR Attendance Logbook Date Selector */}
+              <View style={styles.formField}>
+                <View style={styles.dtrLabelRow}>
+                  <Text style={styles.fieldLabel}>Official DTR Shift Date</Text>
+                  <Text style={styles.dtrRequiredBadge}>REQUIRED • DTR LOGBOOK</Text>
+                </View>
+                <Text style={styles.dtrHelpText}>
+                  CHED policy requires journal entries to link directly to a logged OJT shift.
+                </Text>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.dtrPillsContainer}
+                >
+                  {availableDtrDates.map((dtr) => {
+                    const isSelected = entryDate === dtr.log_date_str;
+                    const alreadyWritten = Boolean(dtr.has_journal > 0);
+
+                    return (
+                      <TouchableOpacity
+                        key={dtr.log_date_str}
+                        disabled={alreadyWritten}
+                        onPress={() => {
+                          setEntryDate(dtr.log_date_str);
+                          if (dtr.hours_rendered) {
+                            setHoursRendered(String(dtr.hours_rendered));
+                          }
+                        }}
+                        style={[
+                          styles.dtrCard,
+                          isSelected && styles.dtrCardSelected,
+                          alreadyWritten && styles.dtrCardDisabled
+                        ]}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.dtrCardTop}>
+                          <Calendar
+                            size={13}
+                            color={isSelected ? '#FFB433' : alreadyWritten ? 'rgba(255,255,255,0.3)' : '#80CBC4'}
+                          />
+                          <Text
+                            style={[
+                              styles.dtrCardDate,
+                              isSelected && styles.dtrCardDateSelected,
+                              alreadyWritten && styles.dtrCardDateDisabled
+                            ]}
+                          >
+                            {dtr.log_date_str}
+                          </Text>
+                          {isSelected && <Check size={14} color="#FFB433" />}
+                        </View>
+
+                        <View style={styles.dtrCardBottom}>
+                          <Text
+                            style={[
+                              styles.dtrCardHours,
+                              alreadyWritten && styles.dtrCardHoursDisabled
+                            ]}
+                          >
+                            {dtr.hours_rendered || 0} hrs • {formatTime12(dtr.time_in)} - {formatTime12(dtr.time_out)}
+                          </Text>
+                        </View>
+
+                        {alreadyWritten ? (
+                          <View style={styles.dtrWrittenBadge}>
+                            <Text style={styles.dtrWrittenBadgeText}>Already Written</Text>
+                          </View>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
               <View style={styles.formRow}>
                 <View style={[styles.formField, { flex: 1 }]}>
                   <Text style={styles.fieldLabel}>Week Number</Text>
@@ -713,5 +834,85 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#FFFFFF',
     marginTop: 2
+  },
+  dtrLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  dtrRequiredBadge: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFB433',
+    letterSpacing: 0.5
+  },
+  dtrHelpText: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 6
+  },
+  dtrPillsContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 4
+  },
+  dtrCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    minWidth: 160
+  },
+  dtrCardSelected: {
+    backgroundColor: 'rgba(255, 180, 51, 0.15)',
+    borderColor: '#FFB433'
+  },
+  dtrCardDisabled: {
+    opacity: 0.45,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderColor: 'rgba(255, 255, 255, 0.05)'
+  },
+  dtrCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4
+  },
+  dtrCardDate: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF'
+  },
+  dtrCardDateSelected: {
+    color: '#FFB433'
+  },
+  dtrCardDateDisabled: {
+    color: 'rgba(255, 255, 255, 0.4)'
+  },
+  dtrCardBottom: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  dtrCardHours: {
+    fontSize: 10,
+    color: '#80CBC4',
+    fontWeight: '600'
+  },
+  dtrCardHoursDisabled: {
+    color: 'rgba(255, 255, 255, 0.4)'
+  },
+  dtrWrittenBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 6,
+    alignSelf: 'flex-start'
+  },
+  dtrWrittenBadgeText: {
+    fontSize: 9,
+    color: '#10B981',
+    fontWeight: '800'
   }
 });
