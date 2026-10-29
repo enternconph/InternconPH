@@ -11,7 +11,9 @@ import {
   AppState,
   PermissionsAndroid,
   Platform,
-  Linking
+  Linking,
+  KeyboardAvoidingView,
+  ScrollView
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Geolocation from '@react-native-community/geolocation';
@@ -70,6 +72,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
   const [otpError, setOtpError] = useState('');
   const [otpCountdownSec, setOtpCountdownSec] = useState(0);
   const [devOtpPreview, setDevOtpPreview] = useState(null);
+  const [pendingOtpToken, setPendingOtpToken] = useState(null);
 
   const watermarkAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(1)).current;
@@ -550,15 +553,67 @@ export default function AttendanceQrModal({ visible, onClose }) {
     }
   };
 
-  // Request 6-digit Gmail OTP to denmarkcatolico2@gmail.com
+  const generateCandidateToken = () => {
+    const chars = '0123456789abcdef';
+    let out = '';
+    for (let i = 0; i < 40; i++) {
+      out += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return `andr_${out}`;
+  };
+
+  // Open manual OTP re-bind confirmation screen without overwriting active AsyncStorage token yet
+  const handleOpenManualRebind = () => {
+    const devName = getDeviceName();
+    const candidate = generateCandidateToken();
+    setPendingOtpToken(candidate);
+    setOtpStep('idle');
+    setOtpCode('');
+    setOtpError('');
+    setDevOtpPreview(null);
+    setDeviceMismatchData({
+      status: 'manual_rebind',
+      isManualRebind: true,
+      requires_otp: true,
+      registered_device_name: devName,
+      current_device_name: devName,
+      masked_email: 'Registered Student Email',
+      message:
+        'Rotate your hardware device key via a 6-digit email OTP. Your current binding stays active if you cancel.'
+    });
+  };
+
+  const handleCancelManualRebind = () => {
+    setPendingOtpToken(null);
+    setDeviceMismatchData(null);
+    setOtpStep('idle');
+    setOtpCode('');
+    setOtpError('');
+    setDevOtpPreview(null);
+    if (qrSecretRef.current && studentIdRef.current && deviceTokenRef.current) {
+      regenerateQr(
+        qrSecretRef.current,
+        studentIdRef.current,
+        deviceTokenRef.current,
+        isOfflineRef.current ? 'offline' : 'online',
+        false
+      );
+    }
+  };
+
+  // Request 6-digit Gmail OTP
   const handleRequestDeviceOtp = async (rotateToken = false) => {
     setOtpStep('sending');
     setOtpError('');
     try {
       const targetToken = rotateToken
-        ? await resetLocalDeviceToken()
-        : deviceToken || (await getOrCreateDeviceToken());
-      setDeviceToken(targetToken);
+        ? pendingOtpToken || generateCandidateToken()
+        : pendingOtpToken || deviceToken || (await getOrCreateDeviceToken());
+      if (rotateToken || deviceMismatchData?.isManualRebind) {
+        setPendingOtpToken(targetToken);
+      } else {
+        setDeviceToken(targetToken);
+      }
       const devName = getDeviceName();
 
       const res = await api.post('/student/attendance/request-device-otp', {
@@ -574,18 +629,17 @@ export default function AttendanceQrModal({ visible, onClose }) {
         if (res.data?.dev_otp_preview) {
           setDevOtpPreview(res.data.dev_otp_preview);
         }
-        if (!deviceMismatchData) {
-          setQrSecret(null);
-          setQrPayload('');
-          setDeviceMismatchData({
-            status: 'device_mismatch',
-            requires_otp: true,
-            registered_device_name: devName,
-            current_device_name: devName,
-            masked_email: res.data?.masked_email || 'denmarkcatolico2@gmail.com',
-            message: 'Enter the 6-digit OTP sent to denmarkcatolico2@gmail.com to bind your new device key.'
-          });
-        }
+        setDeviceMismatchData((prev) => ({
+          ...(prev || {}),
+          status: prev?.status || 'device_mismatch',
+          requires_otp: true,
+          registered_device_name: prev?.registered_device_name || devName,
+          current_device_name: devName,
+          masked_email: res.data?.masked_email || prev?.masked_email || 'your registered email',
+          message:
+            prev?.message ||
+            'Enter the 6-digit verification code sent to your email to bind this phone.'
+        }));
       } else {
         setOtpStep('idle');
         setOtpError(res.message || 'Failed to send verification OTP.');
@@ -600,7 +654,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
   const handleVerifyDeviceOtp = async () => {
     const cleaned = String(otpCode).trim();
     if (!/^\d{6}$/.test(cleaned)) {
-      setOtpError('Please enter the 6-digit numeric OTP sent to denmarkcatolico2@gmail.com.');
+      setOtpError('Please enter the 6-digit numeric verification code.');
       return;
     }
 
@@ -609,10 +663,11 @@ export default function AttendanceQrModal({ visible, onClose }) {
 
     try {
       const devName = getDeviceName();
+      const targetToken = pendingOtpToken || deviceToken;
       const res = await api.post('/student/attendance/verify-device-otp', {
         otp_code: cleaned,
-        device_id: deviceToken,
-        device_token: deviceToken,
+        device_id: targetToken,
+        device_token: targetToken,
         device_label: devName
       });
 
@@ -620,7 +675,9 @@ export default function AttendanceQrModal({ visible, onClose }) {
         const secret = res.data.qrSecret || res.data.totp_secret;
         const sId = res.data.studentId || res.data.student_id;
         const sName = res.data.studentName || res.data.full_name || 'OJT Student';
-        const activeDevToken = res.data.device_id || res.data.deviceToken || deviceToken;
+        const activeDevToken = res.data.device_id || res.data.deviceToken || targetToken;
+
+        await AsyncStorage.setItem(DEVICE_STORAGE_KEY, activeDevToken);
 
         await saveOfflineCredentials({
           studentId: sId,
@@ -636,9 +693,11 @@ export default function AttendanceQrModal({ visible, onClose }) {
         deviceTokenRef.current = activeDevToken;
         isOfflineRef.current = false;
 
+        setPendingOtpToken(null);
         setDeviceMismatchData(null);
         setOtpStep('idle');
         setOtpCode('');
+        setDevOtpPreview(null);
         setDeviceToken(activeDevToken);
         setStudentId(sId);
         setStudentName(sName);
@@ -646,17 +705,21 @@ export default function AttendanceQrModal({ visible, onClose }) {
         setDeviceBound(true);
         setIsOffline(false);
 
-        const initialPayload = await buildDynamicQrPayload(secret, sId, activeDevToken, {
-          mode: 'online',
-          location: (qrLocRef.current = gpsCoordsRef.current)
-        });
-        setQrPayload(initialPayload);
+        if (gpsCoordsRef.current) {
+          const initialPayload = await buildDynamicQrPayload(secret, sId, activeDevToken, {
+            mode: 'online',
+            location: (qrLocRef.current = gpsCoordsRef.current)
+          });
+          setQrPayload(initialPayload);
+        } else {
+          setQrPayload('');
+        }
         startCountdown(secret, sId, activeDevToken, 'online');
 
         setScanNotice({
           type: 'success',
-          title: 'NEW DEVICE BOUND!',
-          message: `This phone (${devName}) is now bound to your account and your old device was unbound.`
+          title: 'DEVICE KEY BOUND!',
+          message: `This phone (${devName}) is now securely bound to your account.`
         });
       } else {
         setOtpStep('sent');
@@ -696,7 +759,10 @@ export default function AttendanceQrModal({ visible, onClose }) {
       transparent={true}
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalOverlay}
+      >
         <View style={styles.modalCard}>
           {/* Header */}
           <View style={styles.header}>
@@ -704,9 +770,13 @@ export default function AttendanceQrModal({ visible, onClose }) {
               <View style={styles.iconCircle}>
                 <Sparkles size={20} color={colors.primary} />
               </View>
-              <View>
-                <Text style={styles.headerTitle}>Dynamic Attendance QR</Text>
-                <Text style={styles.headerSubtitle}>30s Rolling TOTP • Device-Bound</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.headerTitle} numberOfLines={1}>
+                  Dynamic Attendance QR
+                </Text>
+                <Text style={styles.headerSubtitle} numberOfLines={1}>
+                  30s Rolling TOTP • Device-Bound
+                </Text>
               </View>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
@@ -721,73 +791,102 @@ export default function AttendanceQrModal({ visible, onClose }) {
               <Text style={styles.loadingText}>Verifying hardware device binding...</Text>
             </View>
           ) : deviceMismatchData ? (
-            /* 6-DIGIT GMAIL OTP RE-BINDING FLOW */
-            <View style={styles.otpContainer}>
-              <View style={styles.otpHeaderRow}>
-                <ShieldAlert size={28} color="#FFB433" />
+            /* 6-DIGIT EMAIL OTP RE-BINDING FLOW */
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.otpContainer}
+            >
+              <View style={styles.otpBannerCard}>
+                <View style={styles.otpIconBadge}>
+                  <ShieldAlert size={20} color="#FFB433" />
+                </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.otpBadge}>ATTENDANCE BLOCKED • UNBOUND PHONE</Text>
-                  <Text style={styles.otpTitle}>6-Digit Gmail OTP Required</Text>
+                  <Text style={styles.otpBadge}>
+                    {deviceMismatchData.isManualRebind
+                      ? 'DEVICE KEY ROTATION'
+                      : 'ATTENDANCE LOCKED • NEW PHONE'}
+                  </Text>
+                  <Text style={styles.otpTitle}>Re-bind Device via OTP</Text>
                 </View>
               </View>
 
               <Text style={styles.otpDesc}>
                 {deviceMismatchData.message ||
-                  'Your attendance account is locked to another device. Verify via 6-digit OTP sent to denmarkcatolico2@gmail.com to bind this phone and unbind the old one.'}
+                  'Your attendance account is locked to another handset. Verify via a 6-digit email OTP to bind this phone and unbind the previous device.'}
               </Text>
 
               <View style={styles.deviceCompareBox}>
                 <View style={styles.deviceCompareRow}>
-                  <Text style={styles.deviceCompareLabel}>Bound Phone:</Text>
-                  <Text style={styles.deviceCompareVal} numberOfLines={1}>
+                  <Text style={styles.deviceCompareLabel}>Bound Device</Text>
+                  <Text style={styles.deviceCompareVal} numberOfLines={1} ellipsizeMode="tail">
                     {deviceMismatchData.registered_device_name || 'Previous Android Phone'}
                   </Text>
                 </View>
+                <View style={styles.deviceCompareDivider} />
                 <View style={styles.deviceCompareRow}>
-                  <Text style={styles.deviceCompareLabel}>This Phone:</Text>
-                  <Text style={[styles.deviceCompareVal, { color: '#FFB433' }]} numberOfLines={1}>
+                  <Text style={styles.deviceCompareLabel}>This Phone</Text>
+                  <Text
+                    style={[styles.deviceCompareVal, { color: '#FFB433' }]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
                     {deviceMismatchData.current_device_name || getDeviceName()}
                   </Text>
                 </View>
+                <View style={styles.deviceCompareDivider} />
                 <View style={styles.deviceCompareRow}>
-                  <Text style={styles.deviceCompareLabel}>OTP Recipient:</Text>
-                  <Text style={styles.deviceCompareVal}>
-                    {deviceMismatchData.masked_email || 'denmarkcatolico2@gmail.com'}
+                  <Text style={styles.deviceCompareLabel}>OTP Recipient</Text>
+                  <Text style={styles.deviceCompareVal} numberOfLines={1} ellipsizeMode="middle">
+                    {deviceMismatchData.masked_email || 'Registered Email'}
                   </Text>
                 </View>
               </View>
 
-              {otpError ? <Text style={styles.otpErrorText}>{otpError}</Text> : null}
+              {otpError ? (
+                <View style={styles.otpErrorBanner}>
+                  <Text style={styles.otpErrorText}>{otpError}</Text>
+                </View>
+              ) : null}
 
               {otpStep === 'idle' || otpStep === 'sending' ? (
-                <TouchableOpacity
-                  onPress={() => handleRequestDeviceOtp(false)}
-                  disabled={otpStep === 'sending'}
-                  style={styles.otpPrimaryBtn}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.otpPrimaryBtnText}>
-                    {otpStep === 'sending'
-                      ? 'Sending 6-Digit OTP...'
-                      : 'Send 6-Digit OTP to denmarkcatolico2@gmail.com'}
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.otpActionStack}>
+                  <TouchableOpacity
+                    onPress={() => handleRequestDeviceOtp(Boolean(deviceMismatchData.isManualRebind))}
+                    disabled={otpStep === 'sending'}
+                    style={[styles.otpPrimaryBtn, otpStep === 'sending' && { opacity: 0.7 }]}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.otpPrimaryBtnText}>
+                      {otpStep === 'sending' ? 'Sending 6-Digit OTP...' : 'Send 6-Digit OTP Code'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {deviceMismatchData.isManualRebind ? (
+                    <TouchableOpacity
+                      onPress={handleCancelManualRebind}
+                      disabled={otpStep === 'sending'}
+                      style={styles.otpGhostBtn}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.otpGhostBtnText}>Cancel & Keep Current Binding</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
               ) : (
-                <View style={{ width: '100%', gap: 10 }}>
-                  <Text style={styles.otpTimerLabel}>
-                    OTP sent to denmarkcatolico2@gmail.com • Expires in{' '}
-                    {Math.floor(otpCountdownSec / 60)}:
-                    {String(otpCountdownSec % 60).padStart(2, '0')}
-                  </Text>
+                <View style={styles.otpVerifyStack}>
+                  <View style={styles.otpTimerPill}>
+                    <Clock size={12} color="#80CBC4" />
+                    <Text style={styles.otpTimerLabel}>
+                      Code sent • Expires in {Math.floor(otpCountdownSec / 60)}:
+                      {String(otpCountdownSec % 60).padStart(2, '0')}
+                    </Text>
+                  </View>
 
                   {devOtpPreview ? (
-                    <View style={{ backgroundColor: 'rgba(255, 180, 51, 0.15)', borderWidth: 1, borderColor: 'rgba(255, 180, 51, 0.4)', borderRadius: 12, padding: 10, alignItems: 'center' }}>
-                      <Text style={{ color: '#FFB433', fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        Verification Code (Auto-Detected)
-                      </Text>
-                      <Text style={{ color: '#FFFFFF', fontSize: 24, fontWeight: '900', letterSpacing: 6, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', marginTop: 4 }}>
-                        {devOtpPreview}
-                      </Text>
+                    <View style={styles.devOtpBox}>
+                      <Text style={styles.devOtpLabel}>Verification Code (Auto-Detected)</Text>
+                      <Text style={styles.devOtpValue}>{devOtpPreview}</Text>
                     </View>
                   ) : null}
 
@@ -795,17 +894,18 @@ export default function AttendanceQrModal({ visible, onClose }) {
                     value={otpCode}
                     onChangeText={(txt) => setOtpCode(txt.replace(/\D/g, '').slice(0, 6))}
                     placeholder="000000"
-                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    placeholderTextColor="rgba(255,255,255,0.28)"
                     keyboardType="number-pad"
                     maxLength={6}
                     style={styles.otpInput}
                   />
 
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={styles.otpBtnRow}>
                     <TouchableOpacity
-                      onPress={() => handleRequestDeviceOtp(false)}
+                      onPress={() => handleRequestDeviceOtp(Boolean(deviceMismatchData.isManualRebind))}
                       disabled={otpStep === 'verifying'}
                       style={styles.otpSecondaryBtn}
+                      activeOpacity={0.8}
                     >
                       <Text style={styles.otpSecondaryBtnText}>Resend</Text>
                     </TouchableOpacity>
@@ -817,15 +917,27 @@ export default function AttendanceQrModal({ visible, onClose }) {
                         styles.otpPrimaryBtn,
                         { flex: 1, opacity: otpCode.length === 6 ? 1 : 0.5 }
                       ]}
+                      activeOpacity={0.85}
                     >
                       <Text style={styles.otpPrimaryBtnText}>
-                        {otpStep === 'verifying' ? 'Verifying...' : 'Verify OTP & Bind Phone'}
+                        {otpStep === 'verifying' ? 'Verifying...' : 'Verify & Bind Phone'}
                       </Text>
                     </TouchableOpacity>
                   </View>
+
+                  {deviceMismatchData.isManualRebind ? (
+                    <TouchableOpacity
+                      onPress={handleCancelManualRebind}
+                      disabled={otpStep === 'verifying'}
+                      style={styles.otpGhostBtn}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.otpGhostBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               )}
-            </View>
+            </ScrollView>
           ) : errorMessage ? (
             <View style={styles.errorContainer}>
               <ShieldAlert size={48} color={colors.danger} />
@@ -1073,61 +1185,88 @@ export default function AttendanceQrModal({ visible, onClose }) {
               {/* Student and Device Security Badges */}
               <View style={styles.badgeCard}>
                 <View style={styles.badgeRow}>
-                  <View style={styles.badgeLeft}>
-                    <Smartphone size={16} color={colors.textSecondary} />
-                    <Text style={styles.badgeLabel}>Device Hardware Lock</Text>
+                  <View style={styles.badgeLeftFlex}>
+                    <View style={styles.badgeIconBox}>
+                      <Smartphone size={15} color="#80CBC4" />
+                    </View>
+                    <View style={styles.badgeTextCol}>
+                      <View style={styles.badgeTitleInline}>
+                        <Text style={styles.badgeLabel} numberOfLines={1}>
+                          Hardware Lock
+                        </Text>
+                        <View style={styles.boundChip}>
+                          <View style={styles.statusDot} />
+                          <Text style={styles.boundChipText}>
+                            {deviceBound ? 'Bound' : 'Active'}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.badgeSublabel} numberOfLines={1}>
+                        Single-device TOTP keypair
+                      </Text>
+                    </View>
                   </View>
+
                   <TouchableOpacity
-                    onPress={() => handleRequestDeviceOtp(true)}
-                    style={styles.statusPill}
+                    onPress={handleOpenManualRebind}
+                    style={styles.rebindBtn}
+                    activeOpacity={0.8}
                   >
-                    <View style={styles.statusDot} />
-                    <Text style={styles.statusPillText}>
-                      {deviceBound ? 'Bound • Re-bind via OTP' : 'Device Active'}
-                    </Text>
+                    <RotateCw size={11} color="#FFB433" />
+                    <Text style={styles.rebindBtnText}>Re-bind OTP</Text>
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.divider} />
 
                 <View style={styles.badgeRow}>
-                  <View style={styles.badgeLeft}>
-                    <MapPin size={16} color={colors.textSecondary} />
-                    <Text style={styles.badgeLabel}>GPS Telemetry</Text>
+                  <View style={styles.badgeLeftShrink}>
+                    <View style={styles.badgeIconBox}>
+                      <MapPin size={15} color="#80CBC4" />
+                    </View>
+                    <Text style={styles.badgeLabel}>GPS Status</Text>
                   </View>
                   <Text
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
                     style={[
-                      styles.badgeValue,
+                      styles.badgeValueFlex,
                       gpsErrorStatus
                         ? { color: '#ef4444', textDecorationLine: 'underline' }
-                        : gpsCoords && (gpsCoords.acc > 50 || Math.floor(Date.now() / 1000) - gpsCoords.ts > 30)
+                        : gpsCoords &&
+                          (gpsCoords.acc > 50 || Math.floor(Date.now() / 1000) - gpsCoords.ts > 30)
                         ? { color: '#d97706' }
-                        : null
+                        : { color: gpsCoords ? '#34d399' : colors.textSecondary }
                     ]}
                     onPress={() => {
                       if (gpsErrorStatus === 'permission_denied') Linking.openSettings();
+                      else if (gpsErrorStatus === 'provider_disabled' && Platform.OS === 'android') {
+                        Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS').catch(() =>
+                          Linking.openSettings()
+                        );
+                      }
                     }}
                   >
                     {gpsErrorStatus === 'permission_denied'
-                      ? '⚠️ Permission Denied (Tap to Enable)'
+                      ? 'Permission Denied • Tap'
                       : gpsErrorStatus === 'provider_disabled'
-                      ? '⚠️ Phone GPS is OFF (Turn ON)'
+                      ? 'GPS is OFF • Tap to Enable'
                       : gpsCoords
                       ? Math.floor(Date.now() / 1000) - gpsCoords.ts > 30
-                        ? `Stale fix (${Math.floor(Date.now() / 1000) - gpsCoords.ts}s) • refreshing...`
+                        ? `Refreshing (${Math.floor(Date.now() / 1000) - gpsCoords.ts}s)...`
                         : gpsCoords.acc > 50
-                        ? `Weak ±${gpsCoords.acc}m • move near a window`
-                        : `Locked ±${gpsCoords.acc}m • ${Math.max(0, Math.floor(Date.now() / 1000) - gpsCoords.ts)}s ago`
+                        ? `Weak ±${gpsCoords.acc}m`
+                        : `Locked ±${gpsCoords.acc}m`
                       : isOffline
                       ? 'Offline Vault'
-                      : '🛰️ Acquiring GPS...'}
+                      : 'Acquiring GPS...'}
                   </Text>
                 </View>
               </View>
             </View>
           )}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1138,14 +1277,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20
+    padding: 18
   },
   modalCard: {
     width: '100%',
     maxWidth: 380,
+    maxHeight: '92%',
     backgroundColor: '#122824',
     borderRadius: 28,
-    padding: 20,
+    padding: 18,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.4,
@@ -1163,9 +1303,11 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255, 255, 255, 0.1)'
   },
   headerLeft: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12
+    gap: 12,
+    marginRight: 8
   },
   iconCircle: {
     width: 40,
@@ -1202,19 +1344,34 @@ const styles = StyleSheet.create({
     color: colors.textSecondary
   },
   otpContainer: {
-    paddingTop: 16,
+    paddingTop: 14,
+    paddingBottom: 4,
     gap: 12
   },
-  otpHeaderRow: {
+  otpBannerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10
+    gap: 12,
+    backgroundColor: 'rgba(255, 180, 51, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 180, 51, 0.3)',
+    borderRadius: 16,
+    padding: 12
+  },
+  otpIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 180, 51, 0.16)',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   otpBadge: {
     fontSize: 9,
     fontWeight: '900',
-    color: '#FCA5A5',
-    letterSpacing: 0.6
+    color: '#FFB433',
+    letterSpacing: 0.7,
+    marginBottom: 2
   },
   otpTitle: {
     fontSize: 15,
@@ -1223,32 +1380,48 @@ const styles = StyleSheet.create({
   },
   otpDesc: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.78)',
+    color: 'rgba(255, 255, 255, 0.76)',
     lineHeight: 17
   },
   deviceCompareBox: {
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-    borderRadius: 14,
-    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    gap: 6
+    gap: 8
   },
   deviceCompareRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    gap: 12
+  },
+  deviceCompareDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)'
   },
   deviceCompareLabel: {
     fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontWeight: '600'
+    color: 'rgba(255, 255, 255, 0.58)',
+    fontWeight: '600',
+    flexShrink: 0
   },
   deviceCompareVal: {
+    flex: 1,
     fontSize: 11,
     color: '#FFFFFF',
     fontWeight: '700',
-    maxWidth: 190
+    textAlign: 'right'
+  },
+  otpErrorBanner: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12
   },
   otpErrorText: {
     fontSize: 11,
@@ -1256,24 +1429,74 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center'
   },
+  otpActionStack: {
+    width: '100%',
+    gap: 8,
+    marginTop: 2
+  },
+  otpVerifyStack: {
+    width: '100%',
+    gap: 10
+  },
+  otpTimerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(128, 203, 196, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 203, 196, 0.25)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5
+  },
   otpTimerLabel: {
     fontSize: 11,
     color: '#80CBC4',
-    fontWeight: '700',
-    textAlign: 'center'
+    fontWeight: '700'
+  },
+  devOtpBox: {
+    backgroundColor: 'rgba(255, 180, 51, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 180, 51, 0.4)',
+    borderRadius: 12,
+    padding: 10,
+    alignItems: 'center'
+  },
+  devOtpLabel: {
+    color: '#FFB433',
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6
+  },
+  devOtpValue: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 6,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginTop: 4
   },
   otpInput: {
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    backgroundColor: 'rgba(0, 0, 0, 0.38)',
     borderWidth: 1.5,
     borderColor: '#FFB433',
     borderRadius: 14,
-    paddingVertical: 10,
+    paddingVertical: 11,
     paddingHorizontal: 16,
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '900',
     color: '#FFFFFF',
     textAlign: 'center',
-    letterSpacing: 8
+    letterSpacing: 10,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace'
+  },
+  otpBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
   },
   otpPrimaryBtn: {
     backgroundColor: '#FFB433',
@@ -1285,19 +1508,31 @@ const styles = StyleSheet.create({
   },
   otpPrimaryBtnText: {
     color: '#193631',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '900'
   },
   otpSecondaryBtn: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.14)',
     paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center'
   },
   otpSecondaryBtnText: {
     color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  otpGhostBtn: {
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  otpGhostBtnText: {
+    color: '#80CBC4',
     fontSize: 12,
     fontWeight: '700'
   },
@@ -1330,22 +1565,25 @@ const styles = StyleSheet.create({
     color: colors.text
   },
   body: {
-    paddingTop: 16,
-    alignItems: 'center'
+    paddingTop: 14,
+    alignItems: 'center',
+    width: '100%'
   },
   securityBanner: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     backgroundColor: colors.infoBg,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingVertical: 7,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.infoBorder,
-    marginBottom: 16
+    marginBottom: 14
   },
   securityBannerText: {
+    flex: 1,
     fontSize: 11,
     fontWeight: '600',
     color: colors.infoText
@@ -1414,7 +1652,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 14
+    marginTop: 12
   },
   timerText: {
     fontSize: 12,
@@ -1429,7 +1667,7 @@ const styles = StyleSheet.create({
     height: 4,
     backgroundColor: colors.surfaceLow,
     borderRadius: 2,
-    marginTop: 8,
+    marginTop: 7,
     overflow: 'hidden'
   },
   progressBarFill: {
@@ -1438,59 +1676,113 @@ const styles = StyleSheet.create({
   },
   badgeCard: {
     width: '100%',
-    backgroundColor: colors.surfaceLow,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 16,
-    padding: 12,
-    marginTop: 18,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    marginTop: 14,
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    overflow: 'hidden'
   },
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
+    gap: 10
   },
-  badgeLeft: {
+  badgeLeftFlex: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8
+    gap: 9
+  },
+  badgeLeftShrink: {
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9
+  },
+  badgeIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: 'rgba(128, 203, 196, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  badgeTextCol: {
+    flex: 1,
+    minWidth: 0
+  },
+  badgeTitleInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
   },
   badgeLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: colors.text
+    fontWeight: '700',
+    color: '#FFFFFF',
+    flexShrink: 1
   },
-  badgeValue: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '500'
+  badgeSublabel: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.55)',
+    marginTop: 1
   },
-  statusPill: {
+  boundChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.successBg,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.16)',
     borderWidth: 1,
-    borderColor: colors.successBorder
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 8
+  },
+  boundChipText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#34d399'
+  },
+  rebindBtn: {
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 180, 51, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 180, 51, 0.42)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10
+  },
+  rebindBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFB433'
+  },
+  badgeValueFlex: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    textAlign: 'right'
   },
   statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.success
-  },
-  statusPillText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.successText
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#10b981'
   },
   divider: {
     height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 10
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    marginVertical: 9
   },
   scanNoticeCard: {
     width: '100%',
