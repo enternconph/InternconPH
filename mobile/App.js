@@ -31,7 +31,7 @@ import { colors } from './src/utils/theme';
 function MainNavigator() {
   const { user, loading, isOjtActive } = useAuth();
   const [activeTab, setActiveTab] = useState('Home');
-  const [showQrModal, setShowQrModal] = useState(false);
+  const [prevTab, setPrevTab] = useState('Home');
 
   if (loading) {
     return (
@@ -52,9 +52,27 @@ function MainNavigator() {
     return <AccessBlockedScreen />;
   }
 
+  const openQrScreen = () => {
+    setActiveTab((current) => {
+      if (current !== 'QR') setPrevTab(current);
+      return 'QR';
+    });
+  };
+
+  const closeQrScreen = () => {
+    setActiveTab(prevTab || 'Home');
+  };
+
   // Active OJT Student -> Main Tab Suite
   const navigationProxy = {
-    navigate: (tabName) => setActiveTab(tabName)
+    navigate: (tabName) => {
+      if (tabName === 'QR') {
+        openQrScreen();
+      } else {
+        setActiveTab(tabName);
+      }
+    },
+    goBack: closeQrScreen
   };
 
   return (
@@ -74,110 +92,109 @@ function MainNavigator() {
         {activeTab === 'Journal' && <JournalScreen navigation={navigationProxy} />}
         {activeTab === 'Clearance' && <ClearanceScreen navigation={navigationProxy} />}
         {activeTab === 'Evaluations' && <EvaluationScreen navigation={navigationProxy} />}
+        {activeTab === 'QR' && (
+          <AttendanceQrModal visible={true} onBack={closeQrScreen} onClose={closeQrScreen} />
+        )}
       </View>
 
-      {/* Floating Pill Bottom Navigation Bar */}
-      <View style={styles.bottomNavContainer} pointerEvents="box-none">
-        <View style={styles.floatingNavPill}>
-          {/* Tab 1: Home */}
-          <TouchableOpacity
-            onPress={() => setActiveTab('Home')}
-            style={[styles.tabItem, activeTab === 'Home' && styles.tabItemActive]}
-            activeOpacity={0.7}
-          >
-            <Home
-              size={19}
-              color={activeTab === 'Home' ? colors.primaryTextOn : colors.textMuted}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === 'Home' && styles.tabLabelActive
-              ]}
+      {/* Floating Pill Bottom Navigation Bar (hidden on dedicated full-screen QR view) */}
+      {activeTab !== 'QR' && (
+        <View style={styles.bottomNavContainer} pointerEvents="box-none">
+          <View style={styles.floatingNavPill}>
+            {/* Tab 1: Home */}
+            <TouchableOpacity
+              onPress={() => setActiveTab('Home')}
+              style={[styles.tabItem, activeTab === 'Home' && styles.tabItemActive]}
+              activeOpacity={0.7}
             >
-              Home
-            </Text>
-          </TouchableOpacity>
+              <Home
+                size={19}
+                color={activeTab === 'Home' ? colors.primaryTextOn : colors.textMuted}
+              />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  activeTab === 'Home' && styles.tabLabelActive
+                ]}
+              >
+                Home
+              </Text>
+            </TouchableOpacity>
 
-          {/* Tab 2: DTR */}
-          <TouchableOpacity
-            onPress={() => setActiveTab('DTR')}
-            style={[styles.tabItem, activeTab === 'DTR' && styles.tabItemActive]}
-            activeOpacity={0.7}
-          >
-            <Clock
-              size={19}
-              color={activeTab === 'DTR' ? colors.primaryTextOn : colors.textMuted}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === 'DTR' && styles.tabLabelActive
-              ]}
+            {/* Tab 2: DTR */}
+            <TouchableOpacity
+              onPress={() => setActiveTab('DTR')}
+              style={[styles.tabItem, activeTab === 'DTR' && styles.tabItemActive]}
+              activeOpacity={0.7}
             >
-              DTR
-            </Text>
-          </TouchableOpacity>
+              <Clock
+                size={19}
+                color={activeTab === 'DTR' ? colors.primaryTextOn : colors.textMuted}
+              />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  activeTab === 'DTR' && styles.tabLabelActive
+                ]}
+              >
+                DTR
+              </Text>
+            </TouchableOpacity>
 
-          {/* Floating Center QR Scan Button */}
-          <TouchableOpacity
-            onPress={() => setShowQrModal(true)}
-            style={styles.floatingQrBtn}
-            activeOpacity={0.85}
-          >
-            <View style={styles.qrInnerIcon}>
-              <QrCode size={22} color="#193631" />
-            </View>
-            <Text style={styles.centerQrLabel}>PUNCH</Text>
-          </TouchableOpacity>
-
-          {/* Tab 3: Journal */}
-          <TouchableOpacity
-            onPress={() => setActiveTab('Journal')}
-            style={[styles.tabItem, activeTab === 'Journal' && styles.tabItemActive]}
-            activeOpacity={0.7}
-          >
-            <BookOpen
-              size={19}
-              color={activeTab === 'Journal' ? colors.primaryTextOn : colors.textMuted}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === 'Journal' && styles.tabLabelActive
-              ]}
+            {/* Floating Center QR Scan Button */}
+            <TouchableOpacity
+              onPress={openQrScreen}
+              style={styles.floatingQrBtn}
+              activeOpacity={0.85}
             >
-              Journal
-            </Text>
-          </TouchableOpacity>
+              <View style={styles.qrInnerIcon}>
+                <QrCode size={22} color="#193631" />
+              </View>
+              <Text style={styles.centerQrLabel}>PUNCH</Text>
+            </TouchableOpacity>
 
-          {/* Tab 4: Clearance */}
-          <TouchableOpacity
-            onPress={() => setActiveTab('Clearance')}
-            style={[styles.tabItem, activeTab === 'Clearance' && styles.tabItemActive]}
-            activeOpacity={0.7}
-          >
-            <FileCheck
-              size={19}
-              color={activeTab === 'Clearance' ? colors.primaryTextOn : colors.textMuted}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === 'Clearance' && styles.tabLabelActive
-              ]}
+            {/* Tab 3: Journal */}
+            <TouchableOpacity
+              onPress={() => setActiveTab('Journal')}
+              style={[styles.tabItem, activeTab === 'Journal' && styles.tabItemActive]}
+              activeOpacity={0.7}
             >
-              Clearance
-            </Text>
-          </TouchableOpacity>
+              <BookOpen
+                size={19}
+                color={activeTab === 'Journal' ? colors.primaryTextOn : colors.textMuted}
+              />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  activeTab === 'Journal' && styles.tabLabelActive
+                ]}
+              >
+                Journal
+              </Text>
+            </TouchableOpacity>
+
+            {/* Tab 4: Clearance */}
+            <TouchableOpacity
+              onPress={() => setActiveTab('Clearance')}
+              style={[styles.tabItem, activeTab === 'Clearance' && styles.tabItemActive]}
+              activeOpacity={0.7}
+            >
+              <FileCheck
+                size={19}
+                color={activeTab === 'Clearance' ? colors.primaryTextOn : colors.textMuted}
+              />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  activeTab === 'Clearance' && styles.tabLabelActive
+                ]}
+              >
+                Clearance
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-
-      {/* Dynamic Attendance QR Modal */}
-      <AttendanceQrModal
-        visible={showQrModal}
-        onClose={() => setShowQrModal(false)}
-      />
+      )}
     </SafeAreaView>
   );
 }

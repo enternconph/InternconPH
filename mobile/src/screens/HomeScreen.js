@@ -29,7 +29,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { colors } from '../utils/theme';
-import AttendanceQrModal from '../components/AttendanceQrModal';
 import { formatTime12 } from '../utils/timeUtils';
 
 const CACHE_OJT_KEY = '@internconph_cached_ojt_data';
@@ -42,7 +41,6 @@ export default function HomeScreen({ navigation }) {
   const [isOnline, setIsOnline] = useState(true);
   const [ojtData, setOjtData] = useState(null);
   const [attendanceData, setAttendanceData] = useState(null);
-  const [showQrModal, setShowQrModal] = useState(false);
 
   // Restore cached dashboard data for offline support
   useEffect(() => {
@@ -166,7 +164,7 @@ export default function HomeScreen({ navigation }) {
 
         {/* PRIMARY CTA: Tactile Amber Attendance Punch Card */}
         <TouchableOpacity
-          onPress={() => setShowQrModal(true)}
+          onPress={() => navigation?.navigate('QR')}
           style={styles.qrCtaCard}
           activeOpacity={0.9}
         >
@@ -177,12 +175,12 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.qrCtaTextGroup}>
               <View style={styles.qrPill}>
                 <View style={styles.livePulse} />
-                <Text style={styles.qrPillText}>DYNAMIC 20s TOTP</Text>
+                <Text style={styles.qrPillText}>DYNAMIC 30s TOTP</Text>
               </View>
               <Text style={styles.qrCtaTitle}>Present Attendance QR</Text>
               <Text style={styles.qrCtaSubtitle}>
                 {isClockedOut
-                  ? 'Shift completed • Tap to show QR badge'
+                  ? 'Shift completed • Tap to open full-screen QR pass'
                   : isClockedIn
                   ? 'Currently Time-In • Scan to Clock-Out'
                   : 'Ready for Arrival • Scan to Clock-In'}
@@ -370,12 +368,6 @@ export default function HomeScreen({ navigation }) {
         {/* Bottom Spacer for floating nav */}
         <View style={{ height: 80 }} />
       </ScrollView>
-
-      {/* Dynamic Attendance QR Modal */}
-      <AttendanceQrModal
-        visible={showQrModal}
-        onClose={() => setShowQrModal(false)}
-      />
     </SafeAreaView>
   );
 }

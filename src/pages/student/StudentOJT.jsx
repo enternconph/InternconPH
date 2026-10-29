@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
 import { resolveFileUrl, formatFileSize, getFileIcon } from '../../utils/fileHelper';
@@ -7,6 +7,7 @@ import StudentAttendanceQrModal from '../../components/Student/StudentAttendance
 import { formatPHT12Hour } from '../../utils/timeFormat';
 
 export default function StudentOJT() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const urlTab = searchParams.get('tab');
   
@@ -50,8 +51,20 @@ export default function StudentOJT() {
   const [certificates, setCertificates] = useState([]);
   const [viewCert, setViewCert] = useState(null);
 
-  // Dynamic Attendance QR Modal State
+  // Dynamic Attendance QR State (navigates to full-screen page on mobile; no modal on mobile)
   const [showQrModal, setShowQrModal] = useState(false);
+  const openAttendanceQr = useCallback(() => {
+    const isMobileViewport =
+      typeof window !== 'undefined' &&
+      (window.innerWidth < 768 ||
+        (typeof navigator !== 'undefined' &&
+          /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)));
+    if (isMobileViewport) {
+      navigate('/dashboard/student/attendance-qr');
+    } else {
+      setShowQrModal(true);
+    }
+  }, [navigate]);
   const [viewJournalEntry, setViewJournalEntry] = useState(null);
 
   useEffect(() => {
@@ -526,7 +539,7 @@ export default function StudentOJT() {
               <div className="flex items-center gap-2.5 flex-wrap">
                 <button
                   type="button"
-                  onClick={() => setShowQrModal(true)}
+                  onClick={openAttendanceQr}
                   className="px-4 py-2 bg-gradient-to-r from-vibrant-orange to-deep-orange hover:opacity-95 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-transform active:scale-95"
                 >
                   <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
@@ -594,7 +607,7 @@ export default function StudentOJT() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowQrModal(true)}
+                  onClick={openAttendanceQr}
                   className="px-3 py-1.5 bg-surface text-on-surface hover:bg-surface-container border border-outline-variant rounded-xl text-xs font-bold transition-colors shadow-xs"
                 >
                   View Attendance Token
@@ -627,7 +640,7 @@ export default function StudentOJT() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowQrModal(true)}
+                  onClick={openAttendanceQr}
                   className="px-3.5 py-1.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 shadow-xs transition-colors"
                 >
                   <span className="material-symbols-outlined text-[16px]">logout</span>
@@ -649,7 +662,7 @@ export default function StudentOJT() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowQrModal(true)}
+                  onClick={openAttendanceQr}
                   className="px-3.5 py-1.5 bg-vibrant-orange hover:bg-deep-orange text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 shadow-xs transition-colors"
                 >
                   <span className="material-symbols-outlined text-[16px]">qr_code_2</span>

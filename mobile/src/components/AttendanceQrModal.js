@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
-  Modal,
   TouchableOpacity,
   TextInput,
   StyleSheet,
@@ -14,6 +13,9 @@ import {
   Linking,
   KeyboardAvoidingView,
   ScrollView,
+  SafeAreaView,
+  StatusBar,
+  BackHandler,
   useWindowDimensions
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -22,9 +24,9 @@ import {
   ShieldAlert,
   RotateCw,
   X,
+  ArrowLeft,
   Smartphone,
   Clock,
-  Sparkles,
   Lock,
   CheckCircle2,
   MapPin
@@ -35,7 +37,6 @@ import { formatTime12 } from '../utils/timeUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getOrCreateDeviceToken,
-  resetLocalDeviceToken,
   saveOfflineCredentials,
   loadOfflineCredentials,
   clearOfflineCredentials,
@@ -48,10 +49,16 @@ import {
 const ROTATION_INTERVAL = TOTP_STEP_SECONDS; // 30-second TOTP rotation
 const DEVICE_STORAGE_KEY = '@internconph_attendance_device_token';
 
-export default function AttendanceQrModal({ visible, onClose }) {
+export default function AttendanceQrModal({ visible = true, onClose, onBack }) {
+  const handleNavigateBack = useCallback(() => {
+    if (onBack) onBack();
+    else if (onClose) onClose();
+  }, [onBack, onClose]);
+
   const { width: winWidth, height: winHeight } = useWindowDimensions();
-  const cardWidth = Math.min(Math.max(winWidth - 28, 290), 392);
-  const qrSize = winHeight < 700 ? 176 : Math.min(204, cardWidth - 108);
+  const qrSize = winHeight < 700
+    ? 200
+    : Math.min(248, Math.max(204, winWidth - 104));
 
   const [loading, setLoading] = useState(true);
   const [qrSecret, setQrSecret] = useState(null);
@@ -79,7 +86,6 @@ export default function AttendanceQrModal({ visible, onClose }) {
   const [devOtpPreview, setDevOtpPreview] = useState(null);
   const [pendingOtpToken, setPendingOtpToken] = useState(null);
 
-  const watermarkAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef(null);
   const prevLogRef = useRef(null);
@@ -90,11 +96,81 @@ export default function AttendanceQrModal({ visible, onClose }) {
   const isOfflineRef = useRef(false);
   const qrLocRef = useRef(null); // GPS fix embedded in the QR currently on screen
 
+  const regenerateQr = useCallback(
+    async (
+      sec = qrSecretRef.current,
+      sId = studentIdRef.current,
+      dTok = deviceTokenRef.current,
+      mode = isOfflineRef.current ? 'offline' : 'online',
+      resetProgress = true
+    ) => {
+      if (!sec || !sId || !dTok) return;
+      try {
+        const nowMs = Date.now();
+        const baseLoc = gpsCoordsRef.current;
+        const activeLoc =
+          baseLoc && (!baseLoc.receivedAtMs || nowMs - baseLoc.receivedAtMs <= 120000)
+            ? { ...baseLoc, ts: Math.floor(nowMs / 1000) }
+            : baseLoc;
+        qrLocRef.current = activeLoc;
+        const freshPayload = await buildDynamicQrPayload(sec, sId, dTok, {
+          mode,
+          location: activeLoc
+        });
+        setQrPayload(freshPayload);
+        if (resetProgress) {
+          progressAnim.setValue(1);
+          Animated.timing(progressAnim, {
+            toValue: 0,
+            duration: ROTATION_INTERVAL * 1000,
+            useNativeDriver: false
+          }).start();
+        }
+      } catch (e) {
+        console.warn('QR regeneration error:', e);
+      }
+    },
+    [progressAnim]
+  );
+
+  const handleCancelManualRebind = useCallback(() => {
+    setPendingOtpToken(null);
+    setDeviceMismatchData(null);
+    setOtpStep('idle');
+    setOtpCode('');
+    setOtpError('');
+    setDevOtpPreview(null);
+    if (qrSecretRef.current && studentIdRef.current && deviceTokenRef.current) {
+      regenerateQr(
+        qrSecretRef.current,
+        studentIdRef.current,
+        deviceTokenRef.current,
+        isOfflineRef.current ? 'offline' : 'online',
+        false
+      );
+    }
+  }, [regenerateQr]);
+
+  // Android Hardware / Gesture Back button support for Full-Screen navigation
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (deviceMismatchData?.isManualRebind) {
+        handleCancelManualRebind();
+        return true;
+      }
+      handleNavigateBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, deviceMismatchData, handleCancelManualRebind, handleNavigateBack]);
+
   // Request Android high-accuracy GPS location via native Geolocation module
   useEffect(() => {
     if (!visible) return;
     let watchId = null;
     let heartbeatId = null;
+    let fallbackTimer = null;
 
     async function startLocationTracking() {
       try {
@@ -104,8 +180,12 @@ export default function AttendanceQrModal({ visible, onClose }) {
               PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
               PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION
             ]);
-            const fine = granted[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
-            const coarse = granted[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
+            const fine =
+              granted[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] ===
+              PermissionsAndroid.RESULTS.GRANTED;
+            const coarse =
+              granted[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] ===
+              PermissionsAndroid.RESULTS.GRANTED;
             if (!fine && !coarse) {
               console.warn('GPS location permissions denied by user');
               setGpsErrorStatus('permission_denied');
@@ -128,8 +208,8 @@ export default function AttendanceQrModal({ visible, onClose }) {
           setGpsErrorStatus(null);
           const nowMs = Date.now();
           const rawTs = Number(pos.timestamp);
-          // Guard against Android boot-relative elapsedRealtime timestamps (< 1.7e12) or stale cached OS fixes (> 25s)
-          const isValidEpochMs = !isNaN(rawTs) && rawTs > 1700000000000 && rawTs <= nowMs + 60000;
+          const isValidEpochMs =
+            !isNaN(rawTs) && rawTs > 1700000000000 && rawTs <= nowMs + 60000;
           const fixMs = isValidEpochMs && nowMs - rawTs <= 25000 ? rawTs : nowMs;
           const loc = {
             lat: Number(pos.coords.latitude.toFixed(6)),
@@ -139,17 +219,12 @@ export default function AttendanceQrModal({ visible, onClose }) {
             receivedAtMs: nowMs
           };
 
-          // Ignore out-of-order fixes older than the one we already hold
           const prev = gpsCoordsRef.current;
           if (prev && loc.ts < prev.ts) return;
 
           gpsCoordsRef.current = loc;
           setGpsCoords(loc);
 
-          // Refresh the QR with the new fix:
-          // - QR currently has no GPS, or
-          // - GPS inside the current QR is older than 8s (server rejects > 30s), or
-          // - accuracy improved by more than 8m
           const qrLoc = qrLocRef.current;
           const nowSec = Math.floor(nowMs / 1000);
           const shouldRefresh =
@@ -172,7 +247,6 @@ export default function AttendanceQrModal({ visible, onClose }) {
           maximumAge: 10000
         };
 
-        // 1. Initial high-accuracy fix via Google Fused Location Provider
         Geolocation.getCurrentPosition(
           updateCoords,
           (err) => {
@@ -180,7 +254,6 @@ export default function AttendanceQrModal({ visible, onClose }) {
             if (err?.code === 2) {
               setGpsErrorStatus('provider_disabled');
             }
-            // Fallback to balanced accuracy (Wi-Fi/Cellular) if satellite/high-accuracy is slow indoors
             Geolocation.getCurrentPosition(
               updateCoords,
               (fallbackErr) => {
@@ -195,8 +268,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
           highAccuracyOpts
         );
 
-        // Also trigger fallback proactively after 3.5s if still no coords
-        const fallbackTimer = setTimeout(() => {
+        fallbackTimer = setTimeout(() => {
           if (!gpsCoordsRef.current) {
             Geolocation.getCurrentPosition(
               updateCoords,
@@ -206,9 +278,6 @@ export default function AttendanceQrModal({ visible, onClose }) {
           }
         }, 3500);
 
-        // 2. Continuous watch. distanceFilter MUST be 0: the fused provider maps it to
-        // setMinUpdateDistanceMeters(), so any value > 0 stops updates while the phone is
-        // stationary at the desk and the fix goes stale (> 30s) -> server rejection.
         watchId = Geolocation.watchPosition(
           updateCoords,
           (err) => {
@@ -226,7 +295,6 @@ export default function AttendanceQrModal({ visible, onClose }) {
           }
         );
 
-        // 3. Freshness heartbeat: force a new fix every 8s even if the watcher goes quiet
         heartbeatId = setInterval(() => {
           Geolocation.getCurrentPosition(updateCoords, () => {}, highAccuracyOpts);
         }, 8000);
@@ -239,13 +307,14 @@ export default function AttendanceQrModal({ visible, onClose }) {
 
     return () => {
       try {
+        if (fallbackTimer !== null) clearTimeout(fallbackTimer);
         if (heartbeatId !== null) clearInterval(heartbeatId);
         if (watchId !== null) {
           Geolocation.clearWatch(watchId);
         }
       } catch (_) {}
     };
-  }, [visible]);
+  }, [visible, regenerateQr]);
 
   // OTP countdown timer (5 minutes = 300s)
   useEffect(() => {
@@ -255,6 +324,43 @@ export default function AttendanceQrModal({ visible, onClose }) {
     }, 1000);
     return () => clearInterval(id);
   }, [otpCountdownSec]);
+
+  const startCountdown = useCallback(
+    (secretArg, sIdArg, devTokenArg, modeArg = 'online') => {
+      clearInterval(timerRef.current);
+      const nowSec = Math.floor(Date.now() / 1000);
+      const initialRem = ROTATION_INTERVAL - (nowSec % ROTATION_INTERVAL);
+      setSecondsRemaining(initialRem);
+      progressAnim.setValue(initialRem / ROTATION_INTERVAL);
+
+      Animated.timing(progressAnim, {
+        toValue: 0,
+        duration: initialRem * 1000,
+        useNativeDriver: false
+      }).start();
+
+      timerRef.current = setInterval(() => {
+        const now = new Date();
+        const pstStr = now.toLocaleTimeString('en-US', {
+          timeZone: 'Asia/Manila',
+          hour12: true,
+          hour: 'numeric',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+        setWatermarkPst(`${pstStr} PST`);
+
+        const curSec = Math.floor(now.getTime() / 1000);
+        const rem = ROTATION_INTERVAL - (curSec % ROTATION_INTERVAL);
+        setSecondsRemaining(rem);
+
+        if (rem === ROTATION_INTERVAL) {
+          regenerateQr(secretArg, sIdArg, devTokenArg, modeArg, true);
+        }
+      }, 1000);
+    },
+    [progressAnim, regenerateQr]
+  );
 
   // Initialize Credentials & Register Device (with full offline support & OTP device binding)
   useEffect(() => {
@@ -303,7 +409,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
               setDeviceMismatchData({
                 ...res.data,
                 current_device_name: devName,
-                masked_email: res.data.masked_email || 'denmarkcatolico2@gmail.com'
+                masked_email: res.data.masked_email || 'Registered Student Email'
               });
               setLoading(false);
             }
@@ -356,7 +462,6 @@ export default function AttendanceQrModal({ visible, onClose }) {
               startCountdown(secret, sId, activeDevToken, 'online');
             }
           } else {
-            // Awaiting GPS fix before generating signed v2 QR
             if (isMounted) {
               setQrPayload('');
               setLoading(false);
@@ -419,26 +524,21 @@ export default function AttendanceQrModal({ visible, onClose }) {
 
     initCredentials();
 
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(watermarkAnim, {
-          toValue: 1,
-          duration: 3500,
-          useNativeDriver: true
-        }),
-        Animated.timing(watermarkAnim, {
-          toValue: 0,
-          duration: 3500,
-          useNativeDriver: true
-        })
-      ])
-    ).start();
-
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState.match(/inactive|background/)) {
         setQrPayload('');
-      } else if (nextAppState === 'active' && qrSecret && studentId && deviceToken) {
-        regenerateQr(qrSecret, studentId, deviceToken, isOffline ? 'offline' : 'online');
+      } else if (
+        nextAppState === 'active' &&
+        qrSecretRef.current &&
+        studentIdRef.current &&
+        deviceTokenRef.current
+      ) {
+        regenerateQr(
+          qrSecretRef.current,
+          studentIdRef.current,
+          deviceTokenRef.current,
+          isOfflineRef.current ? 'offline' : 'online'
+        );
       }
     });
 
@@ -447,9 +547,9 @@ export default function AttendanceQrModal({ visible, onClose }) {
       clearInterval(timerRef.current);
       subscription.remove();
     };
-  }, [visible]);
+  }, [visible, regenerateQr, startCountdown]);
 
-  // Live attendance polling while QR modal is visible
+  // Live attendance polling while QR screen is active
   useEffect(() => {
     if (!visible || isOffline || deviceMismatchData) {
       setScanNotice(null);
@@ -500,74 +600,6 @@ export default function AttendanceQrModal({ visible, onClose }) {
     };
   }, [visible, isOffline, deviceMismatchData]);
 
-  const startCountdown = (secretArg, sIdArg, devTokenArg, modeArg = 'online') => {
-    clearInterval(timerRef.current);
-    const nowSec = Math.floor(Date.now() / 1000);
-    const initialRem = ROTATION_INTERVAL - (nowSec % ROTATION_INTERVAL);
-    setSecondsRemaining(initialRem);
-    progressAnim.setValue(initialRem / ROTATION_INTERVAL);
-
-    Animated.timing(progressAnim, {
-      toValue: 0,
-      duration: initialRem * 1000,
-      useNativeDriver: false
-    }).start();
-
-    timerRef.current = setInterval(() => {
-      const now = new Date();
-      const pstStr = now.toLocaleTimeString('en-US', {
-        timeZone: 'Asia/Manila',
-        hour12: true,
-        hour: 'numeric',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-      setWatermarkPst(`${pstStr} PST`);
-
-      const curSec = Math.floor(now.getTime() / 1000);
-      const rem = ROTATION_INTERVAL - (curSec % ROTATION_INTERVAL);
-      setSecondsRemaining(rem);
-
-      if (rem === ROTATION_INTERVAL) {
-        regenerateQr(secretArg, sIdArg, devTokenArg, modeArg, true);
-      }
-    }, 1000);
-  };
-
-  const regenerateQr = async (
-    sec = qrSecretRef.current || qrSecret,
-    sId = studentIdRef.current || studentId,
-    dTok = deviceTokenRef.current || deviceToken,
-    mode = (isOfflineRef.current ?? isOffline) ? 'offline' : 'online',
-    resetProgress = true
-  ) => {
-    if (!sec || !sId || !dTok) return;
-    try {
-      const nowMs = Date.now();
-      const baseLoc = gpsCoordsRef.current;
-      const activeLoc =
-        baseLoc && (!baseLoc.receivedAtMs || nowMs - baseLoc.receivedAtMs <= 120000)
-          ? { ...baseLoc, ts: Math.floor(nowMs / 1000) }
-          : baseLoc;
-      qrLocRef.current = activeLoc;
-      const freshPayload = await buildDynamicQrPayload(sec, sId, dTok, {
-        mode,
-        location: activeLoc
-      });
-      setQrPayload(freshPayload);
-      if (resetProgress) {
-        progressAnim.setValue(1);
-        Animated.timing(progressAnim, {
-          toValue: 0,
-          duration: ROTATION_INTERVAL * 1000,
-          useNativeDriver: false
-        }).start();
-      }
-    } catch (e) {
-      console.warn('QR regeneration error:', e);
-    }
-  };
-
   const generateCandidateToken = () => {
     const chars = '0123456789abcdef';
     let out = '';
@@ -577,7 +609,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
     return `andr_${out}`;
   };
 
-  // Open manual OTP re-bind confirmation screen without overwriting active AsyncStorage token yet
+  // Open manual OTP re-bind screen inline without overwriting active AsyncStorage token yet
   const handleOpenManualRebind = () => {
     const devName = getDeviceName();
     const candidate = generateCandidateToken();
@@ -596,24 +628,6 @@ export default function AttendanceQrModal({ visible, onClose }) {
       message:
         'Rotate your hardware device key via a 6-digit email OTP. Your current binding stays active if you cancel.'
     });
-  };
-
-  const handleCancelManualRebind = () => {
-    setPendingOtpToken(null);
-    setDeviceMismatchData(null);
-    setOtpStep('idle');
-    setOtpCode('');
-    setOtpError('');
-    setDevOtpPreview(null);
-    if (qrSecretRef.current && studentIdRef.current && deviceTokenRef.current) {
-      regenerateQr(
-        qrSecretRef.current,
-        studentIdRef.current,
-        deviceTokenRef.current,
-        isOfflineRef.current ? 'offline' : 'online',
-        false
-      );
-    }
   };
 
   // Request 6-digit Gmail OTP
@@ -750,10 +764,7 @@ export default function AttendanceQrModal({ visible, onClose }) {
     }
   };
 
-  const watermarkTranslateY = watermarkAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-30, 30]
-  });
+  if (!visible) return null;
 
   const hasGeofenceCoords =
     workplaceGeofence &&
@@ -776,587 +787,580 @@ export default function AttendanceQrModal({ visible, onClose }) {
     liveDistanceMeters !== null ? liveDistanceMeters <= allowedRadiusMeters : true;
 
   return (
-    <Modal
-      visible={visible}
-      animationType="fade"
-      transparent={true}
-      statusBarTranslucent={true}
-      onRequestClose={onClose}
-    >
+    <SafeAreaView style={styles.fullScreenRoot}>
+      <StatusBar barStyle="light-content" backgroundColor="#193631" />
+
+      {/* Top Native Full-Screen Navigation Bar */}
+      <View style={styles.topAppBar}>
+        <TouchableOpacity
+          onPress={deviceMismatchData?.isManualRebind ? handleCancelManualRebind : handleNavigateBack}
+          style={styles.backBtn}
+          activeOpacity={0.75}
+        >
+          <ArrowLeft size={19} color="#FFFFFF" />
+          <Text style={styles.backBtnText}>Back</Text>
+        </TouchableOpacity>
+
+        <View style={styles.headerCenterCol}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            Dynamic Attendance QR
+          </Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
+            30s Rolling TOTP • CHED Biometrics
+          </Text>
+        </View>
+
+        <View
+          style={[
+            styles.modeBadgePill,
+            isOffline ? styles.modeBadgeOffline : styles.modeBadgeOnline
+          ]}
+        >
+          <View
+            style={[
+              styles.modeStatusDot,
+              { backgroundColor: isOffline ? '#FFB433' : '#10B981' }
+            ]}
+          />
+          <Text
+            style={[
+              styles.modeBadgeText,
+              { color: isOffline ? '#FFB433' : '#6EE7B7' }
+            ]}
+          >
+            {isOffline ? 'OFFLINE' : 'ONLINE'}
+          </Text>
+        </View>
+      </View>
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.modalOverlay}
+        style={styles.flexBody}
       >
-        <View style={[styles.modalCard, { width: cardWidth, maxHeight: Math.round(winHeight * 0.9) }]}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <View style={styles.iconCircle}>
-                <Sparkles size={19} color={colors.primary} />
-              </View>
-              <View style={styles.headerTextCol}>
-                <View style={styles.headerTitleRow}>
-                  <Text style={styles.headerTitle} numberOfLines={1}>
-                    Dynamic Attendance QR
-                  </Text>
-                </View>
-                <View style={styles.headerSubRow}>
-                  <View
-                    style={[
-                      styles.modeStatusDot,
-                      { backgroundColor: isOffline ? '#FFB433' : '#10B981' }
-                    ]}
-                  />
-                  <Text style={styles.headerSubtitle} numberOfLines={1}>
-                    {isOffline ? 'Offline Vault • 30s TOTP' : 'Online GPS • 30s Rolling TOTP'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-              <X size={19} color="#E2E8F0" />
-            </TouchableOpacity>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Verifying hardware device binding...</Text>
           </View>
-
-          {/* Body */}
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.loadingText}>Verifying hardware device binding...</Text>
+        ) : deviceMismatchData ? (
+          /* FULL-SCREEN 6-DIGIT EMAIL OTP RE-BINDING FLOW */
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.otpScrollContent}
+          >
+            <View style={styles.otpBannerCard}>
+              <View style={styles.otpIconBadge}>
+                <ShieldAlert size={22} color="#FFB433" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.otpBadge}>
+                  {deviceMismatchData.isManualRebind
+                    ? 'DEVICE KEY ROTATION'
+                    : 'ATTENDANCE LOCKED • NEW PHONE'}
+                </Text>
+                <Text style={styles.otpTitle}>Re-bind Device via OTP</Text>
+              </View>
             </View>
-          ) : deviceMismatchData ? (
-            /* 6-DIGIT EMAIL OTP RE-BINDING FLOW */
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.otpContainer}
-            >
-              <View style={styles.otpBannerCard}>
-                <View style={styles.otpIconBadge}>
-                  <ShieldAlert size={20} color="#FFB433" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.otpBadge}>
-                    {deviceMismatchData.isManualRebind
-                      ? 'DEVICE KEY ROTATION'
-                      : 'ATTENDANCE LOCKED • NEW PHONE'}
-                  </Text>
-                  <Text style={styles.otpTitle}>Re-bind Device via OTP</Text>
-                </View>
+
+            <Text style={styles.otpDesc}>
+              {deviceMismatchData.message ||
+                'Your attendance account is locked to another handset. Verify via a 6-digit email OTP to bind this phone and unbind the previous device.'}
+            </Text>
+
+            <View style={styles.deviceCompareBox}>
+              <View style={styles.deviceCompareRow}>
+                <Text style={styles.deviceCompareLabel}>Bound Device</Text>
+                <Text style={styles.deviceCompareVal} numberOfLines={1} ellipsizeMode="tail">
+                  {deviceMismatchData.registered_device_name || 'Previous Android Phone'}
+                </Text>
               </View>
+              <View style={styles.deviceCompareDivider} />
+              <View style={styles.deviceCompareRow}>
+                <Text style={styles.deviceCompareLabel}>This Phone</Text>
+                <Text
+                  style={[styles.deviceCompareVal, { color: '#FFB433' }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {deviceMismatchData.current_device_name || getDeviceName()}
+                </Text>
+              </View>
+              <View style={styles.deviceCompareDivider} />
+              <View style={styles.deviceCompareRow}>
+                <Text style={styles.deviceCompareLabel}>OTP Recipient</Text>
+                <Text style={styles.deviceCompareVal} numberOfLines={1} ellipsizeMode="middle">
+                  {deviceMismatchData.masked_email || 'Registered Email'}
+                </Text>
+              </View>
+            </View>
 
-              <Text style={styles.otpDesc}>
-                {deviceMismatchData.message ||
-                  'Your attendance account is locked to another handset. Verify via a 6-digit email OTP to bind this phone and unbind the previous device.'}
-              </Text>
+            {otpError ? (
+              <View style={styles.otpErrorBanner}>
+                <Text style={styles.otpErrorText}>{otpError}</Text>
+              </View>
+            ) : null}
 
-              <View style={styles.deviceCompareBox}>
-                <View style={styles.deviceCompareRow}>
-                  <Text style={styles.deviceCompareLabel}>Bound Device</Text>
-                  <Text style={styles.deviceCompareVal} numberOfLines={1} ellipsizeMode="tail">
-                    {deviceMismatchData.registered_device_name || 'Previous Android Phone'}
+            {otpStep === 'idle' || otpStep === 'sending' ? (
+              <View style={styles.otpActionStack}>
+                <TouchableOpacity
+                  onPress={() => handleRequestDeviceOtp(Boolean(deviceMismatchData.isManualRebind))}
+                  disabled={otpStep === 'sending'}
+                  style={[styles.otpPrimaryBtn, otpStep === 'sending' && { opacity: 0.7 }]}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.otpPrimaryBtnText}>
+                    {otpStep === 'sending' ? 'Sending 6-Digit OTP...' : 'Send 6-Digit OTP Code'}
                   </Text>
-                </View>
-                <View style={styles.deviceCompareDivider} />
-                <View style={styles.deviceCompareRow}>
-                  <Text style={styles.deviceCompareLabel}>This Phone</Text>
-                  <Text
-                    style={[styles.deviceCompareVal, { color: '#FFB433' }]}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
+                </TouchableOpacity>
+
+                {deviceMismatchData.isManualRebind ? (
+                  <TouchableOpacity
+                    onPress={handleCancelManualRebind}
+                    disabled={otpStep === 'sending'}
+                    style={styles.otpGhostBtn}
+                    activeOpacity={0.8}
                   >
-                    {deviceMismatchData.current_device_name || getDeviceName()}
-                  </Text>
-                </View>
-                <View style={styles.deviceCompareDivider} />
-                <View style={styles.deviceCompareRow}>
-                  <Text style={styles.deviceCompareLabel}>OTP Recipient</Text>
-                  <Text style={styles.deviceCompareVal} numberOfLines={1} ellipsizeMode="middle">
-                    {deviceMismatchData.masked_email || 'Registered Email'}
-                  </Text>
-                </View>
+                    <Text style={styles.otpGhostBtnText}>Cancel & Keep Current Binding</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
-
-              {otpError ? (
-                <View style={styles.otpErrorBanner}>
-                  <Text style={styles.otpErrorText}>{otpError}</Text>
+            ) : (
+              <View style={styles.otpVerifyStack}>
+                <View style={styles.otpTimerPill}>
+                  <Clock size={13} color="#80CBC4" />
+                  <Text style={styles.otpTimerLabel}>
+                    Code sent • Expires in {Math.floor(otpCountdownSec / 60)}:
+                    {String(otpCountdownSec % 60).padStart(2, '0')}
+                  </Text>
                 </View>
-              ) : null}
 
-              {otpStep === 'idle' || otpStep === 'sending' ? (
-                <View style={styles.otpActionStack}>
+                {devOtpPreview ? (
+                  <View style={styles.devOtpBox}>
+                    <Text style={styles.devOtpLabel}>Verification Code (Auto-Detected)</Text>
+                    <Text style={styles.devOtpValue}>{devOtpPreview}</Text>
+                  </View>
+                ) : null}
+
+                <TextInput
+                  value={otpCode}
+                  onChangeText={(txt) => setOtpCode(txt.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  placeholderTextColor="rgba(255,255,255,0.28)"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  style={styles.otpInput}
+                />
+
+                <View style={styles.otpBtnRow}>
                   <TouchableOpacity
                     onPress={() => handleRequestDeviceOtp(Boolean(deviceMismatchData.isManualRebind))}
-                    disabled={otpStep === 'sending'}
-                    style={[styles.otpPrimaryBtn, otpStep === 'sending' && { opacity: 0.7 }]}
+                    disabled={otpStep === 'verifying'}
+                    style={styles.otpSecondaryBtn}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.otpSecondaryBtnText}>Resend</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleVerifyDeviceOtp}
+                    disabled={otpStep === 'verifying' || otpCode.length !== 6}
+                    style={[
+                      styles.otpPrimaryBtn,
+                      { flex: 1, opacity: otpCode.length === 6 ? 1 : 0.5 }
+                    ]}
                     activeOpacity={0.85}
                   >
                     <Text style={styles.otpPrimaryBtnText}>
-                      {otpStep === 'sending' ? 'Sending 6-Digit OTP...' : 'Send 6-Digit OTP Code'}
+                      {otpStep === 'verifying' ? 'Verifying...' : 'Verify & Bind Phone'}
                     </Text>
                   </TouchableOpacity>
-
-                  {deviceMismatchData.isManualRebind ? (
-                    <TouchableOpacity
-                      onPress={handleCancelManualRebind}
-                      disabled={otpStep === 'sending'}
-                      style={styles.otpGhostBtn}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.otpGhostBtnText}>Cancel & Keep Current Binding</Text>
-                    </TouchableOpacity>
-                  ) : null}
                 </View>
-              ) : (
-                <View style={styles.otpVerifyStack}>
-                  <View style={styles.otpTimerPill}>
-                    <Clock size={12} color="#80CBC4" />
-                    <Text style={styles.otpTimerLabel}>
-                      Code sent • Expires in {Math.floor(otpCountdownSec / 60)}:
-                      {String(otpCountdownSec % 60).padStart(2, '0')}
+
+                {deviceMismatchData.isManualRebind ? (
+                  <TouchableOpacity
+                    onPress={handleCancelManualRebind}
+                    disabled={otpStep === 'verifying'}
+                    style={styles.otpGhostBtn}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.otpGhostBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            )}
+          </ScrollView>
+        ) : errorMessage ? (
+          <View style={styles.errorContainer}>
+            <ShieldAlert size={48} color={colors.danger} />
+            <Text style={styles.errorTitle}>Attendance Security Notice</Text>
+            <Text style={styles.errorDesc}>{errorMessage}</Text>
+            <TouchableOpacity onPress={handleNavigateBack} style={styles.retryBtn}>
+              <Text style={styles.retryBtnText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.screenScrollContent}
+          >
+            {/* Real-time Scan Confirmation Notice */}
+            {scanNotice && (
+              <View
+                style={[
+                  styles.scanNoticeCard,
+                  scanNotice.type === 'success' ? styles.scanNoticeSuccess : styles.scanNoticeError
+                ]}
+              >
+                <View style={styles.scanNoticeRow}>
+                  <CheckCircle2 size={20} color="#ffffff" />
+                  <View style={styles.scanNoticeTextGroup}>
+                    <Text style={styles.scanNoticeTitle}>{scanNotice.title}</Text>
+                    <Text style={styles.scanNoticeMessage}>{scanNotice.message}</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setScanNotice(null)}
+                    style={styles.scanNoticeCloseBtn}
+                  >
+                    <X size={16} color="#ffffff" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Today's Shift Live Status Indicator */}
+            <View style={styles.shiftStatusContainer}>
+              {todayLog?.time_out ? (
+                <View style={[styles.shiftStatusCard, styles.shiftCardSuccess]}>
+                  <CheckCircle2 size={19} color="#34D399" />
+                  <View style={styles.shiftStatusTexts}>
+                    <Text style={[styles.shiftStatusLabel, styles.textSuccess]}>
+                      TODAY&apos;S SHIFT COMPLETED
+                    </Text>
+                    <Text style={styles.shiftStatusDesc} numberOfLines={2}>
+                      In: {formatTime12(todayLog.time_in)} • Out: {formatTime12(todayLog.time_out)}
                     </Text>
                   </View>
-
-                  {devOtpPreview ? (
-                    <View style={styles.devOtpBox}>
-                      <Text style={styles.devOtpLabel}>Verification Code (Auto-Detected)</Text>
-                      <Text style={styles.devOtpValue}>{devOtpPreview}</Text>
-                    </View>
-                  ) : null}
-
-                  <TextInput
-                    value={otpCode}
-                    onChangeText={(txt) => setOtpCode(txt.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="000000"
-                    placeholderTextColor="rgba(255,255,255,0.28)"
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    style={styles.otpInput}
-                  />
-
-                  <View style={styles.otpBtnRow}>
-                    <TouchableOpacity
-                      onPress={() => handleRequestDeviceOtp(Boolean(deviceMismatchData.isManualRebind))}
-                      disabled={otpStep === 'verifying'}
-                      style={styles.otpSecondaryBtn}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.otpSecondaryBtnText}>Resend</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={handleVerifyDeviceOtp}
-                      disabled={otpStep === 'verifying' || otpCode.length !== 6}
-                      style={[
-                        styles.otpPrimaryBtn,
-                        { flex: 1, opacity: otpCode.length === 6 ? 1 : 0.5 }
-                      ]}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.otpPrimaryBtnText}>
-                        {otpStep === 'verifying' ? 'Verifying...' : 'Verify & Bind Phone'}
-                      </Text>
-                    </TouchableOpacity>
+                  <View style={[styles.shiftActionPill, { backgroundColor: '#059669' }]}>
+                    <Text style={styles.shiftActionPillText}>{todayLog.hours_rendered || 0} hrs</Text>
                   </View>
-
-                  {deviceMismatchData.isManualRebind ? (
-                    <TouchableOpacity
-                      onPress={handleCancelManualRebind}
-                      disabled={otpStep === 'verifying'}
-                      style={styles.otpGhostBtn}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.otpGhostBtnText}>Cancel</Text>
-                    </TouchableOpacity>
-                  ) : null}
+                </View>
+              ) : todayLog?.time_in ? (
+                <View style={[styles.shiftStatusCard, styles.shiftCardActive]}>
+                  <View style={styles.livePulseDot} />
+                  <View style={styles.shiftStatusTexts}>
+                    <Text style={[styles.shiftStatusLabel, styles.textSuccess]}>
+                      TIMED-IN • ACTIVE SHIFT
+                    </Text>
+                    <Text style={styles.shiftStatusDesc} numberOfLines={2}>
+                      In at {formatTime12(todayLog.time_in)} (
+                      {todayLog.time_in_status === 'late' ? 'Late' : 'On-Time'})
+                    </Text>
+                  </View>
+                  <View style={[styles.shiftActionPill, { backgroundColor: '#FFB433' }]}>
+                    <Text style={[styles.shiftActionPillText, { color: '#193631' }]}>SCAN OUT</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={[styles.shiftStatusCard, styles.shiftCardAwaiting]}>
+                  <Clock size={18} color="#FFB433" />
+                  <View style={styles.shiftStatusTexts}>
+                    <Text style={[styles.shiftStatusLabel, styles.textWarning]}>
+                      AWAITING TIME-IN
+                    </Text>
+                    <Text style={styles.shiftStatusDesc} numberOfLines={2}>
+                      Present this live QR pass to the HR desk scanner
+                    </Text>
+                  </View>
+                  <View style={[styles.shiftActionPill, { backgroundColor: '#10B981' }]}>
+                    <Text style={styles.shiftActionPillText}>SCAN IN</Text>
+                  </View>
                 </View>
               )}
-            </ScrollView>
-          ) : errorMessage ? (
-            <View style={styles.errorContainer}>
-              <ShieldAlert size={44} color={colors.danger} />
-              <Text style={styles.errorTitle}>Attendance Security Notice</Text>
-              <Text style={styles.errorDesc}>{errorMessage}</Text>
-              <TouchableOpacity onPress={onClose} style={styles.retryBtn}>
-                <Text style={styles.retryBtnText}>Close</Text>
-              </TouchableOpacity>
             </View>
-          ) : (
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              bounces={false}
-              contentContainerStyle={styles.bodyScrollContent}
-            >
-              {/* Real-time Scan Confirmation Notice */}
-              {scanNotice && (
-                <View
-                  style={[
-                    styles.scanNoticeCard,
-                    scanNotice.type === 'success' ? styles.scanNoticeSuccess : styles.scanNoticeError
-                  ]}
-                >
-                  <View style={styles.scanNoticeRow}>
-                    <CheckCircle2 size={19} color="#ffffff" />
-                    <View style={styles.scanNoticeTextGroup}>
-                      <Text style={styles.scanNoticeTitle}>{scanNotice.title}</Text>
-                      <Text style={styles.scanNoticeMessage}>{scanNotice.message}</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => setScanNotice(null)} style={styles.scanNoticeCloseBtn}>
-                      <X size={16} color="#ffffff" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
 
-              {/* Today's Shift Live Status Indicator */}
-              <View style={styles.shiftStatusContainer}>
-                {todayLog?.time_out ? (
-                  <View style={[styles.shiftStatusCard, styles.shiftCardSuccess]}>
-                    <CheckCircle2 size={17} color="#34D399" />
-                    <View style={styles.shiftStatusTexts}>
-                      <Text style={[styles.shiftStatusLabel, styles.textSuccess]}>
-                        TODAY&apos;S SHIFT COMPLETED
-                      </Text>
-                      <Text style={styles.shiftStatusDesc} numberOfLines={2}>
-                        In: {formatTime12(todayLog.time_in)} • Out: {formatTime12(todayLog.time_out)}
-                      </Text>
-                    </View>
-                    <View style={[styles.shiftActionPill, { backgroundColor: '#059669' }]}>
-                      <Text style={styles.shiftActionPillText}>{todayLog.hours_rendered || 0} hrs</Text>
-                    </View>
+            {/* Full-Width High-Contrast White QR Security Pass Ticket */}
+            <View style={styles.qrTicketCard}>
+              {/* Ticket Top Metadata Strip */}
+              <View style={styles.qrTicketHeader}>
+                <Text style={styles.qrTicketIdText} numberOfLines={1}>
+                  {studentName
+                    ? `${studentName.toUpperCase()} • #${studentId}`
+                    : `INTERN #${studentId || '---'}`}
+                </Text>
+                <Text style={styles.qrTicketPstText} numberOfLines={1}>
+                  {watermarkPst || 'PST UTC+8'}
+                </Text>
+              </View>
+
+              {/* Ticket QR Matrix Area */}
+              <View style={[styles.qrMatrixBody, { minHeight: qrSize + 40 }]}>
+                {!isOffline && !gpsCoords ? (
+                  <View style={[styles.gpsLockingBox, { minHeight: qrSize }]}>
+                    {gpsErrorStatus === 'provider_disabled' ? (
+                      <>
+                        <View style={[styles.gpsStateIconCircle, { backgroundColor: '#FEF3C7' }]}>
+                          <MapPin size={28} color="#D97706" />
+                        </View>
+                        <Text style={styles.gpsLockingTitle}>Location Switched OFF</Text>
+                        <Text style={styles.gpsLockingSubtitle}>
+                          Turn ON Phone Location in Quick Settings to generate your attendance QR.
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (Platform.OS === 'android') {
+                              Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS').catch(
+                                () => Linking.openSettings()
+                              );
+                            } else {
+                              Linking.openSettings();
+                            }
+                          }}
+                          style={styles.gpsOpenSettingsBtn}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.gpsOpenSettingsBtnText}>Turn ON Location</Text>
+                        </TouchableOpacity>
+                      </>
+                    ) : gpsErrorStatus === 'permission_denied' ? (
+                      <>
+                        <View style={[styles.gpsStateIconCircle, { backgroundColor: '#FEE2E2' }]}>
+                          <ShieldAlert size={28} color="#DC2626" />
+                        </View>
+                        <Text style={styles.gpsLockingTitle}>Location Permission Required</Text>
+                        <Text style={styles.gpsLockingSubtitle}>
+                          Allow Precise Location so your QR can verify workplace geofence presence.
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => Linking.openSettings()}
+                          style={styles.gpsOpenSettingsBtn}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.gpsOpenSettingsBtnText}>Open App Settings</Text>
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <>
+                        <ActivityIndicator size="large" color="#D97706" />
+                        <Text style={styles.gpsLockingTitle}>Locking Workplace GPS...</Text>
+                        <Text style={styles.gpsLockingSubtitle}>
+                          Acquiring Google Fused Location & satellite coordinates. Your QR will
+                          appear automatically.
+                        </Text>
+                      </>
+                    )}
                   </View>
-                ) : todayLog?.time_in ? (
-                  <View style={[styles.shiftStatusCard, styles.shiftCardActive]}>
-                    <View style={styles.livePulseDot} />
-                    <View style={styles.shiftStatusTexts}>
-                      <Text style={[styles.shiftStatusLabel, styles.textSuccess]}>
-                        TIMED-IN • ACTIVE SHIFT
-                      </Text>
-                      <Text style={styles.shiftStatusDesc} numberOfLines={2}>
-                        In at {formatTime12(todayLog.time_in)} ({todayLog.time_in_status === 'late' ? 'Late' : 'On-Time'})
-                      </Text>
-                    </View>
-                    <View style={[styles.shiftActionPill, { backgroundColor: '#FFB433' }]}>
-                      <Text style={[styles.shiftActionPillText, { color: '#193631' }]}>SCAN OUT</Text>
-                    </View>
+                ) : qrPayload ? (
+                  <View style={styles.qrMatrixCenter}>
+                    <QRCode
+                      value={qrPayload}
+                      size={qrSize}
+                      color="#0F172A"
+                      backgroundColor="#FFFFFF"
+                    />
                   </View>
                 ) : (
-                  <View style={[styles.shiftStatusCard, styles.shiftCardAwaiting]}>
-                    <Clock size={16} color="#FFB433" />
-                    <View style={styles.shiftStatusTexts}>
-                      <Text style={[styles.shiftStatusLabel, styles.textWarning]}>AWAITING TIME-IN</Text>
-                      <Text style={styles.shiftStatusDesc} numberOfLines={2}>
-                        Present this live QR code to the HR desk scanner
-                      </Text>
-                    </View>
-                    <View style={[styles.shiftActionPill, { backgroundColor: '#10B981' }]}>
-                      <Text style={styles.shiftActionPillText}>SCAN IN</Text>
-                    </View>
+                  <View style={[styles.gpsLockingBox, { minHeight: qrSize }]}>
+                    <ActivityIndicator size="large" color="#D97706" />
+                    <Text style={styles.gpsLockingTitle}>Generating Dynamic QR...</Text>
                   </View>
                 )}
               </View>
 
-              {/* Unified High-Contrast QR Security Pass Ticket */}
-              <View style={styles.qrTicketCard}>
-                {/* Ticket Top Metadata Strip */}
-                <View style={styles.qrTicketHeader}>
-                  <Text style={styles.qrTicketIdText} numberOfLines={1}>
-                    {studentName ? `${studentName.toUpperCase()} • #${studentId}` : `INTERN #${studentId || '---'}`}
-                  </Text>
-                  <Text style={styles.qrTicketPstText} numberOfLines={1}>
-                    {watermarkPst || 'PST UTC+8'}
-                  </Text>
-                </View>
-
-                {/* Ticket QR Matrix Area */}
-                <View style={[styles.qrMatrixBody, { minHeight: qrSize + 28 }]}>
-                  {!isOffline && !gpsCoords ? (
-                    <View style={[styles.gpsLockingBox, { minHeight: qrSize }]}>
-                      {gpsErrorStatus === 'provider_disabled' ? (
-                        <>
-                          <View style={[styles.gpsStateIconCircle, { backgroundColor: '#FEF3C7' }]}>
-                            <MapPin size={26} color="#D97706" />
-                          </View>
-                          <Text style={styles.gpsLockingTitle}>Location Switched OFF</Text>
-                          <Text style={styles.gpsLockingSubtitle}>
-                            Turn ON Phone Location in Quick Settings to generate your attendance QR.
-                          </Text>
-                          <TouchableOpacity
-                            onPress={() => {
-                              if (Platform.OS === 'android') {
-                                Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS').catch(() =>
-                                  Linking.openSettings()
-                                );
-                              } else {
-                                Linking.openSettings();
-                              }
-                            }}
-                            style={styles.gpsOpenSettingsBtn}
-                            activeOpacity={0.85}
-                          >
-                            <Text style={styles.gpsOpenSettingsBtnText}>Turn ON Location</Text>
-                          </TouchableOpacity>
-                        </>
-                      ) : gpsErrorStatus === 'permission_denied' ? (
-                        <>
-                          <View style={[styles.gpsStateIconCircle, { backgroundColor: '#FEE2E2' }]}>
-                            <ShieldAlert size={26} color="#DC2626" />
-                          </View>
-                          <Text style={styles.gpsLockingTitle}>Location Permission Required</Text>
-                          <Text style={styles.gpsLockingSubtitle}>
-                            Allow Precise Location so your QR can verify workplace geofence presence.
-                          </Text>
-                          <TouchableOpacity
-                            onPress={() => Linking.openSettings()}
-                            style={styles.gpsOpenSettingsBtn}
-                            activeOpacity={0.85}
-                          >
-                            <Text style={styles.gpsOpenSettingsBtnText}>Open App Settings</Text>
-                          </TouchableOpacity>
-                        </>
-                      ) : (
-                        <>
-                          <ActivityIndicator size="large" color="#D97706" />
-                          <Text style={styles.gpsLockingTitle}>Locking Workplace GPS...</Text>
-                          <Text style={styles.gpsLockingSubtitle}>
-                            Acquiring Google Fused Location & satellite coordinates. Your QR will appear automatically.
-                          </Text>
-                        </>
-                      )}
-                    </View>
-                  ) : qrPayload ? (
-                    <View style={styles.qrMatrixCenter}>
-                      <QRCode
-                        value={qrPayload}
-                        size={qrSize}
-                        color="#0F172A"
-                        backgroundColor="#FFFFFF"
-                      />
-                    </View>
-                  ) : (
-                    <View style={[styles.gpsLockingBox, { minHeight: qrSize }]}>
-                      <ActivityIndicator size="large" color="#D97706" />
-                      <Text style={styles.gpsLockingTitle}>Generating Dynamic QR...</Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Ticket Footer Bar (GPS Precision + Countdown) */}
-                <View style={styles.qrTicketFooter}>
-                  <View
-                    style={[
-                      styles.gpsLockedPill,
-                      isOffline
-                        ? styles.gpsPillOffline
-                        : gpsCoords
-                        ? styles.gpsPillReady
-                        : styles.gpsPillAcquiring
-                    ]}
-                  >
-                    <CheckCircle2
-                      size={12}
-                      color={isOffline ? '#B45309' : gpsCoords ? '#047857' : '#64748B'}
-                    />
-                    <Text
-                      style={[
-                        styles.gpsLockedPillText,
-                        { color: isOffline ? '#B45309' : gpsCoords ? '#047857' : '#475569' }
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {isOffline
-                        ? 'Offline Vault'
-                        : gpsCoords
-                        ? `GPS ±${gpsCoords.acc || 0}m`
-                        : 'Acquiring GPS'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.timerInlinePill}>
-                    <RotateCw size={12} color="#B45309" />
-                    <Text style={styles.timerInlineText}>
-                      Rotates in <Text style={styles.timerInlineCount}>{secondsRemaining}s</Text>
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Edge-to-Edge Animated Progress Track */}
-                <View style={styles.progressBarTrack}>
-                  <Animated.View
-                    style={[
-                      styles.progressBarFill,
-                      {
-                        width: progressAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: ['0%', '100%']
-                        })
-                      }
-                    ]}
-                  />
-                </View>
-              </View>
-
-              {/* Geofence & Hardware Security Telemetry Card */}
-              <View style={styles.badgeCard}>
-                {/* Geofence / Security Row */}
-                <View style={styles.badgeRow}>
-                  <View style={styles.badgeLeftShrink}>
-                    <View style={styles.badgeIconBox}>
-                      {isOffline ? (
-                        <Lock size={14} color="#FFB433" />
-                      ) : (
-                        <MapPin
-                          size={14}
-                          color={
-                            gpsErrorStatus || !isInsideWorkplace ? '#F87171' : '#34D399'
-                          }
-                        />
-                      )}
-                    </View>
-                    <Text style={styles.badgeLabel}>
-                      {isOffline ? 'Offline Sync' : 'Geofence'}
-                    </Text>
-                  </View>
-
-                  <Text
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                    style={[
-                      styles.badgeValueFlex,
-                      gpsErrorStatus || !isInsideWorkplace
-                        ? { color: '#FCA5A5' }
-                        : gpsCoords
-                        ? { color: '#6EE7B7' }
-                        : { color: colors.textSecondary }
-                    ]}
-                    onPress={() => {
-                      if (gpsErrorStatus === 'permission_denied') Linking.openSettings();
-                      else if (gpsErrorStatus === 'provider_disabled' && Platform.OS === 'android') {
-                        Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS').catch(() =>
-                          Linking.openSettings()
-                        );
-                      }
-                    }}
-                  >
-                    {gpsErrorStatus === 'permission_denied'
-                      ? 'Permission Denied • Tap'
-                      : gpsErrorStatus === 'provider_disabled'
-                      ? 'GPS OFF • Tap to Enable'
-                      : isOffline
-                      ? 'Signed • Queues at HR Desk'
-                      : liveDistanceMeters !== null
-                      ? isInsideWorkplace
-                        ? `Within Radius (${Math.round(liveDistanceMeters)}m / ${allowedRadiusMeters}m)`
-                        : `Outside (${Math.round(liveDistanceMeters)}m > ${allowedRadiusMeters}m)`
+              {/* Ticket Footer Bar (GPS Precision + Countdown) */}
+              <View style={styles.qrTicketFooter}>
+                <View
+                  style={[
+                    styles.gpsLockedPill,
+                    isOffline
+                      ? styles.gpsPillOffline
                       : gpsCoords
-                      ? `Locked (±${gpsCoords.acc || 0}m)`
-                      : 'Locking Satellites...'}
+                      ? styles.gpsPillReady
+                      : styles.gpsPillAcquiring
+                  ]}
+                >
+                  <CheckCircle2
+                    size={13}
+                    color={isOffline ? '#B45309' : gpsCoords ? '#047857' : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.gpsLockedPillText,
+                      { color: isOffline ? '#B45309' : gpsCoords ? '#047857' : '#475569' }
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {isOffline
+                      ? 'Offline Vault'
+                      : gpsCoords
+                      ? `GPS ±${gpsCoords.acc || 0}m`
+                      : 'Acquiring GPS'}
                   </Text>
                 </View>
 
-                <View style={styles.divider} />
-
-                {/* Hardware Lock + Re-bind Row */}
-                <View style={styles.badgeRow}>
-                  <View style={styles.badgeLeftFlex}>
-                    <View style={styles.badgeIconBox}>
-                      <Smartphone size={14} color="#80CBC4" />
-                    </View>
-                    <View style={styles.badgeTextCol}>
-                      <View style={styles.badgeTitleInline}>
-                        <Text style={styles.badgeLabel} numberOfLines={1}>
-                          Hardware Lock
-                        </Text>
-                        <View style={styles.boundChip}>
-                          <View style={styles.statusDot} />
-                          <Text style={styles.boundChipText}>
-                            {deviceBound ? 'Bound' : 'Active'}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={styles.badgeSublabel} numberOfLines={1}>
-                        Single-use nonce • Device TOTP key
-                      </Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    onPress={handleOpenManualRebind}
-                    style={styles.rebindBtn}
-                    activeOpacity={0.8}
-                  >
-                    <RotateCw size={11} color="#FFB433" />
-                    <Text style={styles.rebindBtnText}>Re-bind OTP</Text>
-                  </TouchableOpacity>
+                <View style={styles.timerInlinePill}>
+                  <RotateCw size={13} color="#B45309" />
+                  <Text style={styles.timerInlineText}>
+                    Rotates in <Text style={styles.timerInlineCount}>{secondsRemaining}s</Text>
+                  </Text>
                 </View>
               </View>
-            </ScrollView>
-          )}
-        </View>
+
+              {/* Edge-to-Edge Animated Progress Track */}
+              <View style={styles.progressBarTrack}>
+                <Animated.View
+                  style={[
+                    styles.progressBarFill,
+                    {
+                      width: progressAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0%', '100%']
+                      })
+                    }
+                  ]}
+                />
+              </View>
+            </View>
+
+            {/* Geofence & Hardware Security Telemetry Card */}
+            <View style={styles.badgeCard}>
+              {/* Geofence / Security Row */}
+              <View style={styles.badgeRow}>
+                <View style={styles.badgeLeftShrink}>
+                  <View style={styles.badgeIconBox}>
+                    {isOffline ? (
+                      <Lock size={15} color="#FFB433" />
+                    ) : (
+                      <MapPin
+                        size={15}
+                        color={gpsErrorStatus || !isInsideWorkplace ? '#F87171' : '#34D399'}
+                      />
+                    )}
+                  </View>
+                  <Text style={styles.badgeLabel}>
+                    {isOffline ? 'Offline Sync' : 'Workplace Geofence'}
+                  </Text>
+                </View>
+
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.badgeValueFlex,
+                    gpsErrorStatus || !isInsideWorkplace
+                      ? { color: '#FCA5A5' }
+                      : gpsCoords
+                      ? { color: '#6EE7B7' }
+                      : { color: colors.textSecondary }
+                  ]}
+                  onPress={() => {
+                    if (gpsErrorStatus === 'permission_denied') Linking.openSettings();
+                    else if (gpsErrorStatus === 'provider_disabled' && Platform.OS === 'android') {
+                      Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS').catch(() =>
+                        Linking.openSettings()
+                      );
+                    }
+                  }}
+                >
+                  {gpsErrorStatus === 'permission_denied'
+                    ? 'Permission Denied • Tap'
+                    : gpsErrorStatus === 'provider_disabled'
+                    ? 'GPS OFF • Tap to Enable'
+                    : isOffline
+                    ? 'Signed • Queues at HR Desk'
+                    : liveDistanceMeters !== null
+                    ? isInsideWorkplace
+                      ? `Within Radius (${Math.round(liveDistanceMeters)}m / ${allowedRadiusMeters}m)`
+                      : `Outside (${Math.round(liveDistanceMeters)}m > ${allowedRadiusMeters}m)`
+                    : gpsCoords
+                    ? `Locked (±${gpsCoords.acc || 0}m)`
+                    : 'Locking Satellites...'}
+                </Text>
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* Hardware Lock + Re-bind Row */}
+              <View style={styles.badgeRow}>
+                <View style={styles.badgeLeftFlex}>
+                  <View style={styles.badgeIconBox}>
+                    <Smartphone size={15} color="#80CBC4" />
+                  </View>
+                  <View style={styles.badgeTextCol}>
+                    <View style={styles.badgeTitleInline}>
+                      <Text style={styles.badgeLabel} numberOfLines={1}>
+                        Hardware Lock
+                      </Text>
+                      <View style={styles.boundChip}>
+                        <View style={styles.statusDot} />
+                        <Text style={styles.boundChipText}>
+                          {deviceBound ? 'Bound' : 'Active'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.badgeSublabel} numberOfLines={1}>
+                      Single-use nonce • Device TOTP key
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  onPress={handleOpenManualRebind}
+                  style={styles.rebindBtn}
+                  activeOpacity={0.8}
+                >
+                  <RotateCw size={12} color="#FFB433" />
+                  <Text style={styles.rebindBtnText}>Re-bind OTP</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        )}
       </KeyboardAvoidingView>
-    </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: {
+  fullScreenRoot: {
     flex: 1,
-    backgroundColor: 'rgba(6, 15, 13, 0.84)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 16
+    backgroundColor: '#193631'
   },
-  modalCard: {
-    backgroundColor: '#122824',
-    borderRadius: 26,
-    paddingHorizontal: 16,
-    paddingTop: 15,
-    paddingBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.45,
-    shadowRadius: 24,
-    elevation: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.14)',
-    overflow: 'hidden'
+  flexBody: {
+    flex: 1
   },
-  header: {
+  topAppBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? 12 : 8,
     paddingBottom: 12,
+    backgroundColor: 'rgba(18, 40, 36, 0.92)',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)'
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    gap: 10
   },
-  headerLeft: {
-    flex: 1,
-    minWidth: 0,
+  backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginRight: 8
-  },
-  iconCircle: {
-    width: 38,
-    height: 38,
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 11,
     borderRadius: 12,
-    backgroundColor: colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
-    borderColor: colors.primaryBorder,
+    borderColor: 'rgba(255, 255, 255, 0.14)',
     flexShrink: 0
   },
-  headerTextCol: {
+  backBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#FFFFFF'
+  },
+  headerCenterCol: {
     flex: 1,
     minWidth: 0
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6
   },
   headerTitle: {
     fontSize: 15.5,
@@ -1364,36 +1368,45 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: -0.2
   },
-  headerSubRow: {
+  headerSubtitle: {
+    fontSize: 10.5,
+    color: '#80CBC4',
+    fontWeight: '600',
+    marginTop: 1
+  },
+  modeBadgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 2
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexShrink: 0
+  },
+  modeBadgeOnline: {
+    backgroundColor: 'rgba(16, 185, 129, 0.14)',
+    borderColor: 'rgba(16, 185, 129, 0.35)'
+  },
+  modeBadgeOffline: {
+    backgroundColor: 'rgba(255, 180, 51, 0.15)',
+    borderColor: 'rgba(255, 180, 51, 0.38)'
   },
   modeStatusDot: {
     width: 6,
     height: 6,
     borderRadius: 3
   },
-  headerSubtitle: {
-    fontSize: 11,
-    color: '#80CBC4',
-    fontWeight: '600',
-    flexShrink: 1
-  },
-  closeBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0
+  modeBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    letterSpacing: 0.5
   },
   loadingContainer: {
-    paddingVertical: 56,
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 24,
     gap: 14
   },
   loadingText: {
@@ -1401,10 +1414,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: '600'
   },
-  otpContainer: {
-    paddingTop: 14,
-    paddingBottom: 4,
-    gap: 12
+  screenScrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 32,
+    alignItems: 'center',
+    width: '100%'
+  },
+  otpScrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 32,
+    gap: 14
   },
   otpBannerCard: {
     flexDirection: 'row',
@@ -1413,42 +1434,42 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 180, 51, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(255, 180, 51, 0.3)',
-    borderRadius: 16,
-    padding: 12
+    borderRadius: 18,
+    padding: 14
   },
   otpIconBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 13,
     backgroundColor: 'rgba(255, 180, 51, 0.16)',
     alignItems: 'center',
     justifyContent: 'center'
   },
   otpBadge: {
-    fontSize: 9,
+    fontSize: 9.5,
     fontWeight: '900',
     color: '#FFB433',
     letterSpacing: 0.7,
     marginBottom: 2
   },
   otpTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: '#FFFFFF'
   },
   otpDesc: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.76)',
-    lineHeight: 17
+    fontSize: 12.5,
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: 18
   },
   deviceCompareBox: {
     backgroundColor: 'rgba(0, 0, 0, 0.28)',
-    borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    borderRadius: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    gap: 8
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    gap: 10
   },
   deviceCompareRow: {
     flexDirection: 'row',
@@ -1458,17 +1479,17 @@ const styles = StyleSheet.create({
   },
   deviceCompareDivider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)'
+    backgroundColor: 'rgba(255, 255, 255, 0.07)'
   },
   deviceCompareLabel: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.58)',
+    fontSize: 11.5,
+    color: 'rgba(255, 255, 255, 0.6)',
     fontWeight: '600',
     flexShrink: 0
   },
   deviceCompareVal: {
     flex: 1,
-    fontSize: 11,
+    fontSize: 11.5,
     color: '#FFFFFF',
     fontWeight: '700',
     textAlign: 'right'
@@ -1477,24 +1498,24 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239, 68, 68, 0.15)',
     borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.35)',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14
   },
   otpErrorText: {
-    fontSize: 11,
+    fontSize: 11.5,
     color: '#FCA5A5',
     fontWeight: '700',
     textAlign: 'center'
   },
   otpActionStack: {
     width: '100%',
-    gap: 8,
-    marginTop: 2
+    gap: 10,
+    marginTop: 4
   },
   otpVerifyStack: {
     width: '100%',
-    gap: 10
+    gap: 12
   },
   otpTimerPill: {
     flexDirection: 'row',
@@ -1506,11 +1527,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(128, 203, 196, 0.25)',
     borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 5
+    paddingHorizontal: 14,
+    paddingVertical: 6
   },
   otpTimerLabel: {
-    fontSize: 11,
+    fontSize: 11.5,
     color: '#80CBC4',
     fontWeight: '700'
   },
@@ -1518,8 +1539,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 180, 51, 0.15)',
     borderWidth: 1,
     borderColor: 'rgba(255, 180, 51, 0.4)',
-    borderRadius: 12,
-    padding: 10,
+    borderRadius: 14,
+    padding: 12,
     alignItems: 'center'
   },
   devOtpLabel: {
@@ -1531,7 +1552,7 @@ const styles = StyleSheet.create({
   },
   devOtpValue: {
     color: '#FFFFFF',
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '900',
     letterSpacing: 6,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
@@ -1541,10 +1562,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.38)',
     borderWidth: 1.5,
     borderColor: '#FFB433',
-    borderRadius: 14,
-    paddingVertical: 11,
+    borderRadius: 16,
+    paddingVertical: 13,
     paddingHorizontal: 16,
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '900',
     color: '#FFFFFF',
     textAlign: 'center',
@@ -1554,95 +1575,90 @@ const styles = StyleSheet.create({
   otpBtnRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8
+    gap: 10
   },
   otpPrimaryBtn: {
     backgroundColor: '#FFB433',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center'
   },
   otpPrimaryBtnText: {
     color: '#193631',
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: '900'
   },
   otpSecondaryBtn: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.14)',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center'
   },
   otpSecondaryBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '700'
   },
   otpGhostBtn: {
-    paddingVertical: 8,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center'
   },
   otpGhostBtnText: {
     color: '#80CBC4',
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '700'
   },
   errorContainer: {
-    paddingVertical: 30,
+    flex: 1,
+    paddingHorizontal: 28,
     alignItems: 'center',
-    gap: 12
+    justifyContent: 'center',
+    gap: 14
   },
   errorTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     color: colors.danger
   },
   errorDesc: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
     textAlign: 'center',
-    paddingHorizontal: 16,
-    lineHeight: 18
+    lineHeight: 19
   },
   retryBtn: {
-    marginTop: 10,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    backgroundColor: colors.surfaceLow,
-    borderRadius: 12,
+    marginTop: 8,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)'
+    borderColor: 'rgba(255, 255, 255, 0.16)'
   },
   retryBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.text
-  },
-  bodyScrollContent: {
-    paddingTop: 12,
-    paddingBottom: 2,
-    alignItems: 'center',
-    width: '100%'
+    color: '#FFFFFF'
   },
   qrTicketCard: {
     width: '100%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.9)',
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 6
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 8
   },
   qrTicketHeader: {
     width: '100%',
@@ -1650,8 +1666,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: '#F8FAFC',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0'
@@ -1659,30 +1675,30 @@ const styles = StyleSheet.create({
   qrTicketIdText: {
     flex: 1,
     minWidth: 0,
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '800',
     color: '#334155',
     letterSpacing: 0.4
   },
   qrTicketPstText: {
     flexShrink: 0,
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '800',
     color: '#B45309',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace'
   },
   qrMatrixBody: {
     width: '100%',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 18,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center'
   },
   qrMatrixCenter: {
-    padding: 6,
+    padding: 8,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center'
   },
@@ -1692,8 +1708,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: '#F8FAFC',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0'
@@ -1703,8 +1719,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 3.5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderWidth: 1,
     flexShrink: 1
   },
@@ -1721,7 +1737,7 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5E1'
   },
   gpsLockedPillText: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '800'
   },
   timerInlinePill: {
@@ -1731,7 +1747,7 @@ const styles = StyleSheet.create({
     flexShrink: 0
   },
   timerInlineText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '600',
     color: '#475569'
   },
@@ -1742,7 +1758,7 @@ const styles = StyleSheet.create({
   },
   progressBarTrack: {
     width: '100%',
-    height: 4,
+    height: 5,
     backgroundColor: '#E2E8F0',
     overflow: 'hidden'
   },
@@ -1752,13 +1768,13 @@ const styles = StyleSheet.create({
   },
   badgeCard: {
     width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginTop: 12,
+    backgroundColor: 'rgba(18, 40, 36, 0.85)',
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginTop: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.14)',
     overflow: 'hidden'
   },
   badgeRow: {
@@ -1772,18 +1788,18 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9
+    gap: 10
   },
   badgeLeftShrink: {
     flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8
+    gap: 9
   },
   badgeIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     backgroundColor: 'rgba(128, 203, 196, 0.12)',
     alignItems: 'center',
     justifyContent: 'center'
@@ -1798,14 +1814,14 @@ const styles = StyleSheet.create({
     gap: 6
   },
   badgeLabel: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#FFFFFF',
     flexShrink: 1
   },
   badgeSublabel: {
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.58)',
+    fontSize: 10.5,
+    color: 'rgba(255, 255, 255, 0.6)',
     marginTop: 1
   },
   boundChip: {
@@ -1815,12 +1831,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(16, 185, 129, 0.16)',
     borderWidth: 1,
     borderColor: 'rgba(16, 185, 129, 0.35)',
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     borderRadius: 8
   },
   boundChipText: {
-    fontSize: 9,
+    fontSize: 9.5,
     fontWeight: '800',
     color: '#34D399'
   },
@@ -1829,22 +1845,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(255, 180, 51, 0.14)',
+    backgroundColor: 'rgba(255, 180, 51, 0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 180, 51, 0.42)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10
+    borderColor: 'rgba(255, 180, 51, 0.45)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 11
   },
   rebindBtnText: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '800',
     color: '#FFB433'
   },
   badgeValueFlex: {
     flex: 1,
     minWidth: 0,
-    fontSize: 11,
+    fontSize: 11.5,
     color: colors.textSecondary,
     fontWeight: '700',
     textAlign: 'right'
@@ -1858,13 +1874,13 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    marginVertical: 8
+    marginVertical: 11
   },
   scanNoticeCard: {
     width: '100%',
-    padding: 11,
-    borderRadius: 14,
-    marginBottom: 10
+    padding: 13,
+    borderRadius: 16,
+    marginBottom: 12
   },
   scanNoticeSuccess: {
     backgroundColor: '#059669'
@@ -1881,14 +1897,14 @@ const styles = StyleSheet.create({
     flex: 1
   },
   scanNoticeTitle: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.4
   },
   scanNoticeMessage: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.92)',
+    fontSize: 11.5,
+    color: 'rgba(255, 255, 255, 0.94)',
     marginTop: 2
   },
   scanNoticeCloseBtn: {
@@ -1896,33 +1912,33 @@ const styles = StyleSheet.create({
   },
   shiftStatusContainer: {
     width: '100%',
-    marginBottom: 10
+    marginBottom: 14
   },
   shiftStatusCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 9,
-    paddingHorizontal: 11,
-    borderRadius: 14,
+    gap: 11,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 18,
     borderWidth: 1
   },
   shiftCardSuccess: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderColor: 'rgba(16, 185, 129, 0.28)'
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.32)'
   },
   shiftCardActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderColor: 'rgba(16, 185, 129, 0.36)'
+    backgroundColor: 'rgba(16, 185, 129, 0.14)',
+    borderColor: 'rgba(16, 185, 129, 0.38)'
   },
   shiftCardAwaiting: {
-    backgroundColor: 'rgba(255, 180, 51, 0.1)',
-    borderColor: 'rgba(255, 180, 51, 0.28)'
+    backgroundColor: 'rgba(255, 180, 51, 0.12)',
+    borderColor: 'rgba(255, 180, 51, 0.32)'
   },
   livePulseDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
     backgroundColor: '#10B981'
   },
   shiftStatusTexts: {
@@ -1930,7 +1946,7 @@ const styles = StyleSheet.create({
     minWidth: 0
   },
   shiftStatusLabel: {
-    fontSize: 9.5,
+    fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.5
   },
@@ -1941,19 +1957,19 @@ const styles = StyleSheet.create({
     color: '#FFB433'
   },
   shiftStatusDesc: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 1
+    color: 'rgba(255, 255, 255, 0.92)',
+    marginTop: 2
   },
   shiftActionPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
     flexShrink: 0
   },
   shiftActionPillText: {
-    fontSize: 9.5,
+    fontSize: 10,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 0.4
@@ -1961,42 +1977,42 @@ const styles = StyleSheet.create({
   gpsLockingBox: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     width: '100%'
   },
   gpsStateIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2
+    marginBottom: 4
   },
   gpsLockingTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
     marginTop: 10,
     textAlign: 'center'
   },
   gpsLockingSubtitle: {
-    fontSize: 11.5,
+    fontSize: 12,
     color: '#475569',
     marginTop: 5,
     textAlign: 'center',
-    lineHeight: 16,
-    maxWidth: 250
+    lineHeight: 17,
+    maxWidth: 270
   },
   gpsOpenSettingsBtn: {
-    marginTop: 12,
+    marginTop: 14,
     backgroundColor: '#FFB433',
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 9
+    paddingHorizontal: 18,
+    paddingVertical: 10
   },
   gpsOpenSettingsBtnText: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: '900',
     color: '#193631'
   }

@@ -26,18 +26,16 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/client';
 import { colors } from '../utils/theme';
-import AttendanceQrModal from '../components/AttendanceQrModal';
 import { formatTime12 } from '../utils/timeUtils';
 
 const CACHE_DTR_KEY = '@internconph_cached_dtr_logs';
 
-export default function DtrScreen() {
+export default function DtrScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [todayLog, setTodayLog] = useState(null);
-  const [showQrModal, setShowQrModal] = useState(false);
   const [filter, setFilter] = useState('all'); // 'all' | 'verified' | 'pending'
   const [expandedLogId, setExpandedLogId] = useState(null);
 
@@ -293,7 +291,11 @@ export default function DtrScreen() {
                   </View>
                 </View>
               ) : todayLog?.time_in ? (
-                <View style={[styles.todayStatusCard, styles.cardActive]}>
+                <TouchableOpacity
+                  onPress={() => navigation?.navigate('QR')}
+                  activeOpacity={0.85}
+                  style={[styles.todayStatusCard, styles.cardActive]}
+                >
                   <View style={styles.greenPulse} />
                   <View style={styles.todayTextCol}>
                     <View style={styles.todayHeaderRow}>
@@ -303,20 +305,24 @@ export default function DtrScreen() {
                       </Text>
                     </View>
                     <Text style={styles.todaySubtitle}>
-                      Clocked in at {formatTime12(todayLog.time_in)} • Active Shift. Scan QR upon departure to Clock-Out.
+                      Clocked in at {formatTime12(todayLog.time_in)} • Tap to open full-screen QR to Clock-Out.
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               ) : (
-                <View style={[styles.todayStatusCard, styles.cardAwaiting]}>
+                <TouchableOpacity
+                  onPress={() => navigation?.navigate('QR')}
+                  activeOpacity={0.85}
+                  style={[styles.todayStatusCard, styles.cardAwaiting]}
+                >
                   <Clock size={18} color="#FFB433" />
                   <View style={styles.todayTextCol}>
                     <Text style={[styles.todayTitle, styles.textAmber]}>AWAITING TIME-IN • SHIFT PENDING</Text>
                     <Text style={styles.todaySubtitle}>
-                      You have not clocked in today. Present your dynamic QR code to HR scanner at premises.
+                      You have not clocked in today. Tap to open full-screen Dynamic QR pass at premises.
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               )}
             </View>
 
@@ -363,11 +369,6 @@ export default function DtrScreen() {
           )
         }
         ListFooterComponent={<View style={{ height: 80 }} />}
-      />
-
-      <AttendanceQrModal
-        visible={showQrModal}
-        onClose={() => setShowQrModal(false)}
       />
     </SafeAreaView>
   );

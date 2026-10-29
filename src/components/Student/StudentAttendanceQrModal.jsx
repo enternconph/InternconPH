@@ -18,7 +18,7 @@ import { formatPHT12Hour } from '../../utils/timeFormat';
 
 const TIME_STEP = TOTP_STEP_SECONDS; // 30-second rolling TOTP window
 
-export default function StudentAttendanceQrModal({ isOpen, onClose }) {
+export default function StudentAttendanceQrModal({ isOpen = true, onClose, isFullPage = false }) {
   const [loading, setLoading] = useState(true);
   const [credentials, setCredentials] = useState(null);
   const [todayLog, setTodayLog] = useState(null);
@@ -536,15 +536,39 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
     liveDistanceMeters !== null ? liveDistanceMeters <= allowedRadiusMeters : true;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-fade-in select-none">
+    <div
+      className={
+        isFullPage
+          ? 'min-h-[100dvh] w-full bg-surface flex flex-col select-none'
+          : 'fixed inset-0 z-50 flex flex-col md:items-center md:justify-center md:p-4 bg-surface md:bg-black/75 md:backdrop-blur-md animate-fade-in select-none'
+      }
+    >
       <div
-        className="bg-surface rounded-3xl border border-outline-variant shadow-2xl max-w-[420px] w-full max-h-[92dvh] overflow-hidden flex flex-col relative"
+        className={
+          isFullPage
+            ? 'bg-surface w-full min-h-[100dvh] flex flex-col relative'
+            : 'bg-surface w-full h-[100dvh] md:h-auto md:max-w-[420px] md:max-h-[92dvh] md:rounded-3xl md:border md:border-outline-variant md:shadow-2xl overflow-hidden flex flex-col relative'
+        }
         onContextMenu={(e) => e.preventDefault()}
       >
-        {/* Pinned Header */}
+        {/* Pinned Header (Native Full-Screen Top Bar on Mobile / Standalone Page) */}
         <div className="shrink-0 px-4 sm:px-5 py-3.5 bg-gradient-to-b from-vibrant-orange/10 to-transparent border-b border-outline-variant flex items-center justify-between gap-2.5">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-10 h-10 rounded-2xl bg-vibrant-orange text-white flex items-center justify-center shadow-md shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className={`${
+                isFullPage ? 'inline-flex' : 'inline-flex md:hidden'
+              } items-center gap-1 px-2.5 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant text-xs font-bold text-on-surface shrink-0 cursor-pointer transition-colors`}
+            >
+              <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+              <span>Back</span>
+            </button>
+            <div
+              className={`${
+                isFullPage ? 'hidden sm:flex' : 'hidden md:flex'
+              } w-10 h-10 rounded-2xl bg-vibrant-orange text-white items-center justify-center shadow-md shrink-0`}
+            >
               <span className="material-symbols-outlined text-[22px]">qr_code_scanner</span>
             </div>
             <div className="min-w-0 flex-1">
@@ -574,17 +598,23 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors shrink-0 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[19px]">close</span>
-          </button>
+          {!isFullPage && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="hidden md:flex w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface items-center justify-center transition-colors shrink-0 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[19px]">close</span>
+            </button>
+          )}
         </div>
 
         {/* Scrollable Content Body */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4 flex flex-col items-center text-center space-y-3">
+        <div
+          className={`flex-1 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4 flex flex-col items-center text-center space-y-3.5 ${
+            isFullPage ? 'max-w-md w-full mx-auto pb-8' : ''
+          }`}
+        >
           {/* Real-time Scan Confirmation Toast / Live Alert */}
           {liveAlert && (
             <div
@@ -993,59 +1023,66 @@ export default function StudentAttendanceQrModal({ isOpen, onClose }) {
                 </span>
               </div>
 
-              {/* Hardware Device Binding Footer */}
-              <div className="w-full pt-2 flex items-center justify-between gap-2 text-[11px] text-on-surface-variant border-t border-outline-variant">
-                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                  <span className="material-symbols-outlined text-[15px] text-emerald-600 shrink-0">
-                    verified_user
-                  </span>
-                  <span
-                    className="truncate font-medium"
-                    title={credentials?.registered_device_name || getDeviceName()}
-                  >
-                    Bound: {credentials?.registered_device_name || getDeviceName()}
-                  </span>
+              {/* Hardware Device Binding Footer / Inline Re-bind Confirmation */}
+              {showChangeDeviceConfirm ? (
+                <div className="w-full p-4 bg-surface-container-low rounded-2xl border border-amber-500/40 text-left space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <span className="material-symbols-outlined text-2xl text-amber-600 shrink-0">
+                      phonelink_lock
+                    </span>
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-xs sm:text-sm text-on-surface">
+                        Re-bind Attendance Device Key?
+                      </h4>
+                      <p className="text-[11px] text-on-surface-variant leading-relaxed mt-0.5">
+                        Rotates your ECDSA P-256 hardware keypair and sends a 6-digit verification OTP to your registered Gmail.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowChangeDeviceConfirm(false)}
+                      className="px-3.5 py-2 bg-surface-container rounded-xl text-xs font-bold text-on-surface hover:bg-surface-container-high cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={otpStep === 'sending' || !isOnline}
+                      onClick={() => handleRequestDeviceOtp(true)}
+                      className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-md cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">mail_lock</span>
+                      <span>{otpStep === 'sending' ? 'Sending OTP...' : 'Send Gmail OTP'}</span>
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowChangeDeviceConfirm(true)}
-                  className="px-2.5 py-1 rounded-lg bg-vibrant-orange/10 hover:bg-vibrant-orange/20 text-[10px] text-vibrant-orange font-bold shrink-0 transition-colors cursor-pointer"
-                >
-                  Re-bind OTP
-                </button>
-              </div>
+              ) : (
+                <div className="w-full pt-2 flex items-center justify-between gap-2 text-[11px] text-on-surface-variant border-t border-outline-variant">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <span className="material-symbols-outlined text-[15px] text-emerald-600 shrink-0">
+                      verified_user
+                    </span>
+                    <span
+                      className="truncate font-medium"
+                      title={credentials?.registered_device_name || getDeviceName()}
+                    >
+                      Bound: {credentials?.registered_device_name || getDeviceName()}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowChangeDeviceConfirm(true)}
+                    className="px-2.5 py-1 rounded-lg bg-vibrant-orange/10 hover:bg-vibrant-orange/20 text-[10px] text-vibrant-orange font-bold shrink-0 transition-colors cursor-pointer"
+                  >
+                    Re-bind OTP
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
-
-        {/* Re-bind Device Confirmation Modal (Triggers 6-Digit Gmail OTP) */}
-        {showChangeDeviceConfirm && (
-          <div className="absolute inset-0 bg-surface/95 backdrop-blur-md p-6 flex flex-col justify-center items-center text-center z-20 space-y-3">
-            <span className="material-symbols-outlined text-4xl text-amber-600">phonelink_lock</span>
-            <h4 className="font-bold text-sm text-on-surface">Re-bind Attendance Device Key?</h4>
-            <p className="text-xs text-on-surface-variant max-w-xs leading-relaxed">
-              Re-binding rotates your WebCrypto ECDSA P-256 hardware keypair and requires a 6-digit verification OTP sent to your registered Gmail.
-            </p>
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowChangeDeviceConfirm(false)}
-                className="px-3.5 py-2 bg-surface-container rounded-xl text-xs font-bold text-on-surface hover:bg-surface-container-high cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={otpStep === 'sending' || !isOnline}
-                onClick={() => handleRequestDeviceOtp(true)}
-                className="px-4 py-2 bg-vibrant-orange hover:bg-deep-orange disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-md cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[16px]">mail_lock</span>
-                <span>{otpStep === 'sending' ? 'Sending OTP...' : 'Send Gmail OTP'}</span>
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

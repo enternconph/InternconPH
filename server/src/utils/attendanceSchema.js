@@ -186,3 +186,4 @@ export async function ensureAttendanceSchemaAligned() {
 
   return schemaEnsurePromise;
 }
+

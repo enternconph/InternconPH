@@ -33,6 +33,7 @@ const StudentSkills = lazy(() => import('./pages/student/StudentSkills'));
 const StudentPortfolio = lazy(() => import('./pages/student/StudentPortfolio'));
 const StudentComplaints = lazy(() => import('./pages/student/StudentComplaints'));
 const StudentProfile = lazy(() => import('./pages/student/StudentProfile'));
+const StudentAttendanceQrPage = lazy(() => import('./pages/student/StudentAttendanceQrPage'));
 
 // Organization Pages (Lazy Loaded)
 const OrgDashboard = lazy(() => import('./pages/organization/OrgDashboard'));
@@ -86,6 +87,11 @@ function AnimatedRoutes() {
           <Route path="/dashboard" element={<DashboardLayout />}>
             <Route path="settings" element={<UserSettingsPage />} />
           </Route>
+        </Route>
+
+        {/* Dedicated Standalone Full-Screen Student Attendance QR Pass (Mobile / Direct View) */}
+        <Route element={<ProtectedRoute allowedRoles={['student']} />}>
+          <Route path="/dashboard/student/attendance-qr" element={<StudentAttendanceQrPage />} />
         </Route>
 
         {/* Student Dashboard Routes */}
