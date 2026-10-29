@@ -61,3 +61,4 @@ export const formatTime12 = (timeStr) => {
   const h12 = h % 12 || 12;
   return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
 };
+

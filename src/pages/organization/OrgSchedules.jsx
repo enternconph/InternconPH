@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../api/client';
 import { useRealtimeRefresh } from '../../contexts/SocketContext';
-import { DetailLink } from '../../components/ui/kit';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -57,10 +56,13 @@ export default function OrgSchedules() {
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Calendar direct multi-date selection mode
+  const [isCalendarSelectMode, setIsCalendarSelectMode] = useState(false);
+
   // Modals state
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [isPendingQueueOpen, setIsPendingQueueOpen] = useState(false);
-  const [activeDayModal, setActiveDayModal] = useState(null); // { dateKey, daySchedules, dayAttendance, dayRequests }
+  const [activeDayModal, setActiveDayModal] = useState(null); // { dateKey, day, schedules, attendance, requests }
 
   // Batch Update form state
   const [batchSelectedStudents, setBatchSelectedStudents] = useState([]);
@@ -71,6 +73,13 @@ export default function OrgSchedules() {
   const [batchMaxOvertime, setBatchMaxOvertime] = useState('2.0');
   const [batchNotes, setBatchNotes] = useState('');
   const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
+
+  // Single-day schedule override form inside Day Modal
+  const [isEditingDaySchedule, setIsEditingDaySchedule] = useState(false);
+  const [daySchedStartTime, setDaySchedStartTime] = useState('08:00');
+  const [daySchedFinishTime, setDaySchedFinishTime] = useState('17:00');
+  const [daySchedOvertimeAllowed, setDaySchedOvertimeAllowed] = useState(false);
+  const [daySchedNotes, setDaySchedNotes] = useState('');
 
   // Attendance editing inside Day Modal
   const [editingAttendanceId, setEditingAttendanceId] = useState(null);
@@ -104,7 +113,6 @@ export default function OrgSchedules() {
 
   useRealtimeRefresh(fetchSchedules);
 
-  // Auto clear banners
   useEffect(() => {
     if (message) {
       const t = setTimeout(() => setMessage(''), 6000);
@@ -181,6 +189,8 @@ export default function OrgSchedules() {
     for (let day = 1; day <= daysInMonth; day++) {
       const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const dayData = calendarMap[dateKey] || { schedules: [], attendance: [], requests: [] };
+      const pendingReqs = (dayData.requests || []).filter((r) => r.status === 'pending');
+
       cells.push({
         empty: false,
         day,
@@ -189,6 +199,8 @@ export default function OrgSchedules() {
         schedules: dayData.schedules,
         attendance: dayData.attendance,
         requests: dayData.requests,
+        pendingRequests: pendingReqs,
+        hasPendingRequest: pendingReqs.length > 0,
         key: dateKey
       });
     }
@@ -205,27 +217,45 @@ export default function OrgSchedules() {
     return (data.scheduleRequests || []).filter((r) => r.status === 'pending').length;
   }, [data.scheduleRequests]);
 
-  // Handle open day modal
-  const handleOpenDayModal = (cell) => {
-    if (cell.empty) return;
-    setActiveDayModal({
-      dateKey: cell.dateKey,
-      day: cell.day,
-      schedules: cell.schedules,
-      attendance: cell.attendance,
-      requests: cell.requests
+  // Dates with pending student requests
+  const datesWithPendingRequests = useMemo(() => {
+    const s = new Set();
+    (data.scheduleRequests || []).forEach((r) => {
+      if (r.status === 'pending') {
+        const key = r.schedule_date_str || toManilaDateKey(r.schedule_date);
+        if (key) s.add(key);
+      }
     });
-    setEditingAttendanceId(null);
+    return Array.from(s).sort();
+  }, [data.scheduleRequests]);
+
+  // Toggle date in multi-selection
+  const handleToggleDateSelection = (dateKey) => {
+    setBatchSelectedDates((prev) => {
+      if (prev.includes(dateKey)) {
+        return prev.filter((d) => d !== dateKey);
+      } else {
+        return [...prev, dateKey].sort();
+      }
+    });
   };
 
-  // Open batch modal initialized with interns
-  const handleOpenBatchModal = () => {
+  // Open batch modal
+  const handleOpenBatchModal = (preselectedDates = null) => {
     if (data.interns.length === 0) {
-      setErrorMessage('No active interns found in this organization to update schedules for.');
+      setErrorMessage('No active interns found under your supervision.');
       return;
     }
-    setBatchSelectedStudents(data.interns.map((i) => i.student_id));
-    setBatchSelectedDates([]);
+    // Default to selected student in dropdown if specific, else all handled interns
+    if (selectedStudentId !== 'all') {
+      setBatchSelectedStudents([parseInt(selectedStudentId, 10)]);
+    } else {
+      setBatchSelectedStudents(data.interns.map((i) => i.student_id));
+    }
+
+    if (preselectedDates && Array.isArray(preselectedDates) && preselectedDates.length > 0) {
+      setBatchSelectedDates(preselectedDates);
+    }
     setBatchStartTime('08:00');
     setBatchFinishTime('17:00');
     setBatchIsOvertimeAllowed(false);
@@ -234,15 +264,54 @@ export default function OrgSchedules() {
     setIsBatchModalOpen(true);
   };
 
-  // Toggle date in batch selection
-  const handleToggleBatchDate = (dateStr) => {
-    setBatchSelectedDates((prev) => {
-      if (prev.includes(dateStr)) {
-        return prev.filter((d) => d !== dateStr);
-      } else {
-        return [...prev, dateStr].sort();
+  // Quick Preset Date Selectors
+  const handleSelectPresetDates = (type) => {
+    const { year, month } = calendarMonth;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    const selected = [];
+
+    if (type === 'weekdays') {
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateObj = new Date(year, month, d);
+        const dayOfWeek = dateObj.getDay();
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+          selected.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+        }
       }
-    });
+    } else if (type === 'requests') {
+      selected.push(...datesWithPendingRequests);
+    } else if (type === 'next7days') {
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() + i);
+        selected.push(toManilaDateKey(d));
+      }
+    } else if (type === 'allMonth') {
+      for (let d = 1; d <= daysInMonth; d++) {
+        selected.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+      }
+    }
+
+    setBatchSelectedDates(Array.from(new Set(selected)).sort());
+  };
+
+  // Cell click dispatcher
+  const handleCellClick = (cell) => {
+    if (cell.empty) return;
+    if (isCalendarSelectMode) {
+      handleToggleDateSelection(cell.dateKey);
+    } else {
+      setActiveDayModal({
+        dateKey: cell.dateKey,
+        day: cell.day,
+        schedules: cell.schedules,
+        attendance: cell.attendance,
+        requests: cell.requests
+      });
+      setIsEditingDaySchedule(false);
+      setEditingAttendanceId(null);
+    }
   };
 
   // Submit batch schedule update
@@ -272,6 +341,8 @@ export default function OrgSchedules() {
       if (res.success) {
         setMessage(res.message || 'Work schedules updated and students notified!');
         setIsBatchModalOpen(false);
+        setIsCalendarSelectMode(false);
+        setBatchSelectedDates([]);
         await fetchSchedules();
       } else {
         setErrorMessage(res.message || 'Failed to update schedules.');
@@ -280,6 +351,38 @@ export default function OrgSchedules() {
       setErrorMessage(err.message || 'Error updating schedules.');
     } finally {
       setIsSubmittingBatch(false);
+    }
+  };
+
+  // Single Day Modal: Save Schedule Override
+  const handleSaveDayScheduleOverride = async (e) => {
+    e.preventDefault();
+    if (!activeDayModal) return;
+    const targetStudents = selectedStudentId !== 'all'
+      ? [parseInt(selectedStudentId, 10)]
+      : data.interns.map((i) => i.student_id);
+
+    try {
+      const res = await api.post('/org/schedules/batch', {
+        student_ids: targetStudents,
+        dates: [activeDayModal.dateKey],
+        start_time: daySchedStartTime,
+        finish_time: daySchedFinishTime,
+        is_overtime_allowed: daySchedOvertimeAllowed,
+        max_overtime_hours: 2.0,
+        notes: daySchedNotes
+      });
+
+      if (res.success) {
+        setMessage(`Schedule for ${activeDayModal.dateKey} successfully updated!`);
+        setIsEditingDaySchedule(false);
+        await fetchSchedules();
+        setActiveDayModal(null);
+      } else {
+        setErrorMessage(res.message || 'Failed to update schedule.');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Error updating schedule.');
     }
   };
 
@@ -294,7 +397,6 @@ export default function OrgSchedules() {
         setMessage(res.message || `Request ${action}d successfully!`);
         await fetchSchedules();
         if (activeDayModal) {
-          // Refresh active day modal
           const updatedReqs = activeDayModal.requests.map((r) =>
             r.request_id === requestId ? { ...r, status: action === 'approve' ? 'approved' : 'rejected' } : r
           );
@@ -375,7 +477,7 @@ export default function OrgSchedules() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-2 sm:px-4">
+    <div className="space-y-6 max-w-7xl mx-auto px-2 sm:px-4 pb-16">
       {/* Top Header Card */}
       <div className="p-6 rounded-3xl bg-surface-container-low border border-outline-variant shadow-xs">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -389,21 +491,40 @@ export default function OrgSchedules() {
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-on-surface-variant font-medium">
-              Standard Daily Work Schedule: <span className="font-bold text-on-surface">08:00 AM - 05:00 PM</span>. Override specific dates, approve overtime, or reschedule intern attendance.
+              Standard Daily Work Schedule: <span className="font-bold text-on-surface">08:00 AM - 05:00 PM</span>. Select multiple dates & students to update shifts in 1 click.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Quick Pending Overtime & Requests Pill */}
+            {/* Multi-Date Selection Mode Toggle Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsCalendarSelectMode(!isCalendarSelectMode);
+                if (isCalendarSelectMode) setBatchSelectedDates([]);
+              }}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer border ${
+                isCalendarSelectMode
+                  ? 'bg-teal-600 text-white border-teal-600 shadow-md font-black'
+                  : 'bg-surface hover:bg-surface-container-high border-outline-variant text-on-surface'
+              }`}
+            >
+              <span className="material-symbols-outlined text-sm">
+                {isCalendarSelectMode ? 'check_box' : 'checklist'}
+              </span>
+              <span>{isCalendarSelectMode ? 'Selecting Dates...' : 'Multi-Select Dates'}</span>
+            </button>
+
+            {/* Pending Requests & Overtime Pill */}
             {(pendingOvertimeCount > 0 || pendingRequestsCount > 0) && (
               <button
                 type="button"
                 onClick={() => setIsPendingQueueOpen(true)}
-                className="px-3.5 py-2 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-800 dark:text-amber-300 text-xs font-bold flex items-center gap-2 hover:bg-amber-500/25 transition-all cursor-pointer shadow-2xs animate-pulse"
+                className="px-3.5 py-2 rounded-xl bg-purple-500/15 border border-purple-500/40 text-purple-900 dark:text-purple-200 text-xs font-bold flex items-center gap-2 hover:bg-purple-500/25 transition-all cursor-pointer shadow-2xs animate-pulse"
               >
-                <span className="material-symbols-outlined text-sm">notification_important</span>
+                <span className="material-symbols-outlined text-sm">mark_email_unread</span>
                 <span>
-                  {pendingOvertimeCount + pendingRequestsCount} Pending Action(s)
+                  {pendingRequestsCount} Request(s) • {pendingOvertimeCount} Overtime
                 </span>
               </button>
             )}
@@ -411,7 +532,7 @@ export default function OrgSchedules() {
             {/* Batch Update Button */}
             <button
               type="button"
-              onClick={handleOpenBatchModal}
+              onClick={() => handleOpenBatchModal(batchSelectedDates.length > 0 ? batchSelectedDates : null)}
               className="px-4 py-2.5 rounded-xl bg-vibrant-orange text-accent-ink text-xs sm:text-sm font-extrabold flex items-center gap-2 hover:opacity-95 shadow-md transition-all cursor-pointer"
             >
               <span className="material-symbols-outlined text-base">edit_calendar</span>
@@ -425,7 +546,7 @@ export default function OrgSchedules() {
           <div className="flex items-center gap-3 flex-wrap">
             <label className="text-xs font-bold text-on-surface-variant flex items-center gap-1.5">
               <span className="material-symbols-outlined text-sm">badge</span>
-              <span>Intern:</span>
+              <span>Interns Handled:</span>
             </label>
             <select
               value={selectedStudentId}
@@ -446,8 +567,8 @@ export default function OrgSchedules() {
             {[
               { id: 'all', label: 'All Dates', icon: 'grid_view' },
               { id: 'custom', label: 'Custom Overrides', icon: 'tune' },
-              { id: 'overtime', label: `Pending Overtime (${pendingOvertimeCount})`, icon: 'alarm_on' },
-              { id: 'requests', label: `Student Requests (${pendingRequestsCount})`, icon: 'front_hand' }
+              { id: 'requests', label: `Student Requests (${pendingRequestsCount})`, icon: 'front_hand' },
+              { id: 'overtime', label: `Overtime Claims (${pendingOvertimeCount})`, icon: 'alarm_on' }
             ].map((f) => (
               <button
                 key={f.id}
@@ -492,10 +613,15 @@ export default function OrgSchedules() {
             <h2 className="font-black text-base sm:text-xl text-on-surface">
               {calendarMonthLabel}
             </h2>
+            {isCalendarSelectMode && (
+              <span className="px-2.5 py-1 rounded-lg bg-teal-600 text-white text-xs font-black animate-pulse">
+                Click dates to select for batch update
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Color Legend */}
+            {/* Color Legend with Prominent Student Request Indicator */}
             <div className="hidden sm:flex items-center gap-3 text-[11px] font-bold text-on-surface-variant">
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-surface-container-high border border-outline" />
@@ -506,12 +632,14 @@ export default function OrgSchedules() {
                 <span>Custom Override</span>
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                <span>Overtime Pending</span>
+                <span className="w-3 h-3 rounded-full bg-purple-600 text-white flex items-center justify-center text-[8px] font-black">
+                  !
+                </span>
+                <span className="text-purple-700 dark:text-purple-300 font-extrabold">Student Request Indicator</span>
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-                <span>Student Request</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                <span>Overtime Pending</span>
               </span>
             </div>
 
@@ -567,7 +695,7 @@ export default function OrgSchedules() {
                 return (
                   <div
                     key={cell.key}
-                    className="min-h-[80px] sm:min-h-[110px] rounded-2xl bg-transparent"
+                    className="min-h-[85px] sm:min-h-[115px] rounded-2xl bg-transparent"
                   />
                 );
               }
@@ -577,7 +705,8 @@ export default function OrgSchedules() {
               const hasPendingOvertime = cell.attendance.some(
                 (a) => a.overtime_status === 'pending_approval'
               );
-              const hasPendingRequest = cell.requests.some((r) => r.status === 'pending');
+              const hasPendingRequest = cell.hasPendingRequest;
+              const isSelectedInBatch = batchSelectedDates.includes(cell.dateKey);
 
               // Apply active filter if selected
               let isDimmed = false;
@@ -589,14 +718,16 @@ export default function OrgSchedules() {
                 <button
                   key={cell.key}
                   type="button"
-                  onClick={() => handleOpenDayModal(cell)}
-                  className={`min-h-[80px] sm:min-h-[110px] p-2 sm:p-2.5 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                  onClick={() => handleCellClick(cell)}
+                  className={`min-h-[85px] sm:min-h-[115px] p-2 sm:p-2.5 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer relative ${
                     isDimmed
                       ? 'opacity-35 bg-surface/40 border-outline-variant/40'
+                      : isSelectedInBatch
+                      ? 'bg-teal-500/20 border-2 border-teal-600 shadow-md ring-2 ring-teal-500/40'
+                      : hasPendingRequest
+                      ? 'bg-purple-500/15 border-2 border-purple-500 shadow-sm ring-1 ring-purple-500/40 hover:border-purple-600 hover:shadow-md'
                       : hasPendingOvertime
                       ? 'bg-amber-500/10 border-amber-500/60 shadow-xs hover:border-amber-500'
-                      : hasPendingRequest
-                      ? 'bg-purple-500/10 border-purple-500/60 shadow-xs hover:border-purple-500'
                       : hasCustom
                       ? 'bg-teal-500/10 border-teal-500/60 hover:border-teal-500'
                       : cell.isToday
@@ -604,6 +735,7 @@ export default function OrgSchedules() {
                       : 'bg-surface/80 border-outline-variant hover:border-outline hover:bg-surface'
                   }`}
                 >
+                  {/* Cell Top Header */}
                   <div className="flex items-center justify-between gap-1 w-full">
                     <span
                       className={`text-xs font-black leading-none ${
@@ -615,18 +747,29 @@ export default function OrgSchedules() {
                       {cell.day}
                     </span>
 
-                    {/* Pending alert counter badges */}
+                    {/* TOP INDICATORS: STUDENT SCHEDULE REQUEST INDICATOR */}
                     <div className="flex items-center gap-1">
+                      {isSelectedInBatch && (
+                        <span className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
+                          ✓
+                        </span>
+                      )}
+
+                      {/* Prominent High-Visibility Student Request Indicator Badge */}
+                      {hasPendingRequest && (
+                        <span
+                          className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-purple-600 text-white shadow-xs animate-bounce flex items-center gap-0.5"
+                          title="Student submitted a schedule update request for this date!"
+                        >
+                          <span className="material-symbols-outlined text-[11px]">mark_email_unread</span>
+                          <span>Request ({cell.pendingRequests.length})</span>
+                        </span>
+                      )}
+
                       {hasPendingOvertime && (
                         <span
                           className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"
                           title="Pending Overtime Approval"
-                        />
-                      )}
-                      {hasPendingRequest && (
-                        <span
-                          className="w-2.5 h-2.5 rounded-full bg-purple-500"
-                          title="Pending Student Request"
                         />
                       )}
                     </div>
@@ -634,15 +777,27 @@ export default function OrgSchedules() {
 
                   {/* Day Content Badges */}
                   <div className="space-y-1 w-full mt-1.5 overflow-hidden">
+                    {/* High-Visibility Student Request Banner in Cell Body */}
+                    {hasPendingRequest && (
+                      <div className="px-2 py-1 rounded-lg bg-purple-600 text-white text-[10px] font-black shadow-xs flex items-center gap-1 truncate">
+                        <span className="material-symbols-outlined text-[12px]">front_hand</span>
+                        <span className="truncate">
+                          Req: {formatTime12(cell.pendingRequests[0].requested_start_time)} - {formatTime12(cell.pendingRequests[0].requested_finish_time)}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Custom Schedule Badge */}
                     {hasCustom ? (
                       <div className="px-1.5 py-0.5 rounded-md bg-teal-500/15 border border-teal-500/30 text-teal-800 dark:text-teal-300 text-[10px] font-extrabold truncate">
                         Custom: {formatTime12(cell.schedules[0].start_time)} - {formatTime12(cell.schedules[0].finish_time)}
                       </div>
                     ) : (
-                      <div className="hidden sm:block text-[10px] font-semibold text-on-surface-variant/80 truncate">
-                        08:00 AM - 05:00 PM
-                      </div>
+                      !hasPendingRequest && (
+                        <div className="hidden sm:block text-[10px] font-semibold text-on-surface-variant/80 truncate">
+                          08:00 AM - 05:00 PM
+                        </div>
+                      )
                     )}
 
                     {/* Attendance Pill */}
@@ -663,13 +818,6 @@ export default function OrgSchedules() {
                         )}
                       </div>
                     )}
-
-                    {/* Student Request Pill */}
-                    {hasPendingRequest && (
-                      <div className="px-1.5 py-0.5 rounded-md bg-purple-500/15 border border-purple-500/30 text-purple-800 dark:text-purple-300 text-[9px] sm:text-[10px] font-bold truncate">
-                        Req: {formatTime12(cell.requests[0].requested_start_time)}
-                      </div>
-                    )}
                   </div>
                 </button>
               );
@@ -678,8 +826,37 @@ export default function OrgSchedules() {
         )}
       </div>
 
+      {/* Floating Bottom Bar when Multi-Dates are selected directly on calendar */}
+      {batchSelectedDates.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-surface border-2 border-teal-500 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4 animate-slideUp">
+          <div className="text-xs font-black text-on-surface flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-teal-500 text-white flex items-center justify-center text-xs">
+              {batchSelectedDates.length}
+            </span>
+            <span>Date(s) Selected</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handleOpenBatchModal(batchSelectedDates)}
+            className="px-4 py-2 rounded-xl bg-vibrant-orange text-accent-ink text-xs font-black shadow-md hover:opacity-95 cursor-pointer flex items-center gap-1.5"
+          >
+            <span className="material-symbols-outlined text-sm">bolt</span>
+            <span>Update Schedule Just 1 Time</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setBatchSelectedDates([])}
+            className="text-xs font-bold text-on-surface-variant hover:text-error cursor-pointer"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* ========================================================================= */}
-      {/* MODAL 1: BATCH SCHEDULE UPDATE (Multi-Date & Multi-Intern Picker)         */}
+      {/* MODAL 1: BATCH SCHEDULE UPDATE (Multi-Date & Multi-Intern in 1 Click)      */}
       {/* ========================================================================= */}
       {isBatchModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-scrim/60 backdrop-blur-xs overflow-y-auto">
@@ -688,10 +865,10 @@ export default function OrgSchedules() {
               <div>
                 <h3 className="text-lg font-black text-on-surface flex items-center gap-2">
                   <span className="material-symbols-outlined text-vibrant-orange">edit_calendar</span>
-                  <span>Update Work Schedule (Specific Dates)</span>
+                  <span>Batch Update Schedule (1-Click Update)</span>
                 </h3>
                 <p className="text-xs text-on-surface-variant font-medium mt-0.5">
-                  Assign custom working hours to selected interns for specific dates. Non-updated dates follow standard 08:00 - 17:00.
+                  Select multiple students and multiple dates to apply working hours simultaneously just 1 time.
                 </p>
               </div>
               <button
@@ -704,11 +881,12 @@ export default function OrgSchedules() {
             </div>
 
             <form onSubmit={handleSubmitBatch} className="space-y-5">
-              {/* 1. Intern Selection */}
+              {/* 1. Multiple Student Selection */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-extrabold text-on-surface uppercase tracking-wider">
-                    1. Select Interns ({batchSelectedStudents.length} selected)
+                  <label className="text-xs font-extrabold text-on-surface uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-vibrant-orange">group</span>
+                    <span>1. Select Students ({batchSelectedStudents.length} of {data.interns.length} Selected)</span>
                   </label>
                   <button
                     type="button"
@@ -721,18 +899,18 @@ export default function OrgSchedules() {
                     }}
                     className="text-xs font-bold text-vibrant-orange hover:underline cursor-pointer"
                   >
-                    {batchSelectedStudents.length === data.interns.length ? 'Deselect All' : 'Select All'}
+                    {batchSelectedStudents.length === data.interns.length ? 'Deselect All' : 'Select All Students'}
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 rounded-2xl bg-surface-container-low border border-outline-variant">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2.5 rounded-2xl bg-surface-container-low border border-outline-variant">
                   {data.interns.map((intern) => {
                     const isChecked = batchSelectedStudents.includes(intern.student_id);
                     return (
                       <label
                         key={intern.student_id}
-                        className={`flex items-center gap-2 p-2 rounded-xl text-xs font-bold cursor-pointer transition-colors ${
-                          isChecked ? 'bg-orange-tint text-accent-text' : 'hover:bg-surface-container'
+                        className={`flex items-center gap-2.5 p-2 rounded-xl text-xs font-bold cursor-pointer transition-colors ${
+                          isChecked ? 'bg-orange-tint text-accent-text ring-1 ring-vibrant-orange/50' : 'hover:bg-surface-container'
                         }`}
                       >
                         <input
@@ -748,7 +926,7 @@ export default function OrgSchedules() {
                           className="rounded text-vibrant-orange focus:ring-vibrant-orange"
                         />
                         <span className="truncate">
-                          {intern.first_name} {intern.last_name}
+                          {intern.first_name} {intern.last_name} ({intern.student_number || intern.job_title || 'Intern'})
                         </span>
                       </label>
                     );
@@ -756,35 +934,69 @@ export default function OrgSchedules() {
                 </div>
               </div>
 
-              {/* 2. Multi-Date Picker */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-extrabold text-on-surface uppercase tracking-wider">
-                    2. Pick Date(s) to Override ({batchSelectedDates.length} selected)
+              {/* 2. Multiple Date Selection with Presets */}
+              <div className="space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="text-xs font-extrabold text-on-surface uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-teal-600">date_range</span>
+                    <span>2. Pick Target Dates ({batchSelectedDates.length} Selected)</span>
                   </label>
-                  {batchSelectedDates.length > 0 && (
+
+                  {/* Quick Preset Buttons */}
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {datesWithPendingRequests.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPresetDates('requests')}
+                        className="px-2 py-0.5 rounded-lg bg-purple-600 text-white text-[11px] font-black hover:bg-purple-700 cursor-pointer shadow-2xs"
+                        title="Auto-select all dates where students requested an update"
+                      >
+                        Dates with Requests ({datesWithPendingRequests.length})
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => setBatchSelectedDates([])}
-                      className="text-xs font-bold text-error hover:underline cursor-pointer"
+                      onClick={() => handleSelectPresetDates('weekdays')}
+                      className="px-2 py-0.5 rounded-lg bg-surface-container text-xs font-bold text-on-surface hover:bg-surface-container-high cursor-pointer"
                     >
-                      Clear Dates
+                      Weekdays (Mon-Fri)
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => handleSelectPresetDates('next7days')}
+                      className="px-2 py-0.5 rounded-lg bg-surface-container text-xs font-bold text-on-surface hover:bg-surface-container-high cursor-pointer"
+                    >
+                      Next 7 Days
+                    </button>
+                    {batchSelectedDates.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setBatchSelectedDates([])}
+                        className="px-2 py-0.5 rounded-lg text-xs font-bold text-error hover:bg-error/10 cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {/* Selected dates pills */}
+                {/* Selected dates chips */}
                 {batchSelectedDates.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-surface-container-low border border-outline-variant">
+                  <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-surface-container-low border border-outline-variant max-h-24 overflow-y-auto">
                     {batchSelectedDates.map((d) => (
                       <span
                         key={d}
                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-500/20 text-teal-800 dark:text-teal-200 text-xs font-bold"
                       >
                         <span>{d}</span>
+                        {datesWithPendingRequests.includes(d) && (
+                          <span className="text-[10px] font-black text-purple-700 dark:text-purple-300">
+                            (Req)
+                          </span>
+                        )}
                         <button
                           type="button"
-                          onClick={() => handleToggleBatchDate(d)}
+                          onClick={() => handleToggleDateSelection(d)}
                           className="hover:text-error cursor-pointer ml-1 text-sm font-black"
                         >
                           ×
@@ -794,14 +1006,14 @@ export default function OrgSchedules() {
                   </div>
                 ) : (
                   <p className="text-xs text-on-surface-variant italic">
-                    Click dates below to select multiple dates for this schedule.
+                    Click dates below to select multiple dates for this schedule update.
                   </p>
                 )}
 
-                {/* Mini Clickable Date Grid for this month */}
+                {/* Mini Clickable Date Grid */}
                 <div className="p-3 rounded-2xl bg-surface-container-low border border-outline-variant">
                   <div className="text-xs font-bold text-on-surface mb-2">
-                    {calendarMonthLabel} — Click to toggle dates:
+                    {calendarMonthLabel} — Click dates to toggle:
                   </div>
                   <div className="grid grid-cols-7 gap-1 text-center">
                     {WEEKDAYS.map((w) => (
@@ -812,18 +1024,25 @@ export default function OrgSchedules() {
                     {calendarCells.map((c) => {
                       if (c.empty) return <div key={c.key} className="h-8" />;
                       const isPicked = batchSelectedDates.includes(c.dateKey);
+                      const hasReq = c.hasPendingRequest;
+
                       return (
                         <button
                           key={c.key}
                           type="button"
-                          onClick={() => handleToggleBatchDate(c.dateKey)}
-                          className={`h-8 rounded-lg text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
+                          onClick={() => handleToggleDateSelection(c.dateKey)}
+                          className={`h-8 rounded-lg text-xs font-bold flex items-center justify-center transition-all cursor-pointer relative ${
                             isPicked
                               ? 'bg-teal-500 text-white font-black shadow-xs scale-105'
+                              : hasReq
+                              ? 'bg-purple-600 text-white font-black'
                               : 'bg-surface hover:bg-surface-container-high text-on-surface'
                           }`}
                         >
-                          {c.day}
+                          <span>{c.day}</span>
+                          {hasReq && !isPicked && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400" />
+                          )}
                         </button>
                       );
                     })}
@@ -893,7 +1112,7 @@ export default function OrgSchedules() {
                   rows="2"
                   value={batchNotes}
                   onChange={(e) => setBatchNotes(e.target.value)}
-                  placeholder="e.g. Saturday client project deployment or adjusted evening shift."
+                  placeholder="e.g. Special deployment schedule or adjusted evening shift."
                   className="w-full px-3 py-2 rounded-xl bg-surface border border-outline-variant text-xs font-medium text-on-surface focus:outline-hidden focus:border-vibrant-orange"
                 />
               </div>
@@ -909,9 +1128,10 @@ export default function OrgSchedules() {
                 <button
                   type="submit"
                   disabled={isSubmittingBatch}
-                  className="px-5 py-2.5 rounded-xl bg-vibrant-orange text-accent-ink text-xs font-black shadow-md hover:opacity-95 disabled:opacity-50 cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-vibrant-orange text-accent-ink text-xs font-black shadow-md hover:opacity-95 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                 >
-                  {isSubmittingBatch ? 'Updating...' : 'Save & Update Schedules'}
+                  <span className="material-symbols-outlined text-sm">bolt</span>
+                  <span>{isSubmittingBatch ? 'Updating...' : `Save Schedule (${batchSelectedStudents.length} Students, ${batchSelectedDates.length} Dates) Just 1 Time`}</span>
                 </button>
               </div>
             </form>
@@ -948,14 +1168,148 @@ export default function OrgSchedules() {
               </button>
             </div>
 
-            {/* Section A: Scheduled Shift */}
-            <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant space-y-3">
-              <h4 className="text-xs font-extrabold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-base">schedule</span>
-                <span>Work Shift for this Date</span>
-              </h4>
+            {/* TOP ALERT: STUDENT SCHEDULE UPDATE REQUESTS FOR THIS SPECIFIC DATE */}
+            {activeDayModal.requests.length > 0 && (
+              <div className="p-4 rounded-2xl bg-purple-500/15 border-2 border-purple-500 space-y-3 shadow-xs animate-fadeIn">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-purple-950 dark:text-purple-200 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-base text-purple-700">mark_email_unread</span>
+                    <span>Student Schedule Request Indicator</span>
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-black uppercase">
+                    Needs Review
+                  </span>
+                </div>
 
-              {activeDayModal.schedules.length > 0 ? (
+                <div className="space-y-2.5">
+                  {activeDayModal.requests.map((req) => (
+                    <div
+                      key={req.request_id}
+                      className="p-3.5 rounded-xl bg-surface border border-purple-300 dark:border-purple-800 space-y-2.5 shadow-2xs"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <div className="text-sm font-black text-on-surface">
+                            {req.first_name} {req.last_name}
+                          </div>
+                          <div className="text-xs font-extrabold text-purple-700 dark:text-purple-300 mt-0.5">
+                            Requested Shift: {formatTime12(req.requested_start_time)} - {formatTime12(req.requested_finish_time)}
+                          </div>
+                        </div>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase self-start sm:self-auto ${
+                            req.status === 'approved'
+                              ? 'bg-emerald-500/20 text-emerald-700'
+                              : req.status === 'rejected'
+                              ? 'bg-error/20 text-error'
+                              : 'bg-purple-600 text-white shadow-2xs'
+                          }`}
+                        >
+                          {req.status === 'pending' ? 'Pending Approval' : req.status}
+                        </span>
+                      </div>
+
+                      {req.reason && (
+                        <div className="text-xs text-on-surface-variant italic font-medium p-2 rounded-lg bg-surface-container-low">
+                          Reason: "{req.reason}"
+                        </div>
+                      )}
+
+                      {req.status === 'pending' && (
+                        <div className="flex items-center justify-end gap-2 pt-1 border-t border-outline-variant/60">
+                          <button
+                            type="button"
+                            onClick={() => handleRespondRequest(req.request_id, 'reject')}
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-error hover:bg-error/10 cursor-pointer"
+                          >
+                            Decline
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRespondRequest(req.request_id, 'approve')}
+                            className="px-4 py-1.5 rounded-xl bg-teal-600 text-white text-xs font-black hover:bg-teal-700 cursor-pointer shadow-xs flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-xs">check</span>
+                            <span>Approve & Apply Schedule (1-Click)</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Section A: Scheduled Shift & Quick Override */}
+            <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-base">schedule</span>
+                  <span>Work Shift for this Date</span>
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingDaySchedule(!isEditingDaySchedule)}
+                  className="text-xs font-bold text-vibrant-orange hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-sm">edit</span>
+                  <span>{isEditingDaySchedule ? 'Cancel Edit' : 'Edit Shift for this Date'}</span>
+                </button>
+              </div>
+
+              {isEditingDaySchedule ? (
+                <form onSubmit={handleSaveDayScheduleOverride} className="p-3.5 rounded-xl bg-surface border border-outline-variant space-y-3 animate-fadeIn">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-on-surface">Start Time</label>
+                      <input
+                        type="time"
+                        value={daySchedStartTime}
+                        onChange={(e) => setDaySchedStartTime(e.target.value)}
+                        required
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-surface border border-outline-variant text-xs font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-on-surface">Finish Time</label>
+                      <input
+                        type="time"
+                        value={daySchedFinishTime}
+                        onChange={(e) => setDaySchedFinishTime(e.target.value)}
+                        required
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-surface border border-outline-variant text-xs font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-on-surface">Shift Note</label>
+                    <input
+                      type="text"
+                      value={daySchedNotes}
+                      onChange={(e) => setDaySchedNotes(e.target.value)}
+                      placeholder="e.g. Schedule adjustment confirmed"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-surface border border-outline-variant text-xs font-medium"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingDaySchedule(false)}
+                      className="px-3 py-1 rounded-lg text-xs font-bold text-on-surface-variant hover:bg-surface-container"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 rounded-lg bg-vibrant-orange text-accent-ink text-xs font-black shadow-xs hover:opacity-95 cursor-pointer"
+                    >
+                      Save Shift Override
+                    </button>
+                  </div>
+                </form>
+              ) : activeDayModal.schedules.length > 0 ? (
                 <div className="space-y-2">
                   {activeDayModal.schedules.map((ds) => (
                     <div
@@ -972,7 +1326,7 @@ export default function OrgSchedules() {
                         </div>
                       </div>
                       <span className="px-2 py-0.5 rounded-full bg-teal-500 text-white text-[10px] font-extrabold uppercase self-start sm:self-auto">
-                        Custom Override Active
+                        Custom Shift Active
                       </span>
                     </div>
                   ))}
@@ -1020,7 +1374,7 @@ export default function OrgSchedules() {
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {isOtPending && (
                               <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-200 text-[10px] font-black uppercase border border-amber-500/40">
-                                OT +{att.overtime_hours}h Pending Approval
+                                OT +{att.overtime_hours}h Pending
                               </span>
                             )}
                             <button
@@ -1037,7 +1391,7 @@ export default function OrgSchedules() {
                               }}
                               className="px-2.5 py-1 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant text-[11px] font-bold text-on-surface cursor-pointer"
                             >
-                              {isEditing ? 'Cancel Edit' : 'Reschedule / Edit Hours'}
+                              {isEditing ? 'Cancel Edit' : 'Reschedule Time In/Out'}
                             </button>
                           </div>
                         </div>
@@ -1046,7 +1400,7 @@ export default function OrgSchedules() {
                         {isOtPending && (
                           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                             <div className="text-xs text-amber-900 dark:text-amber-200 font-medium">
-                              Student worked <span className="font-bold">{att.overtime_hours} hrs overtime</span>. Approve to credit these hours to total OJT?
+                              Student worked <span className="font-bold">{att.overtime_hours} hrs overtime</span>. Approve to credit these hours?
                             </div>
                             <div className="flex items-center gap-2">
                               <button
@@ -1067,7 +1421,7 @@ export default function OrgSchedules() {
                           </div>
                         )}
 
-                        {/* Inline Time-In & Time-Out Editor */}
+                        {/* Inline Time-In & Time-Out Rescheduling */}
                         {isEditing && (
                           <div className="p-3.5 rounded-xl bg-orange-tint/40 border border-vibrant-orange/40 space-y-3 animate-fadeIn">
                             <div className="text-xs font-black text-accent-text">
@@ -1133,66 +1487,6 @@ export default function OrgSchedules() {
               )}
             </div>
 
-            {/* Section C: Student Schedule Update Requests for this Date */}
-            {activeDayModal.requests.length > 0 && (
-              <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 space-y-3">
-                <h4 className="text-xs font-extrabold uppercase tracking-wider text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-base">front_hand</span>
-                  <span>Student Schedule Requests</span>
-                </h4>
-
-                <div className="space-y-2">
-                  {activeDayModal.requests.map((req) => (
-                    <div
-                      key={req.request_id}
-                      className="p-3 rounded-xl bg-surface border border-outline-variant space-y-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="text-xs font-black text-on-surface">
-                          {req.first_name} {req.last_name}: Requested Shift {formatTime12(req.requested_start_time)} - {formatTime12(req.requested_finish_time)}
-                        </div>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                            req.status === 'approved'
-                              ? 'bg-emerald-500/15 text-emerald-700'
-                              : req.status === 'rejected'
-                              ? 'bg-error/15 text-error'
-                              : 'bg-purple-500/20 text-purple-800'
-                          }`}
-                        >
-                          {req.status}
-                        </span>
-                      </div>
-                      {req.reason && (
-                        <p className="text-xs text-on-surface-variant italic font-medium">
-                          Reason: "{req.reason}"
-                        </p>
-                      )}
-
-                      {req.status === 'pending' && (
-                        <div className="flex items-center justify-end gap-2 pt-1 border-t border-outline-variant">
-                          <button
-                            type="button"
-                            onClick={() => handleRespondRequest(req.request_id, 'reject')}
-                            className="px-3 py-1 rounded-lg text-xs font-bold text-error hover:bg-error/10 cursor-pointer"
-                          >
-                            Decline
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRespondRequest(req.request_id, 'approve')}
-                            className="px-3.5 py-1.5 rounded-lg bg-teal-600 text-white text-xs font-extrabold hover:bg-teal-700 cursor-pointer shadow-2xs"
-                          >
-                            Approve & Apply Schedule
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="flex justify-end pt-2">
               <button
                 type="button"
@@ -1215,11 +1509,11 @@ export default function OrgSchedules() {
             <div className="flex items-center justify-between border-b border-outline-variant pb-4">
               <div>
                 <h3 className="text-lg font-black text-on-surface flex items-center gap-2">
-                  <span className="material-symbols-outlined text-amber-500">notification_important</span>
-                  <span>Pending Actions: Overtime & Requests</span>
+                  <span className="material-symbols-outlined text-purple-600">mark_email_unread</span>
+                  <span>Pending Actions: Requests & Overtime</span>
                 </h3>
                 <p className="text-xs text-on-surface-variant font-medium mt-0.5">
-                  Review student requests and overtime claims that require mentor authorization.
+                  Review student schedule update requests and overtime claims.
                 </p>
               </div>
               <button
@@ -1231,10 +1525,65 @@ export default function OrgSchedules() {
               </button>
             </div>
 
-            {/* Overtime Approvals */}
+            {/* Student Requests */}
             <div className="space-y-3">
-              <h4 className="text-xs font-black uppercase text-amber-800 dark:text-amber-200">
-                Pending Overtime Claims ({pendingOvertimeCount})
+              <h4 className="text-xs font-black uppercase text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-base text-purple-600">edit_notifications</span>
+                <span>Pending Schedule Update Requests ({pendingRequestsCount})</span>
+              </h4>
+              {pendingRequestsCount === 0 ? (
+                <p className="text-xs text-on-surface-variant italic p-3 rounded-xl bg-surface-container-low">
+                  No student schedule update requests pending.
+                </p>
+              ) : (
+                data.scheduleRequests
+                  .filter((r) => r.status === 'pending')
+                  .map((req) => (
+                    <div
+                      key={req.request_id}
+                      className="p-4 rounded-2xl bg-purple-500/10 border-2 border-purple-400 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+                    >
+                      <div>
+                        <div className="text-xs font-black text-on-surface">
+                          {req.first_name} {req.last_name} • Target Date: <span className="font-extrabold text-purple-700 dark:text-purple-300">{req.schedule_date_str}</span>
+                        </div>
+                        <div className="text-xs text-on-surface-variant mt-1">
+                          Requested Shift: <span className="font-extrabold text-on-surface">{formatTime12(req.requested_start_time)} - {formatTime12(req.requested_finish_time)}</span>
+                        </div>
+                        {req.reason && (
+                          <div className="text-xs text-on-surface-variant italic mt-1 p-2 rounded-lg bg-surface">
+                            Reason: "{req.reason}"
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleRespondRequest(req.request_id, 'approve')}
+                          className="px-3.5 py-1.5 rounded-xl bg-teal-600 text-white text-xs font-black hover:bg-teal-700 cursor-pointer shadow-xs flex items-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-xs">check</span>
+                          <span>Approve & Apply</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRespondRequest(req.request_id, 'reject')}
+                          className="px-3 py-1.5 rounded-xl bg-surface border border-outline-variant text-xs font-bold text-error hover:bg-error/10 cursor-pointer"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+
+            {/* Overtime Approvals */}
+            <div className="space-y-3 pt-4 border-t border-outline-variant">
+              <h4 className="text-xs font-black uppercase text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-base text-amber-600">alarm_on</span>
+                <span>Pending Overtime Claims ({pendingOvertimeCount})</span>
               </h4>
               {pendingOvertimeCount === 0 ? (
                 <p className="text-xs text-on-surface-variant italic p-3 rounded-xl bg-surface-container-low">
@@ -1276,58 +1625,6 @@ export default function OrgSchedules() {
                     </div>
                   </div>
                 ))
-              )}
-            </div>
-
-            {/* Student Requests */}
-            <div className="space-y-3 pt-4 border-t border-outline-variant">
-              <h4 className="text-xs font-black uppercase text-purple-800 dark:text-purple-200">
-                Pending Schedule Update Requests ({pendingRequestsCount})
-              </h4>
-              {pendingRequestsCount === 0 ? (
-                <p className="text-xs text-on-surface-variant italic p-3 rounded-xl bg-surface-container-low">
-                  No student schedule update requests pending.
-                </p>
-              ) : (
-                data.scheduleRequests
-                  .filter((r) => r.status === 'pending')
-                  .map((req) => (
-                    <div
-                      key={req.request_id}
-                      className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                    >
-                      <div>
-                        <div className="text-xs font-black text-on-surface">
-                          {req.first_name} {req.last_name} • Target Date: {req.schedule_date_str}
-                        </div>
-                        <div className="text-xs text-on-surface-variant mt-1">
-                          Requested Shift: <span className="font-extrabold text-purple-700 dark:text-purple-300">{formatTime12(req.requested_start_time)} - {formatTime12(req.requested_finish_time)}</span>
-                        </div>
-                        {req.reason && (
-                          <div className="text-xs text-on-surface-variant italic mt-1">
-                            Reason: "{req.reason}"
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleRespondRequest(req.request_id, 'approve')}
-                          className="px-3.5 py-1.5 rounded-xl bg-teal-600 text-white text-xs font-black hover:bg-teal-700 cursor-pointer shadow-xs"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRespondRequest(req.request_id, 'reject')}
-                          className="px-3 py-1.5 rounded-xl bg-surface border border-outline-variant text-xs font-bold text-error hover:bg-error/10 cursor-pointer"
-                        >
-                          Decline
-                        </button>
-                      </div>
-                    </div>
-                  ))
               )}
             </div>
 

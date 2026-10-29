@@ -5234,8 +5234,8 @@ router.get('/schedules', async (req, res) => {
     const org = await getOrgId(req.user.user_id);
     if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
 
-    const isMentor = req.user.role_name === 'workplace_mentor' || req.user.role === 'workplace_mentor' || req.user.role === 'mentor';
-    const mentorStaffId = org.org_staff_id || null;
+    const isMentor = isMentorUser(req, org);
+    const mentor = isMentor ? await getMentorStaffId(req.user.user_id, org.organization_id) : null;
 
     // Fetch interns under this org (filter by mentor if mentor staff)
     let internQuery = `
@@ -5243,20 +5243,30 @@ router.get('/schedules', async (req, res) => {
              o.scheduled_start_time, o.scheduled_finish_time,
              o.rendered_hours, COALESCE(o.required_hours, s.required_ojt_hours, 600) as required_hours,
              s.student_number, s.first_name, s.last_name, s.avatar_url, s.contact_number,
-             p.program_name, jp.job_title,
+             p.program_name,
+             COALESCE(
+               (
+                 SELECT jp.title
+                 FROM job_applications ja
+                 JOIN job_postings jp ON ja.job_id = jp.job_id
+                 WHERE ja.student_id = o.student_id AND jp.organization_id = o.organization_id
+                 ORDER BY (CASE WHEN ja.status = 'accepted' THEN 0 WHEN ja.status = 'hired' THEN 1 ELSE 2 END), ja.updated_at DESC
+                 LIMIT 1
+               ),
+               'Intern'
+             ) as job_title,
              u.email as student_email
       FROM ojt_records o
       JOIN students s ON o.student_id = s.student_id
-      JOIN users u ON s.user_id = u.user_id
+      LEFT JOIN users u ON s.user_id = u.user_id
       LEFT JOIN programs p ON s.program_id = p.program_id
-      LEFT JOIN job_postings jp ON o.job_id = jp.job_id
-      WHERE o.organization_id = ? AND o.status IN ('ongoing', 'placed', 'active')
+      WHERE o.organization_id = ?
     `;
     const internParams = [org.organization_id];
 
-    if (isMentor && mentorStaffId) {
-      internQuery += ` AND (o.mentor_id = ? OR o.mentor_id IS NULL)`;
-      internParams.push(mentorStaffId);
+    if (isMentor && mentor) {
+      internQuery += ` AND (o.mentor_id = ? OR o.supervisor_name = ? OR o.supervisor_name = ? OR (o.mentor_id IS NULL AND (o.supervisor_name IS NULL OR o.supervisor_name = '')))`;
+      internParams.push(mentor.org_staff_id, `${mentor.first_name} ${mentor.last_name}`, mentor.first_name);
     }
     internQuery += ` ORDER BY s.first_name ASC, s.last_name ASC`;
 
@@ -5432,6 +5442,14 @@ router.post('/schedules/batch', async (req, res) => {
           [sId, dateKey, start_time, finish_time, otAllowed, maxOt, noteText, req.user.user_id]
         );
         upsertCount++;
+
+        // Automatically resolve and approve any pending student schedule requests for this student and date
+        await pool.query(
+          `UPDATE student_schedule_requests 
+           SET status = 'approved', reviewed_by = ?, reviewed_at = NOW(), mentor_notes = COALESCE(?, 'Approved via mentor schedule update'), updated_at = NOW()
+           WHERE student_id = ? AND schedule_date = ? AND status = 'pending'`,
+          [req.user.user_id, noteText || null, sId, dateKey]
+        );
 
         // Reconcile existing attendance log for that student & date if already logged
         const [existingLogs] = await pool.query(
