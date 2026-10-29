@@ -295,11 +295,11 @@ export default function StudentOJT() {
   const filteredReqs = requirements.filter((req) => {
     if (reqFilter === 'mandatory') return !!req.is_mandatory;
     if (reqFilter === 'pending') return !req.submission_status || req.submission_status === 'draft';
-    if (reqFilter === 'approved') return req.submission_status === 'approved';
+    if (reqFilter === 'approved') return req.submission_status === 'approved' || req.submission_status === 'submitted';
     return true;
   });
 
-  const approvedReqsCount = requirements.filter((r) => r.submission_status === 'approved').length;
+  const approvedReqsCount = requirements.filter((r) => r.submission_status === 'approved' || r.submission_status === 'submitted').length;
   const totalReqsCount = requirements.length;
   const reqsProgressPct = totalReqsCount > 0 ? Math.round((approvedReqsCount / totalReqsCount) * 100) : 0;
 
@@ -1035,7 +1035,7 @@ export default function StudentOJT() {
                   <span className="text-2xl font-black text-blue-600 dark:text-blue-400 font-mono">
                     {approvedReqsCount} / {totalReqsCount}
                   </span>
-                  <span className="text-xs font-bold text-on-surface-variant block">Documents Approved</span>
+                  <span className="text-xs font-bold text-on-surface-variant block">Documents Submitted</span>
                 </div>
               </div>
             </div>
@@ -1052,6 +1052,16 @@ export default function StudentOJT() {
                 ></div>
               </div>
             </div>
+
+            {totalReqsCount > 0 && approvedReqsCount === totalReqsCount && (
+              <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center gap-3 text-xs font-bold text-emerald-800 dark:text-emerald-300 shadow-xs">
+                <span className="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[22px]">verified</span>
+                <div>
+                  <p className="font-black text-sm">All Requirements Successfully Submitted!</p>
+                  <p className="text-[11px] font-medium opacity-90">You have completed all institutional OJT clearance requirements.</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Filter Bar */}
@@ -1091,7 +1101,7 @@ export default function StudentOJT() {
                   reqFilter === 'approved' ? 'bg-surface text-emerald-600 shadow-xs' : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
-                Verified ({requirements.filter((r) => r.submission_status === 'approved').length})
+                Submitted ({requirements.filter((r) => r.submission_status === 'approved' || r.submission_status === 'submitted').length})
               </button>
             </div>
           </div>
@@ -1135,19 +1145,15 @@ export default function StudentOJT() {
 
                         <span
                           className={`px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
-                            req.submission_status === 'approved'
+                            req.submission_status === 'approved' || req.submission_status === 'submitted'
                               ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-                              : req.submission_status === 'submitted'
-                              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
                               : req.submission_status === 'draft'
                               ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30'
                               : 'bg-surface-container text-on-surface-variant border-outline-variant'
                           }`}
                         >
-                          {req.submission_status === 'approved'
-                            ? 'Verified & Approved'
-                            : req.submission_status === 'submitted'
-                            ? 'Under Review'
+                          {req.submission_status === 'approved' || req.submission_status === 'submitted'
+                            ? 'Successfully Submitted'
                             : req.submission_status === 'draft'
                             ? 'Saved Draft'
                             : 'Pending Submission'}

@@ -4113,16 +4113,43 @@ router.post('/requirements/:id/submit', async (req, res) => {
     if (existing.length > 0) {
       await pool.query(
         `UPDATE ojt_student_requirements 
-         SET status = 'submitted', file_path = ?, submitted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+         SET status = 'approved', file_path = ?, submitted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
          WHERE id = ?`,
         [file_path || 'document_submission.pdf', existing[0].id]
       );
     } else {
       await pool.query(
         `INSERT INTO ojt_student_requirements (ojt_id, requirement_id, status, file_path, submitted_at, created_at, updated_at)
-         VALUES (?, ?, 'submitted', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+         VALUES (?, ?, 'approved', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [ojtId, reqId, file_path || 'document_submission.pdf']
       );
+    }
+
+    // Check if all applicable clearance requirements for this student are now fulfilled
+    const [pendingReqs] = await pool.query(
+      `SELECT r.requirement_id
+       FROM ojt_requirements r
+       WHERE r.institution_id = ?
+         AND (r.program_id IS NULL OR r.program_id = ?)
+         AND r.requirement_id NOT IN (
+           SELECT sr.requirement_id
+           FROM ojt_student_requirements sr
+           WHERE sr.ojt_id = ? AND sr.status != 'draft'
+         )`,
+      [student.institution_id, student.program_id, ojtId]
+    );
+
+    const isAllCompleted = pendingReqs.length === 0;
+
+    // Notify student if all requirements are now complete
+    if (isAllCompleted && student.user_id) {
+      await sendNotification({
+        userId: student.user_id,
+        title: 'All OJT Clearance Requirements Completed!',
+        message: 'Congratulations! You have successfully submitted all required OJT clearance documents.',
+        type: 'requirement',
+        link: '/dashboard/student/ojt?tab=requirements'
+      });
     }
 
     // Notify institution coordinators
@@ -4134,16 +4161,24 @@ router.post('/requirements/:id/submit', async (req, res) => {
       if (staff.user_id) {
         await sendNotification({
           userId: staff.user_id,
-          title: 'Clearance Requirement Submitted',
-          message: `${student.first_name} ${student.last_name} (${student.student_number}) submitted an OJT clearance requirement.`,
+          title: isAllCompleted ? 'Student Completed All Clearance Requirements' : 'Clearance Requirement Submitted',
+          message: isAllCompleted
+            ? `${student.first_name} ${student.last_name} (${student.student_number}) has successfully submitted all OJT clearance requirements.`
+            : `${student.first_name} ${student.last_name} (${student.student_number}) submitted an OJT clearance requirement.`,
           type: 'ojt'
         });
       }
     }
 
-    emitUpdate('requirement_updated', { student_id: student.student_id });
+    emitUpdate('requirement_updated', { student_id: student.student_id, is_all_completed: isAllCompleted });
 
-    return res.json({ success: true, message: 'Requirement officially submitted for institutional verification.' });
+    return res.json({
+      success: true,
+      is_all_completed: isAllCompleted,
+      message: isAllCompleted
+        ? 'Requirement submitted! You have successfully completed all OJT clearance requirements.'
+        : 'Requirement successfully submitted!'
+    });
   } catch (error) {
     console.error('Submit requirement error:', error);
     return res.status(500).json({ success: false, message: 'Failed to submit requirement: ' + error.message });

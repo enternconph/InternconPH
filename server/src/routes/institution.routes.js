@@ -2618,7 +2618,8 @@ router.get('/requirements', async (req, res) => {
      ORDER BY r.is_mandatory DESC, r.created_at DESC`;
     const [requirements] = await pool.query(reqSql, reqSubParams);
 
-    let subSql = `SELECT sr.*, r.requirement_name, r.document_template_url, s.first_name, s.last_name, s.student_number, p.program_name, p.program_code
+    let subSql = `SELECT sr.*, r.requirement_name, r.document_template_url, r.is_mandatory, r.program_id as req_program_id,
+            s.first_name, s.last_name, s.student_number, p.program_name, p.program_code, o.student_id
      FROM ojt_student_requirements sr
      JOIN ojt_requirements r ON sr.requirement_id = r.requirement_id
      JOIN ojt_records o ON sr.ojt_id = o.ojt_id
@@ -2630,7 +2631,120 @@ router.get('/requirements', async (req, res) => {
     subSql += ' ORDER BY sr.submitted_at DESC';
     const [submissions] = await pool.query(subSql, subParams);
 
-    return res.json({ success: true, data: { requirements, submissions, staff_scope: scope } });
+    // Query degree programs for this institution
+    let progSql = 'SELECT program_id, program_name, program_code, department FROM programs WHERE institution_id = ?';
+    const progParams = [inst.institution_id];
+    if (scope.isRestricted) {
+      if (scope.isDean) {
+        progSql += ' AND program_id IN (?)';
+        progParams.push(scope.programIds.length > 0 ? scope.programIds : [-1]);
+      } else {
+        progSql += ' AND program_id = ?';
+        progParams.push(scope.programId);
+      }
+    }
+    progSql += ' ORDER BY program_name ASC';
+    const [programs] = await pool.query(progSql, progParams);
+
+    // Query enrolled students for this institution (scoped to coordinator program)
+    let stuSql = `
+      SELECT s.student_id, s.user_id, s.student_number, s.first_name, s.middle_name, s.last_name,
+             s.contact_number, s.program_id, s.classification, s.ojt_status,
+             p.program_name, p.program_code,
+             u.email, u.avatar_url,
+             o.ojt_id
+      FROM students s
+      JOIN users u ON s.user_id = u.user_id
+      LEFT JOIN programs p ON s.program_id = p.program_id
+      LEFT JOIN (
+        SELECT o1.ojt_id, o1.student_id
+        FROM ojt_records o1
+        WHERE o1.ojt_id = (
+          SELECT MAX(o2.ojt_id) FROM ojt_records o2 WHERE o2.student_id = o1.student_id
+        )
+      ) o ON s.student_id = o.student_id
+      WHERE s.institution_id = ?
+    `;
+    const stuParams = [inst.institution_id];
+    if (scope.isRestricted) {
+      stuSql = appendProgramScopeSql(stuSql, stuParams, scope, 's.program_id');
+    }
+    stuSql += ' ORDER BY s.last_name ASC, s.first_name ASC';
+    const [studentsRaw] = await pool.query(stuSql, stuParams);
+
+    // Map each student to their applicable, submitted, and needed requirements
+    const studentCards = studentsRaw.map(stu => {
+      // Applicable requirements: universal (program_id IS NULL) OR matching student's program
+      const applicable = requirements.filter(r => !r.program_id || Number(r.program_id) === Number(stu.program_id));
+
+      // Submissions made by this student
+      const stuSubs = submissions.filter(sub => Number(sub.student_id) === Number(stu.student_id));
+
+      const submittedReqs = [];
+      const neededReqs = [];
+
+      for (const req of applicable) {
+        const sub = stuSubs.find(s => Number(s.requirement_id) === Number(req.requirement_id));
+        if (sub) {
+          submittedReqs.push({
+            requirement_id: req.requirement_id,
+            requirement_name: req.requirement_name,
+            description: req.description,
+            is_mandatory: Boolean(req.is_mandatory),
+            submission_id: sub.id,
+            status: sub.status || 'submitted',
+            file_url: sub.file_path,
+            submitted_at: sub.submitted_at,
+            document_template_url: req.document_template_url
+          });
+        } else {
+          neededReqs.push({
+            requirement_id: req.requirement_id,
+            requirement_name: req.requirement_name,
+            description: req.description,
+            is_mandatory: Boolean(req.is_mandatory),
+            document_template_url: req.document_template_url
+          });
+        }
+      }
+
+      // Check if all applicable requirements are submitted
+      const mandatoryNeeded = neededReqs.filter(r => r.is_mandatory);
+      const isComplete = applicable.length > 0 && neededReqs.length === 0;
+      const progressPct = applicable.length > 0 ? Math.round((submittedReqs.length / applicable.length) * 100) : 0;
+
+      let completionStatus = 'pending';
+      if (applicable.length === 0) {
+        completionStatus = 'no_requirements';
+      } else if (isComplete) {
+        completionStatus = 'successfully_submitted';
+      }
+
+      return {
+        ...stu,
+        student_name: `${stu.first_name} ${stu.last_name}`,
+        applicable_count: applicable.length,
+        submitted_count: submittedReqs.length,
+        needed_count: neededReqs.length,
+        mandatory_needed_count: mandatoryNeeded.length,
+        progress_pct: progressPct,
+        is_complete: isComplete,
+        completion_status: completionStatus,
+        submitted_requirements: submittedReqs,
+        needed_requirements: neededReqs
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        requirements,
+        submissions,
+        students: studentCards,
+        programs,
+        staff_scope: scope
+      }
+    });
   } catch (error) {
     console.error('Fetch requirements error:', error);
     return res.status(500).json({ success: false, message: 'Could not fetch requirements.' });
@@ -2818,6 +2932,131 @@ router.post('/requirements/submissions/:id/verify', async (req, res) => {
     return res.json({ success: true, message: `Submission marked as ${status}.` });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Failed to update submission status.' });
+  }
+});
+
+// POST /api/inst/requirements/remind/:studentId - Send notification reminder to a student with pending requirements
+router.post('/requirements/remind/:studentId', async (req, res) => {
+  try {
+    const inst = await getInstId(req.user.user_id);
+    if (!inst) return res.status(404).json({ success: false, message: 'Institution not found.' });
+
+    const studentId = req.params.studentId;
+    const [students] = await pool.query(
+      `SELECT s.student_id, s.user_id, s.first_name, s.last_name, s.program_id
+       FROM students s
+       WHERE s.student_id = ? AND s.institution_id = ?`,
+      [studentId, inst.institution_id]
+    );
+
+    if (students.length === 0) {
+      return res.status(404).json({ success: false, message: 'Student not found in this institution.' });
+    }
+    const student = students[0];
+
+    const [pendingReqs] = await pool.query(
+      `SELECT r.requirement_name
+       FROM ojt_requirements r
+       WHERE r.institution_id = ?
+         AND (r.program_id IS NULL OR r.program_id = ?)
+         AND r.requirement_id NOT IN (
+           SELECT sr.requirement_id
+           FROM ojt_student_requirements sr
+           JOIN ojt_records o ON sr.ojt_id = o.ojt_id
+           WHERE o.student_id = ? AND sr.status != 'draft'
+         )`,
+      [inst.institution_id, student.program_id, student.student_id]
+    );
+
+    const pendingNames = pendingReqs.map(r => r.requirement_name);
+    const msg = pendingNames.length > 0
+      ? `You have ${pendingNames.length} pending OJT requirement(s) to submit: ${pendingNames.slice(0, 3).join(', ')}${pendingNames.length > 3 ? ` and ${pendingNames.length - 3} more` : ''}. Please upload your documents to complete your clearance.`
+      : 'Please review your OJT clearance documents and ensure all required paperwork is submitted.';
+
+    if (student.user_id) {
+      await sendNotification({
+        userId: student.user_id,
+        senderId: req.user.user_id,
+        senderName: inst.institution_name,
+        title: 'Action Required: Submit OJT Clearance Requirements',
+        message: msg,
+        type: 'requirement',
+        link: '/dashboard/student/ojt?tab=requirements'
+      });
+    }
+
+    emitUpdate('notification', { student_id: student.student_id });
+
+    return res.json({
+      success: true,
+      message: `Reminder notification sent to ${student.first_name} ${student.last_name}.`
+    });
+  } catch (error) {
+    console.error('Send requirement reminder error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to send reminder.' });
+  }
+});
+
+// POST /api/inst/requirements/remind-all - Send notification reminder to all students who have pending requirements
+router.post('/requirements/remind-all', async (req, res) => {
+  try {
+    const inst = await getInstId(req.user.user_id);
+    if (!inst) return res.status(404).json({ success: false, message: 'Institution not found.' });
+
+    const scope = await getStaffProgramScope(req.user.user_id, req.user.role, inst.institution_id);
+
+    let stuSql = `
+      SELECT s.student_id, s.user_id, s.first_name, s.last_name, s.program_id
+      FROM students s
+      WHERE s.institution_id = ?
+    `;
+    const stuParams = [inst.institution_id];
+    if (scope.isRestricted) {
+      stuSql = appendProgramScopeSql(stuSql, stuParams, scope, 's.program_id');
+    }
+    const [allStudents] = await pool.query(stuSql, stuParams);
+
+    let notifiedCount = 0;
+    for (const stu of allStudents) {
+      const [pendingReqs] = await pool.query(
+        `SELECT r.requirement_name
+         FROM ojt_requirements r
+         WHERE r.institution_id = ?
+           AND (r.program_id IS NULL OR r.program_id = ?)
+           AND r.requirement_id NOT IN (
+             SELECT sr.requirement_id
+             FROM ojt_student_requirements sr
+             JOIN ojt_records o ON sr.ojt_id = o.ojt_id
+             WHERE o.student_id = ? AND sr.status != 'draft'
+           )`,
+        [inst.institution_id, stu.program_id, stu.student_id]
+      );
+
+      if (pendingReqs.length > 0 && stu.user_id) {
+        const pendingNames = pendingReqs.map(r => r.requirement_name);
+        await sendNotification({
+          userId: stu.user_id,
+          senderId: req.user.user_id,
+          senderName: inst.institution_name,
+          title: 'Action Required: Submit OJT Clearance Requirements',
+          message: `You have ${pendingNames.length} pending OJT requirement(s) to submit: ${pendingNames.slice(0, 3).join(', ')}${pendingNames.length > 3 ? ` and ${pendingNames.length - 3} more` : ''}. Please upload your documents to complete your clearance.`,
+          type: 'requirement',
+          link: '/dashboard/student/ojt?tab=requirements'
+        });
+        notifiedCount++;
+      }
+    }
+
+    emitUpdate('notification', { institution_id: inst.institution_id });
+
+    return res.json({
+      success: true,
+      count: notifiedCount,
+      message: `Sent reminder notification to ${notifiedCount} student(s) with pending requirements.`
+    });
+  } catch (error) {
+    console.error('Send all requirement reminders error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to broadcast reminders.' });
   }
 });
 

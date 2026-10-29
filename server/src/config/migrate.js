@@ -1530,6 +1530,18 @@ export async function runMigrations() {
         await pool.query('ALTER TABLE ojt_attendance_logs ADD COLUMN offline_scanned_at DATETIME NULL');
       }
 
+      // 36g. Align ojt_requirements for program_id and document_template_url
+      const [reqCols] = await pool.query('DESCRIBE ojt_requirements');
+      const reqColNames = reqCols.map(c => c.Field);
+      if (!reqColNames.includes('program_id')) {
+        await pool.query('ALTER TABLE ojt_requirements ADD COLUMN program_id BIGINT UNSIGNED NULL AFTER institution_id');
+        console.log('[Migration] Added program_id to ojt_requirements');
+      }
+      if (!reqColNames.includes('document_template_url')) {
+        await pool.query('ALTER TABLE ojt_requirements ADD COLUMN document_template_url VARCHAR(500) NULL AFTER description');
+        console.log('[Migration] Added document_template_url to ojt_requirements');
+      }
+
       console.log('[Migration] Mobile QR Attendance Security Hardening schema ready.');
     } catch (secMigErr) {
       console.warn('[Migration Warning] Mobile QR security migration warning:', secMigErr.message);
