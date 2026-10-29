@@ -27,8 +27,8 @@ export function securityHeaders() {
     // 4. Referrer policy to safeguard sensitive URLs
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-    // 5. Restrict camera usage strictly to same origin for QR attendance scanner
-    res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
+    // 5. Restrict camera and geolocation usage strictly to same origin for QR attendance scanner and geofencing
+    res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(self)');
 
     // 6. Enforce HSTS in production or when connection is HTTPS
     const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
