@@ -47,6 +47,15 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
   const [scannerGps, setScannerGps] = useState(null);
   const scannerGpsRef = useRef(null);
 
+  // Manual Coordinates Dialog State (for workstations/PCs without GPS chips)
+  const [showManualCoordsModal, setShowManualCoordsModal] = useState(false);
+  const [manualCoordsInput, setManualCoordsInput] = useState({
+    latitude: '',
+    longitude: '',
+    radius: 100
+  });
+  const [savingManualCoords, setSavingManualCoords] = useState(false);
+
   // High-accuracy scanner terminal GPS watcher
   useEffect(() => {
     if (!isOpen || typeof navigator === 'undefined' || !navigator.geolocation) return;
@@ -111,57 +120,152 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
     }
   }, [isOpen, fetchGeofenceConfig]);
 
-  // Calibrate workplace geofence coordinates using HR terminal's current GPS position
+  useEffect(() => {
+    if (geofenceConfig) {
+      setManualCoordsInput({
+        latitude: geofenceConfig.latitude != null ? String(geofenceConfig.latitude) : '',
+        longitude: geofenceConfig.longitude != null ? String(geofenceConfig.longitude) : '',
+        radius: Number(geofenceConfig.geofence_radius_meters) || 100
+      });
+    }
+  }, [geofenceConfig]);
+
+  // Calibrate workplace geofence coordinates using HR terminal's GPS position
+  // Uses two-stage resolution: Stage 1 = High Accuracy, Stage 2 = Wi-Fi/IP network fallback
   const handleCalibrateGeofence = () => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser.');
       return;
     }
     setCalibratingGeofence(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const lat = Number(pos.coords.latitude.toFixed(6));
-          const lng = Number(pos.coords.longitude.toFixed(6));
-          const res = await api.post('/org/attendance/geofence', {
+
+    const saveCoords = async (pos) => {
+      try {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        const res = await api.post('/org/attendance/geofence', {
+          latitude: lat,
+          longitude: lng,
+          geofence_radius_meters: geofenceConfig?.geofence_radius_meters || 100,
+          enforce_geofence: true
+        });
+        if (res.success && res.data) {
+          setGeofenceConfig({
+            ...geofenceConfig,
+            ...res.data,
             latitude: lat,
             longitude: lng,
-            geofence_radius_meters: geofenceConfig?.geofence_radius_meters || 100,
+            configured: true,
             enforce_geofence: true
           });
-          if (res.success && res.data) {
-            setGeofenceConfig({
-              ...geofenceConfig,
-              ...res.data,
-              latitude: lat,
-              longitude: lng,
-              configured: true,
-              enforce_geofence: true
-            });
-            alert(`Office GPS locked at (${lat.toFixed(4)}, ${lng.toFixed(4)}). Student attendance within ${geofenceConfig?.geofence_radius_meters || 100}m is now strictly enforced.`);
-          } else {
-            alert(res.message || 'Failed to update workplace geofence.');
-          }
-        } catch (err) {
-          alert(err.message || 'Error calibrating workplace geofence.');
-        } finally {
-          setCalibratingGeofence(false);
+          alert(`Office GPS locked at (${lat.toFixed(4)}, ${lng.toFixed(4)}). Student attendance within ${geofenceConfig?.geofence_radius_meters || 100}m is now strictly enforced.`);
+        } else {
+          alert(res.message || 'Failed to update workplace geofence.');
         }
-      },
-      (err) => {
+      } catch (err) {
+        alert(err.message || 'Error calibrating workplace geofence.');
+      } finally {
         setCalibratingGeofence(false);
-        let errorMsg = 'Unable to read GPS location. Please allow browser location access.';
-        if (err.code === 1) {
-          errorMsg = 'Location permission denied by your browser. Please click the site settings / padlock icon in your browser URL bar and allow Location access for interncon-ph.vercel.app.';
-        } else if (err.code === 2) {
-          errorMsg = 'Location unavailable: Your device or network cannot determine GPS coordinates. Ensure Windows Location Services are turned ON in Windows Settings > Privacy & security > Location.';
-        } else if (err.code === 3) {
-          errorMsg = 'Location request timed out. Please try calibrating again.';
+      }
+    };
+
+    const handleFinalError = (err) => {
+      setCalibratingGeofence(false);
+      let errorMsg = 'Unable to determine GPS location.';
+      if (err.code === 1) {
+        errorMsg = 'Location permission denied by your browser. Please click the padlock or site settings in your URL bar to allow Location.';
+      } else if (err.code === 2) {
+        errorMsg = 'Location unavailable: Windows Location Services may be disabled on this PC.';
+      } else if (err.code === 3) {
+        errorMsg = 'Location request timed out. Desktop PCs without GPS satellite hardware often cannot acquire a direct fix.';
+      }
+
+      const enterManual = window.confirm(
+        `${errorMsg}\n\nWould you like to enter your office coordinates or paste them from Google Maps instead?`
+      );
+      if (enterManual) {
+        setShowManualCoordsModal(true);
+      }
+    };
+
+    // Stage 1: Attempt High-Accuracy GPS (satellites/device sensor, 5s timeout)
+    navigator.geolocation.getCurrentPosition(
+      saveCoords,
+      (firstErr) => {
+        // If high-accuracy times out (code 3) or unavailable (code 2), attempt Stage 2: Wi-Fi/IP Network Positioning
+        if (firstErr.code === 3 || firstErr.code === 2) {
+          navigator.geolocation.getCurrentPosition(
+            saveCoords,
+            handleFinalError,
+            { enableHighAccuracy: false, maximumAge: 300000, timeout: 10000 }
+          );
+          return;
         }
-        alert(errorMsg);
+        handleFinalError(firstErr);
       },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      { enableHighAccuracy: true, maximumAge: 30000, timeout: 5000 }
     );
+  };
+
+  // Helper to autofill latitude & longitude when user pastes a combined "14.5995, 120.9842" string
+  const handlePasteCoords = (e) => {
+    const text = e.clipboardData ? e.clipboardData.getData('text') : '';
+    if (text && text.includes(',')) {
+      const parts = text.split(',').map((p) => p.trim());
+      if (parts.length >= 2 && !isNaN(Number(parts[0])) && !isNaN(Number(parts[1]))) {
+        e.preventDefault();
+        setManualCoordsInput((prev) => ({
+          ...prev,
+          latitude: parts[0],
+          longitude: parts[1]
+        }));
+      }
+    }
+  };
+
+  // Save manually entered latitude and longitude coordinates
+  const handleSaveManualCoords = async (e) => {
+    e?.preventDefault?.();
+    const lat = parseFloat(manualCoordsInput.latitude);
+    const lng = parseFloat(manualCoordsInput.longitude);
+    const rad = parseInt(manualCoordsInput.radius, 10) || 100;
+
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      alert('Please enter a valid latitude (-90 to 90).');
+      return;
+    }
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+      alert('Please enter a valid longitude (-180 to 180).');
+      return;
+    }
+
+    setSavingManualCoords(true);
+    try {
+      const res = await api.post('/org/attendance/geofence', {
+        latitude: lat,
+        longitude: lng,
+        geofence_radius_meters: rad,
+        enforce_geofence: true
+      });
+      if (res.success && res.data) {
+        setGeofenceConfig({
+          ...geofenceConfig,
+          ...res.data,
+          latitude: lat,
+          longitude: lng,
+          configured: true,
+          enforce_geofence: true
+        });
+        setShowManualCoordsModal(false);
+        alert(`Office coordinates locked at (${lat.toFixed(4)}, ${lng.toFixed(4)}) with a ${rad}m radius.`);
+      } else {
+        alert(res.message || 'Failed to save coordinates.');
+      }
+    } catch (err) {
+      alert(err.message || 'Error saving coordinates.');
+    } finally {
+      setSavingManualCoords(false);
+    }
   };
 
   // Clear or disable geofence enforcement (allows attendance from any location)
@@ -1187,17 +1291,31 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
                         disabled={calibratingGeofence || !isOnline}
                         onClick={handleCalibrateGeofence}
                         className="px-2.5 py-1.5 rounded-lg bg-surface hover:bg-surface-container-high border border-outline-variant text-[11px] font-bold text-on-surface flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer shrink-0"
+                        title="Auto-detect current GPS/Wi-Fi location"
                       >
                         <span className="material-symbols-outlined text-[14px] text-vibrant-orange">
                           my_location
                         </span>
                         <span>
                           {calibratingGeofence
-                            ? 'Calibrating GPS...'
+                            ? 'Detecting GPS...'
                             : isGeofenceActive
-                            ? 'Recalibrate Office GPS'
-                            : 'Set Office GPS (100m)'}
+                            ? 'Auto-Calibrate GPS'
+                            : 'Auto-Detect GPS'}
                         </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={calibratingGeofence || !isOnline}
+                        onClick={() => setShowManualCoordsModal(true)}
+                        className="px-2.5 py-1.5 rounded-lg bg-surface hover:bg-surface-container-high border border-outline-variant text-[11px] font-bold text-on-surface flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer shrink-0"
+                        title="Manually type or paste office coordinates from Google Maps"
+                      >
+                        <span className="material-symbols-outlined text-[14px] text-blue-600">
+                          edit_location_alt
+                        </span>
+                        <span>{isGeofenceActive ? 'Edit Coords' : 'Enter Coords'}</span>
                       </button>
 
                       {isGeofenceActive && (
@@ -1205,7 +1323,7 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
                           type="button"
                           onClick={handleClearGeofence}
                           className="px-2 py-1.5 rounded-lg text-error hover:bg-rose-50 border border-error/20 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
-                          title="Disable 100m workplace geofence check (useful when testing or working remotely)"
+                          title="Disable 100m workplace geofence check (student scans accepted from anywhere)"
                         >
                           <span className="material-symbols-outlined text-[14px]">location_off</span>
                           <span>Clear Geofence</span>
@@ -1581,6 +1699,122 @@ export default function HrAttendanceScannerModal({ isOpen, onClose, onScanSucces
           </div>
         </div>
       </div>
+
+      {/* Manual Coordinates Input Modal Overlay */}
+      {showManualCoordsModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-fade-in">
+          <div className="bg-surface rounded-3xl border border-outline-variant shadow-2xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-outline-variant">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[20px]">pin_drop</span>
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-on-surface">Set Office GPS Coordinates</h4>
+                  <p className="text-[11px] text-on-surface-variant">Manual workplace geofence configuration</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowManualCoordsModal(false)}
+                className="text-on-surface-variant hover:text-on-surface p-1 rounded-lg hover:bg-surface-container transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="p-3 bg-surface-container-low rounded-xl text-xs text-on-surface-variant space-y-1.5 border border-outline-variant/60">
+              <div className="font-bold text-on-surface flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-xs text-emerald-600">info</span>
+                <span>How to copy coordinates from Google Maps:</span>
+              </div>
+              <ol className="list-decimal pl-4 space-y-0.5 text-[11px]">
+                <li>Open <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="text-vibrant-orange underline font-semibold">maps.google.com</a> in a new tab</li>
+                <li>Right-click directly on your office building</li>
+                <li>Click the top coordinates (e.g. <code className="bg-surface px-1 rounded font-mono">14.5995, 120.9842</code>) to copy</li>
+                <li>Paste directly into the Latitude field below!</li>
+              </ol>
+            </div>
+
+            <form onSubmit={handleSaveManualCoords} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface mb-1">
+                  Latitude <span className="text-error">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 14.599512"
+                  value={manualCoordsInput.latitude}
+                  onChange={(e) => setManualCoordsInput({ ...manualCoordsInput, latitude: e.target.value })}
+                  onPaste={handlePasteCoords}
+                  className="w-full px-3 py-2 bg-surface-container rounded-lg border border-outline-variant text-xs text-on-surface focus:outline-hidden focus:border-vibrant-orange font-mono"
+                />
+                <span className="text-[10px] text-on-surface-variant block mt-0.5">
+                  Tip: Pasting "lat, lng" here autofills both coordinates
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface mb-1">
+                  Longitude <span className="text-error">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 120.984214"
+                  value={manualCoordsInput.longitude}
+                  onChange={(e) => setManualCoordsInput({ ...manualCoordsInput, longitude: e.target.value })}
+                  className="w-full px-3 py-2 bg-surface-container rounded-lg border border-outline-variant text-xs text-on-surface focus:outline-hidden focus:border-vibrant-orange font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface mb-1">
+                  Geofence Radius
+                </label>
+                <select
+                  value={manualCoordsInput.radius}
+                  onChange={(e) => setManualCoordsInput({ ...manualCoordsInput, radius: Number(e.target.value) })}
+                  className="w-full px-3 py-2 bg-surface-container rounded-lg border border-outline-variant text-xs text-on-surface focus:outline-hidden focus:border-vibrant-orange"
+                >
+                  <option value={50}>50 meters (Compact Office / Single Floor)</option>
+                  <option value={100}>100 meters (Standard Workplace Radius)</option>
+                  <option value={200}>200 meters (Large Building / Compound)</option>
+                  <option value={500}>500 meters (University / Corporate Campus)</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowManualCoordsModal(false)}
+                  className="px-3.5 py-1.5 text-xs font-bold text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingManualCoords}
+                  className="px-4 py-1.5 bg-vibrant-orange hover:bg-deep-orange text-white text-xs font-bold rounded-lg transition-colors shadow-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {savingManualCoords ? (
+                    <>
+                      <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[15px]">check_circle</span>
+                      <span>Save Office Geofence</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
